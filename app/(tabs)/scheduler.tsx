@@ -91,6 +91,12 @@ type Shift = {
   status: 'Draft' | 'Published';
 };
 
+const isValidDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().startsWith(value);
+};
+
 export default function SchedulerScreen() {
   const { demandTargets, triggerForecast, overrideTarget, loading: forecastLoading, error: forecastError } =
     useDemandForecast();
@@ -130,6 +136,8 @@ export default function SchedulerScreen() {
     { id: 'shift-3', date: '2024-12-13', workerId: 'W-02', templateId: 'weekend', location: 'Remote', status: 'Draft' },
   ]);
 
+  const [shiftError, setShiftError] = useState<string | null>(null);
+
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
     day: 'Fri',
@@ -149,6 +157,12 @@ export default function SchedulerScreen() {
     required: '3',
     notes: 'Weekend backlog',
   });
+
+  const rosterLookup = useMemo(() => {
+    const map = new Map<string, boolean>();
+    roster.forEach((shift) => map.set(`${shift.workerId}::${shift.date}::${shift.templateId}`, true));
+    return map;
+  }, [roster]);
 
   const rosterByDate = useMemo(() => {
     return roster.reduce<Record<string, (Shift & { template?: ShiftTemplate; worker?: Worker })[]>>(
@@ -213,14 +227,46 @@ export default function SchedulerScreen() {
   };
 
   const handleShiftSubmit = () => {
-    if (!shiftForm.workerId || !shiftForm.templateId || !shiftForm.date) return;
+    const trimmedWorkerId = shiftForm.workerId.trim();
+    const trimmedTemplateId = shiftForm.templateId.trim();
+    const trimmedDate = shiftForm.date.trim();
+
+    const errors: string[] = [];
+
+    if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate) {
+      errors.push('All fields are required.');
+    }
+
+    if (trimmedDate && !isValidDate(trimmedDate)) {
+      errors.push('Date must use the YYYY-MM-DD format.');
+    }
+
+    if (trimmedWorkerId && !workers.some((worker) => worker.id === trimmedWorkerId)) {
+      errors.push('Worker ID must match an existing worker.');
+    }
+
+    if (trimmedTemplateId && !shiftTemplates.some((template) => template.id === trimmedTemplateId)) {
+      errors.push('Template ID must match an existing template.');
+    }
+
+    const shiftKey = `${trimmedWorkerId}::${trimmedDate}::${trimmedTemplateId}`;
+    if (rosterLookup.has(shiftKey)) {
+      errors.push('This worker, date, and template combination is already scheduled.');
+    }
+
+    if (errors.length > 0) {
+      setShiftError(errors.join(' '));
+      return;
+    }
+
+    setShiftError(null);
     setRoster((prev) => [
       ...prev,
       {
         id: `shift-${prev.length + 1}`,
-        date: shiftForm.date,
-        workerId: shiftForm.workerId,
-        templateId: shiftForm.templateId,
+        date: trimmedDate,
+        workerId: trimmedWorkerId,
+        templateId: trimmedTemplateId,
         location: 'HQ',
         status: 'Draft',
       },
@@ -380,6 +426,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleShiftSubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Schedule shift</ThemedText>
         </Pressable>
+        {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
       </SectionCard>
 
       <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
