@@ -1,9 +1,18 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  Pressable,
+} from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import ConfettiBurst from '@/components/ConfettiBurst';
 import { useDemandForecast } from '@/hooks/useDemandForecast';
 import { DemandForecast } from '@/services/demandForecast';
 
@@ -513,6 +522,11 @@ export default function SchedulerScreen() {
       }
     | null
   >(null);
+  const [publishCelebration, setPublishCelebration] = useState({
+    badgeVisible: false,
+    confettiBurst: false,
+  });
+  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
 
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
@@ -546,6 +560,12 @@ export default function SchedulerScreen() {
   const { section } = useLocalSearchParams<{ section?: string }>();
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
 
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotionEnabled);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => subscription.remove();
+  }, []);
+
   const rosterLookup = useMemo(() => {
     const map = new Map<string, boolean>();
     roster.forEach((shift) => map.set(`${shift.workerId}::${shift.date}::${shift.templateId}`, true));
@@ -564,6 +584,25 @@ export default function SchedulerScreen() {
       {}
     );
   }, [roster, shiftTemplates, workers]);
+
+  useEffect(() => {
+    if (!publishCelebration.confettiBurst) return;
+    const timer = setTimeout(() => {
+      setPublishCelebration((prev) => ({ ...prev, confettiBurst: false }));
+    }, 1600);
+    return () => clearTimeout(timer);
+  }, [publishCelebration.confettiBurst]);
+
+  useEffect(() => {
+    if (reduceMotionEnabled && publishCelebration.confettiBurst) {
+      setPublishCelebration((prev) => ({ ...prev, confettiBurst: false }));
+    }
+  }, [publishCelebration.confettiBurst, reduceMotionEnabled]);
+
+  useEffect(() => {
+    if (roster.some((shift) => shift.status === 'Published')) return;
+    setPublishCelebration({ badgeVisible: false, confettiBurst: false });
+  }, [roster]);
 
   const upcomingShifts = useMemo(() => {
     return [...roster]
@@ -793,6 +832,13 @@ export default function SchedulerScreen() {
     []
   );
 
+  const celebrateRosterPublish = useCallback(() => {
+    setPublishCelebration((prev) => ({
+      badgeVisible: true,
+      confettiBurst: prev.badgeVisible || reduceMotionEnabled ? false : true,
+    }));
+  }, [reduceMotionEnabled]);
+
   const forecastBlockingReason = useMemo(() => {
     if (!isForecastInputValid) return 'Add date & role to forecast';
     if (forecastPending) return forecastPendingLabel;
@@ -960,6 +1006,7 @@ export default function SchedulerScreen() {
             `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
             'success'
           );
+          celebrateRosterPublish();
         },
       },
     ]);
@@ -1000,55 +1047,57 @@ export default function SchedulerScreen() {
   };
 
   return (
-    <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
-      <ThemedText type="title" style={styles.pageTitle}>
-        Scheduler
-      </ThemedText>
-      <ThemedText style={styles.mutedText}>
-        Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
-      </ThemedText>
-      {actionBanner ? (
-        <ThemedView
-          style={[
-            styles.banner,
-            actionBanner.type === 'success' && styles.bannerSuccess,
-            actionBanner.type === 'error' && styles.bannerError,
-          ]}
-        >
-          <ThemedText style={styles.bannerText}>{actionBanner.message}</ThemedText>
-        </ThemedView>
-      ) : null}
+    <ThemedView style={styles.screenContainer}>
+      <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
+        <ThemedText type="title" style={styles.pageTitle}>
+          Scheduler
+        </ThemedText>
+        <ThemedText style={styles.mutedText}>
+          Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
+        </ThemedText>
+        {actionBanner ? (
+          <ThemedView
+            style={[
+              styles.banner,
+              actionBanner.type === 'success' && styles.bannerSuccess,
+              actionBanner.type === 'error' && styles.bannerError,
+            ]}
+          >
+            <ThemedText style={styles.bannerText}>{actionBanner.message}</ThemedText>
+          </ThemedView>
+        ) : null}
 
-      <SectionCard
-        title="Worker management"
-        subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
-      >
-        {workers.map((worker) => (
-          <View key={worker.id} style={styles.rowBetween}>
-            <View style={styles.rowContent}>
-              <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
-              <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
-              <View style={styles.tagRow}>
-                {worker.skills.map((skill) => (
-                  <View key={`${worker.id}-${skill}`} style={styles.tag}>
-                    <ThemedText style={styles.badgeText}>{skill}</ThemedText>
-                  </View>
+        <SectionCard
+          title="Worker management"
+          subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
+        >
+          {workers.map((worker) => (
+            <View key={worker.id} style={styles.rowBetween}>
+              <View style={styles.rowContent}>
+                <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
+                <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
+                <View style={styles.tagRow}>
+                  {worker.skills.map((skill) => (
+                    <View key={`${worker.id}-${skill}`} style={styles.tag}>
+                      <ThemedText style={styles.badgeText}>{skill}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.availabilityList}>
+                {worker.availability.map((slot, index) => (
+                  <AvailabilityLabel key={`${worker.id}-${index}`} day={slot.day} from={slot.from} to={slot.to} />
                 ))}
               </View>
             </View>
-            <View style={styles.availabilityList}>
-              {worker.availability.map((slot, index) => (
-                <AvailabilityLabel key={`${worker.id}-${index}`} day={slot.day} from={slot.from} to={slot.to} />
-              ))}
-            </View>
-          </View>
-        ))}
-      </SectionCard>
+          ))}
+        </SectionCard>
 
-      <SectionCard
-        title="Availability intake"
-        subtitle="Capture recent changes before building rosters."
-      >
+        <SectionCard
+          title="Availability intake"
+          subtitle="Capture recent changes before building rosters."
+        >
         <InputField
           label="Worker"
           value={availabilityForm.workerId}
@@ -1245,6 +1294,12 @@ export default function SchedulerScreen() {
         title="Calendar & roster"
         subtitle="Review what is published and where you have coverage gaps."
       >
+        {publishCelebration.badgeVisible ? (
+          <View style={[styles.badge, styles.positiveBadge, styles.securedBadge]}>
+            <View style={styles.securedDot} />
+            <ThemedText style={styles.badgeText}>Next 7 days secured.</ThemedText>
+          </View>
+        ) : null}
         {Object.entries(rosterByDate).map(([date, shifts]) => (
           <View key={date} style={styles.rosterDay}>
             <ThemedText type="defaultSemiBold">{date}</ThemedText>
@@ -1335,10 +1390,15 @@ export default function SchedulerScreen() {
         )}
       </SectionCard>
     </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
+  screenContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   container: {
     padding: 16,
     gap: 12,
@@ -1424,6 +1484,18 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontWeight: '700',
+  },
+  securedBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  securedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#16a34a',
   },
   availabilityList: {
     flexDirection: 'row',
