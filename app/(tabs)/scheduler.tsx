@@ -102,6 +102,15 @@ type Shift = {
   notified?: boolean;
 };
 
+type OnboardingStep = {
+  key: 'workers' | 'templates' | 'forecast';
+  title: string;
+  description: string;
+  completed: boolean;
+  actionLabel: string;
+  onPress: () => void;
+};
+
 const LOST_REVENUE_PER_UNCOVERED_ROLE = 325;
 
 const formatCurrency = (value: number) => `$${Math.round(value).toLocaleString('en-US')}`;
@@ -184,6 +193,43 @@ const windowsOverlap = (
   first: { startMinutes: number; endMinutes: number },
   second: { startMinutes: number; endMinutes: number }
 ) => first.startMinutes < second.endMinutes && second.startMinutes < first.endMinutes;
+
+const Checklist = ({ steps, progress }: { steps: OnboardingStep[]; progress: number }) => (
+  <ThemedView style={styles.onboardingCard}>
+    <View style={styles.rowBetween}>
+      <View>
+        <ThemedText type="subtitle">Get started fast</ThemedText>
+        <ThemedText style={styles.mutedText}>Complete the essentials to unlock forecasting.</ThemedText>
+      </View>
+      <View style={styles.progressBadge}>
+        <ThemedText style={styles.badgeText}>{Math.round(progress * 100)}%</ThemedText>
+      </View>
+    </View>
+    <View style={styles.progressTrack}>
+      <View style={[styles.progressFill, { width: `${Math.max(progress * 100, 6)}%` }]} />
+    </View>
+    {steps.map((step, index) => (
+      <Pressable
+        key={step.key}
+        onPress={step.onPress}
+        style={[styles.rowBetween, styles.onboardingStep]}
+        accessibilityRole="button"
+        accessibilityLabel={`${step.title}${step.completed ? ' completed' : ''}`}
+      >
+        <View style={[styles.stepIndicator, step.completed && styles.stepIndicatorDone]}>
+          <ThemedText style={styles.stepIndicatorText}>
+            {step.completed ? '✓' : index + 1}
+          </ThemedText>
+        </View>
+        <View style={{ flex: 1, marginHorizontal: 10 }}>
+          <ThemedText type="defaultSemiBold">{step.title}</ThemedText>
+          <ThemedText style={styles.mutedText}>{step.description}</ThemedText>
+        </View>
+        <ThemedText style={styles.linkText}>{step.completed ? 'Done' : step.actionLabel}</ThemedText>
+      </Pressable>
+    ))}
+  </ThemedView>
+);
 
 const validateShiftReadiness = (
   shift: Shift,
@@ -555,7 +601,13 @@ export default function SchedulerScreen() {
   const baselineTargetsRef = useRef<DemandForecast[] | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const shiftSectionRef = useRef<View>(null);
+  const workerSectionRef = useRef<View>(null);
+  const templateSectionRef = useRef<View>(null);
+  const demandSectionRef = useRef<View>(null);
   const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
+  const [workerSectionOffset, setWorkerSectionOffset] = useState<number | null>(null);
+  const [templateSectionOffset, setTemplateSectionOffset] = useState<number | null>(null);
+  const [demandSectionOffset, setDemandSectionOffset] = useState<number | null>(null);
   const router = useRouter();
   const { section } = useLocalSearchParams<{ section?: string }>();
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
@@ -886,10 +938,71 @@ export default function SchedulerScreen() {
     triggerForecast,
   ]);
 
+  const scrollToSection = useCallback((offset: number | null) => {
+    if (offset == null) return;
+    scrollViewRef.current?.scrollTo({ y: Math.max(offset - 12, 0), animated: true });
+  }, []);
+
   const scrollToShiftSection = useCallback(() => {
-    if (shiftSectionOffset == null) return;
-    scrollViewRef.current?.scrollTo({ y: Math.max(shiftSectionOffset - 12, 0), animated: true });
-  }, [shiftSectionOffset]);
+    scrollToSection(shiftSectionOffset);
+  }, [scrollToSection, shiftSectionOffset]);
+
+  const goToSection = useCallback(
+    (target: OnboardingStep['key']) => {
+      const offsetLookup: Record<OnboardingStep['key'], number | null> = {
+        workers: workerSectionOffset,
+        templates: templateSectionOffset,
+        forecast: demandSectionOffset,
+      };
+
+      scrollToSection(offsetLookup[target]);
+      router.setParams({ section: target });
+    },
+    [demandSectionOffset, router, scrollToSection, templateSectionOffset, workerSectionOffset]
+  );
+
+  const onboardingSteps = useMemo<OnboardingStep[]>(
+    () => [
+      {
+        key: 'workers',
+        title: 'Add workers',
+        description: 'Create worker profiles and availability.',
+        completed: workers.length > 0,
+        actionLabel: 'Add workers',
+        onPress: () => goToSection('workers'),
+      },
+      {
+        key: 'templates',
+        title: 'Save templates',
+        description: 'Standardize common shifts with coverage.',
+        completed: shiftTemplates.length > 0,
+        actionLabel: 'Add template',
+        onPress: () => goToSection('templates'),
+      },
+      {
+        key: 'forecast',
+        title: 'Run forecast',
+        description: 'Generate demand targets to compare coverage.',
+        completed: demandTargets.length > 0 || forecasting || forecastLoading,
+        actionLabel: forecastLoading || forecasting ? 'Running…' : 'Run forecast',
+        onPress: () => goToSection('forecast'),
+      },
+    ],
+    [
+      demandTargets.length,
+      forecastLoading,
+      forecasting,
+      goToSection,
+      shiftTemplates.length,
+      workers.length,
+    ]
+  );
+
+  const onboardingProgress = useMemo(() => {
+    if (!onboardingSteps.length) return 0;
+    const completed = onboardingSteps.filter((step) => step.completed).length;
+    return completed / onboardingSteps.length;
+  }, [onboardingSteps]);
 
   useEffect(() => {
     if (forecastTimerRef.current) {
@@ -946,10 +1059,33 @@ export default function SchedulerScreen() {
   }, [demandTargets]);
 
   useEffect(() => {
-    if (section === 'shifts' && shiftSectionOffset != null) {
+    if (section === 'workers') {
+      scrollToSection(workerSectionOffset);
+      return;
+    }
+
+    if (section === 'templates') {
+      scrollToSection(templateSectionOffset);
+      return;
+    }
+
+    if (section === 'forecast') {
+      scrollToSection(demandSectionOffset);
+      return;
+    }
+
+    if (section === 'shifts') {
       scrollToShiftSection();
     }
-  }, [scrollToShiftSection, section, shiftSectionOffset]);
+  }, [
+    demandSectionOffset,
+    scrollToSection,
+    scrollToShiftSection,
+    section,
+    shiftSectionOffset,
+    templateSectionOffset,
+    workerSectionOffset,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1068,31 +1204,38 @@ export default function SchedulerScreen() {
           </ThemedView>
         ) : null}
 
-        <SectionCard
-          title="Worker management"
-          subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
+        <Checklist steps={onboardingSteps} progress={onboardingProgress} />
+
+        <View
+          ref={workerSectionRef}
+          onLayout={(event) => setWorkerSectionOffset(event.nativeEvent.layout.y)}
         >
-          {workers.map((worker) => (
-            <View key={worker.id} style={styles.rowBetween}>
-              <View style={styles.rowContent}>
-                <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
-                <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
-                <View style={styles.tagRow}>
-                  {worker.skills.map((skill) => (
-                    <View key={`${worker.id}-${skill}`} style={styles.tag}>
-                      <ThemedText style={styles.badgeText}>{skill}</ThemedText>
-                    </View>
+          <SectionCard
+            title="Worker management"
+            subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
+          >
+            {workers.map((worker) => (
+              <View key={worker.id} style={styles.rowBetween}>
+                <View style={styles.rowContent}>
+                  <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
+                  <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
+                  <View style={styles.tagRow}>
+                    {worker.skills.map((skill) => (
+                      <View key={`${worker.id}-${skill}`} style={styles.tag}>
+                        <ThemedText style={styles.badgeText}>{skill}</ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={styles.availabilityList}>
+                  {worker.availability.map((slot, index) => (
+                    <AvailabilityLabel key={`${worker.id}-${index}`} day={slot.day} from={slot.from} to={slot.to} />
                   ))}
                 </View>
               </View>
-              <View style={styles.availabilityList}>
-                {worker.availability.map((slot, index) => (
-                  <AvailabilityLabel key={`${worker.id}-${index}`} day={slot.day} from={slot.from} to={slot.to} />
-                ))}
-              </View>
-            </View>
-          ))}
-        </SectionCard>
+            ))}
+          </SectionCard>
+        </View>
 
         <SectionCard
           title="Availability intake"
@@ -1153,22 +1296,27 @@ export default function SchedulerScreen() {
         {availabilityError ? <ThemedText style={styles.errorText}>{availabilityError}</ThemedText> : null}
       </SectionCard>
 
-      <SectionCard
-        title="Shift templates"
-        subtitle="Standardize start/end times and coverage expectations by role."
+      <View
+        ref={templateSectionRef}
+        onLayout={(event) => setTemplateSectionOffset(event.nativeEvent.layout.y)}
       >
-        {shiftTemplates.map((template) => (
-          <View key={template.id} style={styles.rowBetween}>
-            <View>
-              <ThemedText type="defaultSemiBold">{template.name}</ThemedText>
-              <ThemedText style={styles.mutedText}>
-                {template.role} • {template.start} - {template.end}
-              </ThemedText>
+        <SectionCard
+          title="Shift templates"
+          subtitle="Standardize start/end times and coverage expectations by role."
+        >
+          {shiftTemplates.map((template) => (
+            <View key={template.id} style={styles.rowBetween}>
+              <View>
+                <ThemedText type="defaultSemiBold">{template.name}</ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {template.role} • {template.start} - {template.end}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.badgeText}>{template.coverage} needed</ThemedText>
             </View>
-            <ThemedText style={styles.badgeText}>{template.coverage} needed</ThemedText>
-          </View>
-        ))}
-      </SectionCard>
+          ))}
+        </SectionCard>
+      </View>
 
       <View
         ref={shiftSectionRef}
@@ -1206,7 +1354,11 @@ export default function SchedulerScreen() {
         </SectionCard>
       </View>
 
-      <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
+      <View
+        ref={demandSectionRef}
+        onLayout={(event) => setDemandSectionOffset(event.nativeEvent.layout.y)}
+      >
+        <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
         <View style={styles.inlineInputs}>
           <InputField
             label="Date"
@@ -1288,7 +1440,8 @@ export default function SchedulerScreen() {
             <ThemedText style={styles.badgeText}>{target.required} needed</ThemedText>
           </View>
         ))}
-      </SectionCard>
+        </SectionCard>
+      </View>
 
       <SectionCard
         title="Calendar & roster"
@@ -1406,6 +1559,43 @@ const styles = StyleSheet.create({
   pageTitle: {
     marginBottom: 4,
   },
+  onboardingCard: {
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  onboardingStep: {
+    paddingVertical: 6,
+  },
+  stepIndicator: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  stepIndicatorDone: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
+  },
+  stepIndicatorText: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  progressBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
   card: {
     borderRadius: 12,
     padding: 16,
@@ -1484,6 +1674,10 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontWeight: '700',
+  },
+  linkText: {
+    color: '#2563EB',
+    fontWeight: '600',
   },
   securedBadge: {
     alignSelf: 'flex-start',
