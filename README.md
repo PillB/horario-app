@@ -44,7 +44,8 @@ To learn more about developing your project with Expo, look at the following res
 
 ## Supabase configuration
 
-See [docs/supabase.md](docs/supabase.md) for the environment variables required to run the app locally and in CI.
+See [docs/supabase.md](docs/supabase.md) for the environment variables required to run the app locally and in CI. For creating
+the supporting tables, indexes, and RLS policies in Supabase, follow [docs/SETUP_SUPABASE.md](docs/SETUP_SUPABASE.md).
 
 ## Join the community
 
