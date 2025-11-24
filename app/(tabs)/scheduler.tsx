@@ -136,13 +136,13 @@ const parseTimeToMinutes = (value: string) => {
 
 const defaultTimezoneOffsetMinutes = -new Date().getTimezoneOffset();
 
-const getWeekdayFromDate = (value: string, timezoneOffsetMinutes = defaultTimezoneOffsetMinutes) => {
+const getWeekdayFromDate = (value: string, timezoneOffsetMinutes?: number) => {
   if (!isValidDate(value)) return null;
   const parsed = new Date(`${value}T00:00:00`);
   if (!Number.isFinite(parsed.getTime())) return null;
 
-  const targetOffset = timezoneOffsetMinutes;
   const deviceOffset = -parsed.getTimezoneOffset();
+  const targetOffset = timezoneOffsetMinutes ?? deviceOffset;
   const offsetDelta = targetOffset - deviceOffset;
   const adjusted = new Date(parsed.getTime() + offsetDelta * 60 * 1000);
 
