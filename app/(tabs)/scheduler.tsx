@@ -192,9 +192,12 @@ const validateAvailabilitySubmission = (
     errors.push('To time must use the 24-hour HH:MM format.');
   }
 
+  let fromMinutes: number | null = null;
+  let toMinutes: number | null = null;
+
   if (trimmedFrom && trimmedTo && isValidTime(trimmedFrom) && isValidTime(trimmedTo)) {
-    const fromMinutes = parseTimeToMinutes(trimmedFrom);
-    const toMinutes = parseTimeToMinutes(trimmedTo);
+    fromMinutes = parseTimeToMinutes(trimmedFrom);
+    toMinutes = parseTimeToMinutes(trimmedTo);
     if (fromMinutes >= toMinutes) {
       errors.push('From time must be earlier than to time.');
     }
@@ -203,7 +206,26 @@ const validateAvailabilitySubmission = (
   if (!errors.length) {
     const worker = workers.find((candidate) => candidate.id === trimmedWorkerId);
     const dayKey = normalizedDay ?? trimmedDay;
-    if (worker?.availability.some((slot) => slot.day === dayKey && slot.from === trimmedFrom && slot.to === trimmedTo)) {
+    let hasOverlap = false;
+    if (worker && normalizedDay && fromMinutes !== null && toMinutes !== null) {
+      const overlappingSlot = worker.availability.find((slot) => {
+        if (slot.day !== normalizedDay) return false;
+        const existingWindow = {
+          startMinutes: parseTimeToMinutes(slot.from),
+          endMinutes: parseTimeToMinutes(slot.to),
+        };
+        return windowsOverlap(existingWindow, { startMinutes: fromMinutes, endMinutes: toMinutes });
+      });
+
+      if (overlappingSlot) {
+        hasOverlap = true;
+        errors.push(
+          `Availability overlaps with an existing interval on ${normalizedDay} from ${overlappingSlot.from} to ${overlappingSlot.to}.`
+        );
+      }
+    }
+
+    if (!hasOverlap && worker?.availability.some((slot) => slot.day === dayKey && slot.from === trimmedFrom && slot.to === trimmedTo)) {
       errors.push('This availability interval already exists for the worker.');
     }
   }
