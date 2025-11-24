@@ -228,10 +228,14 @@ export default function SchedulerScreen() {
   const staffingGaps = useMemo(() => {
     return demandTargets
       .map((target) => {
-        const scheduled = roster.filter((shift) => {
+        const scheduled = roster.reduce((total, shift) => {
           const template = shiftTemplates.find((t) => t.id === shift.templateId);
-          return shift.date === target.date && template?.role === target.role;
-        }).length;
+          if (shift.date === target.date && template?.role === target.role) {
+            return total + (template.coverage ?? 0);
+          }
+
+          return total;
+        }, 0);
         return {
           ...target,
           scheduled,
@@ -596,7 +600,10 @@ export default function SchedulerScreen() {
                 <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
                 <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
               </View>
-              <ThemedText style={styles.badgeText}>{gap.gap} open</ThemedText>
+              <View style={styles.statusPill}>
+                <ThemedText style={styles.badgeText}>{gap.scheduled} scheduled</ThemedText>
+                <ThemedText style={styles.mutedText}>Shortfall: {gap.gap}</ThemedText>
+              </View>
             </View>
           ))
         )}
