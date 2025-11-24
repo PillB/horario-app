@@ -129,6 +129,57 @@ const isValidTime = (value: string) => {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
 };
 
+const validateAvailabilitySubmission = (
+  form: { workerId: string; day: string; from: string; to: string },
+  workers: Worker[]
+) => {
+  const trimmedWorkerId = form.workerId.trim();
+  const trimmedDay = form.day.trim();
+  const trimmedFrom = form.from.trim();
+  const trimmedTo = form.to.trim();
+
+  const errors: string[] = [];
+  const normalizedDay = normalizeDay(trimmedDay);
+
+  if (!trimmedWorkerId) {
+    errors.push('Worker is required.');
+  }
+
+  if (!trimmedDay) {
+    errors.push('Day is required.');
+  }
+
+  if (!trimmedFrom || !trimmedTo) {
+    errors.push('From and to times are required.');
+  }
+
+  if (trimmedWorkerId && !workers.some((worker) => worker.id === trimmedWorkerId)) {
+    errors.push('Worker ID must match an existing worker.');
+  }
+
+  if (trimmedDay && !normalizedDay) {
+    errors.push('Day must be one of Mon, Tue, Wed, Thu, Fri, Sat, or Sun.');
+  }
+
+  if (trimmedFrom && !isValidTime(trimmedFrom)) {
+    errors.push('From time must use the 24-hour HH:MM format.');
+  }
+
+  if (trimmedTo && !isValidTime(trimmedTo)) {
+    errors.push('To time must use the 24-hour HH:MM format.');
+  }
+
+  if (!errors.length) {
+    const worker = workers.find((candidate) => candidate.id === trimmedWorkerId);
+    const dayKey = normalizedDay ?? trimmedDay;
+    if (worker?.availability.some((slot) => slot.day === dayKey && slot.from === trimmedFrom && slot.to === trimmedTo)) {
+      errors.push('This availability interval already exists for the worker.');
+    }
+  }
+
+  return { errors, normalizedDay, trimmedWorkerId, trimmedFrom, trimmedTo };
+};
+
 export default function SchedulerScreen() {
   const {
     demandTargets,
@@ -255,36 +306,12 @@ export default function SchedulerScreen() {
   }, [demandTargets, roster, shiftTemplates]);
 
   const handleAvailabilitySubmit = () => {
-    const trimmedWorkerId = availabilityForm.workerId.trim();
-    const trimmedDay = availabilityForm.day.trim();
-    const trimmedFrom = availabilityForm.from.trim();
-    const trimmedTo = availabilityForm.to.trim();
+    const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } = validateAvailabilitySubmission(
+      availabilityForm,
+      workers
+    );
 
-    const errors: string[] = [];
-
-    const normalizedDay = normalizeDay(trimmedDay);
-
-    if (!trimmedWorkerId || !trimmedDay || !trimmedFrom || !trimmedTo) {
-      errors.push('All availability fields are required.');
-    }
-
-    if (trimmedWorkerId && !workers.some((worker) => worker.id === trimmedWorkerId)) {
-      errors.push('Worker ID must match an existing worker.');
-    }
-
-    if (trimmedDay && !normalizedDay) {
-      errors.push('Day must be one of Mon, Tue, Wed, Thu, Fri, Sat, or Sun.');
-    }
-
-    if (trimmedFrom && !isValidTime(trimmedFrom)) {
-      errors.push('From time must use the 24-hour HH:MM format.');
-    }
-
-    if (trimmedTo && !isValidTime(trimmedTo)) {
-      errors.push('To time must use the 24-hour HH:MM format.');
-    }
-
-    if (errors.length > 0) {
+    if (errors.length > 0 || !normalizedDay) {
       setAvailabilityError(errors.join(' '));
       return;
     }
@@ -295,7 +322,7 @@ export default function SchedulerScreen() {
         worker.id === trimmedWorkerId
           ? {
               ...worker,
-              availability: [...worker.availability, { day: normalizedDay ?? trimmedDay, from: trimmedFrom, to: trimmedTo }],
+              availability: [...worker.availability, { day: normalizedDay, from: trimmedFrom, to: trimmedTo }],
             }
           : worker
       )
