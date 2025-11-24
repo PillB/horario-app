@@ -192,6 +192,14 @@ const validateAvailabilitySubmission = (
     errors.push('To time must use the 24-hour HH:MM format.');
   }
 
+  if (trimmedFrom && trimmedTo && isValidTime(trimmedFrom) && isValidTime(trimmedTo)) {
+    const fromMinutes = parseTimeToMinutes(trimmedFrom);
+    const toMinutes = parseTimeToMinutes(trimmedTo);
+    if (fromMinutes >= toMinutes) {
+      errors.push('From time must be earlier than to time.');
+    }
+  }
+
   if (!errors.length) {
     const worker = workers.find((candidate) => candidate.id === trimmedWorkerId);
     const dayKey = normalizedDay ?? trimmedDay;
