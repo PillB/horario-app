@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -89,6 +89,17 @@ type Shift = {
   templateId: string;
   location: string;
   status: 'Draft' | 'Published';
+  notified?: boolean;
+};
+
+const persistShiftStatus = async (shiftId: string, status: Shift['status']) => {
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  console.log(`Persisted shift ${shiftId} with status ${status}`);
+};
+
+const persistShiftNotification = async (shiftId: string) => {
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  console.log(`Logged notification for shift ${shiftId}`);
 };
 
 const isValidDate = (value: string) => {
@@ -159,6 +170,63 @@ const windowsOverlap = (
   first: { startMinutes: number; endMinutes: number },
   second: { startMinutes: number; endMinutes: number }
 ) => first.startMinutes < second.endMinutes && second.startMinutes < first.endMinutes;
+
+const validateShiftReadiness = (
+  shift: Shift,
+  roster: Shift[],
+  shiftTemplates: ShiftTemplate[],
+  workers: Worker[],
+  timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
+) => {
+  const errors: string[] = [];
+  const template = shiftTemplates.find((candidate) => candidate.id === shift.templateId);
+  const worker = workers.find((candidate) => candidate.id === shift.workerId);
+  const weekdayLabel = getWeekdayFromDate(shift.date, timezoneOffsetMinutes);
+
+  if (!template) {
+    errors.push('Template is no longer available for this shift.');
+  }
+
+  if (!worker) {
+    errors.push('Worker is no longer available for this shift.');
+  }
+
+  if (template && worker && worker.role !== template.role) {
+    errors.push(`Worker role (${worker.role}) must match template role (${template.role}).`);
+  }
+
+  if (template && worker && weekdayLabel) {
+    const { coveringSlot } = findCoveringAvailability(worker, template, shift.date, timezoneOffsetMinutes);
+    if (!coveringSlot) {
+      errors.push(
+        `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
+      );
+    }
+  }
+
+  if (template && weekdayLabel) {
+    const newWindow = getTemplateWindow(template);
+    const overlappingShift = roster.find((existingShift) => {
+      if (existingShift.id === shift.id) return false;
+      if (existingShift.workerId !== shift.workerId || existingShift.date !== shift.date) return false;
+      const existingTemplate = shiftTemplates.find((candidate) => candidate.id === existingShift.templateId);
+      if (!existingTemplate) return false;
+      const existingWindow = getTemplateWindow(existingTemplate);
+      return windowsOverlap(existingWindow, newWindow);
+    });
+
+    if (overlappingShift) {
+      const conflictingTemplate = shiftTemplates.find((candidate) => candidate.id === overlappingShift.templateId);
+      errors.push(
+        `Worker already has a shift on ${shift.date} from ${conflictingTemplate?.start ?? '??'} to ${
+          conflictingTemplate?.end ?? '??'
+        }. Adjust the time window to avoid overlaps.`
+      );
+    }
+  }
+
+  return { errors } as const;
+};
 
 const validateAvailabilitySubmission = (
   form: { workerId: string; day: string; from: string; to: string },
@@ -309,14 +377,45 @@ export default function SchedulerScreen() {
   ]);
 
   const [roster, setRoster] = useState<Shift[]>([
-    { id: 'shift-1', date: '2024-12-12', workerId: 'W-01', templateId: 'morning', location: 'HQ', status: 'Published' },
-    { id: 'shift-2', date: '2024-12-12', workerId: 'W-02', templateId: 'evening', location: 'HQ', status: 'Draft' },
-    { id: 'shift-3', date: '2024-12-13', workerId: 'W-02', templateId: 'weekend', location: 'Remote', status: 'Draft' },
+    {
+      id: 'shift-1',
+      date: '2024-12-12',
+      workerId: 'W-01',
+      templateId: 'morning',
+      location: 'HQ',
+      status: 'Published',
+      notified: false,
+    },
+    {
+      id: 'shift-2',
+      date: '2024-12-12',
+      workerId: 'W-02',
+      templateId: 'evening',
+      location: 'HQ',
+      status: 'Draft',
+      notified: false,
+    },
+    {
+      id: 'shift-3',
+      date: '2024-12-13',
+      workerId: 'W-02',
+      templateId: 'weekend',
+      location: 'Remote',
+      status: 'Draft',
+      notified: false,
+    },
   ]);
 
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [targetError, setTargetError] = useState<string | null>(null);
+  const [actionBanner, setActionBanner] = useState<
+    | {
+        type: 'success' | 'error' | 'info';
+        message: string;
+      }
+    | null
+  >(null);
 
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
@@ -341,6 +440,7 @@ export default function SchedulerScreen() {
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
 
   const rosterLookup = useMemo(() => {
@@ -571,6 +671,20 @@ export default function SchedulerScreen() {
   const forecastPendingCopy = 'Waiting for input to settle before forecasting…';
   const forecastPendingLabel = 'Waiting for edits…';
 
+  const showActionBanner = useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+      setActionBanner({ message, type });
+      if (actionBannerTimerRef.current) {
+        clearTimeout(actionBannerTimerRef.current);
+      }
+      actionBannerTimerRef.current = setTimeout(() => {
+        setActionBanner(null);
+        actionBannerTimerRef.current = null;
+      }, 4500);
+    },
+    []
+  );
+
   const forecastBlockingReason = useMemo(() => {
     if (!isForecastInputValid) return 'Add date & role to forecast';
     if (forecastPending) return forecastPendingLabel;
@@ -646,6 +760,100 @@ export default function SchedulerScreen() {
     }
   }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
 
+  useEffect(() => {
+    return () => {
+      if (actionBannerTimerRef.current) {
+        clearTimeout(actionBannerTimerRef.current);
+        actionBannerTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePublishShift = (shiftId: string) => {
+    const shift = roster.find((candidate) => candidate.id === shiftId);
+    if (!shift) return;
+
+    const { errors } = validateShiftReadiness(
+      shift,
+      roster,
+      shiftTemplates,
+      workers,
+      businessTimezoneOffsetMinutes
+    );
+
+    if (errors.length) {
+      showActionBanner(errors.join(' '), 'error');
+      return;
+    }
+
+    Alert.alert('Publish shift', 'Re-run validation and publish this roster entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Publish',
+        onPress: async () => {
+          const latestShift = roster.find((candidate) => candidate.id === shiftId);
+          if (!latestShift) return;
+          const validation = validateShiftReadiness(
+            latestShift,
+            roster,
+            shiftTemplates,
+            workers,
+            businessTimezoneOffsetMinutes
+          );
+          if (validation.errors.length) {
+            showActionBanner(validation.errors.join(' '), 'error');
+            return;
+          }
+
+          setRoster((prev) =>
+            prev.map((candidate) =>
+              candidate.id === shiftId ? { ...candidate, status: 'Published', notified: false } : candidate
+            )
+          );
+          await persistShiftStatus(shiftId, 'Published');
+          showActionBanner(
+            `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
+            'success'
+          );
+        },
+      },
+    ]);
+  };
+
+  const handleUnpublishShift = async (shiftId: string) => {
+    const shift = roster.find((candidate) => candidate.id === shiftId);
+    if (!shift) return;
+    if (shift.status === 'Draft') {
+      showActionBanner('Shift is already in Draft.', 'info');
+      return;
+    }
+
+    setRoster((prev) =>
+      prev.map((candidate) => (candidate.id === shiftId ? { ...candidate, status: 'Draft', notified: false } : candidate))
+    );
+    await persistShiftStatus(shiftId, 'Draft');
+    showActionBanner(`Unpublished ${shift.workerId} for ${shift.date}.`, 'info');
+  };
+
+  const handleNotifyShift = async (shiftId: string) => {
+    const shift = roster.find((candidate) => candidate.id === shiftId);
+    if (!shift) return;
+
+    if (shift.status !== 'Published') {
+      showActionBanner('Publish the shift before notifying workers.', 'info');
+      return;
+    }
+
+    if (shift.notified) {
+      showActionBanner('Notifications already sent for this shift.', 'info');
+      return;
+    }
+
+    setRoster((prev) => prev.map((candidate) => (candidate.id === shiftId ? { ...candidate, notified: true } : candidate)));
+    await persistShiftNotification(shiftId);
+    showActionBanner(`Sent notifications for ${shift.workerId} on ${shift.date}.`, 'success');
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <ThemedText type="title" style={styles.pageTitle}>
@@ -654,6 +862,17 @@ export default function SchedulerScreen() {
       <ThemedText style={styles.mutedText}>
         Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
       </ThemedText>
+      {actionBanner ? (
+        <ThemedView
+          style={[
+            styles.banner,
+            actionBanner.type === 'success' && styles.bannerSuccess,
+            actionBanner.type === 'error' && styles.bannerError,
+          ]}
+        >
+          <ThemedText style={styles.bannerText}>{actionBanner.message}</ThemedText>
+        </ThemedView>
+      ) : null}
 
       <SectionCard
         title="Worker management"
@@ -847,11 +1066,49 @@ export default function SchedulerScreen() {
             <ThemedText type="defaultSemiBold">{date}</ThemedText>
             {shifts.map((shift) => (
               <View key={shift.id} style={styles.rosterRow}>
-                <ThemedText style={styles.badgeText}>{shift.template?.name ?? shift.templateId}</ThemedText>
+                <View style={styles.rowBetween}>
+                  <ThemedText style={styles.badgeText}>{shift.template?.name ?? shift.templateId}</ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.status,
+                      shift.status === 'Draft' ? styles.draftStatus : styles.publishedStatus,
+                    ]}
+                  >
+                    {shift.status}
+                  </ThemedText>
+                </View>
                 <ThemedText>
                   {shift.worker?.name ?? shift.workerId} • {shift.template?.start} - {shift.template?.end}
                 </ThemedText>
-                <ThemedText style={styles.status}>{shift.status}</ThemedText>
+                <View style={styles.rosterActions}>
+                  <Pressable
+                    onPress={() => handlePublishShift(shift.id)}
+                    disabled={shift.status === 'Published'}
+                    style={[
+                      styles.actionChip,
+                      shift.status === 'Published' && styles.disabledButton,
+                      styles.actionChipPrimary,
+                    ]}
+                  >
+                    <ThemedText style={styles.actionChipText}>Publish</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleUnpublishShift(shift.id)}
+                    disabled={shift.status === 'Draft'}
+                    style={[styles.actionChip, shift.status === 'Draft' && styles.disabledButton]}
+                  >
+                    <ThemedText style={styles.actionChipText}>Unpublish</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleNotifyShift(shift.id)}
+                    disabled={shift.notified}
+                    style={[styles.actionChip, shift.notified && styles.disabledButton]}
+                  >
+                    <ThemedText style={styles.actionChipText}>
+                      {shift.notified ? 'Notified' : 'Notify'}
+                    </ThemedText>
+                  </Pressable>
+                </View>
               </View>
             ))}
           </View>
@@ -916,6 +1173,25 @@ const styles = StyleSheet.create({
   },
   mutedText: {
     color: '#9CA3AF',
+  },
+  banner: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  bannerSuccess: {
+    backgroundColor: '#ECFDF3',
+    borderColor: '#BBF7D0',
+  },
+  bannerError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  bannerText: {
+    color: '#0F172A',
+    fontWeight: '600',
   },
   rowBetween: {
     flexDirection: 'row',
@@ -1027,6 +1303,30 @@ const styles = StyleSheet.create({
   status: {
     color: '#065f46',
     fontWeight: '600',
+  },
+  draftStatus: {
+    color: '#92400e',
+  },
+  publishedStatus: {
+    color: '#15803d',
+  },
+  rosterActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  actionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  actionChipPrimary: {
+    backgroundColor: '#2563EB',
+  },
+  actionChipText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   statusPill: {
     alignItems: 'flex-end',
