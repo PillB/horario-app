@@ -15,6 +15,11 @@ import { ThemedView } from '@/components/ThemedView';
 import ConfettiBurst from '@/components/ConfettiBurst';
 import { useDemandForecast } from '@/hooks/useDemandForecast';
 import { DemandForecast } from '@/services/demandForecast';
+import {
+  OnboardingProgress,
+  fetchOnboardingProgress,
+  upsertOnboardingProgress,
+} from '@/services/onboardingProgress';
 
 const AvailabilityLabel = ({ day, from, to }: { day: string; from: string; to: string }) => (
   <View style={styles.badge}>
@@ -498,6 +503,9 @@ export default function SchedulerScreen() {
     forecasting,
   } = useDemandForecast();
 
+  const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
+  const userId = process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
+
   const [workers, setWorkers] = useState<Worker[]>([
     {
       id: 'W-01',
@@ -556,6 +564,8 @@ export default function SchedulerScreen() {
       notified: false,
     },
   ]);
+
+  const [savedOnboardingProgress, setSavedOnboardingProgress] = useState<OnboardingProgress | null>(null);
 
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -617,6 +627,23 @@ export default function SchedulerScreen() {
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOnboardingProgress = async () => {
+      const progress = await fetchOnboardingProgress(accountId, userId);
+      if (progress && isMounted) {
+        setSavedOnboardingProgress(progress);
+      }
+    };
+
+    loadOnboardingProgress();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accountId, userId]);
 
   const rosterLookup = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -961,13 +988,58 @@ export default function SchedulerScreen() {
     [demandSectionOffset, router, scrollToSection, templateSectionOffset, workerSectionOffset]
   );
 
+  const derivedOnboardingFlags = useMemo(
+    () => ({
+      workers: workers.length > 0,
+      templates: shiftTemplates.length > 0,
+      forecast: demandTargets.length > 0 || forecasting || forecastLoading,
+    }),
+    [demandTargets.length, forecastLoading, forecasting, shiftTemplates.length, workers.length]
+  );
+
+  const effectiveOnboardingFlags = useMemo(() => {
+    const persisted = savedOnboardingProgress ?? { workers: false, templates: false, forecast: false };
+    return {
+      workers: persisted.workers || derivedOnboardingFlags.workers,
+      templates: persisted.templates || derivedOnboardingFlags.templates,
+      forecast: persisted.forecast || derivedOnboardingFlags.forecast,
+    };
+  }, [derivedOnboardingFlags, savedOnboardingProgress]);
+
+  useEffect(() => {
+    const persistProgress = async () => {
+      const previous = savedOnboardingProgress ?? { workers: false, templates: false, forecast: false };
+      const next: OnboardingProgress = { ...previous };
+
+      (['workers', 'templates', 'forecast'] as const).forEach((key) => {
+        if (derivedOnboardingFlags[key] && !previous[key]) {
+          next[key] = true;
+        }
+      });
+
+      const shouldPersist =
+        next.workers !== previous.workers ||
+        next.templates !== previous.templates ||
+        next.forecast !== previous.forecast;
+
+      if (!shouldPersist) return;
+
+      const persisted = await upsertOnboardingProgress(accountId, next, userId);
+      if (persisted) {
+        setSavedOnboardingProgress(persisted);
+      }
+    };
+
+    persistProgress();
+  }, [accountId, derivedOnboardingFlags, savedOnboardingProgress, userId]);
+
   const onboardingSteps = useMemo<OnboardingStep[]>(
     () => [
       {
         key: 'workers',
         title: 'Add workers',
         description: 'Create worker profiles and availability.',
-        completed: workers.length > 0,
+        completed: effectiveOnboardingFlags.workers,
         actionLabel: 'Add workers',
         onPress: () => goToSection('workers'),
       },
@@ -975,7 +1047,7 @@ export default function SchedulerScreen() {
         key: 'templates',
         title: 'Save templates',
         description: 'Standardize common shifts with coverage.',
-        completed: shiftTemplates.length > 0,
+        completed: effectiveOnboardingFlags.templates,
         actionLabel: 'Add template',
         onPress: () => goToSection('templates'),
       },
@@ -983,18 +1055,18 @@ export default function SchedulerScreen() {
         key: 'forecast',
         title: 'Run forecast',
         description: 'Generate demand targets to compare coverage.',
-        completed: demandTargets.length > 0 || forecasting || forecastLoading,
+        completed: effectiveOnboardingFlags.forecast,
         actionLabel: forecastLoading || forecasting ? 'Running…' : 'Run forecast',
         onPress: () => goToSection('forecast'),
       },
     ],
     [
-      demandTargets.length,
+      effectiveOnboardingFlags.forecast,
+      effectiveOnboardingFlags.templates,
+      effectiveOnboardingFlags.workers,
       forecastLoading,
       forecasting,
       goToSection,
-      shiftTemplates.length,
-      workers.length,
     ]
   );
 
