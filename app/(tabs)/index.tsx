@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
@@ -18,6 +18,9 @@ const staffingGaps = [
 ];
 
 export default function HomeScreen() {
+  const { width } = useWindowDimensions();
+  const isWideLayout = width >= 768;
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -27,9 +30,12 @@ export default function HomeScreen() {
           style={styles.reactLogo}
         />
       }>
-      <ThemedView style={styles.titleContainer}>
-        <View style={{ flex: 1 }}>
-          <ThemedText type="title">Scheduler overview</ThemedText>
+      <ThemedView
+        style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
+        <View style={[styles.heroCopy, isWideLayout && styles.heroCopyWide]}>
+          <ThemedText type="title">
+            Cut no-shows by auto-matching availability to demand in seconds.
+          </ThemedText>
           <ThemedText style={styles.mutedText}>
             Keep worker availability, templates, and roster health in sync.
           </ThemedText>
@@ -101,10 +107,23 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
     marginBottom: 12,
+    alignItems: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+  },
+  titleStack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  heroCopy: {
+    gap: 8,
+    width: '100%',
+  },
+  heroCopyWide: {
+    flex: 1,
   },
   mutedText: {
     color: '#9CA3AF',
