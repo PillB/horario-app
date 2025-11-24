@@ -9,14 +9,24 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const theme = useColorScheme() ?? 'light';
 
   return (
     <ThemedView>
       <TouchableOpacity
-        style={styles.heading}
         onPress={() => setIsOpen((value) => !value)}
-        activeOpacity={0.8}>
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: isOpen }}
+        focusable
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        style={[
+          styles.heading,
+          isFocused && [styles.headingFocused, { borderColor: Colors[theme].tint }],
+        ]}>
         <IconSymbol
           name="chevron.right"
           size={18}
@@ -37,6 +47,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  headingFocused: {
+    borderWidth: 2,
+    borderColor: Colors.light.tint,
+    borderRadius: 8,
+    padding: 4,
   },
   content: {
     marginTop: 6,
