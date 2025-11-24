@@ -303,6 +303,7 @@ export default function SchedulerScreen() {
   });
 
   const [forecastPending, setForecastPending] = useState(false);
+  const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rosterLookup = useMemo(() => {
@@ -553,7 +554,7 @@ export default function SchedulerScreen() {
       forecastTimerRef.current = null;
     }
 
-    if (!isForecastInputValid || forecastLoading || forecasting) {
+    if (!forecastEditStarted || !isForecastInputValid || forecastLoading || forecasting) {
       setForecastPending(false);
       return;
     }
@@ -570,7 +571,15 @@ export default function SchedulerScreen() {
         forecastTimerRef.current = null;
       }
     };
-  }, [forecastDate, forecastRole, forecastLoading, forecasting, isForecastInputValid, runForecast]);
+  }, [
+    forecastDate,
+    forecastRole,
+    forecastEditStarted,
+    forecastLoading,
+    forecasting,
+    isForecastInputValid,
+    runForecast,
+  ]);
 
   useEffect(() => {
     if (!targetForm.date || !targetForm.role) return;
@@ -708,13 +717,19 @@ export default function SchedulerScreen() {
             label="Date"
             value={targetForm.date}
             placeholder="2024-12-15"
-            onChangeText={(text) => setTargetForm({ ...targetForm, date: text })}
+            onChangeText={(text) => {
+              setForecastEditStarted(true);
+              setTargetForm((prev) => ({ ...prev, date: text }));
+            }}
           />
           <InputField
             label="Role"
             value={targetForm.role}
             placeholder="Support"
-            onChangeText={(text) => setTargetForm({ ...targetForm, role: text })}
+            onChangeText={(text) => {
+              setForecastEditStarted(true);
+              setTargetForm((prev) => ({ ...prev, role: text }));
+            }}
           />
         </View>
         <View style={styles.inlineInputs}>
