@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useDemandForecast } from '@/hooks/useDemandForecast';
+import { DemandForecast } from '@/services/demandForecast';
 
 const AvailabilityLabel = ({ day, from, to }: { day: string; from: string; to: string }) => (
   <View style={styles.badge}>
@@ -89,14 +91,10 @@ type Shift = {
   status: 'Draft' | 'Published';
 };
 
-type DemandTarget = {
-  date: string;
-  role: string;
-  required: number;
-  notes?: string;
-};
-
 export default function SchedulerScreen() {
+  const { demandTargets, triggerForecast, overrideTarget, loading: forecastLoading, error: forecastError } =
+    useDemandForecast();
+
   const [workers, setWorkers] = useState<Worker[]>([
     {
       id: 'W-01',
@@ -130,12 +128,6 @@ export default function SchedulerScreen() {
     { id: 'shift-1', date: '2024-12-12', workerId: 'W-01', templateId: 'morning', location: 'HQ', status: 'Published' },
     { id: 'shift-2', date: '2024-12-12', workerId: 'W-02', templateId: 'evening', location: 'HQ', status: 'Draft' },
     { id: 'shift-3', date: '2024-12-13', workerId: 'W-02', templateId: 'weekend', location: 'Remote', status: 'Draft' },
-  ]);
-
-  const [demandTargets, setDemandTargets] = useState<DemandTarget[]>([
-    { date: '2024-12-12', role: 'Front Desk', required: 2, notes: 'Holiday traffic spike' },
-    { date: '2024-12-12', role: 'Support', required: 4 },
-    { date: '2024-12-13', role: 'Support', required: 3 },
   ]);
 
   const [availabilityForm, setAvailabilityForm] = useState({
@@ -238,20 +230,44 @@ export default function SchedulerScreen() {
 
   const handleTargetSubmit = () => {
     if (!targetForm.date || !targetForm.role) return;
-    setDemandTargets((prev) => {
-      const existingIndex = prev.findIndex(
-        (target) => target.date === targetForm.date && target.role.toLowerCase() === targetForm.role.toLowerCase()
-      );
-      const required = Number(targetForm.required) || 0;
-      if (existingIndex !== -1) {
-        const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], required, notes: targetForm.notes };
-        return updated;
-      }
-      return [...prev, { date: targetForm.date, role: targetForm.role, required, notes: targetForm.notes }];
-    });
-    setTargetForm({ ...targetForm, required: '2', notes: '' });
+    const normalizedRequired = Number(targetForm.required) || 0;
+    const matchingForecast = demandTargets.find(
+      (target) => target.date === targetForm.date && target.role.toLowerCase() === targetForm.role.toLowerCase()
+    );
+
+    const payload: DemandForecast = {
+      date: targetForm.date,
+      role: targetForm.role,
+      required: normalizedRequired,
+      notes: targetForm.notes,
+      confidence: matchingForecast?.confidence,
+      lowerBound: matchingForecast?.lowerBound,
+      upperBound: matchingForecast?.upperBound,
+      source: 'override',
+    };
+
+    overrideTarget(payload);
   };
+
+  useEffect(() => {
+    if (!targetForm.date || !targetForm.role) return;
+    triggerForecast({ date: targetForm.date, role: targetForm.role });
+  }, [targetForm.date, targetForm.role, triggerForecast]);
+
+  useEffect(() => {
+    if (!targetForm.date || !targetForm.role) return;
+    const matchingForecast = demandTargets.find(
+      (target) => target.date === targetForm.date && target.role.toLowerCase() === targetForm.role.toLowerCase()
+    );
+
+    if (matchingForecast && `${matchingForecast.required}` !== targetForm.required) {
+      setTargetForm((prev) => ({
+        ...prev,
+        required: `${matchingForecast.required}`,
+        notes: prev.notes || matchingForecast.notes || '',
+      }));
+    }
+  }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -400,12 +416,21 @@ export default function SchedulerScreen() {
           <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
         </Pressable>
         <View style={styles.divider} />
+        {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
+        {forecastLoading ? <ThemedText>Running forecast...</ThemedText> : null}
         {demandTargets.map((target) => (
           <View key={`${target.date}-${target.role}`} style={styles.rowBetween}>
             <View>
               <ThemedText type="defaultSemiBold">{target.role}</ThemedText>
               <ThemedText style={styles.mutedText}>{target.date}</ThemedText>
               {target.notes ? <ThemedText style={styles.mutedText}>{target.notes}</ThemedText> : null}
+              {(target.lowerBound || target.upperBound || target.confidence) && (
+                <ThemedText style={styles.mutedText}>
+                  CI: {target.lowerBound ?? target.required} - {target.upperBound ?? target.required}
+                  {target.confidence ? ` • ${(target.confidence * 100).toFixed(0)}% confidence` : ''}
+                </ThemedText>
+              )}
+              <ThemedText style={styles.mutedText}>Source: {target.source ?? 'model'}</ThemedText>
             </View>
             <ThemedText style={styles.badgeText}>{target.required} needed</ThemedText>
           </View>
@@ -561,6 +586,9 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 4,
+  },
+  errorText: {
+    color: '#DC2626',
   },
   rosterDay: {
     gap: 8,
