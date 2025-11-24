@@ -1,10 +1,21 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+
+const upcomingShifts = [
+  { id: 'up-1', worker: 'Alex Johnson', shift: 'Morning Coverage', date: 'Dec 12', time: '08:00-14:00' },
+  { id: 'up-2', worker: 'Priya Singh', shift: 'Evening Coverage', date: 'Dec 12', time: '14:00-22:00' },
+  { id: 'up-3', worker: 'Liam Chen', shift: 'Weekend Ops', date: 'Dec 13', time: '09:00-17:00' },
+];
+
+const staffingGaps = [
+  { id: 'gap-1', role: 'Support', date: 'Dec 12', gap: 1, note: 'Need bilingual cover' },
+  { id: 'gap-2', role: 'Front Desk', date: 'Dec 15', gap: 2, note: 'Coverage for training day' },
+];
 
 export default function HomeScreen() {
   return (
@@ -17,39 +28,72 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
+        <View style={{ flex: 1 }}>
+          <ThemedText type="title">Scheduler overview</ThemedText>
+          <ThemedText style={styles.mutedText}>
+            Keep worker availability, templates, and roster health in sync.
+          </ThemedText>
+        </View>
+        <Link href="/(tabs)/scheduler" asChild>
+          <Pressable style={styles.primaryButton}>
+            <ThemedText style={styles.primaryButtonText}>Open Scheduler</ThemedText>
+          </Pressable>
+        </Link>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
+
+      <ThemedView style={styles.card}>
+        <ThemedText type="subtitle">Upcoming shifts</ThemedText>
+        {upcomingShifts.map((shift) => (
+          <View key={shift.id} style={styles.rowBetween}>
+            <View>
+              <ThemedText type="defaultSemiBold">{shift.worker}</ThemedText>
+              <ThemedText style={styles.mutedText}>
+                {shift.shift} • {shift.time}
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.badge}>{shift.date}</ThemedText>
+          </View>
+        ))}
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+
+      <ThemedView style={styles.card}>
+        <ThemedText type="subtitle">Staffing gaps</ThemedText>
+        {staffingGaps.map((gap) => (
+          <View key={gap.id} style={styles.rowBetween}>
+            <View>
+              <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
+              <ThemedText style={styles.mutedText}>{gap.note}</ThemedText>
+            </View>
+            <ThemedView style={styles.gapPill}>
+              <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
+              <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
+            </ThemedView>
+          </View>
+        ))}
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
+
+      <ThemedView style={styles.card}>
+        <ThemedText type="subtitle">Quick actions</ThemedText>
+        <View style={styles.actions}>
+          <Link href="/(tabs)/scheduler" asChild>
+            <Pressable style={styles.actionButton}>
+              <ThemedText type="defaultSemiBold">Add availability</ThemedText>
+              <ThemedText style={styles.mutedText}>Capture changes from the floor</ThemedText>
+            </Pressable>
+          </Link>
+          <Link href="/(tabs)/scheduler" asChild>
+            <Pressable style={styles.actionButton}>
+              <ThemedText type="defaultSemiBold">Build shifts</ThemedText>
+              <ThemedText style={styles.mutedText}>Start from templates</ThemedText>
+            </Pressable>
+          </Link>
+          <Link href="/(tabs)/scheduler" asChild>
+            <Pressable style={styles.actionButton}>
+              <ThemedText type="defaultSemiBold">Publish roster</ThemedText>
+              <ThemedText style={styles.mutedText}>Review targets vs coverage</ThemedText>
+            </Pressable>
+          </Link>
+        </View>
       </ThemedView>
     </ParallaxScrollView>
   );
@@ -59,11 +103,50 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    marginBottom: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  mutedText: {
+    color: '#9CA3AF',
+  },
+  card: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#ffffff11',
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  badge: {
+    fontWeight: '700',
+  },
+  gapPill: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  actions: {
+    gap: 10,
+  },
+  actionButton: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#ffffff',
+  },
+  primaryButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   reactLogo: {
     height: 178,
