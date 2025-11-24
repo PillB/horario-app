@@ -280,6 +280,7 @@ export default function SchedulerScreen() {
 
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [targetError, setTargetError] = useState<string | null>(null);
 
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
@@ -482,17 +483,47 @@ export default function SchedulerScreen() {
   };
 
   const handleTargetSubmit = () => {
-    if (!targetForm.date || !targetForm.role) return;
-    const normalizedRequired = Number(targetForm.required) || 0;
+    const trimmedDate = targetForm.date.trim();
+    const trimmedRole = targetForm.role.trim();
+    const trimmedNotes = targetForm.notes.trim();
+    const errors: string[] = [];
+
+    if (!trimmedDate) {
+      errors.push('Date is required.');
+    } else if (!isValidDate(trimmedDate)) {
+      errors.push('Date must use the YYYY-MM-DD format.');
+    }
+
+    if (!trimmedRole) {
+      errors.push('Role is required.');
+    }
+
+    const requiredInput = targetForm.required.trim();
+    const normalizedRequired = Number(requiredInput);
+    if (requiredInput.length === 0 || Number.isNaN(normalizedRequired)) {
+      errors.push('Required must be a valid number.');
+    } else if (normalizedRequired < 0) {
+      errors.push('Required must be greater than or equal to 0.');
+    } else if (!Number.isInteger(normalizedRequired)) {
+      errors.push('Required must be a whole number.');
+    }
+
+    if (errors.length > 0) {
+      setTargetError(errors.join(' '));
+      return;
+    }
+
+    setTargetError(null);
+
     const matchingForecast = demandTargets.find(
-      (target) => target.date === targetForm.date && target.role.toLowerCase() === targetForm.role.toLowerCase()
+      (target) => target.date === trimmedDate && target.role.toLowerCase() === trimmedRole.toLowerCase()
     );
 
     const payload: DemandForecast = {
-      date: targetForm.date,
-      role: targetForm.role,
+      date: trimmedDate,
+      role: trimmedRole,
       required: normalizedRequired,
-      notes: targetForm.notes,
+      notes: trimmedNotes,
       confidence: matchingForecast?.confidence,
       lowerBound: matchingForecast?.lowerBound,
       upperBound: matchingForecast?.upperBound,
@@ -704,6 +735,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
         </Pressable>
+        {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
         <Pressable
           onPress={() => {
             if (forecastActionDisabled) return;
