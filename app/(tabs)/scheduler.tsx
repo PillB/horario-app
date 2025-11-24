@@ -134,12 +134,20 @@ const parseTimeToMinutes = (value: string) => {
   return hours * 60 + minutes;
 };
 
-const getWeekdayFromDate = (value: string) => {
+const defaultTimezoneOffsetMinutes = -new Date().getTimezoneOffset();
+
+const getWeekdayFromDate = (value: string, timezoneOffsetMinutes = defaultTimezoneOffsetMinutes) => {
   if (!isValidDate(value)) return null;
-  const parsed = new Date(`${value}T00:00:00Z`);
+  const parsed = new Date(`${value}T00:00:00`);
   if (!Number.isFinite(parsed.getTime())) return null;
+
+  const targetOffset = timezoneOffsetMinutes;
+  const deviceOffset = -parsed.getTimezoneOffset();
+  const offsetDelta = targetOffset - deviceOffset;
+  const adjusted = new Date(parsed.getTime() + offsetDelta * 60 * 1000);
+
   const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return labels[parsed.getUTCDay()];
+  return labels[adjusted.getDay()];
 };
 
 const getTemplateWindow = (template: ShiftTemplate) => ({
@@ -233,6 +241,34 @@ const validateAvailabilitySubmission = (
   return { errors, normalizedDay, trimmedWorkerId, trimmedFrom, trimmedTo };
 };
 
+const findCoveringAvailability = (
+  worker: Worker,
+  template: ShiftTemplate,
+  date: string,
+  timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
+) => {
+  const weekdayLabel = getWeekdayFromDate(date, timezoneOffsetMinutes);
+  if (!weekdayLabel) {
+    return { coveringSlot: null, weekdayLabel: null } as const;
+  }
+
+  const templateWindow = getTemplateWindow(template);
+
+  const coveringSlot = worker.availability.find((slot) => {
+    if (slot.day !== weekdayLabel) return false;
+    const availabilityWindow = {
+      startMinutes: parseTimeToMinutes(slot.from),
+      endMinutes: parseTimeToMinutes(slot.to),
+    };
+    return (
+      availabilityWindow.startMinutes <= templateWindow.startMinutes &&
+      availabilityWindow.endMinutes >= templateWindow.endMinutes
+    );
+  });
+
+  return { coveringSlot, weekdayLabel } as const;
+};
+
 export default function SchedulerScreen() {
   const {
     demandTargets,
@@ -305,6 +341,7 @@ export default function SchedulerScreen() {
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
 
   const rosterLookup = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -393,7 +430,10 @@ export default function SchedulerScreen() {
     const errors: string[] = [];
     const template = shiftTemplates.find((candidate) => candidate.id === trimmedTemplateId);
     const worker = workers.find((candidate) => candidate.id === trimmedWorkerId);
-    const weekdayLabel = getWeekdayFromDate(trimmedDate);
+    const { coveringSlot, weekdayLabel } =
+      template && worker
+        ? findCoveringAvailability(worker, template, trimmedDate, businessTimezoneOffsetMinutes)
+        : { coveringSlot: null, weekdayLabel: getWeekdayFromDate(trimmedDate, businessTimezoneOffsetMinutes) };
 
     if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate) {
       errors.push('All fields are required.');
@@ -423,19 +463,6 @@ export default function SchedulerScreen() {
     }
 
     if (template && worker && weekdayLabel) {
-      const templateWindow = getTemplateWindow(template);
-      const coveringSlot = worker.availability.find((slot) => {
-        if (slot.day !== weekdayLabel) return false;
-        const availabilityWindow = {
-          startMinutes: parseTimeToMinutes(slot.from),
-          endMinutes: parseTimeToMinutes(slot.to),
-        };
-        return (
-          availabilityWindow.startMinutes <= templateWindow.startMinutes &&
-          availabilityWindow.endMinutes >= templateWindow.endMinutes
-        );
-      });
-
       if (!coveringSlot) {
         errors.push(
           `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
@@ -975,3 +1002,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
 });
+
+export { defaultTimezoneOffsetMinutes, findCoveringAvailability, getWeekdayFromDate };
+export type { Availability, ShiftTemplate, Worker };
