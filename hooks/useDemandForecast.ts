@@ -18,6 +18,7 @@ const mergeForecasts = (incoming: DemandForecast[], existing: DemandForecast[]) 
 export const useDemandForecast = (filters?: ForecastFilters) => {
   const [demandTargets, setDemandTargets] = useState<DemandForecast[]>([]);
   const [loading, setLoading] = useState(false);
+  const [forecasting, setForecasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hydrate = useCallback(async () => {
@@ -36,7 +37,9 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
 
   const triggerForecast = useCallback(
     async (overrideFilters?: ForecastFilters) => {
+      if (forecasting) return;
       try {
+        setForecasting(true);
         setLoading(true);
         const forecasts = await generateDemandForecast({ ...filters, ...overrideFilters });
         setDemandTargets((prev) => mergeForecasts(forecasts, prev.filter((item) => item.source === 'override')));
@@ -45,10 +48,11 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
         console.warn('Unable to generate forecast', err);
         setError('Unable to generate forecast');
       } finally {
+        setForecasting(false);
         setLoading(false);
       }
     },
-    [filters]
+    [filters, forecasting]
   );
 
   const overrideTarget = useCallback(async (target: DemandForecast) => {
@@ -74,6 +78,7 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     demandTargets,
     loading,
     error,
+    forecasting,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,

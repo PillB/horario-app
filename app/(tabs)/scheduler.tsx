@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -130,8 +130,14 @@ const isValidTime = (value: string) => {
 };
 
 export default function SchedulerScreen() {
-  const { demandTargets, triggerForecast, overrideTarget, loading: forecastLoading, error: forecastError } =
-    useDemandForecast();
+  const {
+    demandTargets,
+    triggerForecast,
+    overrideTarget,
+    loading: forecastLoading,
+    error: forecastError,
+    forecasting,
+  } = useDemandForecast();
 
   const [workers, setWorkers] = useState<Worker[]>([
     {
@@ -190,6 +196,9 @@ export default function SchedulerScreen() {
     required: '3',
     notes: 'Weekend backlog',
   });
+
+  const [forecastPending, setForecastPending] = useState(false);
+  const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rosterLookup = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -363,10 +372,44 @@ export default function SchedulerScreen() {
     overrideTarget(payload);
   };
 
+  const forecastDate = targetForm.date.trim();
+  const forecastRole = targetForm.role.trim();
+  const isForecastInputValid = useMemo(
+    () => isValidDate(forecastDate) && forecastRole.length > 0,
+    [forecastDate, forecastRole]
+  );
+  const forecastActionDisabled = !isForecastInputValid || forecasting || forecastLoading;
+
+  const runForecast = useCallback(() => {
+    if (!isForecastInputValid || forecasting || forecastLoading) return;
+    setForecastPending(false);
+    triggerForecast({ date: forecastDate, role: forecastRole });
+  }, [forecastDate, forecastRole, forecasting, forecastLoading, isForecastInputValid, triggerForecast]);
+
   useEffect(() => {
-    if (!targetForm.date || !targetForm.role) return;
-    triggerForecast({ date: targetForm.date, role: targetForm.role });
-  }, [targetForm.date, targetForm.role, triggerForecast]);
+    if (forecastTimerRef.current) {
+      clearTimeout(forecastTimerRef.current);
+      forecastTimerRef.current = null;
+    }
+
+    if (!isForecastInputValid || forecastLoading || forecasting) {
+      setForecastPending(false);
+      return;
+    }
+
+    setForecastPending(true);
+    forecastTimerRef.current = setTimeout(() => {
+      runForecast();
+      forecastTimerRef.current = null;
+    }, 600);
+
+    return () => {
+      if (forecastTimerRef.current) {
+        clearTimeout(forecastTimerRef.current);
+        forecastTimerRef.current = null;
+      }
+    };
+  }, [forecastDate, forecastRole, forecastLoading, forecasting, isForecastInputValid, runForecast]);
 
   useEffect(() => {
     if (!targetForm.date || !targetForm.role) return;
@@ -531,9 +574,28 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
         </Pressable>
+        <Pressable
+          onPress={() => {
+            if (forecastActionDisabled) return;
+            runForecast();
+          }}
+          style={[styles.secondaryButton, forecastActionDisabled && styles.disabledButton]}
+        >
+          <ThemedText style={styles.primaryButtonText}>
+            {forecastActionDisabled ? 'Run forecast' : forecasting ? 'Running…' : 'Run forecast'}
+          </ThemedText>
+        </Pressable>
         <View style={styles.divider} />
         {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
-        {forecastLoading ? <ThemedText>Running forecast...</ThemedText> : null}
+        {!isForecastInputValid ? (
+          <ThemedText style={styles.errorText}>
+            Enter a valid YYYY-MM-DD date and role to generate a forecast.
+          </ThemedText>
+        ) : null}
+        {forecastPending && !forecasting && !forecastLoading ? (
+          <ThemedText style={styles.mutedText}>Waiting for input to settle before forecasting…</ThemedText>
+        ) : null}
+        {forecastLoading || forecasting ? <ThemedText>Running forecast...</ThemedText> : null}
         {demandTargets.map((target) => (
           <View key={`${target.date}-${target.role}`} style={styles.rowBetween}>
             <View>
@@ -700,6 +762,15 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: '#111827',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   divider: {
     height: 1,
