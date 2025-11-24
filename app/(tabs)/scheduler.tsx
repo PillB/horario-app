@@ -97,6 +97,38 @@ const isValidDate = (value: string) => {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().startsWith(value);
 };
 
+const normalizeDay = (value: string) => {
+  const lookup: Record<string, string> = {
+    mon: 'Mon',
+    monday: 'Mon',
+    tue: 'Tue',
+    tues: 'Tue',
+    tuesday: 'Tue',
+    wed: 'Wed',
+    weds: 'Wed',
+    wednesday: 'Wed',
+    thu: 'Thu',
+    thur: 'Thu',
+    thurs: 'Thu',
+    thursday: 'Thu',
+    fri: 'Fri',
+    friday: 'Fri',
+    sat: 'Sat',
+    saturday: 'Sat',
+    sun: 'Sun',
+    sunday: 'Sun',
+  };
+
+  const key = value.trim().toLowerCase();
+  return lookup[key];
+};
+
+const isValidTime = (value: string) => {
+  if (!/^\d{2}:\d{2}$/.test(value)) return false;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+};
+
 export default function SchedulerScreen() {
   const { demandTargets, triggerForecast, overrideTarget, loading: forecastLoading, error: forecastError } =
     useDemandForecast();
@@ -137,6 +169,7 @@ export default function SchedulerScreen() {
   ]);
 
   const [shiftError, setShiftError] = useState<string | null>(null);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
@@ -209,16 +242,47 @@ export default function SchedulerScreen() {
   }, [demandTargets, roster, shiftTemplates]);
 
   const handleAvailabilitySubmit = () => {
-    if (!availabilityForm.workerId || !availabilityForm.day) return;
+    const trimmedWorkerId = availabilityForm.workerId.trim();
+    const trimmedDay = availabilityForm.day.trim();
+    const trimmedFrom = availabilityForm.from.trim();
+    const trimmedTo = availabilityForm.to.trim();
+
+    const errors: string[] = [];
+
+    const normalizedDay = normalizeDay(trimmedDay);
+
+    if (!trimmedWorkerId || !trimmedDay || !trimmedFrom || !trimmedTo) {
+      errors.push('All availability fields are required.');
+    }
+
+    if (trimmedWorkerId && !workers.some((worker) => worker.id === trimmedWorkerId)) {
+      errors.push('Worker ID must match an existing worker.');
+    }
+
+    if (trimmedDay && !normalizedDay) {
+      errors.push('Day must be one of Mon, Tue, Wed, Thu, Fri, Sat, or Sun.');
+    }
+
+    if (trimmedFrom && !isValidTime(trimmedFrom)) {
+      errors.push('From time must use the 24-hour HH:MM format.');
+    }
+
+    if (trimmedTo && !isValidTime(trimmedTo)) {
+      errors.push('To time must use the 24-hour HH:MM format.');
+    }
+
+    if (errors.length > 0) {
+      setAvailabilityError(errors.join(' '));
+      return;
+    }
+
+    setAvailabilityError(null);
     setWorkers((prev) =>
       prev.map((worker) =>
-        worker.id === availabilityForm.workerId
+        worker.id === trimmedWorkerId
           ? {
               ...worker,
-              availability: [
-                ...worker.availability,
-                { day: availabilityForm.day, from: availabilityForm.from, to: availabilityForm.to },
-              ],
+              availability: [...worker.availability, { day: normalizedDay ?? trimmedDay, from: trimmedFrom, to: trimmedTo }],
             }
           : worker
       )
@@ -383,6 +447,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Add availability</ThemedText>
         </Pressable>
+        {availabilityError ? <ThemedText style={styles.errorText}>{availabilityError}</ThemedText> : null}
       </SectionCard>
 
       <SectionCard
