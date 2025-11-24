@@ -1,3 +1,4 @@
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
 
@@ -409,6 +410,7 @@ export default function SchedulerScreen() {
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [targetError, setTargetError] = useState<string | null>(null);
+  const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
   const [actionBanner, setActionBanner] = useState<
     | {
         type: 'success' | 'error' | 'info';
@@ -441,6 +443,11 @@ export default function SchedulerScreen() {
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const shiftSectionRef = useRef<View>(null);
+  const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
+  const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
 
   const rosterLookup = useMemo(() => {
@@ -505,10 +512,12 @@ export default function SchedulerScreen() {
 
     if (errors.length > 0 || !normalizedDay) {
       setAvailabilityError(errors.join(' '));
+      setAvailabilitySuccessPromptVisible(false);
       return;
     }
 
     setAvailabilityError(null);
+    setAvailabilitySuccessPromptVisible(true);
     setWorkers((prev) =>
       prev.map((worker) =>
         worker.id === trimmedWorkerId
@@ -723,6 +732,11 @@ export default function SchedulerScreen() {
     triggerForecast({ date: forecastDate, role: forecastRole });
   }, [forecastDate, forecastRole, forecasting, forecastLoading, isForecastInputValid, triggerForecast]);
 
+  const scrollToShiftSection = useCallback(() => {
+    if (shiftSectionOffset == null) return;
+    scrollViewRef.current?.scrollTo({ y: Math.max(shiftSectionOffset - 12, 0), animated: true });
+  }, [shiftSectionOffset]);
+
   useEffect(() => {
     if (forecastTimerRef.current) {
       clearTimeout(forecastTimerRef.current);
@@ -770,6 +784,12 @@ export default function SchedulerScreen() {
       }));
     }
   }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
+
+  useEffect(() => {
+    if (section === 'shifts' && shiftSectionOffset != null) {
+      scrollToShiftSection();
+    }
+  }, [scrollToShiftSection, section, shiftSectionOffset]);
 
   useEffect(() => {
     return () => {
@@ -866,7 +886,7 @@ export default function SchedulerScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
       <ThemedText type="title" style={styles.pageTitle}>
         Scheduler
       </ThemedText>
@@ -944,6 +964,29 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Add availability</ThemedText>
         </Pressable>
+        {availabilitySuccessPromptVisible ? (
+          <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
+            <View style={styles.bannerHeader}>
+              <ThemedText style={styles.bannerText}>Availability saved.</ThemedText>
+              <Pressable onPress={() => setAvailabilitySuccessPromptVisible(false)}>
+                <ThemedText style={styles.dismissText}>Dismiss</ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText style={styles.mutedText}>Assign to a template now.</ThemedText>
+            <Link href={{ pathname: '/(tabs)/scheduler', params: { section: 'shifts' } }} asChild>
+              <Pressable
+                onPress={() => {
+                  scrollToShiftSection();
+                  setAvailabilitySuccessPromptVisible(false);
+                  router.setParams({ section: 'shifts' });
+                }}
+                style={[styles.secondaryButton, styles.tightButton]}
+              >
+                <ThemedText style={styles.primaryButtonText}>Assign to a template now</ThemedText>
+              </Pressable>
+            </Link>
+          </ThemedView>
+        ) : null}
         {availabilityError ? <ThemedText style={styles.errorText}>{availabilityError}</ThemedText> : null}
       </SectionCard>
 
@@ -964,36 +1007,41 @@ export default function SchedulerScreen() {
         ))}
       </SectionCard>
 
-      <SectionCard title="Shift creation" subtitle="Assign workers into templates for specific dates.">
-        <View style={styles.inlineInputs}>
+      <View
+        ref={shiftSectionRef}
+        onLayout={(event) => setShiftSectionOffset(event.nativeEvent.layout.y)}
+      >
+        <SectionCard title="Shift creation" subtitle="Assign workers into templates for specific dates.">
+          <View style={styles.inlineInputs}>
+            <InputField
+              label="Worker"
+              value={shiftForm.workerId}
+              placeholder="W-01"
+              onChangeText={(text) => setShiftForm({ ...shiftForm, workerId: text })}
+            />
+            <InputField
+              label="Template"
+              value={shiftForm.templateId}
+              placeholder="morning"
+              onChangeText={(text) => setShiftForm({ ...shiftForm, templateId: text })}
+            />
+          </View>
           <InputField
-            label="Worker"
-            value={shiftForm.workerId}
-            placeholder="W-01"
-            onChangeText={(text) => setShiftForm({ ...shiftForm, workerId: text })}
+            label="Date"
+            value={shiftForm.date}
+            placeholder="2024-12-15"
+            onChangeText={(text) => setShiftForm({ ...shiftForm, date: text })}
           />
-          <InputField
-            label="Template"
-            value={shiftForm.templateId}
-            placeholder="morning"
-            onChangeText={(text) => setShiftForm({ ...shiftForm, templateId: text })}
-          />
-        </View>
-        <InputField
-          label="Date"
-          value={shiftForm.date}
-          placeholder="2024-12-15"
-          onChangeText={(text) => setShiftForm({ ...shiftForm, date: text })}
-        />
-        <Pressable
-          accessibilityLabel={shiftSubmitLabel}
-          onPress={handleShiftSubmit}
-          style={styles.primaryButton}
-        >
-          <ThemedText style={styles.primaryButtonText}>{shiftSubmitLabel}</ThemedText>
-        </Pressable>
-        {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
-      </SectionCard>
+          <Pressable
+            accessibilityLabel={shiftSubmitLabel}
+            onPress={handleShiftSubmit}
+            style={styles.primaryButton}
+          >
+            <ThemedText style={styles.primaryButtonText}>{shiftSubmitLabel}</ThemedText>
+          </Pressable>
+          {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
+        </SectionCard>
+      </View>
 
       <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
         <View style={styles.inlineInputs}>
@@ -1197,6 +1245,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BFDBFE',
   },
+  dismissibleBanner: {
+    gap: 8,
+  },
   bannerSuccess: {
     backgroundColor: '#ECFDF3',
     borderColor: '#BBF7D0',
@@ -1207,6 +1258,15 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     color: '#0F172A',
+    fontWeight: '600',
+  },
+  bannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dismissText: {
+    color: '#4B5563',
     fontWeight: '600',
   },
   rowBetween: {
@@ -1295,6 +1355,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  tightButton: {
+    paddingVertical: 10,
   },
   disabledButton: {
     opacity: 0.6,
