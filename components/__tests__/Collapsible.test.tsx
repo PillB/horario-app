@@ -1,4 +1,9 @@
 // @ts-nocheck
+/* eslint-disable import/first */
+jest.mock('@/hooks/useColorScheme', () => ({
+  useColorScheme: () => 'light',
+}));
+
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { Text, TouchableOpacity } from 'react-native';
@@ -7,11 +12,18 @@ import { Collapsible } from '../Collapsible';
 
 describe('Collapsible', () => {
   it('exposes accessibility attributes on the toggle', () => {
-    const tree = renderer.create(
-      <Collapsible title="Details">
-        <Text>Hidden content</Text>
-      </Collapsible>,
-    );
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(
+        <Collapsible title="Details">
+          <Text>Hidden content</Text>
+        </Collapsible>,
+      );
+    });
+
+    if (!tree) {
+      throw new Error('Tree failed to render');
+    }
 
     const toggle = tree.root.findByType(TouchableOpacity);
 
@@ -22,11 +34,18 @@ describe('Collapsible', () => {
   });
 
   it('toggles content visibility and accessibility state when pressed', () => {
-    const tree = renderer.create(
-      <Collapsible title="More info">
-        <Text>Child content</Text>
-      </Collapsible>,
-    );
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(
+        <Collapsible title="More info">
+          <Text>Child content</Text>
+        </Collapsible>,
+      );
+    });
+
+    if (!tree) {
+      throw new Error('Tree failed to render');
+    }
 
     const toggle = tree.root.findByType(TouchableOpacity);
 
