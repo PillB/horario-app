@@ -314,7 +314,7 @@ export default function SchedulerScreen() {
         const scheduled = roster.reduce((total, shift) => {
           const template = shiftTemplates.find((t) => t.id === shift.templateId);
           if (shift.date === target.date && template?.role === target.role) {
-            return total + (template.coverage ?? 0);
+            return total + (template.coverage ?? 1);
           }
 
           return total;
