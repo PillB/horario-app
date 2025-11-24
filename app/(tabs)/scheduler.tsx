@@ -150,6 +150,8 @@ export default function SchedulerScreen() {
     notes: 'Weekend backlog',
   });
 
+  const [allowForecastPrefill, setAllowForecastPrefill] = useState(true);
+
   const rosterByDate = useMemo(() => {
     return roster.reduce<Record<string, (Shift & { template?: ShiftTemplate; worker?: Worker })[]>>(
       (acc, shift) => {
@@ -255,19 +257,29 @@ export default function SchedulerScreen() {
   }, [targetForm.date, targetForm.role, triggerForecast]);
 
   useEffect(() => {
-    if (!targetForm.date || !targetForm.role) return;
+    if (!targetForm.date || !targetForm.role || !allowForecastPrefill) return;
     const matchingForecast = demandTargets.find(
       (target) => target.date === targetForm.date && target.role.toLowerCase() === targetForm.role.toLowerCase()
     );
 
-    if (matchingForecast && `${matchingForecast.required}` !== targetForm.required) {
-      setTargetForm((prev) => ({
-        ...prev,
-        required: `${matchingForecast.required}`,
-        notes: prev.notes || matchingForecast.notes || '',
-      }));
+    if (matchingForecast) {
+      setTargetForm((prev) => {
+        const nextRequired = `${matchingForecast.required}`;
+        const nextNotes = prev.notes || matchingForecast.notes || '';
+
+        if (prev.required === nextRequired && prev.notes === nextNotes) return prev;
+        return {
+          ...prev,
+          required: nextRequired,
+          notes: nextNotes,
+        };
+      });
     }
-  }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
+  }, [allowForecastPrefill, demandTargets, targetForm.date, targetForm.role]);
+
+  useEffect(() => {
+    setAllowForecastPrefill(true);
+  }, [targetForm.date, targetForm.role]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -403,13 +415,19 @@ export default function SchedulerScreen() {
             value={targetForm.required}
             placeholder="3"
             keyboardType="numeric"
-            onChangeText={(text) => setTargetForm({ ...targetForm, required: text })}
+            onChangeText={(text) => {
+              setAllowForecastPrefill(false);
+              setTargetForm({ ...targetForm, required: text });
+            }}
           />
           <InputField
             label="Notes"
             value={targetForm.notes}
             placeholder="Backlog, promo, etc"
-            onChangeText={(text) => setTargetForm({ ...targetForm, notes: text })}
+            onChangeText={(text) => {
+              setAllowForecastPrefill(false);
+              setTargetForm({ ...targetForm, notes: text });
+            }}
           />
         </View>
         <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
