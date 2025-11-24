@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { ScheduleEntry, ScheduleForm } from '@/components/forms/ScheduleForm';
 
 const AvailabilityLabel = ({ day, from, to }: { day: string; from: string; to: string }) => (
   <View style={styles.badge}>
@@ -158,6 +159,8 @@ export default function SchedulerScreen() {
     notes: 'Weekend backlog',
   });
 
+  const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
+
   const rosterByDate = useMemo(() => {
     return roster.reduce<Record<string, (Shift & { template?: ShiftTemplate; worker?: Worker })[]>>(
       (acc, shift) => {
@@ -201,6 +204,13 @@ export default function SchedulerScreen() {
       })
       .filter((target) => target.gap > 0);
   }, [demandTargets, roster, shiftTemplates]);
+
+  const handleScheduleSubmit = (entry: ScheduleEntry) => {
+    setScheduleEntries((prev) => {
+      const next = [...prev, entry];
+      return next.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    });
+  };
 
   const handleAvailabilitySubmit = () => {
     if (!availabilityForm.workerId || !availabilityForm.day) return;
@@ -261,6 +271,36 @@ export default function SchedulerScreen() {
       <ThemedText style={styles.mutedText}>
         Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
       </ThemedText>
+
+      <SectionCard
+        title="Schedule validation"
+        subtitle="Validate date ranges, numeric hours, and duplicate tuples before persisting."
+      >
+        <ScheduleForm existingEntries={scheduleEntries} onSubmit={handleScheduleSubmit} />
+        <View style={styles.divider} />
+        {scheduleEntries.length === 0 ? (
+          <ThemedText style={styles.mutedText}>
+            No validated schedules yet. Add a case to see inline checks and duplicate prevention.
+          </ThemedText>
+        ) : (
+          scheduleEntries.map((entry) => (
+            <View key={`${entry.caseNumber}-${entry.startDate}`} style={styles.rowBetween}>
+              <View style={styles.rowContent}>
+                <ThemedText type="defaultSemiBold">{entry.caseNumber}</ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {entry.productId} • {entry.clientId} • {entry.teamId}
+                </ThemedText>
+              </View>
+              <View style={styles.statusPill}>
+                <ThemedText style={styles.badgeText}>
+                  {entry.startDate} → {entry.endDate}
+                </ThemedText>
+                <ThemedText style={styles.mutedText}>{entry.hours} hrs</ThemedText>
+              </View>
+            </View>
+          ))
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Worker management"
