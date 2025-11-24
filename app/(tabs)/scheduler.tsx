@@ -129,6 +129,29 @@ const isValidTime = (value: string) => {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
 };
 
+const parseTimeToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const getWeekdayFromDate = (value: string) => {
+  if (!isValidDate(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return labels[parsed.getUTCDay()];
+};
+
+const getTemplateWindow = (template: ShiftTemplate) => ({
+  startMinutes: parseTimeToMinutes(template.start),
+  endMinutes: parseTimeToMinutes(template.end),
+});
+
+const windowsOverlap = (
+  first: { startMinutes: number; endMinutes: number },
+  second: { startMinutes: number; endMinutes: number }
+) => first.startMinutes < second.endMinutes && second.startMinutes < first.endMinutes;
+
 const validateAvailabilitySubmission = (
   form: { workerId: string; day: string; from: string; to: string },
   workers: Worker[]
@@ -336,6 +359,9 @@ export default function SchedulerScreen() {
     const trimmedDate = shiftForm.date.trim();
 
     const errors: string[] = [];
+    const template = shiftTemplates.find((candidate) => candidate.id === trimmedTemplateId);
+    const worker = workers.find((candidate) => candidate.id === trimmedWorkerId);
+    const weekdayLabel = getWeekdayFromDate(trimmedDate);
 
     if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate) {
       errors.push('All fields are required.');
@@ -356,6 +382,47 @@ export default function SchedulerScreen() {
     const shiftKey = `${trimmedWorkerId}::${trimmedDate}::${trimmedTemplateId}`;
     if (rosterLookup.has(shiftKey)) {
       errors.push('This worker, date, and template combination is already scheduled.');
+    }
+
+    if (template && worker && weekdayLabel) {
+      const templateWindow = getTemplateWindow(template);
+      const coveringSlot = worker.availability.find((slot) => {
+        if (slot.day !== weekdayLabel) return false;
+        const availabilityWindow = {
+          startMinutes: parseTimeToMinutes(slot.from),
+          endMinutes: parseTimeToMinutes(slot.to),
+        };
+        return (
+          availabilityWindow.startMinutes <= templateWindow.startMinutes &&
+          availabilityWindow.endMinutes >= templateWindow.endMinutes
+        );
+      });
+
+      if (!coveringSlot) {
+        errors.push(
+          `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
+        );
+      }
+    }
+
+    if (template && weekdayLabel) {
+      const newWindow = getTemplateWindow(template);
+      const overlappingShift = roster.find((existingShift) => {
+        if (existingShift.workerId !== trimmedWorkerId || existingShift.date !== trimmedDate) return false;
+        const existingTemplate = shiftTemplates.find((candidate) => candidate.id === existingShift.templateId);
+        if (!existingTemplate) return false;
+        const existingWindow = getTemplateWindow(existingTemplate);
+        return windowsOverlap(existingWindow, newWindow);
+      });
+
+      if (overlappingShift) {
+        const conflictingTemplate = shiftTemplates.find((candidate) => candidate.id === overlappingShift.templateId);
+        errors.push(
+          `Worker already has a shift on ${trimmedDate} from ${conflictingTemplate?.start ?? '??'} to ${
+            conflictingTemplate?.end ?? '??'
+          }. Adjust the time window to avoid overlaps.`
+        );
+      }
     }
 
     if (errors.length > 0) {
