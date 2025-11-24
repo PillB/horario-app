@@ -670,6 +670,9 @@ export default function SchedulerScreen() {
   const invalidForecastCopy = 'Enter a valid YYYY-MM-DD date and role to generate a forecast.';
   const forecastPendingCopy = 'Waiting for input to settle before forecasting…';
   const forecastPendingLabel = 'Waiting for edits…';
+  const shiftSubmitLabel = 'Save and notify team';
+  const forecastReadyLabel = "Run forecast with today’s signals";
+  const forecastReadyHelperCopy = 'Ready to run forecast with today’s signals.';
 
   const showActionBanner = useCallback(
     (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -696,15 +699,23 @@ export default function SchedulerScreen() {
 
   const forecastButtonLabel = useMemo(() => {
     if (forecasting || forecastLoading) return 'Running…';
-    return forecastBlockingReason ?? 'Run forecast';
-  }, [forecastBlockingReason, forecastLoading, forecasting]);
+    return forecastBlockingReason ?? forecastReadyLabel;
+  }, [forecastBlockingReason, forecastLoading, forecastReadyLabel, forecasting]);
 
   const forecastHelperText = useMemo(() => {
     if (!isForecastInputValid) return invalidForecastCopy;
     if (forecastPending) return forecastPendingCopy;
     if (forecastLoading || forecasting) return 'Running forecast...';
-    return 'Ready to run forecast.';
-  }, [forecastLoading, forecasting, forecastPending, invalidForecastCopy, isForecastInputValid, forecastPendingCopy]);
+    return forecastReadyHelperCopy;
+  }, [
+    forecastLoading,
+    forecasting,
+    forecastPending,
+    forecastReadyHelperCopy,
+    invalidForecastCopy,
+    isForecastInputValid,
+    forecastPendingCopy,
+  ]);
 
   const runForecast = useCallback(() => {
     if (!isForecastInputValid || forecasting || forecastLoading) return;
@@ -974,8 +985,12 @@ export default function SchedulerScreen() {
           placeholder="2024-12-15"
           onChangeText={(text) => setShiftForm({ ...shiftForm, date: text })}
         />
-        <Pressable onPress={handleShiftSubmit} style={styles.primaryButton}>
-          <ThemedText style={styles.primaryButtonText}>Schedule shift</ThemedText>
+        <Pressable
+          accessibilityLabel={shiftSubmitLabel}
+          onPress={handleShiftSubmit}
+          style={styles.primaryButton}
+        >
+          <ThemedText style={styles.primaryButtonText}>{shiftSubmitLabel}</ThemedText>
         </Pressable>
         {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
       </SectionCard>
@@ -1022,6 +1037,7 @@ export default function SchedulerScreen() {
         {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
         <View style={styles.inlineActions}>
           <Pressable
+            accessibilityLabel={forecastButtonLabel}
             onPress={() => {
               if (forecastActionDisabled) return;
               runForecast();
