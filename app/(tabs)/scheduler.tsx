@@ -93,6 +93,10 @@ type Shift = {
   notified?: boolean;
 };
 
+const LOST_REVENUE_PER_UNCOVERED_ROLE = 325;
+
+const formatCurrency = (value: number) => `$${Math.round(value).toLocaleString('en-US')}`;
+
 const persistShiftStatus = async (shiftId: string, status: Shift['status']) => {
   await new Promise((resolve) => setTimeout(resolve, 200));
   console.log(`Persisted shift ${shiftId} with status ${status}`);
@@ -338,6 +342,97 @@ const findCoveringAvailability = (
   return { coveringSlot, weekdayLabel } as const;
 };
 
+const computeUncoveredLoss = (
+  targets: DemandForecast[],
+  roster: Shift[],
+  shiftTemplates: ShiftTemplate[],
+  lostRevenuePerUncoveredRole = LOST_REVENUE_PER_UNCOVERED_ROLE
+) => {
+  const coverageByDateRole = roster.reduce<Record<string, number>>((acc, shift) => {
+    const template = shiftTemplates.find((candidate) => candidate.id === shift.templateId);
+    if (!template) return acc;
+    const key = `${shift.date}::${template.role}`;
+    acc[key] = (acc[key] ?? 0) + (template.coverage ?? 1);
+    return acc;
+  }, {});
+
+  return targets.reduce(
+    (acc, target) => {
+      const scheduled = coverageByDateRole[`${target.date}::${target.role}`] ?? 0;
+      const gap = Math.max(0, target.required - scheduled);
+      acc.totalGap += gap;
+      acc.totalRequired += target.required;
+      acc.loss += gap * lostRevenuePerUncoveredRole;
+      return acc;
+    },
+    { loss: 0, totalGap: 0, totalRequired: 0 }
+  );
+};
+
+const LostRevenueSummary = ({
+  baselineTargets,
+  currentTargets,
+  roster,
+  shiftTemplates,
+}: {
+  baselineTargets: DemandForecast[];
+  currentTargets: DemandForecast[];
+  roster: Shift[];
+  shiftTemplates: ShiftTemplate[];
+}) => {
+  const metrics = useMemo(() => {
+    const baseline = computeUncoveredLoss(baselineTargets, roster, shiftTemplates);
+    const current = computeUncoveredLoss(currentTargets, roster, shiftTemplates);
+    const delta = baseline.loss - current.loss;
+    const improvement = baseline.loss > 0 ? Math.max(0, delta / baseline.loss) : 0;
+
+    return {
+      baselineLoss: baseline.loss,
+      currentLoss: current.loss,
+      baselineGap: baseline.totalGap,
+      currentGap: current.totalGap,
+      delta,
+      improvement,
+    };
+  }, [baselineTargets, currentTargets, roster, shiftTemplates]);
+
+  if (!baselineTargets.length && !currentTargets.length) {
+    return null;
+  }
+
+  const improvementPercent = `${Math.min(100, Math.max(0, metrics.improvement * 100)).toFixed(0)}%`;
+  const deltaLabel = metrics.delta >= 0 ? `-${formatCurrency(metrics.delta)}` : `+${formatCurrency(Math.abs(metrics.delta))}`;
+
+  return (
+    <ThemedView style={styles.lossSummary}>
+      <View style={styles.rowBetween}>
+        <ThemedText type="defaultSemiBold">Lost revenue exposure</ThemedText>
+        <View style={[styles.badge, metrics.delta >= 0 ? styles.positiveBadge : styles.badge]}>
+          <ThemedText style={styles.badgeText}>{deltaLabel}</ThemedText>
+        </View>
+      </View>
+      <ThemedText style={styles.mutedText}>
+        Estimated revenue at risk from uncovered roles before vs. after forecasting.
+      </ThemedText>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: improvementPercent }]} />
+      </View>
+      <View style={styles.rowBetween}>
+        <View>
+          <ThemedText style={styles.mutedText}>Before forecast</ThemedText>
+          <ThemedText type="defaultSemiBold">{formatCurrency(metrics.baselineLoss)}</ThemedText>
+          <ThemedText style={styles.mutedText}>Uncovered: {metrics.baselineGap}</ThemedText>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <ThemedText style={styles.mutedText}>After forecast</ThemedText>
+          <ThemedText type="defaultSemiBold">{formatCurrency(metrics.currentLoss)}</ThemedText>
+          <ThemedText style={styles.mutedText}>Uncovered: {metrics.currentGap}</ThemedText>
+        </View>
+      </View>
+    </ThemedView>
+  );
+};
+
 export default function SchedulerScreen() {
   const {
     demandTargets,
@@ -443,6 +538,7 @@ export default function SchedulerScreen() {
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const baselineTargetsRef = useRef<DemandForecast[] | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const shiftSectionRef = useRef<View>(null);
   const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
@@ -729,8 +825,20 @@ export default function SchedulerScreen() {
   const runForecast = useCallback(() => {
     if (!isForecastInputValid || forecasting || forecastLoading) return;
     setForecastPending(false);
+    if (!baselineTargetsRef.current && demandTargets.length) {
+      baselineTargetsRef.current = demandTargets;
+    }
     triggerForecast({ date: forecastDate, role: forecastRole });
-  }, [forecastDate, forecastRole, forecasting, forecastLoading, isForecastInputValid, triggerForecast]);
+  }, [
+    baselineTargetsRef,
+    demandTargets,
+    forecastDate,
+    forecastRole,
+    forecasting,
+    forecastLoading,
+    isForecastInputValid,
+    triggerForecast,
+  ]);
 
   const scrollToShiftSection = useCallback(() => {
     if (shiftSectionOffset == null) return;
@@ -784,6 +892,12 @@ export default function SchedulerScreen() {
       }));
     }
   }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
+
+  useEffect(() => {
+    if (!baselineTargetsRef.current && demandTargets.length) {
+      baselineTargetsRef.current = demandTargets;
+    }
+  }, [demandTargets]);
 
   useEffect(() => {
     if (section === 'shifts' && shiftSectionOffset != null) {
@@ -1100,6 +1214,12 @@ export default function SchedulerScreen() {
           </Pressable>
           <ThemedText style={[styles.mutedText, styles.helperText]}>{forecastHelperText}</ThemedText>
         </View>
+        <LostRevenueSummary
+          baselineTargets={baselineTargetsRef.current ?? demandTargets}
+          currentTargets={demandTargets}
+          roster={roster}
+          shiftTemplates={shiftTemplates}
+        />
         <View style={styles.divider} />
         {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
         {demandTargets.map((target) => (
@@ -1299,6 +1419,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  positiveBadge: {
+    backgroundColor: '#dcfce7',
+  },
   badgeText: {
     fontWeight: '700',
   },
@@ -1366,6 +1489,25 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 4,
+  },
+  lossSummary: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#0b1224',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
   },
   errorText: {
     color: '#DC2626',
