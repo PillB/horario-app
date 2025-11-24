@@ -387,6 +387,12 @@ export default function SchedulerScreen() {
       errors.push('Template ID must match an existing template.');
     }
 
+    if (template && worker && worker.role !== template.role) {
+      errors.push(
+        `Worker role (${worker.role}) must match template role (${template.role}) before scheduling a shift.`
+      );
+    }
+
     const shiftKey = `${trimmedWorkerId}::${trimmedDate}::${trimmedTemplateId}`;
     if (rosterLookup.has(shiftKey)) {
       errors.push('This worker, date, and template combination is already scheduled.');
