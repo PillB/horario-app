@@ -5,6 +5,14 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useDemandForecast } from '@/hooks/useDemandForecast';
 import { DemandForecast } from '@/services/demandForecast';
+import {
+  AvailabilitySlot,
+  Shift,
+  Worker,
+  loadSchedulerData,
+  upsertAvailabilitySlot,
+  upsertShift,
+} from '@/services/schedulerStorage';
 
 const AvailabilityLabel = ({ day, from, to }: { day: string; from: string; to: string }) => (
   <View style={styles.badge}>
@@ -59,20 +67,6 @@ const InputField = ({
   </View>
 );
 
-type Availability = {
-  day: string;
-  from: string;
-  to: string;
-};
-
-type Worker = {
-  id: string;
-  name: string;
-  role: string;
-  skills: string[];
-  availability: Availability[];
-};
-
 type ShiftTemplate = {
   id: string;
   name: string;
@@ -82,14 +76,34 @@ type ShiftTemplate = {
   coverage: number;
 };
 
-type Shift = {
-  id: string;
-  date: string;
-  workerId: string;
-  templateId: string;
-  location: string;
-  status: 'Draft' | 'Published';
-};
+const defaultWorkers: Worker[] = [
+  {
+    id: 'W-01',
+    name: 'Alex Johnson',
+    role: 'Front Desk',
+    skills: ['Check-in', 'Escalations'],
+    availability: [
+      { day: 'Mon', from: '08:00', to: '16:00' },
+      { day: 'Wed', from: '10:00', to: '18:00' },
+    ],
+  },
+  {
+    id: 'W-02',
+    name: 'Priya Singh',
+    role: 'Support',
+    skills: ['Chat', 'Bilingual'],
+    availability: [
+      { day: 'Tue', from: '09:00', to: '17:00' },
+      { day: 'Thu', from: '12:00', to: '20:00' },
+    ],
+  },
+];
+
+const defaultRoster: Shift[] = [
+  { id: 'shift-1', date: '2024-12-12', workerId: 'W-01', templateId: 'morning', location: 'HQ', status: 'Published' },
+  { id: 'shift-2', date: '2024-12-12', workerId: 'W-02', templateId: 'evening', location: 'HQ', status: 'Draft' },
+  { id: 'shift-3', date: '2024-12-13', workerId: 'W-02', templateId: 'weekend', location: 'Remote', status: 'Draft' },
+];
 
 const isValidDate = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -279,28 +293,7 @@ export default function SchedulerScreen() {
     forecasting,
   } = useDemandForecast();
 
-  const [workers, setWorkers] = useState<Worker[]>([
-    {
-      id: 'W-01',
-      name: 'Alex Johnson',
-      role: 'Front Desk',
-      skills: ['Check-in', 'Escalations'],
-      availability: [
-        { day: 'Mon', from: '08:00', to: '16:00' },
-        { day: 'Wed', from: '10:00', to: '18:00' },
-      ],
-    },
-    {
-      id: 'W-02',
-      name: 'Priya Singh',
-      role: 'Support',
-      skills: ['Chat', 'Bilingual'],
-      availability: [
-        { day: 'Tue', from: '09:00', to: '17:00' },
-        { day: 'Thu', from: '12:00', to: '20:00' },
-      ],
-    },
-  ]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
 
   const [shiftTemplates] = useState<ShiftTemplate[]>([
     { id: 'morning', name: 'Morning Coverage', role: 'Front Desk', start: '08:00', end: '14:00', coverage: 2 },
@@ -308,27 +301,30 @@ export default function SchedulerScreen() {
     { id: 'weekend', name: 'Weekend Ops', role: 'Support', start: '09:00', end: '17:00', coverage: 2 },
   ]);
 
-  const [roster, setRoster] = useState<Shift[]>([
-    { id: 'shift-1', date: '2024-12-12', workerId: 'W-01', templateId: 'morning', location: 'HQ', status: 'Published' },
-    { id: 'shift-2', date: '2024-12-12', workerId: 'W-02', templateId: 'evening', location: 'HQ', status: 'Draft' },
-    { id: 'shift-3', date: '2024-12-13', workerId: 'W-02', templateId: 'weekend', location: 'Remote', status: 'Draft' },
-  ]);
+  const [roster, setRoster] = useState<Shift[]>([]);
 
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [targetError, setTargetError] = useState<string | null>(null);
 
+  const [hydrationStatus, setHydrationStatus] = useState<string | null>(null);
+  const [hydrationError, setHydrationError] = useState<string | null>(null);
+  const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
+  const [shiftStatus, setShiftStatus] = useState<string | null>(null);
+  const [targetStatus, setTargetStatus] = useState<string | null>(null);
+  const [hydrating, setHydrating] = useState(false);
+
   const [availabilityForm, setAvailabilityForm] = useState({
-    workerId: 'W-01',
-    day: 'Fri',
-    from: '09:00',
-    to: '17:00',
+    workerId: '',
+    day: '',
+    from: '',
+    to: '',
   });
 
   const [shiftForm, setShiftForm] = useState({
-    workerId: 'W-01',
+    workerId: '',
     templateId: 'morning',
-    date: '2024-12-14',
+    date: '',
   });
 
   const [targetForm, setTargetForm] = useState({
@@ -342,6 +338,45 @@ export default function SchedulerScreen() {
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
+
+  const hydrateScheduler = useCallback(async () => {
+    setHydrating(true);
+    setHydrationStatus('Loading schedule…');
+    try {
+      const { workers: storedWorkers, shifts } = await loadSchedulerData();
+      const hydratedWorkers = storedWorkers.length ? storedWorkers : defaultWorkers;
+      const hydratedRoster = shifts.length ? shifts : storedWorkers.length ? [] : defaultRoster;
+
+      setWorkers(hydratedWorkers);
+      setRoster(hydratedRoster);
+      setHydrationError(null);
+      setHydrationStatus(
+        storedWorkers.length ? 'Loaded from Supabase' : 'Using local defaults (no Supabase rows found).'
+      );
+    } catch (error) {
+      console.warn('Unable to hydrate scheduler', error);
+      setWorkers(defaultWorkers);
+      setRoster(defaultRoster);
+      setHydrationError('Unable to load scheduler data. Using local defaults.');
+      setHydrationStatus(null);
+    } finally {
+      setHydrating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrateScheduler();
+  }, [hydrateScheduler]);
+
+  useEffect(() => {
+    if (workers.length && !availabilityForm.workerId) {
+      setAvailabilityForm((prev) => ({ ...prev, workerId: prev.workerId || workers[0].id }));
+    }
+
+    if (workers.length && !shiftForm.workerId) {
+      setShiftForm((prev) => ({ ...prev, workerId: prev.workerId || workers[0].id }));
+    }
+  }, [availabilityForm.workerId, shiftForm.workerId, workers]);
 
   const rosterLookup = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -397,32 +432,50 @@ export default function SchedulerScreen() {
       .filter((target) => target.gap > 0);
   }, [demandTargets, roster, shiftTemplates]);
 
-  const handleAvailabilitySubmit = () => {
+  const handleAvailabilitySubmit = async () => {
     const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } = validateAvailabilitySubmission(
       availabilityForm,
       workers
     );
 
     if (errors.length > 0 || !normalizedDay) {
+      setAvailabilityStatus(null);
       setAvailabilityError(errors.join(' '));
       return;
     }
 
+    setAvailabilityStatus('Saving availability…');
     setAvailabilityError(null);
-    setWorkers((prev) =>
-      prev.map((worker) =>
-        worker.id === trimmedWorkerId
-          ? {
-              ...worker,
-              availability: [...worker.availability, { day: normalizedDay, from: trimmedFrom, to: trimmedTo }],
-            }
-          : worker
-      )
+    const previousWorkers = workers;
+    const updatedWorkers = workers.map((worker) =>
+      worker.id === trimmedWorkerId
+        ? {
+            ...worker,
+            availability: [...worker.availability, { day: normalizedDay, from: trimmedFrom, to: trimmedTo }],
+          }
+        : worker
     );
+    setWorkers(updatedWorkers);
     setAvailabilityForm({ ...availabilityForm, day: '', from: '', to: '' });
+
+    const result = await upsertAvailabilitySlot({
+      workerId: trimmedWorkerId,
+      day: normalizedDay,
+      from: trimmedFrom,
+      to: trimmedTo,
+    });
+
+    if (!result.success) {
+      setWorkers(previousWorkers);
+      setAvailabilityError(result.message ?? 'Unable to save availability.');
+      setAvailabilityStatus(null);
+      return;
+    }
+
+    setAvailabilityStatus(result.message ?? 'Availability saved');
   };
 
-  const handleShiftSubmit = () => {
+  const handleShiftSubmit = async () => {
     const trimmedWorkerId = shiftForm.workerId.trim();
     const trimmedTemplateId = shiftForm.templateId.trim();
     const trimmedDate = shiftForm.date.trim();
@@ -491,26 +544,39 @@ export default function SchedulerScreen() {
     }
 
     if (errors.length > 0) {
+      setShiftStatus(null);
       setShiftError(errors.join(' '));
       return;
     }
 
+    setShiftStatus('Saving shift…');
     setShiftError(null);
-    setRoster((prev) => [
-      ...prev,
-      {
-        id: `shift-${prev.length + 1}`,
-        date: trimmedDate,
-        workerId: trimmedWorkerId,
-        templateId: trimmedTemplateId,
-        location: 'HQ',
-        status: 'Draft',
-      },
-    ]);
+
+    const newShift: Shift = {
+      id: `shift-${roster.length + 1}`,
+      date: trimmedDate,
+      workerId: trimmedWorkerId,
+      templateId: trimmedTemplateId,
+      location: 'HQ',
+      status: 'Draft',
+    };
+
+    const previousRoster = roster;
+    setRoster([...roster, newShift]);
     setShiftForm({ ...shiftForm, date: '' });
+
+    const result = await upsertShift(newShift);
+    if (!result.success) {
+      setRoster(previousRoster);
+      setShiftError(result.message ?? 'Unable to save shift.');
+      setShiftStatus(null);
+      return;
+    }
+
+    setShiftStatus(result.message ?? 'Shift saved');
   };
 
-  const handleTargetSubmit = () => {
+  const handleTargetSubmit = async () => {
     const trimmedDate = targetForm.date.trim();
     const trimmedRole = targetForm.role.trim();
     const trimmedNotes = targetForm.notes.trim();
@@ -537,11 +603,13 @@ export default function SchedulerScreen() {
     }
 
     if (errors.length > 0) {
+      setTargetStatus(null);
       setTargetError(errors.join(' '));
       return;
     }
 
     setTargetError(null);
+    setTargetStatus('Saving target…');
 
     const matchingForecast = demandTargets.find(
       (target) => target.date === trimmedDate && target.role.toLowerCase() === trimmedRole.toLowerCase()
@@ -558,7 +626,8 @@ export default function SchedulerScreen() {
       source: 'override',
     };
 
-    overrideTarget(payload);
+    await overrideTarget(payload);
+    setTargetStatus('Saved demand target');
   };
 
   const forecastDate = targetForm.date.trim();
@@ -659,6 +728,9 @@ export default function SchedulerScreen() {
         title="Worker management"
         subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
       >
+        {hydrating ? <ThemedText style={styles.mutedText}>Loading from Supabase…</ThemedText> : null}
+        {hydrationStatus ? <ThemedText style={styles.statusText}>{hydrationStatus}</ThemedText> : null}
+        {hydrationError ? <ThemedText style={styles.errorText}>{hydrationError}</ThemedText> : null}
         {workers.map((worker) => (
           <View key={worker.id} style={styles.rowBetween}>
             <View style={styles.rowContent}>
@@ -714,6 +786,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Add availability</ThemedText>
         </Pressable>
+        {availabilityStatus ? <ThemedText style={styles.successText}>{availabilityStatus}</ThemedText> : null}
         {availabilityError ? <ThemedText style={styles.errorText}>{availabilityError}</ThemedText> : null}
       </SectionCard>
 
@@ -758,6 +831,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleShiftSubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Schedule shift</ThemedText>
         </Pressable>
+        {shiftStatus ? <ThemedText style={styles.successText}>{shiftStatus}</ThemedText> : null}
         {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
       </SectionCard>
 
@@ -800,6 +874,7 @@ export default function SchedulerScreen() {
         <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
           <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
         </Pressable>
+        {targetStatus ? <ThemedText style={styles.successText}>{targetStatus}</ThemedText> : null}
         {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
         <View style={styles.inlineActions}>
           <Pressable
@@ -1015,6 +1090,12 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#DC2626',
   },
+  successText: {
+    color: '#059669',
+  },
+  statusText: {
+    color: '#6B7280',
+  },
   rosterDay: {
     gap: 8,
   },
@@ -1035,4 +1116,4 @@ const styles = StyleSheet.create({
 });
 
 export { defaultTimezoneOffsetMinutes, findCoveringAvailability, getWeekdayFromDate };
-export type { Availability, ShiftTemplate, Worker };
+export type { AvailabilitySlot as Availability, ShiftTemplate, Worker };
