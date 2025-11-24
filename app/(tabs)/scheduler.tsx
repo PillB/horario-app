@@ -567,7 +567,30 @@ export default function SchedulerScreen() {
     () => isValidDate(forecastDate) && forecastRole.length > 0,
     [forecastDate, forecastRole]
   );
-  const forecastActionDisabled = !isForecastInputValid || forecasting || forecastLoading;
+  const invalidForecastCopy = 'Enter a valid YYYY-MM-DD date and role to generate a forecast.';
+  const forecastPendingCopy = 'Waiting for input to settle before forecasting…';
+  const forecastPendingLabel = 'Waiting for edits…';
+
+  const forecastBlockingReason = useMemo(() => {
+    if (!isForecastInputValid) return 'Add date & role to forecast';
+    if (forecastPending) return forecastPendingLabel;
+    return null;
+  }, [forecastPending, isForecastInputValid, forecastPendingLabel]);
+
+  const forecastActionDisabled =
+    !isForecastInputValid || forecasting || forecastLoading || forecastPending;
+
+  const forecastButtonLabel = useMemo(() => {
+    if (forecasting || forecastLoading) return 'Running…';
+    return forecastBlockingReason ?? 'Run forecast';
+  }, [forecastBlockingReason, forecastLoading, forecasting]);
+
+  const forecastHelperText = useMemo(() => {
+    if (!isForecastInputValid) return invalidForecastCopy;
+    if (forecastPending) return forecastPendingCopy;
+    if (forecastLoading || forecasting) return 'Running forecast...';
+    return 'Ready to run forecast.';
+  }, [forecastLoading, forecasting, forecastPending, invalidForecastCopy, isForecastInputValid, forecastPendingCopy]);
 
   const runForecast = useCallback(() => {
     if (!isForecastInputValid || forecasting || forecastLoading) return;
@@ -778,28 +801,24 @@ export default function SchedulerScreen() {
           <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
         </Pressable>
         {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
-        <Pressable
-          onPress={() => {
-            if (forecastActionDisabled) return;
-            runForecast();
-          }}
-          style={[styles.secondaryButton, forecastActionDisabled && styles.disabledButton]}
-        >
-          <ThemedText style={styles.primaryButtonText}>
-            {forecastActionDisabled ? 'Run forecast' : forecasting ? 'Running…' : 'Run forecast'}
-          </ThemedText>
-        </Pressable>
+        <View style={styles.inlineActions}>
+          <Pressable
+            onPress={() => {
+              if (forecastActionDisabled) return;
+              runForecast();
+            }}
+            style={[
+              styles.secondaryButton,
+              styles.actionButton,
+              forecastActionDisabled && styles.disabledButton,
+            ]}
+          >
+            <ThemedText style={styles.primaryButtonText}>{forecastButtonLabel}</ThemedText>
+          </Pressable>
+          <ThemedText style={[styles.mutedText, styles.helperText]}>{forecastHelperText}</ThemedText>
+        </View>
         <View style={styles.divider} />
         {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
-        {!isForecastInputValid ? (
-          <ThemedText style={styles.errorText}>
-            Enter a valid YYYY-MM-DD date and role to generate a forecast.
-          </ThemedText>
-        ) : null}
-        {forecastPending && !forecasting && !forecastLoading ? (
-          <ThemedText style={styles.mutedText}>Waiting for input to settle before forecasting…</ThemedText>
-        ) : null}
-        {forecastLoading || forecasting ? <ThemedText>Running forecast...</ThemedText> : null}
         {demandTargets.map((target) => (
           <View key={`${target.date}-${target.role}`} style={styles.rowBetween}>
             <View>
@@ -956,6 +975,18 @@ const styles = StyleSheet.create({
   inlineInputs: {
     flexDirection: 'row',
     gap: 10,
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  actionButton: {
+    flex: 1,
+  },
+  helperText: {
+    flex: 1,
   },
   primaryButton: {
     backgroundColor: '#2563EB',
