@@ -501,6 +501,8 @@ export default function SchedulerScreen() {
     loading: forecastLoading,
     error: forecastError,
     forecasting,
+    dataStatus,
+    seedBaselineTargets,
   } = useDemandForecast();
 
   const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
@@ -603,6 +605,19 @@ export default function SchedulerScreen() {
     required: '3',
     notes: 'Weekend backlog',
   });
+
+  const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual'>('homogeneous');
+  const [fallbackForm, setFallbackForm] = useState({
+    role: 'Support',
+    startDate: new Date().toISOString().slice(0, 10),
+    days: '7',
+    homogeneousDemand: '4',
+    shiftsPerDay: '2',
+    workersPerShift: '2',
+    notes: 'Baseline targets without history',
+  });
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
 
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
@@ -884,8 +899,110 @@ export default function SchedulerScreen() {
     overrideTarget(payload);
   };
 
+  const buildDateSequence = useCallback((startDate: string, days: number) => {
+    const sequence: string[] = [];
+    const anchor = new Date(`${startDate}T00:00:00Z`);
+    if (!Number.isFinite(anchor.getTime())) return sequence;
+
+    for (let offset = 0; offset < days; offset += 1) {
+      const next = new Date(anchor);
+      next.setUTCDate(anchor.getUTCDate() + offset);
+      sequence.push(next.toISOString().slice(0, 10));
+    }
+
+    return sequence;
+  }, []);
+
+  const handleFallbackSubmit = useCallback(async () => {
+    const trimmedRole = fallbackForm.role.trim();
+    const trimmedStart = fallbackForm.startDate.trim();
+    const trimmedNotes = fallbackForm.notes.trim();
+
+    setFallbackError(null);
+    setFallbackMessage(null);
+
+    if (!trimmedRole) {
+      setFallbackError('Role is required to create baseline demand.');
+      return;
+    }
+
+    if (!isValidDate(trimmedStart)) {
+      setFallbackError('Start date must use the YYYY-MM-DD format.');
+      return;
+    }
+
+    const normalizedDays = Number(fallbackForm.days);
+    if (!Number.isFinite(normalizedDays) || normalizedDays <= 0 || !Number.isInteger(normalizedDays)) {
+      setFallbackError('Days must be a positive whole number.');
+      return;
+    }
+
+    const safeDays = Math.min(normalizedDays, 60);
+    let required = 0;
+
+    if (fallbackMode === 'homogeneous') {
+      const normalized = Number(fallbackForm.homogeneousDemand);
+      if (!Number.isFinite(normalized) || normalized <= 0) {
+        setFallbackError('Enter a positive homogeneous demand.');
+        return;
+      }
+      required = normalized;
+    } else {
+      const normalizedShifts = Number(fallbackForm.shiftsPerDay);
+      const normalizedWorkers = Number(fallbackForm.workersPerShift);
+
+      if (
+        !Number.isFinite(normalizedShifts) ||
+        normalizedShifts <= 0 ||
+        !Number.isFinite(normalizedWorkers) ||
+        normalizedWorkers <= 0
+      ) {
+        setFallbackError('Provide positive worker and shift counts.');
+        return;
+      }
+
+      required = normalizedShifts * normalizedWorkers;
+    }
+
+    const sequence = buildDateSequence(trimmedStart, safeDays);
+    if (!sequence.length) {
+      setFallbackError('Unable to build a date range from the provided start date.');
+      return;
+    }
+
+    const generatedTargets: DemandForecast[] = sequence.map((date) => ({
+      date,
+      role: trimmedRole,
+      required,
+      notes:
+        trimmedNotes ||
+        (fallbackMode === 'homogeneous'
+          ? 'Homogeneous demand fallback'
+          : 'Manual worker/shift fallback'),
+      source: 'override',
+    }));
+
+    await seedBaselineTargets(generatedTargets);
+    setFallbackMessage('Baseline demand targets saved. You can now publish coverage or refine forecasts.');
+  }, [
+    buildDateSequence,
+    fallbackForm.days,
+    fallbackForm.homogeneousDemand,
+    fallbackForm.notes,
+    fallbackForm.role,
+    fallbackForm.shiftsPerDay,
+    fallbackForm.startDate,
+    fallbackForm.workersPerShift,
+    fallbackMode,
+    seedBaselineTargets,
+  ]);
+
   const forecastDate = targetForm.date.trim();
   const forecastRole = targetForm.role.trim();
+  const needsFallbackSetup = useMemo(
+    () => !dataStatus.hasHistorical && !dataStatus.hasExternalSignals && !dataStatus.hasExistingTargets,
+    [dataStatus.hasExistingTargets, dataStatus.hasExternalSignals, dataStatus.hasHistorical]
+  );
   const isForecastInputValid = useMemo(
     () => isValidDate(forecastDate) && forecastRole.length > 0,
     [forecastDate, forecastRole]
@@ -934,16 +1051,22 @@ export default function SchedulerScreen() {
 
   const forecastHelperText = useMemo(() => {
     if (!isForecastInputValid) return invalidForecastCopy;
+    if (needsFallbackSetup)
+      return 'No historical shifts or external signals found. Use quick setup to seed demand targets.';
+    if (!dataStatus.apiAvailable)
+      return 'Forecast API unavailable. Use quick setup or manual targets to proceed.';
     if (forecastPending) return forecastPendingCopy;
     if (forecastLoading || forecasting) return 'Running forecast...';
     return forecastReadyHelperCopy;
   }, [
+    dataStatus.apiAvailable,
     forecastLoading,
     forecasting,
     forecastPending,
     forecastReadyHelperCopy,
     invalidForecastCopy,
     isForecastInputValid,
+    needsFallbackSetup,
     forecastPendingCopy,
   ]);
 
@@ -1278,6 +1401,21 @@ export default function SchedulerScreen() {
 
         <Checklist steps={onboardingSteps} progress={onboardingProgress} />
 
+        {needsFallbackSetup ? (
+          <ThemedView style={[styles.banner, styles.bannerWarning, styles.dismissibleBanner]}>
+            <View style={styles.bannerHeader}>
+              <ThemedText style={styles.bannerText}>Missing data detected</ThemedText>
+              <Pressable onPress={() => goToSection('forecast')}>
+                <ThemedText style={styles.linkText}>Open quick setup</ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText style={styles.mutedText}>
+              We could not find historical shifts or external signals. Seed homogeneous demand or manual
+              worker/shift counts to unlock forecasting.
+            </ThemedText>
+          </ThemedView>
+        ) : null}
+
         <View
           ref={workerSectionRef}
           onLayout={(event) => setWorkerSectionOffset(event.nativeEvent.layout.y)}
@@ -1431,6 +1569,95 @@ export default function SchedulerScreen() {
         onLayout={(event) => setDemandSectionOffset(event.nativeEvent.layout.y)}
       >
         <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
+        <ThemedView style={styles.fallbackCard}>
+          <View style={styles.rowBetween}>
+            <ThemedText type="defaultSemiBold">Quick setup</ThemedText>
+            <View style={[styles.badge, styles.fallbackBadge]}>
+              <ThemedText style={styles.badgeText}>Fallback</ThemedText>
+            </View>
+          </View>
+          <ThemedText style={styles.mutedText}>
+            Seed baseline demand when historical shifts or external signals are unavailable.
+          </ThemedText>
+          <View style={styles.inlineActions}>
+            <Pressable
+              onPress={() => setFallbackMode('homogeneous')}
+              style={[styles.toggleChip, fallbackMode === 'homogeneous' && styles.toggleChipActive]}
+            >
+              <ThemedText style={[styles.toggleChipText, fallbackMode === 'homogeneous' && styles.toggleChipTextActive]}>
+                Homogeneous demand
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setFallbackMode('manual')}
+              style={[styles.toggleChip, fallbackMode === 'manual' && styles.toggleChipActive]}
+            >
+              <ThemedText style={[styles.toggleChipText, fallbackMode === 'manual' && styles.toggleChipTextActive]}>
+                Manual worker/shift counts
+              </ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.inlineInputs}>
+            <InputField
+              label="Role"
+              value={fallbackForm.role}
+              placeholder="Support"
+              onChangeText={(text) => setFallbackForm({ ...fallbackForm, role: text })}
+            />
+            <InputField
+              label="Start date"
+              value={fallbackForm.startDate}
+              placeholder="2024-12-15"
+              onChangeText={(text) => setFallbackForm({ ...fallbackForm, startDate: text })}
+            />
+          </View>
+          <View style={styles.inlineInputs}>
+            <InputField
+              label="Days"
+              value={fallbackForm.days}
+              placeholder="7"
+              keyboardType="numeric"
+              onChangeText={(text) => setFallbackForm({ ...fallbackForm, days: text })}
+            />
+            {fallbackMode === 'homogeneous' ? (
+              <InputField
+                label="Daily demand"
+                value={fallbackForm.homogeneousDemand}
+                placeholder="4"
+                keyboardType="numeric"
+                onChangeText={(text) => setFallbackForm({ ...fallbackForm, homogeneousDemand: text })}
+              />
+            ) : (
+              <View style={styles.inlineInputs}>
+                <InputField
+                  label="Shifts per day"
+                  value={fallbackForm.shiftsPerDay}
+                  placeholder="2"
+                  keyboardType="numeric"
+                  onChangeText={(text) => setFallbackForm({ ...fallbackForm, shiftsPerDay: text })}
+                />
+                <InputField
+                  label="Workers per shift"
+                  value={fallbackForm.workersPerShift}
+                  placeholder="2"
+                  keyboardType="numeric"
+                  onChangeText={(text) => setFallbackForm({ ...fallbackForm, workersPerShift: text })}
+                />
+              </View>
+            )}
+          </View>
+          <InputField
+            label="Notes"
+            value={fallbackForm.notes}
+            placeholder="Baseline while we collect history"
+            onChangeText={(text) => setFallbackForm({ ...fallbackForm, notes: text })}
+          />
+          <Pressable onPress={handleFallbackSubmit} style={[styles.secondaryButton, styles.tightButton]}>
+            <ThemedText style={styles.primaryButtonText}>Save baseline targets</ThemedText>
+          </Pressable>
+          {fallbackError ? <ThemedText style={styles.errorText}>{fallbackError}</ThemedText> : null}
+          {fallbackMessage ? <ThemedText style={styles.successText}>{fallbackMessage}</ThemedText> : null}
+        </ThemedView>
         <View style={styles.inlineInputs}>
           <InputField
             label="Date"
@@ -1698,6 +1925,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF2F2',
     borderColor: '#FECACA',
   },
+  bannerWarning: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
   bannerText: {
     color: '#0F172A',
     fontWeight: '600',
@@ -1747,6 +1978,9 @@ const styles = StyleSheet.create({
   badgeText: {
     fontWeight: '700',
   },
+  successText: {
+    color: '#15803D',
+  },
   linkText: {
     color: '#2563EB',
     fontWeight: '600',
@@ -1794,6 +2028,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  fallbackCard: {
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+  },
+  fallbackBadge: {
+    backgroundColor: '#f3f4f6',
+  },
+  toggleChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  toggleChipActive: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  toggleChipText: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  toggleChipTextActive: {
+    color: '#ffffff',
   },
   actionButton: {
     flex: 1,

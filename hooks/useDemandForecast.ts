@@ -3,7 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   DemandForecast,
   ForecastFilters,
+  ForecastDataStatus,
+  ForecastGenerationResult,
   generateDemandForecast,
+  getForecastDataStatus,
   loadDemandTargets,
   upsertDemandTarget,
 } from '@/services/demandForecast';
@@ -20,12 +23,22 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
   const [loading, setLoading] = useState(false);
   const [forecasting, setForecasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataStatus, setDataStatus] = useState<ForecastDataStatus>({
+    hasHistorical: false,
+    hasExternalSignals: false,
+    hasExistingTargets: false,
+    apiAvailable: Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL),
+  });
 
   const hydrate = useCallback(async () => {
     try {
       setLoading(true);
-      const existing = await loadDemandTargets(filters);
+      const [existing, status] = await Promise.all([
+        loadDemandTargets(filters),
+        getForecastDataStatus(filters),
+      ]);
       setDemandTargets(existing);
+      setDataStatus(status);
       setError(null);
     } catch (err) {
       console.warn('Unable to hydrate demand targets', err);
@@ -41,9 +54,23 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
       try {
         setForecasting(true);
         setLoading(true);
-        const forecasts = await generateDemandForecast({ ...filters, ...overrideFilters });
+        const { forecasts, metadata }: ForecastGenerationResult = await generateDemandForecast({
+          ...filters,
+          ...overrideFilters,
+        });
         setDemandTargets((prev) => mergeForecasts(forecasts, prev.filter((item) => item.source === 'override')));
-        setError(null);
+        setDataStatus((prev) => ({
+          ...prev,
+          hasHistorical: prev.hasHistorical || metadata.hasHistorical,
+          hasExternalSignals: prev.hasExternalSignals || metadata.hasExternalSignals,
+          hasExistingTargets: forecasts.length > 0 || prev.hasExistingTargets,
+          apiAvailable: metadata.apiAvailable,
+        }));
+        if (metadata.usedFallback && !metadata.hasHistorical && !metadata.hasExternalSignals) {
+          setError('No historical shifts or external signals were found. Use quick setup to seed demand.');
+        } else {
+          setError(null);
+        }
       } catch (err) {
         console.warn('Unable to generate forecast', err);
         setError('Unable to generate forecast');
@@ -61,10 +88,31 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
       const normalized = { ...target, required: Number(target.required), source: 'override' as const };
       setDemandTargets((prev) => mergeForecasts([normalized], prev));
       await upsertDemandTarget(normalized);
+      setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
       setError(null);
     } catch (err) {
       console.warn('Unable to persist override', err);
       setError('Unable to save override');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const seedBaselineTargets = useCallback(async (targets: DemandForecast[]) => {
+    try {
+      setLoading(true);
+      const normalized = targets.map((target) => ({
+        ...target,
+        required: Number(target.required),
+        source: target.source ?? ('override' as const),
+      }));
+      setDemandTargets((prev) => mergeForecasts(normalized, prev));
+      await Promise.all(normalized.map((target) => upsertDemandTarget(target)));
+      setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
+      setError(null);
+    } catch (err) {
+      console.warn('Unable to seed baseline targets', err);
+      setError('Unable to save baseline targets');
     } finally {
       setLoading(false);
     }
@@ -79,9 +127,11 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     loading,
     error,
     forecasting,
+    dataStatus,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,
+    seedBaselineTargets,
   } as const;
 };
 

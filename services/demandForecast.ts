@@ -32,6 +32,23 @@ export type ForecastFilters = {
   role?: string;
 };
 
+export type ForecastDataStatus = {
+  hasHistorical: boolean;
+  hasExternalSignals: boolean;
+  hasExistingTargets: boolean;
+  apiAvailable: boolean;
+};
+
+export type ForecastGenerationMetadata = ForecastDataStatus & {
+  usedApi: boolean;
+  usedFallback: boolean;
+};
+
+export type ForecastGenerationResult = {
+  forecasts: DemandForecast[];
+  metadata: ForecastGenerationMetadata;
+};
+
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
 
 const roundToInt = (value: number) => Math.max(0, Math.round(value));
@@ -256,10 +273,46 @@ const mergeForecasts = (forecasts: DemandForecast[], overrides: DemandForecast[]
   return Array.from(lookup.values());
 };
 
-export const generateDemandForecast = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
+export const getForecastDataStatus = async (filters?: ForecastFilters): Promise<ForecastDataStatus> => {
+  const baseStatus: ForecastDataStatus = {
+    hasHistorical: false,
+    hasExternalSignals: false,
+    hasExistingTargets: false,
+    apiAvailable: Boolean(FORECAST_API_URL),
+  };
+
   const client = getSupabaseClient();
+  if (!client) return baseStatus;
+
+  const [historical, signals, existingTargets] = await Promise.all([
+    fetchHistoricalShifts(client, filters),
+    fetchExternalSignals(client, filters),
+    fetchExistingTargets(client, filters),
+  ]);
+
+  return {
+    hasHistorical: historical.length > 0,
+    hasExternalSignals: signals.length > 0,
+    hasExistingTargets: existingTargets.length > 0,
+    apiAvailable: Boolean(FORECAST_API_URL),
+  };
+};
+
+export const generateDemandForecast = async (
+  filters?: ForecastFilters
+): Promise<ForecastGenerationResult> => {
+  const client = getSupabaseClient();
+  const metadata: ForecastGenerationMetadata = {
+    hasHistorical: false,
+    hasExternalSignals: false,
+    hasExistingTargets: false,
+    apiAvailable: Boolean(FORECAST_API_URL),
+    usedApi: false,
+    usedFallback: true,
+  };
+
   if (!client) {
-    return computeDailyAverages([], [], filters);
+    return { forecasts: computeDailyAverages([], [], filters), metadata };
   }
 
   const [shifts, signals, storedOverrides] = await Promise.all([
@@ -268,13 +321,20 @@ export const generateDemandForecast = async (filters?: ForecastFilters): Promise
     fetchExistingTargets(client, filters),
   ]);
 
+  metadata.hasHistorical = shifts.length > 0;
+  metadata.hasExternalSignals = signals.length > 0;
+  metadata.hasExistingTargets = storedOverrides.length > 0;
+
   const apiForecasts = await callForecastApi({ shifts, signals, filters: selectFilters(filters) });
+  metadata.usedApi = apiForecasts.length > 0;
+
   const localForecasts = apiForecasts.length ? apiForecasts : computeDailyAverages(shifts, signals, filters);
+  metadata.usedFallback = !apiForecasts.length && !metadata.hasHistorical && !metadata.hasExternalSignals;
 
   const merged = mergeForecasts(localForecasts, storedOverrides.filter((t) => t.source === 'override'));
   await persistForecasts(client, merged.filter((forecast) => forecast.source !== 'override'));
 
-  return merged;
+  return { forecasts: merged, metadata };
 };
 
 export const loadDemandTargets = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
