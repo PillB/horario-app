@@ -83,8 +83,8 @@ const defaultWorkers: Worker[] = [
     role: 'Front Desk',
     skills: ['Check-in', 'Escalations'],
     availability: [
-      { day: 'Mon', from: '08:00', to: '16:00' },
-      { day: 'Wed', from: '10:00', to: '18:00' },
+      { workerId: 'W-01', day: 'Mon', from: '08:00', to: '16:00' },
+      { workerId: 'W-01', day: 'Wed', from: '10:00', to: '18:00' },
     ],
   },
   {
@@ -93,8 +93,8 @@ const defaultWorkers: Worker[] = [
     role: 'Support',
     skills: ['Chat', 'Bilingual'],
     availability: [
-      { day: 'Tue', from: '09:00', to: '17:00' },
-      { day: 'Thu', from: '12:00', to: '20:00' },
+      { workerId: 'W-02', day: 'Tue', from: '09:00', to: '17:00' },
+      { workerId: 'W-02', day: 'Thu', from: '12:00', to: '20:00' },
     ],
   },
 ];
@@ -451,7 +451,10 @@ export default function SchedulerScreen() {
       worker.id === trimmedWorkerId
         ? {
             ...worker,
-            availability: [...worker.availability, { day: normalizedDay, from: trimmedFrom, to: trimmedTo }],
+            availability: [
+              ...worker.availability,
+              { workerId: trimmedWorkerId, day: normalizedDay, from: trimmedFrom, to: trimmedTo },
+            ],
           }
         : worker
     );
