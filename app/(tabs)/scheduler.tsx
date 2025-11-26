@@ -20,6 +20,8 @@ import {
   fetchOnboardingProgress,
   upsertOnboardingProgress,
 } from '@/services/onboardingProgress';
+import { WellnessPrompt } from '@/components/WellnessPrompt';
+import { useSessionWellness } from '@/hooks/useSessionWellness';
 
 const AvailabilityLabel = ({ day, from, to }: { day: string; from: string; to: string }) => (
   <View style={styles.badge}>
@@ -73,6 +75,16 @@ const InputField = ({
     />
   </View>
 );
+
+const createChangeHandler = <T extends Record<string, string>>(
+  setter: React.Dispatch<React.SetStateAction<T>>,
+  onInteraction: () => void
+) =>
+  (key: keyof T) =>
+  (value: string) => {
+    onInteraction();
+    setter((prev) => ({ ...prev, [key]: value }));
+  };
 
 type Availability = {
   day: string;
@@ -619,6 +631,9 @@ export default function SchedulerScreen() {
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [fallbackError, setFallbackError] = useState<string | null>(null);
 
+  const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
+    useSessionWellness();
+
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -636,6 +651,27 @@ export default function SchedulerScreen() {
   const router = useRouter();
   const { section } = useLocalSearchParams<{ section?: string }>();
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
+
+  const updateAvailabilityField = useMemo(
+    () => createChangeHandler(setAvailabilityForm, recordInteraction),
+    [recordInteraction]
+  );
+
+  const updateShiftField = useMemo(() => createChangeHandler(setShiftForm, recordInteraction), [recordInteraction]);
+
+  const updateFallbackField = useMemo(
+    () => createChangeHandler(setFallbackForm, recordInteraction),
+    [recordInteraction]
+  );
+
+  const updateTargetField = useCallback(
+    (key: keyof typeof targetForm) => (value: string) => {
+      recordInteraction();
+      setForecastEditStarted(true);
+      setTargetForm((prev) => ({ ...prev, [key]: value }));
+    },
+    [recordInteraction, setForecastEditStarted, setTargetForm]
+  );
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotionEnabled);
@@ -1455,26 +1491,26 @@ export default function SchedulerScreen() {
           label="Worker"
           value={availabilityForm.workerId}
           placeholder="Worker ID"
-          onChangeText={(text) => setAvailabilityForm({ ...availabilityForm, workerId: text })}
+          onChangeText={updateAvailabilityField('workerId')}
         />
         <View style={styles.inlineInputs}>
           <InputField
             label="Day"
             value={availabilityForm.day}
             placeholder="Mon"
-            onChangeText={(text) => setAvailabilityForm({ ...availabilityForm, day: text })}
+            onChangeText={updateAvailabilityField('day')}
           />
           <InputField
             label="From"
             value={availabilityForm.from}
             placeholder="09:00"
-            onChangeText={(text) => setAvailabilityForm({ ...availabilityForm, from: text })}
+            onChangeText={updateAvailabilityField('from')}
           />
           <InputField
             label="To"
             value={availabilityForm.to}
             placeholder="17:00"
-            onChangeText={(text) => setAvailabilityForm({ ...availabilityForm, to: text })}
+            onChangeText={updateAvailabilityField('to')}
           />
         </View>
         <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
@@ -1538,20 +1574,20 @@ export default function SchedulerScreen() {
               label="Worker"
               value={shiftForm.workerId}
               placeholder="W-01"
-              onChangeText={(text) => setShiftForm({ ...shiftForm, workerId: text })}
+              onChangeText={updateShiftField('workerId')}
             />
             <InputField
               label="Template"
               value={shiftForm.templateId}
               placeholder="morning"
-              onChangeText={(text) => setShiftForm({ ...shiftForm, templateId: text })}
+              onChangeText={updateShiftField('templateId')}
             />
           </View>
           <InputField
             label="Date"
             value={shiftForm.date}
             placeholder="2024-12-15"
-            onChangeText={(text) => setShiftForm({ ...shiftForm, date: text })}
+            onChangeText={updateShiftField('date')}
           />
           <Pressable
             accessibilityLabel={shiftSubmitLabel}
@@ -1602,13 +1638,13 @@ export default function SchedulerScreen() {
               label="Role"
               value={fallbackForm.role}
               placeholder="Support"
-              onChangeText={(text) => setFallbackForm({ ...fallbackForm, role: text })}
+              onChangeText={updateFallbackField('role')}
             />
             <InputField
               label="Start date"
               value={fallbackForm.startDate}
               placeholder="2024-12-15"
-              onChangeText={(text) => setFallbackForm({ ...fallbackForm, startDate: text })}
+              onChangeText={updateFallbackField('startDate')}
             />
           </View>
           <View style={styles.inlineInputs}>
@@ -1617,7 +1653,7 @@ export default function SchedulerScreen() {
               value={fallbackForm.days}
               placeholder="7"
               keyboardType="numeric"
-              onChangeText={(text) => setFallbackForm({ ...fallbackForm, days: text })}
+              onChangeText={updateFallbackField('days')}
             />
             {fallbackMode === 'homogeneous' ? (
               <InputField
@@ -1625,7 +1661,7 @@ export default function SchedulerScreen() {
                 value={fallbackForm.homogeneousDemand}
                 placeholder="4"
                 keyboardType="numeric"
-                onChangeText={(text) => setFallbackForm({ ...fallbackForm, homogeneousDemand: text })}
+                onChangeText={updateFallbackField('homogeneousDemand')}
               />
             ) : (
               <View style={styles.inlineInputs}>
@@ -1634,14 +1670,14 @@ export default function SchedulerScreen() {
                   value={fallbackForm.shiftsPerDay}
                   placeholder="2"
                   keyboardType="numeric"
-                  onChangeText={(text) => setFallbackForm({ ...fallbackForm, shiftsPerDay: text })}
+                  onChangeText={updateFallbackField('shiftsPerDay')}
                 />
                 <InputField
                   label="Workers per shift"
                   value={fallbackForm.workersPerShift}
                   placeholder="2"
                   keyboardType="numeric"
-                  onChangeText={(text) => setFallbackForm({ ...fallbackForm, workersPerShift: text })}
+                  onChangeText={updateFallbackField('workersPerShift')}
                 />
               </View>
             )}
@@ -1650,7 +1686,7 @@ export default function SchedulerScreen() {
             label="Notes"
             value={fallbackForm.notes}
             placeholder="Baseline while we collect history"
-            onChangeText={(text) => setFallbackForm({ ...fallbackForm, notes: text })}
+            onChangeText={updateFallbackField('notes')}
           />
           <Pressable onPress={handleFallbackSubmit} style={[styles.secondaryButton, styles.tightButton]}>
             <ThemedText style={styles.primaryButtonText}>Save baseline targets</ThemedText>
@@ -1663,19 +1699,13 @@ export default function SchedulerScreen() {
             label="Date"
             value={targetForm.date}
             placeholder="2024-12-15"
-            onChangeText={(text) => {
-              setForecastEditStarted(true);
-              setTargetForm((prev) => ({ ...prev, date: text }));
-            }}
+            onChangeText={updateTargetField('date')}
           />
           <InputField
             label="Role"
             value={targetForm.role}
             placeholder="Support"
-            onChangeText={(text) => {
-              setForecastEditStarted(true);
-              setTargetForm((prev) => ({ ...prev, role: text }));
-            }}
+            onChangeText={updateTargetField('role')}
           />
         </View>
         <View style={styles.inlineInputs}>
@@ -1684,13 +1714,13 @@ export default function SchedulerScreen() {
             value={targetForm.required}
             placeholder="3"
             keyboardType="numeric"
-            onChangeText={(text) => setTargetForm({ ...targetForm, required: text })}
+            onChangeText={updateTargetField('required')}
           />
           <InputField
             label="Notes"
             value={targetForm.notes}
             placeholder="Backlog, promo, etc"
-            onChangeText={(text) => setTargetForm({ ...targetForm, notes: text })}
+            onChangeText={updateTargetField('notes')}
           />
         </View>
         <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
@@ -1841,6 +1871,12 @@ export default function SchedulerScreen() {
           ))
         )}
       </SectionCard>
+      <WellnessPrompt
+        visible={promptVisible}
+        minutesActive={minutesActive}
+        onDismiss={dismissPrompt}
+        onTakeBreak={acknowledgeBreak}
+      />
     </ScrollView>
     </ThemedView>
   );
