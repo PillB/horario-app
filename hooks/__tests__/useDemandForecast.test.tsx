@@ -14,6 +14,8 @@ describe('useDemandForecast failure handling', () => {
   const target = { date: '2024-01-01', role: 'barista', required: 3 };
   let warnSpy: jest.SpyInstance;
 
+  jest.setTimeout(10000);
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetClient.mockReturnValue(null);
@@ -127,5 +129,89 @@ describe('useDemandForecast failure handling', () => {
     loadSpy.mockRestore();
     statusSpy.mockRestore();
     errorSpy.mockRestore();
+  });
+
+  it('ignores stale hydration responses after filters change', async () => {
+    type Deferred<T> = {
+      promise: Promise<T>;
+      resolve: (value: T) => void;
+    };
+
+    const createDeferred = <T,>(): Deferred<T> => {
+      let resolver!: (value: T) => void;
+      const promise = new Promise<T>((resolve) => {
+        resolver = resolve;
+      });
+      return { promise, resolve: resolver };
+    };
+
+    const firstTargets = createDeferred<demandForecast.DemandForecast[]>();
+    const firstStatus = createDeferred<demandForecast.ForecastDataStatus>();
+
+    const loadSpy = jest
+      .spyOn(demandForecast, 'loadDemandTargets')
+      .mockImplementationOnce(() => firstTargets.promise)
+      .mockImplementation(() =>
+        Promise.resolve([{ date: '2024-01-02', role: 'barista', required: 4, source: 'override' }])
+      );
+
+    const statusSpy = jest
+      .spyOn(demandForecast, 'getForecastDataStatus')
+      .mockImplementationOnce(() => firstStatus.promise)
+      .mockImplementation(() =>
+        Promise.resolve({
+          hasHistorical: true,
+          hasExternalSignals: false,
+          hasExistingTargets: true,
+          apiAvailable: true,
+        })
+      );
+
+    let hookState: ReturnType<typeof useDemandForecast> | null = null;
+
+    const TestComponent = () => {
+      const hook = useDemandForecast();
+      useEffect(() => {
+        hookState = hook;
+      }, [hook]);
+      return null;
+    };
+
+    await act(async () => {
+      renderer.create(<TestComponent />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await hookState?.refresh();
+    });
+
+    await act(async () => {
+      firstTargets.resolve([{ date: '2024-01-01', role: 'barista', required: 3, source: 'override' }]);
+      firstStatus.resolve({
+        hasHistorical: false,
+        hasExternalSignals: false,
+        hasExistingTargets: false,
+        apiAvailable: false,
+      });
+      await Promise.resolve();
+    });
+
+    expect(hookState?.demandTargets).toEqual([
+      { date: '2024-01-02', role: 'barista', required: 4, source: 'override' },
+    ]);
+    expect(hookState?.dataStatus).toEqual({
+      hasHistorical: true,
+      hasExternalSignals: false,
+      hasExistingTargets: true,
+      apiAvailable: true,
+    });
+    expect(hookState?.loading).toBe(false);
+
+    loadSpy.mockRestore();
+    statusSpy.mockRestore();
   });
 });

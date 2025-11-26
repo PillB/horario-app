@@ -30,25 +30,31 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     apiAvailable: Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL),
   });
 
-  const hydrateAbortRef = useRef(false);
+  const hydrateRequestIdRef = useRef(0);
 
   const hydrate = useCallback(async () => {
+    /**
+     * Guard hydration work by request id so stale responses cannot override
+     * more recent filter changes. Each invocation receives its own id and
+     * only the latest request is allowed to update loading/error/data state.
+     */
+    const requestId = ++hydrateRequestIdRef.current;
     try {
       setLoading(true);
       const [existing, status] = await Promise.all([
         loadDemandTargets(filters),
         getForecastDataStatus(filters),
       ]);
-      if (hydrateAbortRef.current) return;
+      if (hydrateRequestIdRef.current !== requestId) return;
       setDemandTargets(existing);
       setDataStatus(status);
       setError(null);
     } catch (err) {
       console.warn('Unable to hydrate demand targets', err);
-      if (hydrateAbortRef.current) return;
+      if (hydrateRequestIdRef.current !== requestId) return;
       setError('Unable to load demand targets');
     } finally {
-      if (!hydrateAbortRef.current) {
+      if (hydrateRequestIdRef.current === requestId) {
         setLoading(false);
       }
     }
@@ -138,10 +144,9 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
   }, []);
 
   useEffect(() => {
-    hydrateAbortRef.current = false;
     hydrate();
     return () => {
-      hydrateAbortRef.current = true;
+      hydrateRequestIdRef.current += 1;
     };
   }, [hydrate]);
 
