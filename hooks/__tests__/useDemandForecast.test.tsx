@@ -131,6 +131,58 @@ describe('useDemandForecast failure handling', () => {
     errorSpy.mockRestore();
   });
 
+  it('surfaces fallback details when forecasts rely on local averages', async () => {
+    const loadSpy = jest.spyOn(demandForecast, 'loadDemandTargets').mockResolvedValue([]);
+    const statusSpy = jest.spyOn(demandForecast, 'getForecastDataStatus').mockResolvedValue({
+      hasHistorical: false,
+      hasExternalSignals: false,
+      hasExistingTargets: false,
+      apiAvailable: false,
+    });
+
+    const fallbackMessage = 'Forecast API returned no data; using local averages.';
+
+    const forecastSpy = jest.spyOn(demandForecast, 'generateDemandForecast').mockResolvedValue({
+      forecasts: [{ date: '2024-01-01', role: 'barista', required: 3, source: 'model' as const }],
+      metadata: {
+        hasHistorical: false,
+        hasExternalSignals: false,
+        hasExistingTargets: false,
+        apiAvailable: false,
+        usedApi: false,
+        usedFallback: true,
+        apiCallFailed: false,
+        fallbackReason: fallbackMessage,
+      },
+    });
+
+    let hookState: ReturnType<typeof useDemandForecast> | null = null;
+
+    const TestComponent = () => {
+      const hook = useDemandForecast();
+      useEffect(() => {
+        hookState = hook;
+      }, [hook]);
+      return null;
+    };
+
+    await act(async () => {
+      renderer.create(<TestComponent />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await hookState?.triggerForecast();
+    });
+
+    expect(hookState?.error).toBe(fallbackMessage);
+    expect(hookState?.lastGenerationMetadata?.usedFallback).toBe(true);
+
+    loadSpy.mockRestore();
+    statusSpy.mockRestore();
+    forecastSpy.mockRestore();
+  });
+
   it('ignores stale hydration responses after filters change', async () => {
     type Deferred<T> = {
       promise: Promise<T>;

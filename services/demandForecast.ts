@@ -42,6 +42,8 @@ export type ForecastDataStatus = {
 export type ForecastGenerationMetadata = ForecastDataStatus & {
   usedApi: boolean;
   usedFallback: boolean;
+  apiCallFailed: boolean;
+  fallbackReason?: string;
 };
 
 export type ForecastGenerationResult = {
@@ -174,14 +176,23 @@ const persistForecasts = async (client: SupabaseClient, forecasts: DemandForecas
   }
 };
 
+type ForecastApiOutcome = {
+  forecasts: DemandForecast[];
+  attempted: boolean;
+  failed: boolean;
+  failureReason?: string;
+};
+
 const callForecastApi = async (
   inputs: {
     shifts: HistoricalShift[];
     signals: ExternalSignal[];
     filters?: ForecastFilters;
   }
-): Promise<DemandForecast[]> => {
-  if (!FORECAST_API_URL) return [];
+): Promise<ForecastApiOutcome> => {
+  if (!FORECAST_API_URL) {
+    return { forecasts: [], attempted: false, failed: false };
+  }
 
   try {
     const response = await fetch(FORECAST_API_URL, {
@@ -191,19 +202,23 @@ const callForecastApi = async (
     });
 
     if (!response.ok) {
-      console.warn('Forecast API responded with non-200 status', response.status);
-      return [];
+      const failureReason = `Forecast API responded with status ${response.status}`;
+      console.warn(failureReason);
+      return { forecasts: [], attempted: true, failed: true, failureReason };
     }
 
     const payload = (await response.json()) as DemandForecast[];
-    return payload.map((item) => ({
+    const normalized = payload.map((item) => ({
       ...item,
       required: Number(item.required ?? 0),
       source: item.source ?? 'model',
     }));
+
+    return { forecasts: normalized, attempted: true, failed: false };
   } catch (error) {
+    const failureReason = error instanceof Error ? error.message : 'Unknown error';
     console.warn('Forecast API call failed', error);
-    return [];
+    return { forecasts: [], attempted: true, failed: true, failureReason };
   }
 };
 
@@ -308,10 +323,14 @@ export const generateDemandForecast = async (
     hasExistingTargets: false,
     apiAvailable: Boolean(FORECAST_API_URL),
     usedApi: false,
-    usedFallback: true,
+    usedFallback: false,
+    apiCallFailed: false,
+    fallbackReason: undefined,
   };
 
   if (!client) {
+    metadata.usedFallback = true;
+    metadata.fallbackReason = 'Unable to reach data services; using local averages.';
     return { forecasts: computeDailyAverages([], [], filters), metadata };
   }
 
@@ -325,11 +344,27 @@ export const generateDemandForecast = async (
   metadata.hasExternalSignals = signals.length > 0;
   metadata.hasExistingTargets = storedOverrides.length > 0;
 
-  const apiForecasts = await callForecastApi({ shifts, signals, filters: selectFilters(filters) });
-  metadata.usedApi = apiForecasts.length > 0;
+  const apiOutcome = await callForecastApi({ shifts, signals, filters: selectFilters(filters) });
+  metadata.usedApi = apiOutcome.forecasts.length > 0;
+  metadata.apiCallFailed = apiOutcome.failed;
 
-  const localForecasts = apiForecasts.length ? apiForecasts : computeDailyAverages(shifts, signals, filters);
-  metadata.usedFallback = !apiForecasts.length && !metadata.hasHistorical && !metadata.hasExternalSignals;
+  const localForecasts = metadata.usedApi
+    ? apiOutcome.forecasts
+    : computeDailyAverages(shifts, signals, filters);
+
+  metadata.usedFallback = !metadata.usedApi;
+
+  if (metadata.usedFallback) {
+    if (!metadata.apiAvailable) {
+      metadata.fallbackReason = 'Forecast API is not configured; using local averages.';
+    } else if (apiOutcome.failed) {
+      metadata.fallbackReason = 'Forecast API request failed; using local averages.';
+    } else if (apiOutcome.attempted) {
+      metadata.fallbackReason = 'Forecast API returned no data; using local averages.';
+    } else {
+      metadata.fallbackReason = 'Using local averages to generate forecasts.';
+    }
+  }
 
   const merged = mergeForecasts(localForecasts, storedOverrides.filter((t) => t.source === 'override'));
   await persistForecasts(client, merged.filter((forecast) => forecast.source !== 'override'));
