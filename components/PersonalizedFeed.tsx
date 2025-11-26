@@ -26,7 +26,9 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
           >
             <View style={styles.rowBetween}>
               <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-              <ThemedText style={styles.badge}>{Math.round(item.score * 100)}%</ThemedText>
+              <ThemedText style={styles.badge}>
+                {Math.round(Math.min(1, Math.max(0, item.score)) * 100)}%
+              </ThemedText>
             </View>
             <ThemedText style={styles.helperText}>{item.summary}</ThemedText>
           </Pressable>

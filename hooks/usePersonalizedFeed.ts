@@ -15,6 +15,8 @@ type Preferences = {
   prefersShortTasks?: boolean;
 };
 
+const clampScore = (value: number) => Math.min(1, Math.max(0, value));
+
 const DEFAULT_ITEMS: FeedItem[] = [
   {
     id: 'feed-availability',
@@ -50,13 +52,12 @@ export const rankPersonalizedFeed = (
   preferences: Preferences,
   items: FeedItem[] = DEFAULT_ITEMS
 ): { rankedItems: RankedFeedItem[]; scores: Record<string, number> } => {
-  const clonedItems = items.map((item) => ({ ...item }));
-
-  const scoredItems = clonedItems.map((item) => {
+  const scoredItems = items.map((item) => {
+    const normalizedImpactScore = clampScore(item.impactScore);
     const focusBoost = item.category === preferences.focus ? 0.2 : 0;
     const shortTaskBoost = preferences.prefersShortTasks && item.category !== 'forecast' ? 0.05 : 0;
-    const rawScore = item.impactScore + focusBoost + shortTaskBoost;
-    const score = Math.min(1, Math.max(0, rawScore));
+    const rawScore = normalizedImpactScore + focusBoost + shortTaskBoost;
+    const score = clampScore(rawScore);
 
     return { ...item, score };
   });
