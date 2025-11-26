@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type StreakState = {
   count: number;
@@ -6,7 +7,13 @@ type StreakState = {
   lastActionDate: string | null;
 };
 
-const memoryStore = new Map<string, StreakState>();
+type AsyncStorageLike = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+};
+
+const memoryStore = new Map<string, string>();
+let cachedStorage: AsyncStorageLike | null = null;
 
 const STORAGE_PREFIX = 'streak::';
 const STREAK_CAP = 365;
@@ -15,33 +22,63 @@ const formatDate = (value: Date) => value.toISOString().slice(0, 10);
 
 const getStorageKey = (actionKey: string) => `${STORAGE_PREFIX}${actionKey}`;
 
-const readPersistedState = (actionKey: string): StreakState | null => {
+const ensureStorage = async (): Promise<AsyncStorageLike> => {
+  if (cachedStorage) {
+    return cachedStorage;
+  }
+
+  if (AsyncStorage?.getItem && AsyncStorage?.setItem) {
+    cachedStorage = AsyncStorage;
+    return AsyncStorage;
+  }
+
+  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+    cachedStorage = {
+      getItem: async (key) => window.localStorage.getItem(key),
+      setItem: async (key, value) => window.localStorage.setItem(key, value),
+    };
+    return cachedStorage;
+  }
+
+  cachedStorage = {
+    getItem: async (key) => memoryStore.get(key) ?? null,
+    setItem: async (key, value) => {
+      memoryStore.set(key, value);
+    },
+  };
+
+  return cachedStorage;
+};
+
+const readPersistedState = async (actionKey: string): Promise<StreakState | null> => {
   const storageKey = getStorageKey(actionKey);
   try {
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        return JSON.parse(raw) as StreakState;
-      }
+    const storage = await ensureStorage();
+    const raw = await storage.getItem(storageKey);
+    if (raw) {
+      return JSON.parse(raw) as StreakState;
     }
   } catch (error) {
     console.warn('Failed to read streak from storage, falling back to memory.', error);
+    const fallback = memoryStore.get(storageKey);
+    if (fallback) {
+      return JSON.parse(fallback) as StreakState;
+    }
   }
 
-  return memoryStore.get(storageKey) ?? null;
+  return null;
 };
 
-const persistState = (actionKey: string, state: StreakState) => {
+const persistState = async (actionKey: string, state: StreakState) => {
   const storageKey = getStorageKey(actionKey);
+  const payload = JSON.stringify(state);
+
   try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(state));
-    } else {
-      memoryStore.set(storageKey, state);
-    }
+    const storage = await ensureStorage();
+    await storage.setItem(storageKey, payload);
   } catch (error) {
-    memoryStore.set(storageKey, state);
-    console.warn('Failed to persist streak to local storage, caching in memory.', error);
+    memoryStore.set(storageKey, payload);
+    console.warn('Failed to persist streak to async storage, caching in memory.', error);
   }
 };
 
@@ -87,21 +124,46 @@ export const computeNextStreak = (
 
 export function useStreak(actionKey: string, today: Date = new Date()) {
   const [state, setState] = useState<StreakState>({ count: 0, longest: 0, lastActionDate: null });
+  const stateRef = useRef(state);
 
   useEffect(() => {
-    const persisted = readPersistedState(actionKey);
-    if (persisted) {
-      setState(persisted);
-    }
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrate = async () => {
+      const persisted = await readPersistedState(actionKey);
+      if (persisted && isMounted) {
+        stateRef.current = persisted;
+        setState(persisted);
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      isMounted = false;
+    };
   }, [actionKey]);
 
   const recordAction = useCallback(
-    (actionDate: Date = new Date()) => {
+    async (actionDate: Date = new Date()) => {
+      let nextState: StreakState | null = null;
+
       setState((prev) => {
-        const next = computeNextStreak(prev, actionDate);
-        persistState(actionKey, next);
-        return next;
+        nextState = computeNextStreak(prev, actionDate);
+        stateRef.current = nextState;
+        return nextState;
       });
+
+      if (!nextState) {
+        nextState = computeNextStreak(stateRef.current, actionDate);
+      }
+
+      await persistState(actionKey, nextState);
+      return nextState;
     },
     [actionKey]
   );

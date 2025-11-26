@@ -2,6 +2,14 @@ import { computeNextStreak } from '../useStreak';
 import { pickRewardTier } from '../useEthicalReward';
 import { rankPersonalizedFeed } from '../usePersonalizedFeed';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+  },
+}));
+
 describe('computeNextStreak', () => {
   const baseDate = new Date('2024-01-01T12:00:00Z');
 
