@@ -24,6 +24,9 @@ export function StreakCounter({
   rewardMessage,
   onRecordToday,
 }: StreakCounterProps) {
+  const normalizedProgress = Math.min(Math.max(progress, 0), 1);
+  const progressPercentage = Math.round(normalizedProgress * 100);
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.headerRow}>
@@ -35,8 +38,13 @@ export function StreakCounter({
       <ThemedText style={styles.helperText}>
         Longest streak: {longestStreak} days. {isFresh ? 'Today is already counted.' : 'Log an action to extend it.'}
       </ThemedText>
-      <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityValue={{ now: Math.round(progress * 100) }}>
-        <View style={[styles.progressFill, { width: `${Math.max(progress * 100, 6)}%` }]} />
+      <View
+        style={styles.progressTrack}
+        accessibilityRole="progressbar"
+        accessibilityLabel={`${label} streak progress`}
+        accessibilityValue={{ now: progressPercentage, min: 0, max: 100 }}
+      >
+        <View style={[styles.progressFill, { width: `${Math.max(progressPercentage, 6)}%` }]} />
       </View>
       {rewardTitle && rewardMessage ? (
         <ThemedView style={styles.rewardCard}>
