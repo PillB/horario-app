@@ -5,6 +5,7 @@ import {
   ForecastFilters,
   ForecastDataStatus,
   ForecastGenerationResult,
+  ForecastGenerationMetadata,
   generateDemandForecast,
   getForecastDataStatus,
   loadDemandTargets,
@@ -23,6 +24,7 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
   const [loading, setLoading] = useState(false);
   const [forecasting, setForecasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastGenerationMetadata, setLastGenerationMetadata] = useState<ForecastGenerationMetadata | null>(null);
   const [dataStatus, setDataStatus] = useState<ForecastDataStatus>({
     hasHistorical: false,
     hasExternalSignals: false,
@@ -70,6 +72,7 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
           ...filters,
           ...overrideFilters,
         });
+        setLastGenerationMetadata(metadata);
         setDemandTargets((prev) => mergeForecasts(forecasts, prev.filter((item) => item.source === 'override')));
         setDataStatus((prev) => ({
           ...prev,
@@ -78,13 +81,14 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
           hasExistingTargets: forecasts.length > 0 || prev.hasExistingTargets,
           apiAvailable: metadata.apiAvailable,
         }));
-        if (metadata.usedFallback && !metadata.hasHistorical && !metadata.hasExternalSignals) {
-          setError('No historical shifts or external signals were found. Use quick setup to seed demand.');
+        if (metadata.usedFallback) {
+          setError(metadata.fallbackReason ?? 'Forecast generated using fallback logic.');
         } else {
           setError(null);
         }
       } catch (err) {
         console.warn('Unable to generate forecast', err);
+        setLastGenerationMetadata(null);
         setError('Unable to generate forecast');
       } finally {
         setForecasting(false);
@@ -156,6 +160,7 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     error,
     forecasting,
     dataStatus,
+    lastGenerationMetadata,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,
