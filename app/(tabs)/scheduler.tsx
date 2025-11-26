@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/ThemedView';
 import ConfettiBurst from '@/components/ConfettiBurst';
 import { useDemandForecast } from '@/hooks/useDemandForecast';
 import { DemandForecast } from '@/services/demandForecast';
+import { computeUncoveredLoss, Shift, ShiftTemplate } from './schedulerMetrics';
 import {
   OnboardingProgress,
   fetchOnboardingProgress,
@@ -100,25 +101,6 @@ type Worker = {
   availability: Availability[];
 };
 
-type ShiftTemplate = {
-  id: string;
-  name: string;
-  role: string;
-  start: string;
-  end: string;
-  coverage: number;
-};
-
-type Shift = {
-  id: string;
-  date: string;
-  workerId: string;
-  templateId: string;
-  location: string;
-  status: 'Draft' | 'Published';
-  notified?: boolean;
-};
-
 type OnboardingStep = {
   key: 'workers' | 'templates' | 'forecast';
   title: string;
@@ -127,8 +109,6 @@ type OnboardingStep = {
   actionLabel: string;
   onPress: () => void;
 };
-
-const LOST_REVENUE_PER_UNCOVERED_ROLE = 325;
 
 const formatCurrency = (value: number) => `$${Math.round(value).toLocaleString('en-US')}`;
 
@@ -412,33 +392,6 @@ const findCoveringAvailability = (
   });
 
   return { coveringSlot, weekdayLabel } as const;
-};
-
-const computeUncoveredLoss = (
-  targets: DemandForecast[],
-  roster: Shift[],
-  shiftTemplates: ShiftTemplate[],
-  lostRevenuePerUncoveredRole = LOST_REVENUE_PER_UNCOVERED_ROLE
-) => {
-  const coverageByDateRole = roster.reduce<Record<string, number>>((acc, shift) => {
-    const template = shiftTemplates.find((candidate) => candidate.id === shift.templateId);
-    if (!template) return acc;
-    const key = `${shift.date}::${template.role}`;
-    acc[key] = (acc[key] ?? 0) + (template.coverage ?? 1);
-    return acc;
-  }, {});
-
-  return targets.reduce(
-    (acc, target) => {
-      const scheduled = coverageByDateRole[`${target.date}::${target.role}`] ?? 0;
-      const gap = Math.max(0, target.required - scheduled);
-      acc.totalGap += gap;
-      acc.totalRequired += target.required;
-      acc.loss += gap * lostRevenuePerUncoveredRole;
-      return acc;
-    },
-    { loss: 0, totalGap: 0, totalRequired: 0 }
-  );
 };
 
 const LostRevenueSummary = ({
