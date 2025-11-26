@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { useDemandForecast } from '../useDemandForecast';
+import * as demandForecast from '@/services/demandForecast';
 import { getSupabaseClient } from '@/services/supabaseClient';
 
 jest.mock('@/services/supabaseClient', () => ({
@@ -77,5 +78,54 @@ describe('useDemandForecast failure handling', () => {
     expect(hookState?.dataStatus.hasExistingTargets).toBe(false);
     expect(hookState?.demandTargets).toEqual([]);
     expect(hookState?.error).toBe('Supabase client is not available');
+  });
+
+  it('does not update state if hydration resolves after unmount', async () => {
+    let resolveTargets!: (value: demandForecast.DemandForecast[]) => void;
+    let resolveStatus!: (value: demandForecast.ForecastDataStatus) => void;
+
+    const loadPromise = new Promise<demandForecast.DemandForecast[]>((resolve) => {
+      resolveTargets = resolve;
+    });
+    const statusPromise = new Promise<demandForecast.ForecastDataStatus>((resolve) => {
+      resolveStatus = resolve;
+    });
+
+    const loadSpy = jest.spyOn(demandForecast, 'loadDemandTargets').mockReturnValue(loadPromise);
+    const statusSpy = jest.spyOn(demandForecast, 'getForecastDataStatus').mockReturnValue(statusPromise);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const TestComponent = () => {
+      useDemandForecast();
+      return null;
+    };
+
+    let testRenderer: renderer.ReactTestRenderer;
+    await act(async () => {
+      testRenderer = renderer.create(<TestComponent />);
+    });
+
+    act(() => {
+      testRenderer.unmount();
+    });
+
+    await act(async () => {
+      resolveTargets([]);
+      resolveStatus({
+        hasHistorical: false,
+        hasExternalSignals: false,
+        hasExistingTargets: false,
+        apiAvailable: false,
+      });
+      await Promise.resolve();
+    });
+
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("Can't perform a React state update on an unmounted component.")
+    );
+
+    loadSpy.mockRestore();
+    statusSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });
