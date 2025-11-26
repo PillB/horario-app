@@ -13,12 +13,38 @@ describe('useDemandForecast failure handling', () => {
   const mockGetClient = getSupabaseClient as jest.Mock;
   const target = { date: '2024-01-01', role: 'barista', required: 3 };
   let warnSpy: jest.SpyInstance;
+  const defaultMetadata = {
+    hasHistorical: false,
+    hasExternalSignals: false,
+    hasExistingTargets: false,
+    apiAvailable: true,
+    usedApi: false,
+    usedFallback: false,
+    apiCallFailed: false,
+  };
 
   jest.setTimeout(10000);
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetClient.mockReturnValue(null);
+    (global as any).fetch = jest.fn().mockImplementation((_, options) => {
+      const body = JSON.parse((options as RequestInit)?.body?.toString() ?? '{}');
+      if (body.action === 'status') {
+        return Promise.resolve({ ok: true, json: async () => ({ ...defaultMetadata }) });
+      }
+      if (body.action === 'loadTargets') {
+        return Promise.resolve({ ok: true, json: async () => ({ targets: [] }) });
+      }
+      if (body.action === 'forecast') {
+        return Promise.resolve({ ok: true, json: async () => ({ forecasts: [], metadata: defaultMetadata }) });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ success: true, targets: body.targets ?? [] }),
+      });
+    });
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -46,12 +72,17 @@ describe('useDemandForecast failure handling', () => {
     });
 
     await act(async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: jest.fn().mockResolvedValue({ error: 'Unable to save override' }),
+      });
       await hookState?.overrideTarget(target);
     });
 
     expect(hookState?.dataStatus.hasExistingTargets).toBe(false);
     expect(hookState?.demandTargets).toEqual([]);
-    expect(hookState?.error).toBe('Supabase client is not available');
+    expect(hookState?.error).toBe('Unable to save override');
   });
 
   it('does not mark existing targets when seeding baseline targets fails', async () => {
@@ -74,12 +105,17 @@ describe('useDemandForecast failure handling', () => {
     });
 
     await act(async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: jest.fn().mockResolvedValue({ error: 'Unable to save override' }),
+      });
       await hookState?.seedBaselineTargets([target]);
     });
 
     expect(hookState?.dataStatus.hasExistingTargets).toBe(false);
     expect(hookState?.demandTargets).toEqual([]);
-    expect(hookState?.error).toBe('Supabase client is not available');
+    expect(hookState?.error).toBe('Unable to save override');
   });
 
   it('does not update state if hydration resolves after unmount', async () => {

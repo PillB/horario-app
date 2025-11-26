@@ -1195,6 +1195,15 @@ export default function SchedulerScreen() {
       const persisted = await upsertOnboardingProgress(accountId, next, userId);
       if (persisted) {
         setSavedOnboardingProgress(persisted);
+      } else {
+        setActionBanner({ message: 'Unable to save onboarding progress right now.', type: 'error' });
+        if (actionBannerTimerRef.current) {
+          clearTimeout(actionBannerTimerRef.current);
+        }
+        actionBannerTimerRef.current = setTimeout(() => {
+          setActionBanner(null);
+          actionBannerTimerRef.current = null;
+        }, 4500);
       }
     };
 
