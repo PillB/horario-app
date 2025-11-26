@@ -50,7 +50,11 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
         <Link href="/(tabs)/scheduler" asChild>
-          <Pressable style={styles.primaryButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Scheduler to plan shifts"
+            accessibilityHint="Open the scheduling view to align availability with coverage"
+            style={styles.primaryButton}>
             <ThemedText style={styles.primaryButtonText}>Open Scheduler</ThemedText>
           </Pressable>
         </Link>
@@ -104,19 +108,31 @@ export default function HomeScreen() {
         <ThemedText type="subtitle">Quick actions</ThemedText>
         <View style={styles.actions}>
           <Link href="/(tabs)/scheduler" asChild>
-            <Pressable style={styles.actionButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add availability update"
+              accessibilityHint="Capture new availability details in the scheduler"
+              style={styles.actionButton}>
               <ThemedText type="defaultSemiBold">Add availability</ThemedText>
               <ThemedText style={styles.mutedText}>Capture changes from the floor</ThemedText>
             </Pressable>
           </Link>
           <Link href="/(tabs)/scheduler" asChild>
-            <Pressable style={styles.actionButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Build shifts from templates"
+              accessibilityHint="Open the scheduler to generate shifts using templates"
+              style={styles.actionButton}>
               <ThemedText type="defaultSemiBold">Build shifts</ThemedText>
               <ThemedText style={styles.mutedText}>Start from templates</ThemedText>
             </Pressable>
           </Link>
           <Link href="/(tabs)/scheduler" asChild>
-            <Pressable style={styles.actionButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Publish roster"
+              accessibilityHint="Review targets and publish the roster to your team"
+              style={styles.actionButton}>
               <ThemedText type="defaultSemiBold">Publish roster</ThemedText>
               <ThemedText style={styles.mutedText}>Review targets vs coverage</ThemedText>
             </Pressable>
