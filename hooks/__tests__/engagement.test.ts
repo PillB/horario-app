@@ -44,7 +44,7 @@ describe('pickRewardTier', () => {
 
 describe('rankPersonalizedFeed', () => {
   it('prioritizes focus category items', () => {
-    const ranked = rankPersonalizedFeed(
+    const { rankedItems } = rankPersonalizedFeed(
       { focus: 'availability' },
       [
         { id: 'f1', title: 'A', summary: '', category: 'forecast', impactScore: 0.4 },
@@ -52,6 +52,21 @@ describe('rankPersonalizedFeed', () => {
       ]
     );
 
-    expect(ranked[0].id).toBe('f2');
+    expect(rankedItems[0].id).toBe('f2');
+  });
+
+  it('clamps boosted scores and returns score lookup', () => {
+    const { rankedItems, scores } = rankPersonalizedFeed(
+      { focus: 'availability', prefersShortTasks: true },
+      [
+        { id: 'f1', title: 'A', summary: '', category: 'availability', impactScore: 0.95 },
+        { id: 'f2', title: 'B', summary: '', category: 'roster', impactScore: 0.2 },
+      ]
+    );
+
+    expect(rankedItems[0].score).toBe(1);
+    expect(scores.f1).toBe(rankedItems[0].score);
+    expect(Math.max(...rankedItems.map((item) => item.score))).toBeLessThanOrEqual(1);
+    expect(Math.min(...rankedItems.map((item) => item.score))).toBeGreaterThanOrEqual(0);
   });
 });

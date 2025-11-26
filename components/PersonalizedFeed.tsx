@@ -2,11 +2,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
-import type { FeedItem } from '@/hooks/usePersonalizedFeed';
+import type { RankedFeedItem } from '@/hooks/usePersonalizedFeed';
 
 type PersonalizedFeedProps = {
-  items: FeedItem[];
-  onSelectItem?: (item: FeedItem) => void;
+  items: RankedFeedItem[];
+  onSelectItem?: (item: RankedFeedItem) => void;
 };
 
 export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps) {
@@ -26,7 +26,7 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
           >
             <View style={styles.rowBetween}>
               <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-              <ThemedText style={styles.badge}>{Math.round(item.impactScore * 100)}%</ThemedText>
+              <ThemedText style={styles.badge}>{Math.round(item.score * 100)}%</ThemedText>
             </View>
             <ThemedText style={styles.helperText}>{item.summary}</ThemedText>
           </Pressable>

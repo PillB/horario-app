@@ -8,6 +8,8 @@ type FeedItem = {
   impactScore: number;
 };
 
+type RankedFeedItem = FeedItem & { score: number };
+
 type Preferences = {
   focus: 'availability' | 'forecast' | 'roster';
   prefersShortTasks?: boolean;
@@ -44,20 +46,32 @@ const DEFAULT_ITEMS: FeedItem[] = [
   },
 ];
 
-export const rankPersonalizedFeed = (preferences: Preferences, items: FeedItem[] = DEFAULT_ITEMS) => {
-  const focusWeight = items.map((item) => {
+export const rankPersonalizedFeed = (
+  preferences: Preferences,
+  items: FeedItem[] = DEFAULT_ITEMS
+): { rankedItems: RankedFeedItem[]; scores: Record<string, number> } => {
+  const scoredItems = items.map((item) => {
     const focusBoost = item.category === preferences.focus ? 0.2 : 0;
     const shortTaskBoost = preferences.prefersShortTasks && item.category !== 'forecast' ? 0.05 : 0;
-    return { ...item, score: item.impactScore + focusBoost + shortTaskBoost };
+    const rawScore = item.impactScore + focusBoost + shortTaskBoost;
+    const score = Math.min(1, Math.max(0, rawScore));
+
+    return { ...item, score };
   });
 
-  return focusWeight.sort((first, second) => second.score - first.score);
+  const rankedItems = [...scoredItems].sort((first, second) => second.score - first.score);
+  const scores = scoredItems.reduce<Record<string, number>>((acc, item) => {
+    acc[item.id] = item.score;
+    return acc;
+  }, {});
+
+  return { rankedItems, scores };
 };
 
 export function usePersonalizedFeed(preferences: Preferences, items: FeedItem[] = DEFAULT_ITEMS) {
-  const rankedItems = useMemo(() => rankPersonalizedFeed(preferences, items), [items, preferences]);
+  const { rankedItems, scores } = useMemo(() => rankPersonalizedFeed(preferences, items), [items, preferences]);
 
-  return { items: rankedItems } as const;
+  return { items: rankedItems, scores } as const;
 }
 
-export type { FeedItem, Preferences };
+export type { FeedItem, Preferences, RankedFeedItem };
