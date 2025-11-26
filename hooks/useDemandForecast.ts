@@ -135,13 +135,18 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
 
       const failedResult = results.find((result) => !result.success);
       if (failedResult) {
-        setError(failedResult.error ?? 'Unable to save baseline targets');
-      } else {
-        setError(null);
+        const message = failedResult.error ?? 'Unable to save baseline targets';
+        setError(message);
+        return { success: false, error: message } as const;
       }
+
+      setError(null);
+      return { success: true, error: null } as const;
     } catch (err) {
       console.warn('Unable to seed baseline targets', err);
-      setError('Unable to save baseline targets');
+      const message = 'Unable to save baseline targets';
+      setError(message);
+      return { success: false, error: message } as const;
     } finally {
       setLoading(false);
     }
