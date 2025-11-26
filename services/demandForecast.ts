@@ -343,9 +343,21 @@ export const loadDemandTargets = async (filters?: ForecastFilters): Promise<Dema
   return fetchExistingTargets(client, filters);
 };
 
-export const upsertDemandTarget = async (target: DemandForecast): Promise<DemandForecast> => {
+export type UpsertDemandTargetResult = {
+  success: boolean;
+  target: DemandForecast;
+  error?: string;
+};
+
+export const upsertDemandTarget = async (
+  target: DemandForecast
+): Promise<UpsertDemandTargetResult> => {
   const client = getSupabaseClient();
-  if (!client) return target;
+  if (!client) {
+    const errorMessage = 'Supabase client is not available';
+    console.warn('Unable to upsert target override', errorMessage);
+    return { success: false, target, error: errorMessage };
+  }
 
   const payload = {
     date: target.date,
@@ -361,7 +373,8 @@ export const upsertDemandTarget = async (target: DemandForecast): Promise<Demand
   const { error } = await client.from('demand_targets').upsert(payload, { onConflict: 'date,role' });
   if (error) {
     console.warn('Unable to upsert target override', error.message);
+    return { success: false, target, error: error.message };
   }
 
-  return target;
+  return { success: true, target };
 };

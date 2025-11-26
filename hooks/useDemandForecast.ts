@@ -86,10 +86,14 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     try {
       setLoading(true);
       const normalized = { ...target, required: Number(target.required), source: 'override' as const };
-      setDemandTargets((prev) => mergeForecasts([normalized], prev));
-      await upsertDemandTarget(normalized);
-      setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
-      setError(null);
+      const result = await upsertDemandTarget(normalized);
+      if (result.success) {
+        setDemandTargets((prev) => mergeForecasts([normalized], prev));
+        setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
+        setError(null);
+      } else {
+        setError(result.error ?? 'Unable to save override');
+      }
     } catch (err) {
       console.warn('Unable to persist override', err);
       setError('Unable to save override');
@@ -106,10 +110,19 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
         required: Number(target.required),
         source: target.source ?? ('override' as const),
       }));
-      setDemandTargets((prev) => mergeForecasts(normalized, prev));
-      await Promise.all(normalized.map((target) => upsertDemandTarget(target)));
-      setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
-      setError(null);
+      const results = await Promise.all(normalized.map((target) => upsertDemandTarget(target)));
+      const successfulTargets = results.filter((result) => result.success).map((result) => result.target);
+      if (successfulTargets.length) {
+        setDemandTargets((prev) => mergeForecasts(successfulTargets, prev));
+        setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
+      }
+
+      const failedResult = results.find((result) => !result.success);
+      if (failedResult) {
+        setError(failedResult.error ?? 'Unable to save baseline targets');
+      } else {
+        setError(null);
+      }
     } catch (err) {
       console.warn('Unable to seed baseline targets', err);
       setError('Unable to save baseline targets');
