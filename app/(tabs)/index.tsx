@@ -2,9 +2,15 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { PersonalizedFeed } from '@/components/PersonalizedFeed';
+import { ProfileAchievements } from '@/components/ProfileAchievements';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
+import { StreakCounter } from '@/components/StreakCounter';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useEthicalReward } from '@/hooks/useEthicalReward';
+import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
+import { useStreak } from '@/hooks/useStreak';
 
 const upcomingShifts = [
   { id: 'up-1', worker: 'Alex Johnson', shift: 'Morning Coverage', date: 'Dec 12', time: '08:00-14:00' },
@@ -20,6 +26,9 @@ const staffingGaps = [
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 768;
+  const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
+  const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
+  const { tier } = useEthicalReward(streakCount);
 
   return (
     <ParallaxScrollView
@@ -45,6 +54,19 @@ export default function HomeScreen() {
             <ThemedText style={styles.primaryButtonText}>Open Scheduler</ThemedText>
           </Pressable>
         </Link>
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+        <StreakCounter
+          label="Roster health streak"
+          streakCount={streakCount}
+          longestStreak={longestStreak}
+          progress={progress}
+          isFresh={isFresh}
+          rewardTitle={tier.title}
+          rewardMessage={tier.message}
+          onRecordToday={() => recordAction()}
+        />
       </ThemedView>
 
       <ThemedView style={styles.card}>
@@ -100,6 +122,38 @@ export default function HomeScreen() {
             </Pressable>
           </Link>
         </View>
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+        <PersonalizedFeed
+          items={feedItems}
+          onSelectItem={(item) => {
+            if (item.category === 'availability') {
+              recordAction();
+            }
+          }}
+        />
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+        <ProfileAchievements
+          items={[
+            {
+              id: 'ach-1',
+              title: 'Consistent coverage checks',
+              description: 'Logged updates 5 of the last 7 days.',
+              progress: Math.max(streakCount, 1),
+              goal: 7,
+            },
+            {
+              id: 'ach-2',
+              title: 'Drafts published',
+              description: 'Move drafts into published when teams are ready.',
+              progress: 3,
+              goal: 5,
+            },
+          ]}
+        />
       </ThemedView>
     </ParallaxScrollView>
   );
