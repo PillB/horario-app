@@ -50,7 +50,9 @@ export const rankPersonalizedFeed = (
   preferences: Preferences,
   items: FeedItem[] = DEFAULT_ITEMS
 ): { rankedItems: RankedFeedItem[]; scores: Record<string, number> } => {
-  const scoredItems = items.map((item) => {
+  const clonedItems = items.map((item) => ({ ...item }));
+
+  const scoredItems = clonedItems.map((item) => {
     const focusBoost = item.category === preferences.focus ? 0.2 : 0;
     const shortTaskBoost = preferences.prefersShortTasks && item.category !== 'forecast' ? 0.05 : 0;
     const rawScore = item.impactScore + focusBoost + shortTaskBoost;

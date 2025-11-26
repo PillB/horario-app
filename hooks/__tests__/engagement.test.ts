@@ -69,4 +69,19 @@ describe('rankPersonalizedFeed', () => {
     expect(Math.max(...rankedItems.map((item) => item.score))).toBeLessThanOrEqual(1);
     expect(Math.min(...rankedItems.map((item) => item.score))).toBeGreaterThanOrEqual(0);
   });
+
+  it('does not mutate inputs or cross-contaminate rankings between calls', () => {
+    const baseItems = [
+      { id: 'f1', title: 'A', summary: '', category: 'forecast', impactScore: 0.4 },
+      { id: 'f2', title: 'B', summary: '', category: 'availability', impactScore: 0.3 },
+      { id: 'f3', title: 'C', summary: '', category: 'roster', impactScore: 0.2 },
+    ];
+
+    const firstCall = rankPersonalizedFeed({ focus: 'availability' }, baseItems);
+    const secondCall = rankPersonalizedFeed({ focus: 'roster', prefersShortTasks: true }, baseItems);
+
+    expect(firstCall.rankedItems.map((item) => item.id)).toEqual(['f2', 'f1', 'f3']);
+    expect(secondCall.rankedItems.map((item) => item.id)).toEqual(['f3', 'f1', 'f2']);
+    expect(baseItems.map((item) => item.id)).toEqual(['f1', 'f2', 'f3']);
+  });
 });
