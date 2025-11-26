@@ -8,7 +8,7 @@ type Achievement = {
   title: string;
   description: string;
   progress: number;
-  goal: number;
+  goal?: number;
 };
 
 type ProfileAchievementsProps = {
@@ -23,7 +23,8 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
       <ThemedText type="subtitle">Achievements</ThemedText>
       <View style={styles.list}>
         {items.map((achievement) => {
-          const percent = Math.min(100, Math.round((achievement.progress / achievement.goal) * 100));
+          const safeGoal = achievement.goal && achievement.goal > 0 ? achievement.goal : 1;
+          const percent = Math.min(100, Math.max(0, Math.round((achievement.progress / safeGoal) * 100)));
           return (
             <ThemedView key={achievement.id} style={styles.card}>
               <View style={styles.rowBetween}>
@@ -34,10 +35,10 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
                 <ThemedText style={styles.badge}>{percent}%</ThemedText>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${Math.max(percent, 6)}%` }]} />
+                <View style={[styles.progressFill, { width: `${percent}%` }]} />
               </View>
               <ThemedText style={styles.helperText}>
-                {achievement.progress} of {achievement.goal}
+                {achievement.progress} of {safeGoal}
               </ThemedText>
             </ThemedView>
           );
