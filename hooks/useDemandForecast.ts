@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   DemandForecast,
@@ -30,6 +30,8 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     apiAvailable: Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL),
   });
 
+  const hydrateAbortRef = useRef(false);
+
   const hydrate = useCallback(async () => {
     try {
       setLoading(true);
@@ -37,14 +39,18 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
         loadDemandTargets(filters),
         getForecastDataStatus(filters),
       ]);
+      if (hydrateAbortRef.current) return;
       setDemandTargets(existing);
       setDataStatus(status);
       setError(null);
     } catch (err) {
       console.warn('Unable to hydrate demand targets', err);
+      if (hydrateAbortRef.current) return;
       setError('Unable to load demand targets');
     } finally {
-      setLoading(false);
+      if (!hydrateAbortRef.current) {
+        setLoading(false);
+      }
     }
   }, [filters]);
 
@@ -132,7 +138,11 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
   }, []);
 
   useEffect(() => {
+    hydrateAbortRef.current = false;
     hydrate();
+    return () => {
+      hydrateAbortRef.current = true;
+    };
   }, [hydrate]);
 
   return {
