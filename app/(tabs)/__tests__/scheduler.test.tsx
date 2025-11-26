@@ -81,18 +81,14 @@ describe('scheduler fallback quick setup', () => {
 
   it('shows an error when seeding baseline targets fails', async () => {
     const seedError = 'Insert failed';
-    const failingQuery = {
-      select: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      gte: jest.fn().mockReturnThis(),
-      lte: jest.fn().mockReturnThis(),
-      upsert: jest.fn().mockResolvedValue({ error: { message: seedError } }),
-      then: (resolve: (value: { data: unknown[]; error: null }) => void) =>
-        Promise.resolve({ data: [], error: null }).then(resolve),
-    };
-    mockGetClient.mockReturnValue({ from: jest.fn().mockReturnValue(failingQuery) });
+    const failingResponse = {
+      ok: false,
+      status: 500,
+      json: jest.fn().mockResolvedValue({ error: seedError }),
+    } as unknown as Response;
+
+    (global as any).fetch = jest.fn().mockResolvedValue(failingResponse);
+    mockGetClient.mockReturnValue(null);
 
     let tree: renderer.ReactTestRenderer | null = null;
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});

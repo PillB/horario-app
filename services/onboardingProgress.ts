@@ -65,27 +65,36 @@ export const upsertOnboardingProgress = async (
   flags: OnboardingProgress,
   userId?: string | null
 ) => {
-  const client = getSupabaseClient();
-  if (!client) return null;
+  try {
+    const response = await fetch(process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'upsertOnboarding', accountId, flags, userId }),
+    });
 
-  const payload = {
-    account_id: accountId,
-    user_id: userId ?? null,
-    workers_completed: flags.workers,
-    templates_completed: flags.templates,
-    forecast_completed: flags.forecast,
-  };
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const message = payload?.error ?? `Secure proxy responded with status ${response.status}`;
+      console.warn('Unable to persist onboarding progress', message);
+      return null;
+    }
 
-  const { error } = await client
-    .from(TABLE_NAME)
-    .upsert(payload, { onConflict: 'account_id,user_id' })
-    .select('workers_completed, templates_completed, forecast_completed')
-    .single();
+    const { success, progress, error } = (await response.json()) as {
+      success: boolean;
+      progress: OnboardingProgress | null;
+      error?: string;
+    };
 
-  if (error) {
-    console.warn('Unable to persist onboarding progress', error.message);
+    if (!success || !progress) {
+      const message = error ?? 'Unable to persist onboarding progress';
+      console.warn(message);
+      return null;
+    }
+
+    return progress;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to persist onboarding progress';
+    console.warn(message);
     return null;
   }
-
-  return flags;
 };
