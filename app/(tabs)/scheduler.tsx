@@ -1018,8 +1018,16 @@ export default function SchedulerScreen() {
       source: 'override',
     }));
 
-    await seedBaselineTargets(generatedTargets);
-    setFallbackMessage('Baseline demand targets saved. You can now publish coverage or refine forecasts.');
+    const result = await seedBaselineTargets(generatedTargets);
+    if (result.success) {
+      setFallbackError(null);
+      setFallbackMessage('Baseline demand targets saved. You can now publish coverage or refine forecasts.');
+    } else {
+      const message = result.error ?? 'Unable to save baseline targets. Please try again.';
+      setFallbackMessage(null);
+      setFallbackError(message);
+      showActionBanner(message, 'error');
+    }
   }, [
     buildDateSequence,
     fallbackForm.days,
@@ -1030,6 +1038,7 @@ export default function SchedulerScreen() {
     fallbackForm.startDate,
     fallbackForm.workersPerShift,
     fallbackMode,
+    showActionBanner,
     seedBaselineTargets,
   ]);
 
