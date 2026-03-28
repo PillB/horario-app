@@ -23,7 +23,7 @@ export default function HomeScreen() {
   const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
   const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
   const { tier } = useEthicalReward(streakCount);
-  const { upcomingShifts, staffingGaps, loading: rosterLoading } = useLiveRosterSummary(ACCOUNT_ID);
+  const { upcomingShifts, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
 
   return (
     <ParallaxScrollView

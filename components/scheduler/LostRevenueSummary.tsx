@@ -55,7 +55,7 @@ export const LostRevenueSummary = ({
         Estimated revenue at risk from uncovered roles before vs. after forecasting.
       </ThemedText>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: improvementPercent }]} />
+        <View style={[styles.progressFill, { width: improvementPercent as `${number}%` }]} />
       </View>
       <View style={styles.rowBetween}>
         <View>

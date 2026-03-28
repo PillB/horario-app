@@ -74,7 +74,7 @@ function HoursBar({
         {name}
       </ThemedText>
       <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${pct}%` }]} />
+        <View style={[styles.barFill, { width: `${pct}%` as `${number}%` }]} />
       </View>
       <ThemedText style={styles.barValue}>{hours.toFixed(1)}h</ThemedText>
     </View>
@@ -96,7 +96,7 @@ function FairnessGauge({ score }: { score: number }) {
     <View style={styles.fairnessRow}>
       <View style={styles.fairnessBarTrack}>
         <View
-          style={[styles.fairnessBarFill, { width: `${barPct}%`, backgroundColor: color }]}
+          style={[styles.fairnessBarFill, { width: `${barPct}%` as `${number}%`, backgroundColor: color }]}
         />
       </View>
       <ThemedText style={[styles.fairnessLabel, { color }]}>{label}</ThemedText>

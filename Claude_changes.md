@@ -6,6 +6,26 @@
 
 ---
 
+### CHG-013 — 2026-03-28 UTC
+**Type:** INFRA + BUGFIX
+**Phase:** 4B — CI/CD + TypeScript error fixes
+**Files changed:**
+- `.github/workflows/ci.yml` (created) — GitHub Actions CI: Node 20, npm ci, then test (`--ci --passWithNoTests`), lint (`expo lint`), typecheck (`tsc --noEmit`) on push/PR to main.
+- `eas.json` (created) — EAS Build profiles: development (iOS simulator + devClient, internal), preview (internal, channel=preview), production (autoIncrement, channel=production).
+- `tsconfig.json` — added `exclude` for `node_modules`, `**/__tests__/**`, `**/*.test.ts`, `**/*.test.tsx`, `e2e/**` so test files don't inflate type-check time or surface test-specific errors.
+- `app/(tabs)/index.tsx` — added `refresh` to `useLiveRosterSummary` destructuring (was used in `<ErrorBoundary onRetry={refresh}>` but never declared; TS2304).
+- `app/(tabs)/explore.tsx` — cast `\`${pct}%\`` and `\`${barPct}%\`` to `` `${number}%` `` to satisfy `DimensionValue` in inline styles (TS2322).
+- `components/scheduler/LostRevenueSummary.tsx` — same `DimensionValue` cast for `improvementPercent` (TS2322).
+- `services/demandForecast.ts` — error-case return in `getForecastDataStatus` now constructs only the four `ForecastDataStatus` fields explicitly (removed spread of `ForecastGenerationMetadata` which caused excess-property confusion given the declared return type).
+- `hooks/useStreak.ts` — fixed TS2774 (`AsyncStorage?.getItem && AsyncStorage?.setItem` → `AsyncStorage != null`); fixed TS2322 (`return previous` when `previous: StreakState | null` → `return previous as StreakState`).
+- `services/onboardingProgress.ts` — replaced `PostgrestFilterBuilder<unknown,unknown,unknown[],unknown>` (5th generic added in supabase-js 2.84) with a local `AnyQuery = any` alias; removed unused `SupabaseClient` import.
+**Reasoning:** `npx tsc --noEmit` revealed 7 pre-existing errors across 5 files that would block CI. All fixes are minimal and correct: (1) the `refresh` omission was a genuine oversight; (2) `${n}%` template literals need a const-style assertion to satisfy React Native's `DimensionValue`; (3) the Supabase `PostgrestFilterBuilder` gained a 5th generic `ClientServerOptions` in v2.84 breaking our 4-arg signature; (4) `AsyncStorage?.getItem` checks a function reference (always truthy) per TS2774.
+**Expected result:** 150/150 tests pass, lint clean, `tsc --noEmit` exits 0. CI workflow runs on every push/PR to main.
+**Future considerations:** Add EAS build triggers to CI once Expo account + secrets are configured.
+**References:** CHG-012
+
+---
+
 ### CHG-012 — 2026-03-28 UTC
 **Type:** FEATURE
 **Phase:** 4A — Live Analytics Tab

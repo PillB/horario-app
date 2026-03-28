@@ -79,9 +79,10 @@ export const getForecastDataStatus = async (filters?: ForecastFilters): Promise<
   } catch (error) {
     console.warn('Unable to load forecast data status', error);
     return {
-      ...DEFAULT_FORECAST_METADATA,
-      apiCallFailed: true,
-      usedFallback: true,
+      hasHistorical: DEFAULT_FORECAST_METADATA.hasHistorical,
+      hasExternalSignals: DEFAULT_FORECAST_METADATA.hasExternalSignals,
+      hasExistingTargets: DEFAULT_FORECAST_METADATA.hasExistingTargets,
+      apiAvailable: DEFAULT_FORECAST_METADATA.apiAvailable,
     };
   }
 };

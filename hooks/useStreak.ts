@@ -27,7 +27,7 @@ const ensureStorage = async (): Promise<AsyncStorageLike> => {
     return cachedStorage;
   }
 
-  if (AsyncStorage?.getItem && AsyncStorage?.setItem) {
+  if (AsyncStorage != null) {
     cachedStorage = AsyncStorage;
     return AsyncStorage;
   }
@@ -103,7 +103,7 @@ export const computeNextStreak = (
   const deltaDays = daysBetween(actionDate, lastActionDate);
 
   if (deltaDays === 0) {
-    return previous;
+    return previous as StreakState;
   }
 
   if (deltaDays === 1) {

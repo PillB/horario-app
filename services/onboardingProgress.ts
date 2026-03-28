@@ -1,6 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
-
 import { getSupabaseClient } from './supabaseClient';
 
 export type OnboardingProgress = {
@@ -15,10 +12,13 @@ type OnboardingRow = {
   forecast_completed?: boolean | null;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyQuery = any;
+
 const TABLE_NAME = 'onboarding_progress';
 
 const applyUserFilter = (
-  query: PostgrestFilterBuilder<unknown, unknown, unknown[], unknown>,
+  query: AnyQuery,
   userId?: string | null
 ) => {
   if (userId) {
