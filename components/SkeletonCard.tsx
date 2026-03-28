@@ -54,7 +54,6 @@ export function SkeletonCard({ rows = 3, style }: Props) {
     >
       {Array.from({ length: rows }).map((_, i) => (
         <Animated.View
-          // eslint-disable-next-line react/no-array-index-key
           key={i}
           testID="skeleton-row"
           style={[styles.row, { opacity }]}

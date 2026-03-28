@@ -1,5 +1,4 @@
 // @ts-nocheck
-/* eslint-disable import/first */
 
 // In React 19's test renderer, Animated.View creates three fiber layers
 // (AnimatedComponent → AnimatedProps → View), each of which forwards the

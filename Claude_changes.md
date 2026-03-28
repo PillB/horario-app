@@ -6,6 +6,23 @@
 
 ---
 
+### CHG-012 — 2026-03-28 UTC
+**Type:** FEATURE
+**Phase:** 4A — Live Analytics Tab
+**Files changed:**
+- `hooks/useAnalytics.ts` (created) — fetches all roster/workers/templates/targets in parallel (no date filter = all-time view). Computes: coverageRate (0–100%), draftShifts, publishedShifts, workerHours[] sorted descending, fairnessScore (std dev of hours), uncoveredRevenue ($). Exports pure helpers shiftHours() + stdDev() for testing. requestIdRef stale-guard pattern. Maps DbShiftTemplate → schedulerMetrics ShiftTemplate (startTime→start, endTime→end) before calling computeUncoveredLoss.
+- `hooks/__tests__/useAnalytics.test.tsx` (created) — 13 tests: 4 for pure helpers (shiftHours, stdDev), 7 for hook integration (loading state, worker hours with draft exclusion, sort order, counts, coverage rate, error state, empty data).
+- `app/(tabs)/explore.tsx` (rebuilt) — live Analytics tab. MetricCard (coverage rate + drafts KPIs with color-coded accents), revenue-at-risk card, worker hours distribution (HoursBar flex-width bar chart with no external library), fairness gauge (color-coded: green/amber/red), quick link to Scheduler. Loading → SkeletonCard. Error → retry button. Wrapped in ErrorBoundary.
+- `app/(tabs)/__tests__/explore.test.tsx` (created) — 6 tests: coverage rate, draft count, revenue, worker bars, loading state hides KPIs, error state. Uses findAll+typeof-string host-node filter to handle ThemedText's multi-layer fiber tree.
+- `app/(tabs)/_layout.tsx` — tab title changed from 'Explore' to 'Analytics', icon changed from 'paperplane.fill' to 'chart.bar.fill'.
+- `components/ui/IconSymbol.tsx` — added 'chart.bar.fill' → 'bar-chart' Material Icons mapping.
+**Reasoning:** Phase 4A final step. The Analytics tab replaces the static "Explore scheduling flows" placeholder with live DB-backed metrics. Key design decisions: (1) useAnalytics does a single Promise.all for all 4 data sources to avoid nested-async state cascades. (2) Bar chart built from View flex widths — no chart library dependency. (3) Fairness score uses population std dev: 0–4h = Excellent (green), 4–8h = Good (amber), >8h = Needs attention (red). (4) Test assertions use host-node filtering (typeof node.type === 'string') because ThemedText creates 3 fiber layers (ThemedText→Text, all forwarding testID and children), making direct props.children unreliable.
+**Expected result:** 150/150 tests pass, lint clean. Analytics tab shows live coverage rate, pending drafts, revenue at risk, worker hours distribution, fairness score.
+**Future considerations:** Phase 4B candidates: Supabase Realtime subscriptions, authentication (Supabase Auth), date/time picker components, CI/CD GitHub Actions.
+**References:** CHG-011
+
+---
+
 ### CHG-011 — 2026-03-28 UTC
 **Type:** CHANGE
 **Phase:** 4A — Wire ErrorBoundary + SkeletonCard into app
