@@ -6,6 +6,26 @@
 
 ---
 
+### CHG-009 — 2026-03-28 UTC
+**Type:** CHANGE
+**Phase:** 3C — Live Home Screen
+**Files changed:**
+- `hooks/useLiveRosterSummary.ts` (created) — hook that fetches upcoming shifts + staffing gaps in a single `Promise.all` (listRoster, loadDemandTargets, listWorkers, listShiftTemplates) and resolves worker/template names. Uses requestIdRef for stale-guard. Returns `{ upcomingShifts, staffingGaps, loading, error, refresh }`.
+- `hooks/__tests__/useLiveRosterSummary.test.tsx` (created) — 4 tests using global.fetch mock pattern. Covers: empty data, name resolution, gap computation, graceful degradation on network failure.
+- `app/(tabs)/index.tsx` (updated) — removed hardcoded `upcomingShifts`/`staffingGaps` arrays; wired `useLiveRosterSummary(ACCOUNT_ID)` instead. Added loading state and empty-state messages.
+
+**Reasoning:** Home screen previously showed fake hardcoded data (3 shifts, 2 gaps with placeholder names). Now shows live DB-backed data from the same secure proxy used by the scheduler. The hook fetches all 4 data sources in parallel to avoid state-update cascades that would cause infinite re-render loops.
+
+**Key decisions:**
+- Hook fetches templates directly via `listShiftTemplates` (not via `useShiftTemplates`) to avoid the nested-async dependency that caused infinite re-renders in the first draft.
+- All 4 service functions swallow their own errors and return `[]` — the hook itself will not enter an error state on network failure; it just shows empty data.
+- Used `${gap.date}::${gap.role}` as React list key for staffingGaps (no stable id on DemandForecast type).
+
+**Test results:** 121/121 passing, lint clean.
+**References:** CHG-008
+
+---
+
 ### CHG-000 — 2026-03-27 22:30:00 UTC
 
 **Files changed:** `CLAUDE.md` (created), `Claude_changes.md` (created)

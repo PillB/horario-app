@@ -9,25 +9,11 @@ import { StreakCounter } from '@/components/StreakCounter';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useEthicalReward } from '@/hooks/useEthicalReward';
+import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 
-const offsetDate = (days: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
-
-const upcomingShifts = [
-  { id: 'up-1', worker: 'Alex Johnson', shift: 'Morning Coverage', date: offsetDate(0), time: '08:00-14:00' },
-  { id: 'up-2', worker: 'Priya Singh', shift: 'Evening Coverage', date: offsetDate(0), time: '14:00-22:00' },
-  { id: 'up-3', worker: 'Liam Chen', shift: 'Weekend Ops', date: offsetDate(1), time: '09:00-17:00' },
-];
-
-const staffingGaps = [
-  { id: 'gap-1', role: 'Support', date: offsetDate(0), gap: 1, note: 'Need bilingual cover' },
-  { id: 'gap-2', role: 'Front Desk', date: offsetDate(3), gap: 2, note: 'Coverage for training day' },
-];
+const ACCOUNT_ID = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
@@ -35,6 +21,7 @@ export default function HomeScreen() {
   const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
   const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
   const { tier } = useEthicalReward(streakCount);
+  const { upcomingShifts, staffingGaps, loading: rosterLoading } = useLiveRosterSummary(ACCOUNT_ID);
 
   return (
     <ParallaxScrollView
@@ -81,33 +68,45 @@ export default function HomeScreen() {
 
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">Upcoming shifts</ThemedText>
-        {upcomingShifts.map((shift) => (
-          <View key={shift.id} style={styles.rowBetween}>
-            <View>
-              <ThemedText type="defaultSemiBold">{shift.worker}</ThemedText>
-              <ThemedText style={styles.mutedText}>
-                {shift.shift} • {shift.time}
-              </ThemedText>
+        {rosterLoading ? (
+          <ThemedText style={styles.mutedText}>Loading…</ThemedText>
+        ) : upcomingShifts.length === 0 ? (
+          <ThemedText style={styles.mutedText}>No shifts scheduled in the next 7 days.</ThemedText>
+        ) : (
+          upcomingShifts.map((shift) => (
+            <View key={shift.id} style={styles.rowBetween}>
+              <View>
+                <ThemedText type="defaultSemiBold">{shift.workerName}</ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {shift.templateName} • {shift.templateStart}–{shift.templateEnd}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.badge}>{shift.date}</ThemedText>
             </View>
-            <ThemedText style={styles.badge}>{shift.date}</ThemedText>
-          </View>
-        ))}
+          ))
+        )}
       </ThemedView>
 
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">Staffing gaps</ThemedText>
-        {staffingGaps.map((gap) => (
-          <View key={gap.id} style={styles.rowBetween}>
-            <View>
-              <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
-              <ThemedText style={styles.mutedText}>{gap.note}</ThemedText>
+        {rosterLoading ? (
+          <ThemedText style={styles.mutedText}>Loading…</ThemedText>
+        ) : staffingGaps.length === 0 ? (
+          <ThemedText style={styles.mutedText}>No staffing gaps detected.</ThemedText>
+        ) : (
+          staffingGaps.map((gap) => (
+            <View key={`${gap.date}::${gap.role}`} style={styles.rowBetween}>
+              <View>
+                <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
+                <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
+              </View>
+              <ThemedView style={styles.gapPill}>
+                <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
+                <ThemedText style={styles.mutedText}>{gap.required} required</ThemedText>
+              </ThemedView>
             </View>
-            <ThemedView style={styles.gapPill}>
-              <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
-              <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
-            </ThemedView>
-          </View>
-        ))}
+          ))
+        )}
       </ThemedView>
 
       <ThemedView style={styles.card}>
