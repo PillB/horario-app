@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import { type DemandForecast } from '@/services/demandForecast';
 import { SectionCard } from './SectionCard';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type RosterShift = Shift & { template?: ShiftTemplate; worker?: Worker };
 type StaffingGap = DemandForecast & { scheduled: number; gap: number };

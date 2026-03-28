@@ -1,5 +1,5 @@
 import { DemandForecast } from '@/services/demandForecast';
-import { Shift, ShiftTemplate, computeUncoveredLoss } from '@/app/(tabs)/schedulerMetrics';
+import { Shift, ShiftTemplate, computeUncoveredLoss } from '@/utils/schedulerMetrics';
 
 describe('computeUncoveredLoss', () => {
   const templates: ShiftTemplate[] = [

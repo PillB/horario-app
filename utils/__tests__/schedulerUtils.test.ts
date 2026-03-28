@@ -10,7 +10,7 @@ import {
   getTemplateWindow,
   defaultTimezoneOffsetMinutes,
 } from '../schedulerUtils';
-import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 
 describe('formatCurrency', () => {
   it('formats zero', () => expect(formatCurrency(0)).toBe('$0'));

@@ -3,7 +3,7 @@ import { View, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type OnboardingStep } from '@/types/scheduler';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type Props = {
   steps: OnboardingStep[];

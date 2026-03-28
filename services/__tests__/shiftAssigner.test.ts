@@ -3,7 +3,7 @@
  * Written before implementation per project TDD mandate.
  */
 import { assignShifts, getWeekBounds, type AssignmentInput, type AssignmentResult, type LaborConstraints } from '../shiftAssigner';
-import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────

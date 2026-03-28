@@ -1,6 +1,8 @@
 import { Tabs } from 'expo-router';
+import { Redirect } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { useAuth } from '@clerk/expo';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -10,6 +12,13 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { isSignedIn, isLoaded } = useAuth();
+
+  // Wait for Clerk to load before deciding redirect
+  if (!isLoaded) return null;
+
+  // Unauthenticated users go to sign-in
+  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
 
   return (
     <Tabs
@@ -20,7 +29,6 @@ export default function TabLayout() {
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
           ios: {
-            // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
           },
           default: {},

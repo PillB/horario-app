@@ -2,11 +2,11 @@ import React from 'react';
 import { View, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type AssignedShift } from '@/services/shiftAssigner';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type ShiftFormState = {
   workerId: string;
@@ -14,8 +14,20 @@ type ShiftFormState = {
   date: string;
 };
 
+type TemplateFormState = {
+  name: string;
+  role: string;
+  start: string;
+  end: string;
+  coverage: string;
+};
+
 type Props = {
   shiftTemplates: ShiftTemplate[];
+  templateForm: TemplateFormState;
+  updateTemplateField: (key: keyof TemplateFormState) => (value: string) => void;
+  handleAddTemplate: () => void;
+  templateError: string | null;
   shiftForm: ShiftFormState;
   updateShiftField: (key: keyof ShiftFormState) => (value: string) => void;
   handleShiftSubmit: () => void;
@@ -28,6 +40,10 @@ type Props = {
 
 export const ShiftTemplateSection = ({
   shiftTemplates,
+  templateForm,
+  updateTemplateField,
+  handleAddTemplate,
+  templateError,
   shiftForm,
   updateShiftField,
   handleShiftSubmit,
@@ -53,6 +69,69 @@ export const ShiftTemplateSection = ({
           <ThemedText style={styles.badgeText}>{template.coverage} needed</ThemedText>
         </View>
       ))}
+      {shiftTemplates.length === 0 && (
+        <ThemedText style={styles.mutedText}>No templates yet. Add your first template below.</ThemedText>
+      )}
+    </SectionCard>
+
+    <SectionCard
+      title="Add shift template"
+      subtitle="Define a reusable shift with role, time window, and minimum coverage."
+    >
+      <View style={styles.inlineInputs}>
+        <InputField
+          label="Name"
+          value={templateForm.name}
+          placeholder="e.g. Morning"
+          onChangeText={updateTemplateField('name')}
+          accessibilityLabel="Template name"
+          accessibilityHint="A short name for this shift template"
+        />
+        <InputField
+          label="Role"
+          value={templateForm.role}
+          placeholder="e.g. Support"
+          onChangeText={updateTemplateField('role')}
+          accessibilityLabel="Template role"
+          accessibilityHint="Role required for this template"
+        />
+      </View>
+      <View style={styles.inlineInputs}>
+        <InputField
+          label="Start"
+          value={templateForm.start}
+          placeholder="09:00"
+          onChangeText={updateTemplateField('start')}
+          accessibilityLabel="Shift start time"
+          accessibilityHint="HH:MM format"
+        />
+        <InputField
+          label="End"
+          value={templateForm.end}
+          placeholder="17:00"
+          onChangeText={updateTemplateField('end')}
+          accessibilityLabel="Shift end time"
+          accessibilityHint="HH:MM format"
+        />
+        <InputField
+          label="Coverage"
+          value={templateForm.coverage}
+          placeholder="1"
+          onChangeText={updateTemplateField('coverage')}
+          accessibilityLabel="Required coverage"
+          accessibilityHint="Minimum number of workers needed"
+        />
+      </View>
+      <Pressable
+        onPress={handleAddTemplate}
+        style={styles.primaryButton}
+        accessibilityRole="button"
+        accessibilityLabel="Add template"
+        accessibilityHint="Save the new shift template"
+      >
+        <ThemedText style={styles.primaryButtonText}>Add template</ThemedText>
+      </Pressable>
+      {templateError ? <ThemedText style={styles.errorText}>{templateError}</ThemedText> : null}
     </SectionCard>
 
     <SectionCard
@@ -76,7 +155,7 @@ export const ShiftTemplateSection = ({
       <InputField
         label="Date"
         value={shiftForm.date}
-        placeholder="2024-12-15"
+        placeholder="YYYY-MM-DD"
         onChangeText={updateShiftField('date')}
       />
       <View style={styles.inlineActions}>

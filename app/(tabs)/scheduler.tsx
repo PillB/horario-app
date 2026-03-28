@@ -21,7 +21,7 @@ import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSectio
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
-import { schedulerStyles as styles } from './scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 export default function SchedulerScreen() {
   const {
@@ -64,6 +64,8 @@ export default function SchedulerScreen() {
     targetError,
     fallbackError,
     fallbackMessage,
+    workerError,
+    templateError,
 
     // Form state
     availabilityForm,
@@ -72,12 +74,16 @@ export default function SchedulerScreen() {
     fallbackForm,
     fallbackMode,
     setFallbackMode,
+    workerForm,
+    templateForm,
 
     // Form change handlers
     updateAvailabilityField,
     updateShiftField,
     updateTargetField,
     updateFallbackField,
+    updateWorkerField,
+    updateTemplateField,
 
     // Derived
     rosterByDate,
@@ -96,6 +102,8 @@ export default function SchedulerScreen() {
     router,
 
     // Handlers
+    handleAddWorker,
+    handleAddTemplate,
     handleAvailabilitySubmit,
     handleShiftSubmit,
     handleTargetSubmit,
@@ -159,6 +167,10 @@ export default function SchedulerScreen() {
         >
           <WorkerSection
             workers={workers}
+            workerForm={workerForm}
+            updateWorkerField={updateWorkerField}
+            handleAddWorker={handleAddWorker}
+            workerError={workerError}
             availabilityForm={availabilityForm}
             updateAvailabilityField={updateAvailabilityField}
             handleAvailabilitySubmit={handleAvailabilitySubmit}
@@ -176,6 +188,10 @@ export default function SchedulerScreen() {
         >
           <ShiftTemplateSection
             shiftTemplates={shiftTemplates}
+            templateForm={templateForm}
+            updateTemplateField={updateTemplateField}
+            handleAddTemplate={handleAddTemplate}
+            templateError={templateError}
             shiftForm={shiftForm}
             updateShiftField={updateShiftField}
             handleShiftSubmit={handleShiftSubmit}
@@ -248,4 +264,4 @@ export default function SchedulerScreen() {
 export { defaultTimezoneOffsetMinutes, getWeekdayFromDate } from '@/utils/schedulerUtils';
 export { findCoveringAvailability } from '@/utils/schedulerValidators';
 export type { Worker } from '@/types/scheduler';
-export type { ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+export type { ShiftTemplate } from '@/utils/schedulerMetrics';

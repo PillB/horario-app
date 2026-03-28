@@ -2,7 +2,7 @@
  * Pure validation functions for the scheduler.
  * No React — safe to use in hooks, services, and tests.
  */
-import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
   defaultTimezoneOffsetMinutes,

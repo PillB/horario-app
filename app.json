@@ -20,8 +20,14 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "server",
       "favicon": "./assets/images/favicon.png"
+    },
+    "router": {
+      "ignore": [
+        "**/__tests__/**",
+        "**/*.test.*"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -33,7 +39,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

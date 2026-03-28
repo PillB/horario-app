@@ -3,11 +3,11 @@ import { View, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type DemandForecast } from '@/services/demandForecast';
-import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { LostRevenueSummary } from './LostRevenueSummary';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type FallbackFormState = {
   role: string;

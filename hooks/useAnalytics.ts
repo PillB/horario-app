@@ -24,7 +24,7 @@ import {
   type DbWorker,
 } from '@/services/rosterService';
 import { loadDemandTargets } from '@/services/demandForecast';
-import { computeUncoveredLoss } from '@/app/(tabs)/schedulerMetrics';
+import { computeUncoveredLoss } from '@/utils/schedulerMetrics';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
 // ─── Public types ─────────────────────────────────────────────────────────────

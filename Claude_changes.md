@@ -6,6 +6,67 @@
 
 ---
 
+### [TEMP] — 2026-03-28 (Playwright audit + Clerk auth session)
+**Context dump:**
+- Playwright MCP used to walk all 3 real tabs + 2 broken ghost tabs
+- Root cause analysis complete on all bugs
+
+**BUGS FOUND (to fix this session):**
+- BUG-001 [CRITICAL]: `app/(tabs)/scheduler.styles.ts` and `app/(tabs)/schedulerMetrics.ts` appear as broken tabs in the tab bar. Expo Router v5 treats ALL `.ts` files in `app/` as routes. `app.json` `router.ignore` only excludes test files. Fix: move both files OUT of `app/(tabs)/` → `styles/scheduler.styles.ts` + `utils/schedulerMetrics.ts`. Update ~6 imports.
+- BUG-002 [CRITICAL]: `app.json` has `"output": "static"` → Expo Router API routes (the secure proxy) return 404. Must change to `"output": "server"`. Root cause: static mode bundles the app as SPA with no server runtime; "server" mode enables Node.js API route handling.
+- BUG-003 [HIGH]: No "Add Worker" form. `WorkerSection.tsx` only shows existing workers + availability intake. `useSchedulerHandlers.ts` has zero `addWorker`/`createWorker` logic. Dead-end UX: users cannot create workers → cannot add availability → cannot assign shifts.
+- BUG-004 [HIGH]: No "Add Shift Template" form. `ShiftTemplateSection.tsx` only shows existing templates + shift creation form. No template creation UI.
+- BUG-005 [HIGH]: "Unable to save onboarding progress right now" error banner on every Scheduler load (caused by BUG-002).
+- BUG-006 [MEDIUM]: `ShiftTemplateSection.tsx` imports `ShiftTemplate` from `@/app/(tabs)/schedulerMetrics` (wrong coupling; will break once BUG-001 is fixed by moving file).
+
+**CLERK AUTH PLAN:**
+- App is Expo (not Next.js) → use `@clerk/expo`, NOT `@clerk/nextjs`
+- Install: `@clerk/expo`
+- Wrap `app/_layout.tsx` with `<ClerkProvider publishableKey={...}>`
+- Create `app/(auth)/_layout.tsx`, `app/(auth)/sign-in.tsx`, `app/(auth)/sign-up.tsx`
+- Protect tabs: redirect unauthenticated users to sign-in
+- Freemium: add `usage_limits` table to Supabase tracking optimizations per user (1 free)
+
+**Files in flight:** Claude_changes.md, app.json, app/(tabs)/_layout.tsx → scheduler.styles.ts → styles/scheduler.styles.ts, schedulerMetrics.ts → utils/schedulerMetrics.ts, components/scheduler/WorkerSection.tsx, components/scheduler/ShiftTemplateSection.tsx, hooks/useSchedulerHandlers.ts
+**Resumption point:** Fix BUG-001 first (file moves + import updates), then BUG-002 (app.json), then BUG-003/004 (Add Worker + Add Template forms), then Clerk auth.
+
+---
+
+### CHG-015 — 2026-03-28 UTC
+**Type:** BUGFIX + FEATURE
+**Phase:** 5A — Playwright audit, critical bug fixes, Clerk auth, Add Worker/Template forms
+**Files changed:**
+- `styles/scheduler.styles.ts` (created) — moved from `app/(tabs)/scheduler.styles.ts`
+- `utils/schedulerMetrics.ts` (created) — moved from `app/(tabs)/schedulerMetrics.ts`
+- `app/(tabs)/scheduler.styles.ts` (deleted) — was polluting expo-router tab bar
+- `app/(tabs)/schedulerMetrics.ts` (deleted) — was polluting expo-router tab bar
+- All ~14 source files importing old paths updated to `@/styles/scheduler.styles` and `@/utils/schedulerMetrics`
+- `app.json` — changed `"output": "static"` → `"output": "server"` to enable API routes on web; added `expo-secure-store` plugin (auto-added by expo install)
+- `hooks/useWorkers.ts` — added `addWorker(name, role, skills[])` function using `upsertWorker` from rosterService
+- `hooks/useShiftTemplates.ts` — added `addShiftTemplate(name, role, start, end, coverage)` function using `upsertShiftTemplate`
+- `hooks/useSchedulerHandlers.ts` — added `workerForm`/`templateForm` state, `workerError`/`templateError` state, `updateWorkerField`/`updateTemplateField` handlers, `handleAddWorker`/`handleAddTemplate` submit handlers; all returned from hook
+- `components/scheduler/InputField.tsx` — added `accessibilityLabel?` and `accessibilityHint?` props, passed to TextInput
+- `components/scheduler/WorkerSection.tsx` — added "Add worker" SectionCard with name/role/skills fields + submit button + error display; "No workers yet" empty state
+- `components/scheduler/ShiftTemplateSection.tsx` — added "Add shift template" SectionCard with name/role/start/end/coverage fields + submit button + error display; "No templates yet" empty state
+- `app/(tabs)/scheduler.tsx` — passed new props (workerForm, templateForm, handlers, errors) to WorkerSection and ShiftTemplateSection
+- `app/(tabs)/_layout.tsx` — added `useAuth()` guard: if not loaded → null; if not signed in → redirect `/(auth)/sign-in`; no longer picks up scheduler.styles or schedulerMetrics as tabs
+- `app/_layout.tsx` — wrapped with `<ClerkProvider publishableKey={...} tokenCache={tokenCache}>` from `@clerk/expo`; added `(auth)` Stack.Screen
+- `app/(auth)/_layout.tsx` (created) — auth route group; redirects signed-in users to `/`
+- `app/(auth)/sign-in.tsx` (created) — email/password sign-in screen using `useSignIn` from `@clerk/expo/legacy`
+- `app/(auth)/sign-up.tsx` (created) — email/password + email-code verification sign-up using `useSignUp` from `@clerk/expo/legacy`
+- `.env.example` — added `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` entry
+- `package.json` / `package-lock.json` — added `@clerk/expo`, `expo-secure-store`
+**Reasoning:**
+- BUG-001: `scheduler.styles.ts` and `schedulerMetrics.ts` in `app/(tabs)/` were treated as route files by expo-router v5 → 2 broken ghost tabs in the tab bar. Fix: move to `styles/` and `utils/` directories outside `app/`.
+- BUG-002: `"output": "static"` in app.json disabled Expo Router API routes (the secure proxy) on web, causing all data calls to 404. Fix: `"output": "server"`.
+- BUG-003/004: No worker or template creation UI existed — users were stuck in a dead-end (availability intake requires existing workers but no way to create them). Added full Add Worker + Add Shift Template forms.
+- BUG-005: `@clerk/expo` v3 uses a signals-based API (`useSignIn()→SignInSignalValue`). Used `@clerk/expo/legacy` exports which provide the familiar `{ isLoaded, signIn, setActive }` pattern compatible with React 19 + Expo.
+**Expected result:** 164/164 tests pass, lint clean, tsc --noEmit exits 0. Tab bar shows only 3 tabs (Home, Scheduler, Analytics). All API calls work in server mode. Users can add workers and templates. App redirects unauthenticated users to sign-in.
+**Future considerations:** Add `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` to `.env.local` to test auth locally. Add a user profile header/sign-out button to the app. Add freemium usage tracking (1 free auto-assign per account) in Supabase `usage_limits` table.
+**References:** CHG-014, [TEMP-2026-03-28]
+
+---
+
 ### CHG-014 — 2026-03-28 UTC
 **Type:** FEATURE
 **Phase:** 4B — Labor-Law Constraint Engine

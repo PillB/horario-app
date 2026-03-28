@@ -2,7 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type Props = {
   title: string;

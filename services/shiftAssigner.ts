@@ -21,7 +21,7 @@
  *
  * Pure function — no side effects, no React imports.
  */
-import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
   defaultTimezoneOffsetMinutes,

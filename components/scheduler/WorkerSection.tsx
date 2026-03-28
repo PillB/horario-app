@@ -8,7 +8,7 @@ import { type Worker } from '@/types/scheduler';
 import { AvailabilityLabel } from './AvailabilityLabel';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type AvailabilityFormState = {
   workerId: string;
@@ -17,8 +17,18 @@ type AvailabilityFormState = {
   to: string;
 };
 
+type WorkerFormState = {
+  name: string;
+  role: string;
+  skills: string;
+};
+
 type Props = {
   workers: Worker[];
+  workerForm: WorkerFormState;
+  updateWorkerField: (key: keyof WorkerFormState) => (value: string) => void;
+  handleAddWorker: () => void;
+  workerError: string | null;
   availabilityForm: AvailabilityFormState;
   updateAvailabilityField: (key: keyof AvailabilityFormState) => (value: string) => void;
   handleAvailabilitySubmit: () => void;
@@ -31,6 +41,10 @@ type Props = {
 
 export const WorkerSection = ({
   workers,
+  workerForm,
+  updateWorkerField,
+  handleAddWorker,
+  workerError,
   availabilityForm,
   updateAvailabilityField,
   handleAvailabilitySubmit,
@@ -70,6 +84,51 @@ export const WorkerSection = ({
           </View>
         </View>
       ))}
+      {workers.length === 0 && (
+        <ThemedText style={styles.mutedText}>No workers yet. Add your first worker below.</ThemedText>
+      )}
+    </SectionCard>
+
+    <SectionCard
+      title="Add worker"
+      subtitle="Create a worker profile with role and skills."
+    >
+      <InputField
+        label="Name"
+        value={workerForm.name}
+        placeholder="e.g. Alice"
+        onChangeText={updateWorkerField('name')}
+        accessibilityLabel="Worker name"
+        accessibilityHint="Full name of the worker"
+      />
+      <InputField
+        label="Role"
+        value={workerForm.role}
+        placeholder="e.g. Support"
+        onChangeText={updateWorkerField('role')}
+        accessibilityLabel="Worker role"
+        accessibilityHint="Role or job title"
+      />
+      <InputField
+        label="Skills (comma-separated)"
+        value={workerForm.skills}
+        placeholder="e.g. barista, cashier"
+        onChangeText={updateWorkerField('skills')}
+        accessibilityLabel="Worker skills"
+        accessibilityHint="Comma-separated list of skills"
+      />
+      <Pressable
+        onPress={handleAddWorker}
+        style={styles.primaryButton}
+        accessibilityRole="button"
+        accessibilityLabel="Add worker"
+        accessibilityHint="Save the new worker profile"
+      >
+        <ThemedText style={styles.primaryButtonText}>Add worker</ThemedText>
+      </Pressable>
+      {workerError ? (
+        <ThemedText style={styles.errorText}>{workerError}</ThemedText>
+      ) : null}
     </SectionCard>
 
     <SectionCard
@@ -77,7 +136,7 @@ export const WorkerSection = ({
       subtitle="Capture recent changes before building rosters."
     >
       <InputField
-        label="Worker"
+        label="Worker ID"
         value={availabilityForm.workerId}
         placeholder="Worker ID"
         onChangeText={updateAvailabilityField('workerId')}

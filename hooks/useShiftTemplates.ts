@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { listShiftTemplates, type DbShiftTemplate } from '@/services/rosterService';
-import type { ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import {
+  listShiftTemplates,
+  upsertShiftTemplate,
+  type DbShiftTemplate,
+  type UpsertTemplateResult,
+} from '@/services/rosterService';
+import type { ShiftTemplate } from '@/utils/schedulerMetrics';
 
 const dbToTemplate = (db: DbShiftTemplate): ShiftTemplate => ({
   id: db.id,
@@ -11,6 +16,13 @@ const dbToTemplate = (db: DbShiftTemplate): ShiftTemplate => ({
   end: db.endTime,
   coverage: db.coverage,
 });
+
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
 
 export const useShiftTemplates = (accountId: string) => {
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
@@ -29,5 +41,31 @@ export const useShiftTemplates = (accountId: string) => {
     loadTemplates();
   }, [loadTemplates]);
 
-  return { shiftTemplates, loading, error, refresh: loadTemplates };
+  const addShiftTemplate = useCallback(
+    async (
+      name: string,
+      role: string,
+      startTime: string,
+      endTime: string,
+      coverage: number
+    ): Promise<UpsertTemplateResult> => {
+      const newTemplate: DbShiftTemplate = {
+        id: generateId(),
+        accountId,
+        name,
+        role,
+        startTime,
+        endTime,
+        coverage,
+      };
+      const result = await upsertShiftTemplate(newTemplate);
+      if (result.success) {
+        setShiftTemplates((prev) => [...prev, dbToTemplate(result.template)]);
+      }
+      return result;
+    },
+    [accountId]
+  );
+
+  return { shiftTemplates, loading, error, addShiftTemplate, refresh: loadTemplates };
 };

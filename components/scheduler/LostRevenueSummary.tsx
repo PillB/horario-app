@@ -3,9 +3,9 @@ import { View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type DemandForecast } from '@/services/demandForecast';
-import { type Shift, type ShiftTemplate, computeUncoveredLoss } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate, computeUncoveredLoss } from '@/utils/schedulerMetrics';
 import { formatCurrency } from '@/utils/schedulerUtils';
-import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
+import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 
 type Props = {
   baselineTargets: DemandForecast[];

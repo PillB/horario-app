@@ -4,10 +4,12 @@ import {
   listWorkers,
   listWorkerAvailability,
   upsertAvailability,
+  upsertWorker,
   type DbAvailability,
   type DbWorker,
   type DayOfWeek,
   type UpsertAvailabilityResult,
+  type UpsertWorkerResult,
 } from '@/services/rosterService';
 
 export type WorkerAvailabilitySlot = {
@@ -61,6 +63,24 @@ export const useWorkers = (accountId: string) => {
     loadWorkers();
   }, [loadWorkers]);
 
+  const addWorker = useCallback(
+    async (name: string, role: string, skills: string[]): Promise<UpsertWorkerResult> => {
+      const newWorker: DbWorker = {
+        id: generateId(),
+        accountId,
+        name,
+        role,
+        skills,
+      };
+      const result = await upsertWorker(newWorker);
+      if (result.success) {
+        setWorkers((prev) => [...prev, dbToWorker(result.worker, [])]);
+      }
+      return result;
+    },
+    [accountId]
+  );
+
   const addAvailability = useCallback(
     async (
       workerId: string,
@@ -90,5 +110,5 @@ export const useWorkers = (accountId: string) => {
     [accountId]
   );
 
-  return { workers, loading, error, addAvailability, refresh: loadWorkers };
+  return { workers, loading, error, addWorker, addAvailability, refresh: loadWorkers };
 };

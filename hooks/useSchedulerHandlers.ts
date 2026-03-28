@@ -13,7 +13,7 @@ import { useRoster } from '@/hooks/useRoster';
 import { useSessionWellness } from '@/hooks/useSessionWellness';
 import { type DemandForecast } from '@/services/demandForecast';
 import { type DayOfWeek } from '@/services/rosterService';
-import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type OnboardingStep, type Worker } from '@/types/scheduler';
 import {
   createChangeHandler,
@@ -63,8 +63,8 @@ export function useSchedulerHandlers() {
     seedBaselineTargets,
   } = useDemandForecast();
 
-  const { workers, addAvailability } = useWorkers(accountId);
-  const { shiftTemplates } = useShiftTemplates(accountId);
+  const { workers, addWorker, addAvailability } = useWorkers(accountId);
+  const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
   const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
@@ -75,6 +75,8 @@ export function useSchedulerHandlers() {
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [targetError, setTargetError] = useState<string | null>(null);
+  const [workerError, setWorkerError] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
   const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
   const [publishCelebration, setPublishCelebration] = useState({
@@ -100,6 +102,14 @@ export function useSchedulerHandlers() {
     role: 'Support',
     required: '3',
     notes: 'Weekend backlog',
+  });
+  const [workerForm, setWorkerForm] = useState({ name: '', role: '', skills: '' });
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    role: '',
+    start: '09:00',
+    end: '17:00',
+    coverage: '1',
   });
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
@@ -137,6 +147,14 @@ export function useSchedulerHandlers() {
   // ── Derived / memoised values ─────────────────────────────────────────────
   const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
 
+  const updateWorkerField = useMemo(
+    () => createChangeHandler(setWorkerForm, recordInteraction),
+    [recordInteraction]
+  );
+  const updateTemplateField = useMemo(
+    () => createChangeHandler(setTemplateForm, recordInteraction),
+    [recordInteraction]
+  );
   const updateAvailabilityField = useMemo(
     () => createChangeHandler(setAvailabilityForm, recordInteraction),
     [recordInteraction]
@@ -549,6 +567,41 @@ export function useSchedulerHandlers() {
 
   // ── Event handlers ────────────────────────────────────────────────────────
 
+  const handleAddWorker = useCallback(async () => {
+    const trimmedName = workerForm.name.trim();
+    const trimmedRole = workerForm.role.trim();
+    if (!trimmedName) { setWorkerError('Worker name is required.'); return; }
+    if (!trimmedRole) { setWorkerError('Role is required.'); return; }
+    setWorkerError(null);
+    const skills = workerForm.skills.split(',').map((s) => s.trim()).filter(Boolean);
+    const result = await addWorker(trimmedName, trimmedRole, skills);
+    if (result.success) {
+      setWorkerForm({ name: '', role: '', skills: '' });
+    } else {
+      setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
+    }
+  }, [addWorker, workerForm]);
+
+  const handleAddTemplate = useCallback(async () => {
+    const trimmedName = templateForm.name.trim();
+    const trimmedRole = templateForm.role.trim();
+    const trimmedStart = templateForm.start.trim();
+    const trimmedEnd = templateForm.end.trim();
+    const coverageNum = parseInt(templateForm.coverage, 10);
+    if (!trimmedName) { setTemplateError('Template name is required.'); return; }
+    if (!trimmedRole) { setTemplateError('Role is required.'); return; }
+    if (!/^\d{2}:\d{2}$/.test(trimmedStart)) { setTemplateError('Start time must be HH:MM.'); return; }
+    if (!/^\d{2}:\d{2}$/.test(trimmedEnd)) { setTemplateError('End time must be HH:MM.'); return; }
+    if (isNaN(coverageNum) || coverageNum < 1) { setTemplateError('Coverage must be at least 1.'); return; }
+    setTemplateError(null);
+    const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
+    if (result.success) {
+      setTemplateForm({ name: '', role: '', start: '09:00', end: '17:00', coverage: '1' });
+    } else {
+      setTemplateError(result.error ?? 'Failed to add template. Please try again.');
+    }
+  }, [addShiftTemplate, templateForm]);
+
   const handleAvailabilitySubmit = useCallback(async () => {
     const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
       validateAvailabilitySubmission(availabilityForm, workers);
@@ -939,6 +992,8 @@ export function useSchedulerHandlers() {
     targetError,
     fallbackError,
     fallbackMessage,
+    workerError,
+    templateError,
 
     // Form state
     availabilityForm,
@@ -947,12 +1002,16 @@ export function useSchedulerHandlers() {
     fallbackForm,
     fallbackMode,
     setFallbackMode,
+    workerForm,
+    templateForm,
 
     // Form change handlers
     updateAvailabilityField,
     updateShiftField,
     updateTargetField,
     updateFallbackField,
+    updateWorkerField,
+    updateTemplateField,
 
     // Derived / computed
     rosterByDate,
@@ -971,6 +1030,8 @@ export function useSchedulerHandlers() {
     router,
 
     // Handlers
+    handleAddWorker,
+    handleAddTemplate,
     handleAvailabilitySubmit,
     handleShiftSubmit,
     handleTargetSubmit,

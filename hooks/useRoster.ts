@@ -11,7 +11,7 @@ import {
   type RosterFilters,
   type UpsertRosterShiftResult,
 } from '@/services/rosterService';
-import type { Shift } from '@/app/(tabs)/schedulerMetrics';
+import type { Shift } from '@/utils/schedulerMetrics';
 
 const dbToShift = (db: DbRosterShift): Shift => ({
   id: db.id,

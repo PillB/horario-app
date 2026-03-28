@@ -2,7 +2,7 @@
  * Pure, side-effect-free utilities for the scheduler.
  * No React imports — safe to use in hooks, components, and tests alike.
  */
-import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
