@@ -55,3 +55,27 @@
 **References:** CHG-000
 
 ---
+
+### [SUMMARY] — 2026-03-27 23:10 UTC
+**Last CHG completed:** CHG-001
+**Current state:** Expo SDK 53 / React Native app with Supabase backend. Core scheduling UI (`scheduler.tsx`, ~600 lines, monolithic) works but ALL worker/template/roster state is in-memory only — resets on reload. Demand forecasting + onboarding progress + streak counter ARE persisted. No auth, no push notifications, no real-time. `explore.tsx` is a placeholder. 6 test files (unit/component only). Secure proxy has no rate limiting. agent.md.pdf is a code-review agent prompt (created by ChatGPT via WeasyPrint) specifying: React scheduling app for subcontracted workers, demand from sales data, Supabase backend, anti-vibe-coding, security-first, TDD.
+**Active decisions:** (1) DB persistence before auth — env-var userId is valid MVP placeholder. (2) Split scheduler.tsx before adding features. (3) Service-role key stays in secure proxy only. (4) Greedy+local-search algorithm (no ILP yet). (5) SMB focus per user instruction.
+**Next action:** Output Phase 1 prioritized XML plan and pause for approval.
+**Watch out for:** `persistShiftStatus`/`persistShiftNotification` are stubs. Sample dates hardcoded to Dec 2024. `businessTimezoneOffsetMinutes` = device TZ not business TZ. Secure proxy has no auth/rate-limit. `scheduler.tsx` exports `findCoveringAvailability`/`getWeekdayFromDate`/`ShiftTemplate`/`Worker` — these must stay exported during refactor (tests import them directly).
+
+---
+
+### CHG-002 — 2026-03-27 23:20:00 UTC
+**Type:** CHANGE
+**Files changed:** `Claude_changes.md` (updated with [SUMMARY] + this entry)
+**Reasoning:** Phase 1 complete. Full codebase + agent.md.pdf analyzed. agent.md.pdf is a ChatGPT-generated code-review agent spec (WeasyPrint) describing: React scheduling app for subcontracted workers, demand from sales data, Supabase backend, anti-vibe-coding mandate, security-first. 29/29 tests pass. Lint clean. node_modules was not installed. Identified 23 gaps across critical/high/medium/low priority. Produced 14-phase prioritized execution plan. [SUMMARY] written before plan output.
+**Expected result:** Approved plan becomes the execution roadmap for all future phases.
+**Future considerations:**
+- Phase 2A first — hygiene fixes unblock clean development (babel plugin, timer leak, stale dates)
+- node_modules must be installed with `npm install` at the start of any new environment
+- `scheduler.tsx` exports are test dependencies — must be re-exported after refactor (Phase 3A)
+- Keep [SUMMARY] entries at the top of each new phase execution block
+- SMB focus: prioritize UX clarity and data persistence over algorithmic complexity
+**References:** CHG-001 | [SUMMARY-2026-03-27]
+
+---
