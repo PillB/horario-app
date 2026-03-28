@@ -1,6 +1,6 @@
 import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -11,13 +11,14 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 // Auth gate only active when a valid Clerk publishable key is provided.
 const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
 
-function TabNavigator() {
+function TabNavigator({ headerRight }: { headerRight?: React.ReactNode }) {
   const colorScheme = useColorScheme();
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
+        headerShown: Boolean(headerRight),
+        headerRight: headerRight ? () => headerRight : undefined,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
@@ -50,13 +51,35 @@ function TabNavigator() {
   );
 }
 
+function SignOutButton() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useAuth } = require('@clerk/expo');
+  const { signOut } = useAuth();
+  const colorScheme = useColorScheme();
+  return (
+    <Pressable
+      onPress={() => signOut()}
+      accessibilityRole="button"
+      accessibilityLabel="Sign out"
+      style={{ paddingHorizontal: 14, paddingVertical: 8 }}
+    >
+      <IconSymbol
+        size={22}
+        name="rectangle.portrait.and.arrow.right"
+        color={Colors[colorScheme ?? 'light'].tint}
+      />
+    </Pressable>
+  );
+}
+
 function AuthGuardedTabLayout() {
   // Dynamic import avoids calling useAuth() when ClerkProvider is not mounted
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useAuth } = require('@clerk/expo');
   const { isSignedIn, isLoaded } = useAuth();
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-  return <TabNavigator />;
+  return <TabNavigator headerRight={<SignOutButton />} />;
 }
 
 export default function TabLayout() {

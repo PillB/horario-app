@@ -37,6 +37,7 @@ import {
   assignShifts,
   type AssignedShift,
 } from '@/services/shiftAssigner';
+import { useUsageLimit } from '@/hooks/useUsageLimit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export function useSchedulerHandlers() {
   const { workers, addWorker, addAvailability } = useWorkers(accountId);
   const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
   const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
+  const { canAutoAssign, increment: incrementUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
 
@@ -897,6 +899,14 @@ export function useSchedulerHandlers() {
   /** Runs the greedy assigner for shiftForm.date and stores suggestions.
    *  The user must call applyAutoAssign to commit them to the roster. */
   const handleAutoAssign = useCallback(() => {
+    if (!canAutoAssign) {
+      Alert.alert(
+        'Free limit reached',
+        'You have used your 1 free auto-assign. Upgrade to Pro for unlimited optimizations.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     const date = shiftForm.date.trim();
     if (!isValidDate(date)) {
       showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
@@ -943,11 +953,15 @@ export function useSchedulerHandlers() {
     }
     setAutoAssignSuggestions(null);
     setAutoAssignApplying(false);
+    if (successCount > 0) {
+      // Record freemium usage after at least one shift was successfully applied
+      await incrementUsage();
+    }
     showActionBanner(
       `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).`,
       successCount === autoAssignSuggestions.length ? 'success' : 'info'
     );
-  }, [addShift, autoAssignSuggestions, showActionBanner]);
+  }, [addShift, autoAssignSuggestions, incrementUsage, showActionBanner]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
   return {

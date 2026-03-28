@@ -32,6 +32,97 @@
 
 ---
 
+### CHG-017 — 2026-03-28 UTC
+**Type:** FEATURE
+**Phase:** 5B — Sign-out button, freemium usage tracking, DB persistence confirmed
+**Files changed:**
+- `supabase/migrations/20260328000001_usage_limits.sql` (created) — `usage_limits` table tracking `auto_assign_count` per `(user_id, account_id)` with RLS; auto-updates `updated_at` via trigger; unique constraint on `(user_id, account_id)`. Run this in Supabase SQL Editor.
+- `services/usageService.ts` (created) — `getUsageLimit(userId, accountId)` and `incrementAutoAssign(userId, accountId)` client functions routing through secure proxy; fail-open pattern (if proxy returns 404, `canAutoAssign` defaults to `true`)
+- `hooks/useUsageLimit.ts` (created) — `useUsageLimit(userId, accountId)` hook exposing `{ count, canAutoAssign, loading, increment, refresh }`; `FREE_AUTO_ASSIGN_LIMIT = 1`; optimistic default (fail open)
+- `app/api/secure-proxy/route.ts` — added `dbGetUsageLimit` and `dbIncrementAutoAssign` server functions; `FREE_AUTO_ASSIGN_LIMIT = 1`; upsert-on-conflict pattern for atomic increment; `getUsageLimit` and `incrementAutoAssign` ProxyRequest actions and switch cases
+- `hooks/useSchedulerHandlers.ts` — imported `useUsageLimit`; added `canAutoAssign` + `incrementUsage` from hook; `handleAutoAssign` now shows `Alert` and returns early when `canAutoAssign === false`; `applyAutoAssign` calls `incrementUsage()` after at least one shift is successfully applied
+- `app/(tabs)/_layout.tsx` — added `SignOutButton` component (dynamic `require('@clerk/expo')` pattern); `TabNavigator` accepts optional `headerRight` prop and sets `headerShown: true` + `screenOptions.headerRight` when provided; `AuthGuardedTabLayout` passes `<SignOutButton />` as `headerRight`; `eslint-disable` comments on intentional `require()` calls
+- `app/(auth)/sign-in.tsx` — fixed `Array<T>` → `T[]` lint warning
+- `app/(auth)/sign-up.tsx` — fixed `Array<T>` → `T[]` lint warning
+**Reasoning:**
+- Freemium: 1 free auto-assign per user. After using it, `handleAutoAssign` shows an Alert prompting upgrade. Increment fires only on successful `applyAutoAssign` (not on the preview step), so previewing suggestions is always free.
+- Sign-out: `SignOutButton` uses the same `require('@clerk/expo')` dynamic import as `AuthGuardedTabLayout` — safe because it only renders when `authEnabled && isSignedIn`. Header is hidden entirely in dev bypass mode (`headerRight` is undefined → `headerShown: false`).
+- DB persistence: already fully wired via `useRoster`, `useWorkers`, `useShiftTemplates` → `rosterService` → `/api/secure-proxy`. Will "just work" once `.env.local` has real Supabase credentials.
+- Fail-open pattern: if the proxy is unavailable (no env vars), `canAutoAssign` defaults to `true` so the feature works in dev without Supabase configured.
+**Expected result:** 164/164 tests pass, lint clean (0 errors, 0 warnings). Sign-out button appears in tab header when Clerk is configured. Auto-assign is blocked after 1 use with an upgrade Alert. Workers/templates/roster persist to DB once Supabase credentials are set.
+**Future considerations:** Real upgrade/paywall screen instead of Alert. Clerk JWT validation in the proxy to use the actual Clerk user ID (instead of `EXPO_PUBLIC_USER_ID`). Increase limit for Pro tier. Add `usage_limits` migration to Supabase dashboard.
+**References:** CHG-016
+
+---
+
+### [TEMP] — 2026-03-28: Missing API Keys — Action Required
+**Errors observed:** 4× `Failed to load resource: 404 @ http://localhost:8081/api/secure-proxy`
+- "Unable to list roster", "Unable to list workers", "Unable to list shift templates", "Unable to load demand targets"
+- These all fail because the Supabase credentials and Clerk key are not configured.
+- No `.env.local` file exists — only `.env.example` (which is a template, never committed).
+
+---
+
+**Step 1 — Create `.env.local` in the project root**
+Copy `.env.example` to `.env.local` and fill in real values (`.env.local` is git-ignored):
+```
+cp .env.example .env.local
+```
+Then edit `.env.local` with the values from Steps 2–4 below.
+
+---
+
+**Step 2 — Supabase (required for roster, workers, templates, demand targets)**
+1. Go to https://supabase.com → "New project"
+2. After creation, go to: **Project Settings → API**
+3. Copy:
+   - **Project URL** → `EXPO_PUBLIC_SUPABASE_URL`
+   - **anon / public** key → `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role** key → `SUPABASE_SERVICE_ROLE_KEY` (server-only, never `EXPO_PUBLIC_`)
+4. Run the SQL migrations in `supabase/migrations/` to create the required tables.
+   - In Supabase dashboard: **SQL Editor** → paste and run each `.sql` file in order.
+   - Tables needed: `shifts`, `external_signals`, `demand_targets`, `onboarding_progress`
+   - Tables not yet migrated (in-memory only for now): `workers`, `availability`, `shift_templates`, `roster`
+
+---
+
+**Step 3 — Clerk (required for authentication)**
+1. Go to https://clerk.com → "Add application"
+2. Choose "Email/Password" as sign-in method
+3. Go to: **Dashboard → API Keys**
+4. Copy **Publishable key** (`pk_test_...`) → `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
+5. Auth is ONLY active when this key starts with `pk_`. Without it, app runs in dev bypass mode (no auth wall — fine for local development).
+
+---
+
+**Step 4 — Secure proxy URL**
+- Development (default): `EXPO_PUBLIC_SECURE_PROXY_URL=http://localhost:8081/api/secure-proxy`
+- Leave as-is unless running on a different port.
+- Note: `app/api/secure-proxy/route.ts` returns 404 in dev if `SUPABASE_SERVICE_ROLE_KEY` is missing — the handler throws before registering, causing Metro to 404 the route.
+
+---
+
+**Step 5 — Optional: AI forecast API**
+- `EXPO_PUBLIC_FORECAST_API_URL` — leave blank unless you have a custom forecast endpoint.
+
+---
+
+**Final `.env.local` should look like:**
+```
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxx
+EXPO_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+EXPO_PUBLIC_SECURE_PROXY_URL=http://localhost:8081/api/secure-proxy
+EXPO_PUBLIC_FORECAST_API_URL=
+EXPO_PUBLIC_ACCOUNT_ID=demo-account
+EXPO_PUBLIC_USER_ID=local-user
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
+```
+
+**After saving `.env.local`:** restart the Expo dev server (`Ctrl+C` then `npx expo start --web --port 8081`) for env vars to take effect.
+
+---
+
 ### CHG-016 — 2026-03-28 UTC
 **Type:** BUGFIX
 **Phase:** 5A — Dev bypass blank-screen fix + test file rename

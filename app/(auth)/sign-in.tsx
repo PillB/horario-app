@@ -27,7 +27,7 @@ export default function SignInScreen() {
         setError('Sign-in could not be completed. Please try again.');
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: Array<{ longMessage?: string; message?: string }> };
+      const clerkError = err as { errors?: { longMessage?: string; message?: string }[] };
       const msg =
         clerkError?.errors?.[0]?.longMessage ??
         clerkError?.errors?.[0]?.message ??

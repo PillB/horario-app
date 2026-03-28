@@ -17,7 +17,7 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
 
   const extractClerkError = (err: unknown): string => {
-    const clerkError = err as { errors?: Array<{ longMessage?: string; message?: string }> };
+    const clerkError = err as { errors?: { longMessage?: string; message?: string }[] };
     return (
       clerkError?.errors?.[0]?.longMessage ??
       clerkError?.errors?.[0]?.message ??

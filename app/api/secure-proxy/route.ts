@@ -679,6 +679,66 @@ const dbDeleteRosterShift = async (client: SupabaseClient, id: string) => {
   return { success: true as const };
 };
 
+// ─── Usage limits ─────────────────────────────────────────────────────────────
+
+const FREE_AUTO_ASSIGN_LIMIT = 1;
+
+type UsageLimitRow = {
+  user_id: string;
+  account_id: string;
+  auto_assign_count: number;
+};
+
+const dbGetUsageLimit = async (client: SupabaseClient, userId: string, accountId: string) => {
+  const { data, error } = await client
+    .from('usage_limits')
+    .select('user_id, account_id, auto_assign_count')
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) return { success: false as const, error: error.message };
+  const count = (data as UsageLimitRow | null)?.auto_assign_count ?? 0;
+  return { success: true as const, count, canAutoAssign: count < FREE_AUTO_ASSIGN_LIMIT };
+};
+
+const dbIncrementAutoAssign = async (client: SupabaseClient, userId: string, accountId: string) => {
+  if (!isNonEmptyString(userId, 200) || !isNonEmptyString(accountId, 200)) {
+    return { success: false as const, error: 'userId and accountId are required' };
+  }
+  // Upsert the row, incrementing count atomically via rpc or manual fetch+update.
+  // Since Supabase JS v2 doesn't have atomic increment without rpc, we use
+  // insert-on-conflict-update via onConflict.
+  const { data, error } = await client
+    .from('usage_limits')
+    .upsert(
+      { user_id: userId, account_id: accountId, auto_assign_count: 1 },
+      { onConflict: 'user_id,account_id', ignoreDuplicates: false }
+    )
+    .select('auto_assign_count')
+    .maybeSingle();
+
+  if (error) {
+    // Fallback: fetch current and update
+    const { data: existing } = await client
+      .from('usage_limits')
+      .select('auto_assign_count')
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    const currentCount = (existing as UsageLimitRow | null)?.auto_assign_count ?? 0;
+    const { error: updateError } = await client
+      .from('usage_limits')
+      .update({ auto_assign_count: currentCount + 1 })
+      .eq('user_id', userId)
+      .eq('account_id', accountId);
+    if (updateError) return { success: false as const, error: updateError.message };
+    return { success: true as const, count: currentCount + 1 };
+  }
+
+  const newCount = (data as UsageLimitRow | null)?.auto_assign_count ?? 1;
+  return { success: true as const, count: newCount };
+};
+
 // ─── ProxyRequest union ───────────────────────────────────────────────────────
 
 type ProxyRequest =
@@ -704,7 +764,10 @@ type ProxyRequest =
   | { action: 'upsertRosterShift'; shift: Record<string, unknown> }
   | { action: 'updateShiftStatus'; id: string; status: string }
   | { action: 'markShiftNotified'; id: string }
-  | { action: 'deleteRosterShift'; id: string };
+  | { action: 'deleteRosterShift'; id: string }
+  // Usage limits
+  | { action: 'getUsageLimit'; userId: string; accountId: string }
+  | { action: 'incrementAutoAssign'; userId: string; accountId: string };
 
 export const runtime = 'nodejs';
 
@@ -831,6 +894,18 @@ export async function POST(request: Request) {
       case 'deleteRosterShift': {
         const result = await dbDeleteRosterShift(client, payload.id);
         return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+      }
+      case 'getUsageLimit': {
+        const result = await dbGetUsageLimit(client, payload.userId, payload.accountId);
+        return result.success
+          ? jsonOk({ count: result.count, canAutoAssign: result.canAutoAssign })
+          : buildErrorResponse(result.error, 400);
+      }
+      case 'incrementAutoAssign': {
+        const result = await dbIncrementAutoAssign(client, payload.userId, payload.accountId);
+        return result.success
+          ? jsonOk({ success: true, count: result.count })
+          : buildErrorResponse(result.error, 400);
       }
       default:
         return buildErrorResponse('Unsupported action', 400);
