@@ -33,6 +33,10 @@ import {
   type OnboardingProgress,
   upsertOnboardingProgress,
 } from '@/services/onboardingProgress';
+import {
+  assignShifts,
+  type AssignedShift,
+} from '@/services/shiftAssigner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,6 +115,8 @@ export function useSchedulerHandlers() {
   const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
+  const [autoAssignSuggestions, setAutoAssignSuggestions] = useState<AssignedShift[] | null>(null);
+  const [autoAssignApplying, setAutoAssignApplying] = useState(false);
 
   // ── Section layout offsets (for scroll-to-section) ────────────────────────
   const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
@@ -833,6 +839,63 @@ export function useSchedulerHandlers() {
     [notifyShift, roster, showActionBanner]
   );
 
+  // ── Auto-assign ───────────────────────────────────────────────────────────
+
+  /** Runs the greedy assigner for shiftForm.date and stores suggestions.
+   *  The user must call applyAutoAssign to commit them to the roster. */
+  const handleAutoAssign = useCallback(() => {
+    const date = shiftForm.date.trim();
+    if (!isValidDate(date)) {
+      showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
+      return;
+    }
+    const result = assignShifts({
+      date,
+      templates: shiftTemplates,
+      workers,
+      existingRoster: roster,
+      timezoneOffsetMinutes: businessTimezoneOffsetMinutes,
+    });
+    if (result.assignments.length === 0) {
+      showActionBanner(
+        result.unassigned.length > 0
+          ? `Auto-assign: no valid assignments found. ${result.unassigned[0].reason}`
+          : 'Auto-assign: no templates configured yet.',
+        'info'
+      );
+      return;
+    }
+    setAutoAssignSuggestions(result.assignments);
+    showActionBanner(
+      `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
+      'info'
+    );
+  }, [businessTimezoneOffsetMinutes, roster, shiftForm.date, shiftTemplates, showActionBanner, workers]);
+
+  /** Persists all pending auto-assign suggestions to the roster. */
+  const applyAutoAssign = useCallback(async () => {
+    if (!autoAssignSuggestions?.length) return;
+    setAutoAssignApplying(true);
+    let successCount = 0;
+    for (const suggestion of autoAssignSuggestions) {
+      const result = await addShift({
+        date: suggestion.date,
+        workerId: suggestion.workerId,
+        templateId: suggestion.templateId,
+        location: 'HQ',
+        status: 'Draft',
+        notified: false,
+      });
+      if (result.success) successCount += 1;
+    }
+    setAutoAssignSuggestions(null);
+    setAutoAssignApplying(false);
+    showActionBanner(
+      `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).`,
+      successCount === autoAssignSuggestions.length ? 'success' : 'info'
+    );
+  }, [addShift, autoAssignSuggestions, showActionBanner]);
+
   // ── Return all state and handlers for the screen ──────────────────────────
   return {
     // Data
@@ -916,5 +979,11 @@ export function useSchedulerHandlers() {
     handleUnpublishShift,
     handleNotifyShift,
     runForecast,
+    handleAutoAssign,
+    applyAutoAssign,
+
+    // Auto-assign state
+    autoAssignSuggestions,
+    autoAssignApplying,
   } as const;
 }

@@ -74,6 +74,14 @@
 
 ---
 
+### CHG-008 — 2026-03-28 (Phase 3B)
+**Type:** FEATURE
+**Files changed:** `services/shiftAssigner.ts` (created), `services/__tests__/shiftAssigner.test.ts` (created, 11 tests), `hooks/useSchedulerHandlers.ts` (added handleAutoAssign, applyAutoAssign, autoAssignSuggestions, autoAssignApplying), `components/scheduler/ShiftTemplateSection.tsx` (added Auto-assign button + suggestions panel), `app/(tabs)/scheduler.tsx` (wired new props)
+**Reasoning:** Phase 3B — auto-assignment algorithm. Implemented greedy first-fit with 2-opt local-swap improvement. Hard constraints: role match, availability window coverage, no time overlap (including existing roster). Soft scoring: fairness (1/(1+hours)). Returns AssignedShift[] + UnassignedTemplate[] with human-readable reasons. Wired into UI as "Auto-assign" button that presents suggestions with "Apply" confirmation.
+**Expected result:** 117/117 tests pass, lint clean. Users can click Auto-assign on any date to get algorithm-generated suggestions, review them, and apply.
+**Future considerations:** Phase 3C next — live home screen (useLiveRosterSummary). After that: error boundaries, analytics tab, auth.
+**References:** CHG-007
+
 ### CHG-007 — 2026-03-28 (Phase 3A)
 **Type:** REFACTOR
 **Files changed:**

@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type AssignedShift } from '@/services/shiftAssigner';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { schedulerStyles as styles } from '@/app/(tabs)/scheduler.styles';
@@ -18,6 +20,10 @@ type Props = {
   updateShiftField: (key: keyof ShiftFormState) => (value: string) => void;
   handleShiftSubmit: () => void;
   shiftError: string | null;
+  handleAutoAssign: () => void;
+  applyAutoAssign: () => void;
+  autoAssignSuggestions: AssignedShift[] | null;
+  autoAssignApplying: boolean;
 };
 
 export const ShiftTemplateSection = ({
@@ -26,6 +32,10 @@ export const ShiftTemplateSection = ({
   updateShiftField,
   handleShiftSubmit,
   shiftError,
+  handleAutoAssign,
+  applyAutoAssign,
+  autoAssignSuggestions,
+  autoAssignApplying,
 }: Props) => (
   <>
     <SectionCard
@@ -69,14 +79,47 @@ export const ShiftTemplateSection = ({
         placeholder="2024-12-15"
         onChangeText={updateShiftField('date')}
       />
-      <Pressable
-        accessibilityLabel="Save and notify team"
-        onPress={handleShiftSubmit}
-        style={styles.primaryButton}
-      >
-        <ThemedText style={styles.primaryButtonText}>Save and notify team</ThemedText>
-      </Pressable>
+      <View style={styles.inlineActions}>
+        <Pressable
+          accessibilityLabel="Save and notify team"
+          onPress={handleShiftSubmit}
+          style={[styles.primaryButton, styles.actionButton]}
+        >
+          <ThemedText style={styles.primaryButtonText}>Save and notify team</ThemedText>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Auto-assign workers to all templates for this date"
+          accessibilityHint="Runs the fairness-based assignment algorithm"
+          onPress={handleAutoAssign}
+          style={[styles.secondaryButton, styles.actionButton]}
+        >
+          <ThemedText style={styles.primaryButtonText}>Auto-assign</ThemedText>
+        </Pressable>
+      </View>
       {shiftError ? <ThemedText style={styles.errorText}>{shiftError}</ThemedText> : null}
+
+      {autoAssignSuggestions && autoAssignSuggestions.length > 0 ? (
+        <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
+          <ThemedText style={styles.bannerText}>
+            {autoAssignSuggestions.length} assignment suggestion(s) ready
+          </ThemedText>
+          {autoAssignSuggestions.map((s) => (
+            <ThemedText key={`${s.templateId}-${s.workerId}`} style={styles.mutedText}>
+              {s.workerId} → {s.templateId} on {s.date}
+            </ThemedText>
+          ))}
+          <Pressable
+            accessibilityLabel="Apply auto-assign suggestions"
+            onPress={applyAutoAssign}
+            disabled={autoAssignApplying}
+            style={[styles.primaryButton, autoAssignApplying && styles.disabledButton]}
+          >
+            <ThemedText style={styles.primaryButtonText}>
+              {autoAssignApplying ? 'Applying…' : 'Apply suggestions'}
+            </ThemedText>
+          </Pressable>
+        </ThemedView>
+      ) : null}
     </SectionCard>
   </>
 );

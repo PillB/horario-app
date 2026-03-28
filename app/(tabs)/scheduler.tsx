@@ -103,6 +103,12 @@ export default function SchedulerScreen() {
     handleUnpublishShift,
     handleNotifyShift,
     runForecast,
+    handleAutoAssign,
+    applyAutoAssign,
+
+    // Auto-assign state
+    autoAssignSuggestions,
+    autoAssignApplying,
   } = useSchedulerHandlers();
 
   return (
@@ -172,6 +178,10 @@ export default function SchedulerScreen() {
             updateShiftField={updateShiftField}
             handleShiftSubmit={handleShiftSubmit}
             shiftError={shiftError}
+            handleAutoAssign={handleAutoAssign}
+            applyAutoAssign={applyAutoAssign}
+            autoAssignSuggestions={autoAssignSuggestions}
+            autoAssignApplying={autoAssignApplying}
           />
         </View>
 
