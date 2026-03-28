@@ -12,15 +12,21 @@ import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 
+const offsetDate = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 const upcomingShifts = [
-  { id: 'up-1', worker: 'Alex Johnson', shift: 'Morning Coverage', date: 'Dec 12', time: '08:00-14:00' },
-  { id: 'up-2', worker: 'Priya Singh', shift: 'Evening Coverage', date: 'Dec 12', time: '14:00-22:00' },
-  { id: 'up-3', worker: 'Liam Chen', shift: 'Weekend Ops', date: 'Dec 13', time: '09:00-17:00' },
+  { id: 'up-1', worker: 'Alex Johnson', shift: 'Morning Coverage', date: offsetDate(0), time: '08:00-14:00' },
+  { id: 'up-2', worker: 'Priya Singh', shift: 'Evening Coverage', date: offsetDate(0), time: '14:00-22:00' },
+  { id: 'up-3', worker: 'Liam Chen', shift: 'Weekend Ops', date: offsetDate(1), time: '09:00-17:00' },
 ];
 
 const staffingGaps = [
-  { id: 'gap-1', role: 'Support', date: 'Dec 12', gap: 1, note: 'Need bilingual cover' },
-  { id: 'gap-2', role: 'Front Desk', date: 'Dec 15', gap: 2, note: 'Coverage for training day' },
+  { id: 'gap-1', role: 'Support', date: offsetDate(0), gap: 1, note: 'Need bilingual cover' },
+  { id: 'gap-2', role: 'Front Desk', date: offsetDate(3), gap: 2, note: 'Coverage for training day' },
 ];
 
 export default function HomeScreen() {

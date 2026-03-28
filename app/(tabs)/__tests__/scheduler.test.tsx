@@ -127,6 +127,9 @@ describe('scheduler fallback quick setup', () => {
     );
     expect(successNodes.length).toBe(0);
 
+    // Unmount to clear the setInterval inside useSessionWellness and prevent
+    // the "worker process has failed to exit gracefully" force-exit warning.
+    act(() => { tree!.unmount(); });
     warnSpy.mockRestore();
   });
 });

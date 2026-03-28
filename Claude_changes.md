@@ -65,6 +65,28 @@
 
 ---
 
+### [SUMMARY] — 2026-03-27 23:30 UTC
+**Last CHG completed:** CHG-002
+**Current state:** Phase 1 done. Plan approved. 29/29 tests pass, lint clean. node_modules installed. All worker/template/roster state is in-memory (resets on reload). Demand targets + onboarding persisted. No auth. Secure proxy has no rate-limit/auth. scheduler.tsx is 600-line monolith.
+**Active decisions:** DB persistence before auth. Service-role key stays in proxy only. Greedy algorithm (no ILP). SMB focus. scheduler.tsx exports (findCoveringAvailability, getWeekdayFromDate, ShiftTemplate, Worker) must stay accessible after refactor.
+**Next action:** Execute Phase 2A (hygiene), then 2B (schema), 2C (proxy CRUD), 2D (hooks + wire-up). All in this session.
+**Watch out for:** babel.config.js line 5 has deprecated plugin. useSessionWellness has timer leak (force-exit on test). Dates hardcoded to Dec 2024. scheduler.tsx line ~115-123 has stub persist functions. .env.example is incomplete.
+
+---
+
+### CHG-003 — 2026-03-27 23:45:00 UTC
+**Type:** CHANGE
+**Files changed:** `babel.config.js`, `app/(tabs)/__tests__/scheduler.test.tsx`, `app/(tabs)/scheduler.tsx`, `app/(tabs)/index.tsx`, `.env.example`, `package-lock.json`
+**Reasoning:** Phase 2A — Hygiene & Quick Wins. (1) Removed deprecated `expo-router/babel` plugin from babel.config.js (already covered by babel-preset-expo per SDK 50+ docs). (2) Added `act(() => { tree!.unmount(); })` before warnSpy.mockRestore() in scheduler.test.tsx — clears the useSessionWellness setInterval, eliminating the force-exit warning. (3) Added `isoDate()` module-level helper to scheduler.tsx; replaced all 5 hardcoded Dec 2024 dates with `isoDate(0..3)` calls. (4) Added `offsetDate()` module-level helper to index.tsx; replaced hardcoded 'Dec 12'/'Dec 15' strings in upcomingShifts and staffingGaps. (5) Updated .env.example with all 7 required env vars with usage comments. (6) npm audit fix reduced vulnerabilities from 23→6 (remaining 6 require --force/breaking changes; deferred). References: CHG-002.
+**Expected result:** 29/29 tests pass, no force-exit warning, lint clean, no stale dates in UI.
+**Future considerations:**
+- Remaining 6 npm vulnerabilities (5 low, 1 moderate: brace-expansion ReDoS) are in transitive deps of jest-expo/expo — cannot fix without breaking changes. Monitor for upstream fixes.
+- isoDate() is a module-level function in scheduler.tsx — will move to utils/schedulerUtils.ts during Phase 3A refactor.
+- Phase 2B next: SQL schema migration for workers, worker_availability, shift_templates, roster tables.
+**References:** CHG-002
+
+---
+
 ### CHG-002 — 2026-03-27 23:20:00 UTC
 **Type:** CHANGE
 **Files changed:** `Claude_changes.md` (updated with [SUMMARY] + this entry)

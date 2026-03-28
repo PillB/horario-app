@@ -167,6 +167,13 @@ const parseTimeToMinutes = (value: string) => {
 
 const defaultTimezoneOffsetMinutes = -new Date().getTimezoneOffset();
 
+/** Returns an ISO-8601 date string (YYYY-MM-DD) offset by `days` from today. */
+const isoDate = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
 const getWeekdayFromDate = (value: string, timezoneOffsetMinutes = defaultTimezoneOffsetMinutes) => {
   if (!isValidDate(value)) return null;
   const parsed = new Date(`${value}T00:00:00`);
@@ -505,7 +512,7 @@ export default function SchedulerScreen() {
   const [roster, setRoster] = useState<Shift[]>([
     {
       id: 'shift-1',
-      date: '2024-12-12',
+      date: isoDate(0),
       workerId: 'W-01',
       templateId: 'morning',
       location: 'HQ',
@@ -514,7 +521,7 @@ export default function SchedulerScreen() {
     },
     {
       id: 'shift-2',
-      date: '2024-12-12',
+      date: isoDate(0),
       workerId: 'W-02',
       templateId: 'evening',
       location: 'HQ',
@@ -523,7 +530,7 @@ export default function SchedulerScreen() {
     },
     {
       id: 'shift-3',
-      date: '2024-12-13',
+      date: isoDate(1),
       workerId: 'W-02',
       templateId: 'weekend',
       location: 'Remote',
@@ -561,11 +568,11 @@ export default function SchedulerScreen() {
   const [shiftForm, setShiftForm] = useState({
     workerId: 'W-01',
     templateId: 'morning',
-    date: '2024-12-14',
+    date: isoDate(2),
   });
 
   const [targetForm, setTargetForm] = useState({
-    date: '2024-12-15',
+    date: isoDate(3),
     role: 'Support',
     required: '3',
     notes: 'Weekend backlog',
