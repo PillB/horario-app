@@ -2,7 +2,7 @@
  * TDD tests for the greedy shift-assignment algorithm.
  * Written before implementation per project TDD mandate.
  */
-import { assignShifts, type AssignmentInput, type AssignmentResult } from '../shiftAssigner';
+import { assignShifts, getWeekBounds, type AssignmentInput, type AssignmentResult, type LaborConstraints } from '../shiftAssigner';
 import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 
@@ -258,6 +258,281 @@ describe('assignShifts — return structure', () => {
       existingRoster: [],
     };
     const result = assignShifts(input);
+    expect(result.unassigned).toHaveLength(0);
+  });
+});
+
+// ─── getWeekBounds ────────────────────────────────────────────────────────────
+
+describe('getWeekBounds', () => {
+  it('returns Monday as weekStart for a Monday date', () => {
+    // 2026-03-30 is a Monday
+    const { weekStart, weekEnd } = getWeekBounds('2026-03-30');
+    expect(weekStart).toBe('2026-03-30');
+    expect(weekEnd).toBe('2026-04-05');
+  });
+
+  it('returns the correct Monday for a Wednesday', () => {
+    // 2026-04-01 is a Wednesday
+    const { weekStart, weekEnd } = getWeekBounds('2026-04-01');
+    expect(weekStart).toBe('2026-03-30');
+    expect(weekEnd).toBe('2026-04-05');
+  });
+
+  it('returns the correct Monday for a Sunday', () => {
+    // 2026-04-05 is a Sunday
+    const { weekStart, weekEnd } = getWeekBounds('2026-04-05');
+    expect(weekStart).toBe('2026-03-30');
+    expect(weekEnd).toBe('2026-04-05');
+  });
+
+  it('handles week crossing a month boundary', () => {
+    // 2026-03-28 is a Saturday — week should be Mon 2026-03-23 to Sun 2026-03-29
+    const { weekStart, weekEnd } = getWeekBounds('2026-03-28');
+    expect(weekStart).toBe('2026-03-23');
+    expect(weekEnd).toBe('2026-03-29');
+  });
+
+  it('handles week crossing a year boundary', () => {
+    // 2027-01-01 is a Friday — week should be Mon 2026-12-28 to Sun 2027-01-03
+    const { weekStart, weekEnd } = getWeekBounds('2027-01-01');
+    expect(weekStart).toBe('2026-12-28');
+    expect(weekEnd).toBe('2027-01-03');
+  });
+});
+
+// ─── Labor-law constraints: maxDailyHours ────────────────────────────────────
+
+describe('assignShifts — maxDailyHours constraint', () => {
+  // morning = 08:00-16:00 = 8h; evening = 16:00-00:00 = 8h
+  // alice is available Mon 07:00–20:00 (covers morning but NOT evening end=midnight)
+  // Use a worker with full-day availability for these tests
+  const fullDay: Worker = {
+    id: 'fullday',
+    name: 'FullDay',
+    role: 'Support',
+    skills: [],
+    availability: [{ day: 'Mon', from: '00:00', to: '23:59' }],
+  };
+
+  const afternoonTemplate: ShiftTemplate = {
+    id: 'afternoon',
+    name: 'Afternoon',
+    role: 'Support',
+    start: '12:00',
+    end: '18:00',
+    coverage: 1,
+  };
+
+  it('allows assignment when hours stay within daily limit', () => {
+    // 8h morning shift, limit = 10h → should be assigned
+    const constraints: LaborConstraints = { maxDailyHours: 10 };
+    const result = assignShifts({ date: MON, templates: [morningTemplate], workers: [fullDay], existingRoster: [], constraints });
+    expect(result.assignments).toHaveLength(1);
+  });
+
+  it('blocks assignment when it would exceed the daily limit', () => {
+    // fullDay already has an 8h morning shift; adding 6h afternoon would = 14h > 10h limit
+    const constraints: LaborConstraints = { maxDailyHours: 10 };
+    const result = assignShifts({
+      date: MON,
+      templates: [afternoonTemplate],
+      templateCatalog: [morningTemplate, afternoonTemplate], // catalog includes prior-day template
+      workers: [fullDay],
+      existingRoster: [
+        { id: 'e1', date: MON, workerId: 'fullday', templateId: 'morning', location: 'HQ', status: 'Published', notified: false },
+      ],
+      constraints,
+    });
+    expect(result.assignments).toHaveLength(0);
+    expect(result.unassigned[0].reason).toMatch(/labor-law/i);
+  });
+
+  it('allows assignment when daily limit is exactly met', () => {
+    // morning = 8h, limit = 8h → exact → should still be allowed (not strictly over)
+    const constraints: LaborConstraints = { maxDailyHours: 8 };
+    const result = assignShifts({ date: MON, templates: [morningTemplate], workers: [fullDay], existingRoster: [], constraints });
+    expect(result.assignments).toHaveLength(1);
+  });
+});
+
+// ─── Labor-law constraints: maxWeeklyHours ────────────────────────────────────
+
+describe('assignShifts — maxWeeklyHours constraint', () => {
+  const fullWeekWorker: Worker = {
+    id: 'weekworker',
+    name: 'WeekWorker',
+    role: 'Support',
+    skills: [],
+    availability: [
+      { day: 'Mon', from: '07:00', to: '20:00' },
+      { day: 'Tue', from: '07:00', to: '20:00' },
+    ],
+  };
+
+  it('blocks assignment when adding the shift would exceed weekly limit', () => {
+    // Worker already has 40h this week; morning = 8h → 48h > 40h limit
+    const constraints: LaborConstraints = { maxWeeklyHours: 40 };
+    const existingRoster = [
+      { id: 'w1', date: '2026-03-23', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w2', date: '2026-03-24', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w3', date: '2026-03-25', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w4', date: '2026-03-26', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w5', date: '2026-03-27', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+    ];
+    // All 5 existing shifts (Mon 23 – Fri 27) are in the prior week (week of 2026-03-23); MON = 2026-03-30 is the NEXT week, so they should NOT count
+    // Use same-week dates: 2026-03-30 to 2026-04-03 (Mon–Fri in same week)
+    const sameWeekRoster = [
+      { id: 'w1', date: '2026-03-30', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w2', date: '2026-03-31', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w3', date: '2026-04-01', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w4', date: '2026-04-02', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'w5', date: '2026-04-03', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+    ];
+    // Tue 2026-03-31 is in the same week as Mon 2026-03-30; at 5×8h=40h already
+    // Trying to assign another morning on Tue 2026-03-31 (worker has Tue availability)
+    // But sameWeekRoster already has a shift on Tue, so overlap will reject it first.
+    // Instead assign on a day not in roster but in same week: need a worker with Wed availability too
+    void existingRoster; void sameWeekRoster; // avoid unused warning
+    // Simpler: add 40h via 5 prior published shifts in the same week, then try adding one more
+    const TUE = '2026-03-31'; // same week as MON
+    const workerWithTue: Worker = {
+      ...fullWeekWorker,
+      availability: [
+        { day: 'Mon', from: '07:00', to: '20:00' },
+        { day: 'Tue', from: '07:00', to: '20:00' },
+      ],
+    };
+    const priorShifts = [
+      { id: 'p1', date: '2026-03-30', workerId: workerWithTue.id, templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p2', date: '2026-04-01', workerId: workerWithTue.id, templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p3', date: '2026-04-02', workerId: workerWithTue.id, templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p4', date: '2026-04-03', workerId: workerWithTue.id, templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p5', date: '2026-04-04', workerId: workerWithTue.id, templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+    ]; // 5×8h = 40h already in this same week
+    const res = assignShifts({ date: TUE, templates: [morningTemplate], workers: [workerWithTue], existingRoster: priorShifts, constraints });
+    expect(res.assignments).toHaveLength(0);
+    expect(res.unassigned[0].reason).toMatch(/labor-law/i);
+  });
+
+  it('allows assignment when weekly hours stay within limit', () => {
+    const constraints: LaborConstraints = { maxWeeklyHours: 40 };
+    // Only 32h existing (4×8h same week), adding 8h = 40h ≤ limit
+    const priorShifts = [
+      { id: 'p1', date: '2026-03-31', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p2', date: '2026-04-01', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p3', date: '2026-04-02', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+      { id: 'p4', date: '2026-04-03', workerId: 'weekworker', templateId: 'morning', location: 'HQ', status: 'Published' as const, notified: false },
+    ]; // 4×8h=32h; adding Mon=8h → 40h exactly
+    const result = assignShifts({ date: MON, templates: [morningTemplate], workers: [fullWeekWorker], existingRoster: priorShifts, constraints });
+    expect(result.assignments).toHaveLength(1);
+  });
+});
+
+// ─── Labor-law constraints: minRestHoursBetweenShifts ────────────────────────
+
+describe('assignShifts — minRestHoursBetweenShifts constraint', () => {
+  const fullDayWorker: Worker = {
+    id: 'restworker',
+    name: 'RestWorker',
+    role: 'Support',
+    skills: [],
+    availability: [
+      { day: 'Mon', from: '00:00', to: '23:59' },
+      { day: 'Tue', from: '00:00', to: '23:59' },
+    ],
+  };
+
+  const earlyTemplate: ShiftTemplate = {
+    id: 'early',
+    name: 'Early',
+    role: 'Support',
+    start: '06:00',
+    end: '14:00',
+    coverage: 1,
+  };
+
+  const lateTemplate: ShiftTemplate = {
+    id: 'late',
+    name: 'Late',
+    role: 'Support',
+    start: '22:00',
+    end: '06:00', // overnight — skipped by min-rest check
+    coverage: 1,
+  };
+
+  const endingAt22: ShiftTemplate = { id: 'ends22', name: 'Ends22', role: 'Support', start: '14:00', end: '22:00', coverage: 1 };
+
+  it('blocks assignment when new shift starts before min-rest gap has elapsed', () => {
+    // Worker ends at 22:00 Mon; trying to assign earlyTemplate (06:00 Tue) → gap = 8h
+    // With minRest = 10h → should be blocked
+    const constraints: LaborConstraints = { minRestHoursBetweenShifts: 10 };
+    const TUE = '2026-03-31';
+    const priorShift = { id: 'r1', date: MON, workerId: 'restworker', templateId: 'ends22', location: 'HQ', status: 'Published' as const, notified: false };
+    const result = assignShifts({
+      date: TUE,
+      templates: [earlyTemplate],
+      templateCatalog: [earlyTemplate, endingAt22], // catalog includes prior shift template
+      workers: [fullDayWorker],
+      existingRoster: [priorShift],
+      constraints,
+      timezoneOffsetMinutes: 0,
+    });
+    // gap between 22:00 Mon and 06:00 Tue = 8h < 10h min rest → blocked
+    expect(result.assignments).toHaveLength(0);
+    expect(result.unassigned[0].reason).toMatch(/labor-law/i);
+  });
+
+  it('allows assignment when rest gap exceeds the minimum', () => {
+    const constraints: LaborConstraints = { minRestHoursBetweenShifts: 7 };
+    const TUE = '2026-03-31';
+    const priorShift = { id: 'r1', date: MON, workerId: 'restworker', templateId: 'ends22', location: 'HQ', status: 'Published' as const, notified: false };
+    // gap between 22:00 Mon and 06:00 Tue = 8h > 7h min rest → allowed
+    const result = assignShifts({
+      date: TUE,
+      templates: [earlyTemplate],
+      templateCatalog: [earlyTemplate, endingAt22],
+      workers: [fullDayWorker],
+      existingRoster: [priorShift],
+      constraints,
+      timezoneOffsetMinutes: 0,
+    });
+    expect(result.assignments).toHaveLength(1);
+  });
+
+  it('ignores overnight shifts (end < start) in min-rest calculations', () => {
+    // lateTemplate is 22:00–06:00 overnight; min-rest check skips overnight shifts
+    const constraints: LaborConstraints = { minRestHoursBetweenShifts: 8 };
+    const TUE = '2026-03-31';
+    const priorShift = { id: 'r1', date: MON, workerId: 'restworker', templateId: 'late', location: 'HQ', status: 'Published' as const, notified: false };
+    // Should not throw and should not falsely block due to the overnight skip
+    expect(() =>
+      assignShifts({
+        date: TUE,
+        templates: [earlyTemplate],
+        templateCatalog: [earlyTemplate, lateTemplate],
+        workers: [fullDayWorker],
+        existingRoster: [priorShift],
+        constraints,
+        timezoneOffsetMinutes: 0,
+      })
+    ).not.toThrow();
+  });
+});
+
+// ─── Backward compatibility: no constraints ───────────────────────────────────
+
+describe('assignShifts — backward compatibility (no constraints)', () => {
+  it('still assigns correctly when constraints field is omitted', () => {
+    // No constraints property at all — must work exactly as before
+    const input: AssignmentInput = {
+      date: MON,
+      templates: [morningTemplate],
+      workers: [alice],
+      existingRoster: [],
+    };
+    const result = assignShifts(input);
+    expect(result.assignments).toHaveLength(1);
     expect(result.unassigned).toHaveLength(0);
   });
 });

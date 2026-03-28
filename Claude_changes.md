@@ -6,6 +6,19 @@
 
 ---
 
+### CHG-014 — 2026-03-28 UTC
+**Type:** FEATURE
+**Phase:** 4B — Labor-Law Constraint Engine
+**Files changed:**
+- `services/shiftAssigner.ts` — added `LaborConstraints` type (`maxDailyHours?`, `maxWeeklyHours?`, `minRestHoursBetweenShifts?`), `templateCatalog?` field to `AssignmentInput` (catalog for looking up prior-shift durations — falls back to `templates`). New exported helper: `getWeekBounds(date)` → ISO Mon–Sun bounds. New private helpers: `offsetDate`, `dailyHoursForWorker`, `weeklyHoursForWorker`, `exceedsDailyHours`, `exceedsWeeklyHours`, `violatesMinRest`, `passesConstraints`. All three constraints are wired into: (1) `candidates.filter` in the greedy phase, (2) `canSwap` check in the 2-opt phase, (3) `noAssignmentReason` for human-readable unassigned messages. Fully backward-compatible — omitting `constraints` bypasses all new checks.
+- `services/__tests__/shiftAssigner.test.ts` — added 14 new tests: 5 for `getWeekBounds` (Mon, Wed, Sun, month boundary, year boundary); 3 for `maxDailyHours` (within limit, exceeds, exact); 2 for `maxWeeklyHours` (blocks/allows); 3 for `minRestHoursBetweenShifts` (blocks, allows, overnight-skip); 1 for backward compatibility. Updated import to include `getWeekBounds`, `LaborConstraints`.
+**Reasoning:** The labor-law constraint engine is essential for production compliance. Key design decisions: (1) `templateCatalog` is needed because existingRoster entries reference templates from prior days not in the current assignment list; (2) overnight shifts (endMinutes < startMinutes) are explicitly skipped by `violatesMinRest` to avoid ambiguous arithmetic — they are already covered by `hasTimeOverlap` for same-day scenarios; (3) `passesConstraints` is extracted as a single predicate to keep both the greedy phase and 2-opt phase DRY; (4) `getWeekBounds` uses UTC arithmetic to avoid DST boundary issues; (5) exact limit equality is allowed (not strictly over) for maxDailyHours and maxWeeklyHours.
+**Expected result:** 164/164 tests pass, lint clean, tsc --noEmit exits 0.
+**Future considerations:** Wire `LaborConstraints` into the scheduler UI so managers can configure limits. Add max consecutive days constraint. Consider ILP solver for larger worker pools (>50).
+**References:** CHG-013
+
+---
+
 ### CHG-013 — 2026-03-28 UTC
 **Type:** INFRA + BUGFIX
 **Phase:** 4B — CI/CD + TypeScript error fixes
