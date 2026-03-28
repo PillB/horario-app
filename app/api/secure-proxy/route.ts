@@ -500,6 +500,17 @@ const dbDeleteAvailability = async (client: SupabaseClient, id: string) => {
   return { success: true as const };
 };
 
+const dbListWorkerAvailability = async (client: SupabaseClient, accountId: string) => {
+  const { data, error } = await client
+    .from('worker_availability')
+    .select('id, account_id, worker_id, day_of_week, from_time, to_time')
+    .eq('account_id', accountId)
+    .order('worker_id', { ascending: true })
+    .limit(2000);
+  if (error) return { success: false as const, error: error.message, availabilities: [] };
+  return { success: true as const, availabilities: (data ?? []).map(rowToAvailability) };
+};
+
 // ─── Shift Templates ──────────────────────────────────────────────────────────
 
 type TemplateRow = {
@@ -681,6 +692,7 @@ type ProxyRequest =
   | { action: 'upsertWorker'; worker: Record<string, unknown> }
   | { action: 'deleteWorker'; id: string }
   // Availability
+  | { action: 'listWorkerAvailability'; accountId: string }
   | { action: 'upsertAvailability'; availability: Record<string, unknown> }
   | { action: 'deleteAvailability'; id: string }
   // Shift templates
@@ -775,6 +787,10 @@ export async function POST(request: Request) {
       case 'deleteWorker': {
         const result = await dbDeleteWorker(client, payload.id);
         return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+      }
+      case 'listWorkerAvailability': {
+        const result = await dbListWorkerAvailability(client, payload.accountId);
+        return result.success ? jsonOk({ availabilities: result.availabilities }) : buildErrorResponse(result.error, 400);
       }
       case 'upsertAvailability': {
         const result = await dbUpsertAvailability(client, payload.availability as Parameters<typeof dbUpsertAvailability>[1]);

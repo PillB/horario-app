@@ -14,7 +14,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import ConfettiBurst from '@/components/ConfettiBurst';
 import { useDemandForecast } from '@/hooks/useDemandForecast';
+import { useWorkers } from '@/hooks/useWorkers';
+import { useShiftTemplates } from '@/hooks/useShiftTemplates';
+import { useRoster } from '@/hooks/useRoster';
 import { DemandForecast } from '@/services/demandForecast';
+import { type DayOfWeek } from '@/services/rosterService';
 import { computeUncoveredLoss, Shift, ShiftTemplate } from './schedulerMetrics';
 import {
   OnboardingProgress,
@@ -111,16 +115,6 @@ type OnboardingStep = {
 };
 
 const formatCurrency = (value: number) => `$${Math.round(value).toLocaleString('en-US')}`;
-
-const persistShiftStatus = async (shiftId: string, status: Shift['status']) => {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  console.log(`Persisted shift ${shiftId} with status ${status}`);
-};
-
-const persistShiftNotification = async (shiftId: string) => {
-  await new Promise((resolve) => setTimeout(resolve, 120));
-  console.log(`Logged notification for shift ${shiftId}`);
-};
 
 const isValidDate = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -480,64 +474,9 @@ export default function SchedulerScreen() {
   const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
   const userId = process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
 
-  const [workers, setWorkers] = useState<Worker[]>([
-    {
-      id: 'W-01',
-      name: 'Alex Johnson',
-      role: 'Front Desk',
-      skills: ['Check-in', 'Escalations'],
-      availability: [
-        { day: 'Mon', from: '08:00', to: '16:00' },
-        { day: 'Wed', from: '10:00', to: '18:00' },
-      ],
-    },
-    {
-      id: 'W-02',
-      name: 'Priya Singh',
-      role: 'Support',
-      skills: ['Chat', 'Bilingual'],
-      availability: [
-        { day: 'Tue', from: '09:00', to: '17:00' },
-        { day: 'Thu', from: '12:00', to: '20:00' },
-      ],
-    },
-  ]);
-
-  const [shiftTemplates] = useState<ShiftTemplate[]>([
-    { id: 'morning', name: 'Morning Coverage', role: 'Front Desk', start: '08:00', end: '14:00', coverage: 2 },
-    { id: 'evening', name: 'Evening Coverage', role: 'Support', start: '14:00', end: '22:00', coverage: 3 },
-    { id: 'weekend', name: 'Weekend Ops', role: 'Support', start: '09:00', end: '17:00', coverage: 2 },
-  ]);
-
-  const [roster, setRoster] = useState<Shift[]>([
-    {
-      id: 'shift-1',
-      date: isoDate(0),
-      workerId: 'W-01',
-      templateId: 'morning',
-      location: 'HQ',
-      status: 'Published',
-      notified: false,
-    },
-    {
-      id: 'shift-2',
-      date: isoDate(0),
-      workerId: 'W-02',
-      templateId: 'evening',
-      location: 'HQ',
-      status: 'Draft',
-      notified: false,
-    },
-    {
-      id: 'shift-3',
-      date: isoDate(1),
-      workerId: 'W-02',
-      templateId: 'weekend',
-      location: 'Remote',
-      status: 'Draft',
-      notified: false,
-    },
-  ]);
+  const { workers, addAvailability } = useWorkers(accountId);
+  const { shiftTemplates } = useShiftTemplates(accountId);
+  const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
 
   const [savedOnboardingProgress, setSavedOnboardingProgress] = useState<OnboardingProgress | null>(null);
 
@@ -691,7 +630,11 @@ export default function SchedulerScreen() {
 
   useEffect(() => {
     if (roster.some((shift) => shift.status === 'Published')) return;
-    setPublishCelebration({ badgeVisible: false, confettiBurst: false });
+    setPublishCelebration((prev) =>
+      prev.badgeVisible || prev.confettiBurst
+        ? { badgeVisible: false, confettiBurst: false }
+        : prev
+    );
   }, [roster]);
 
   const upcomingShifts = useMemo(() => {
@@ -729,7 +672,7 @@ export default function SchedulerScreen() {
       .filter((target) => target.gap > 0);
   }, [demandTargets, roster, shiftTemplates]);
 
-  const handleAvailabilitySubmit = () => {
+  const handleAvailabilitySubmit = async () => {
     const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } = validateAvailabilitySubmission(
       availabilityForm,
       workers
@@ -742,21 +685,16 @@ export default function SchedulerScreen() {
     }
 
     setAvailabilityError(null);
-    setAvailabilitySuccessPromptVisible(true);
-    setWorkers((prev) =>
-      prev.map((worker) =>
-        worker.id === trimmedWorkerId
-          ? {
-              ...worker,
-              availability: [...worker.availability, { day: normalizedDay, from: trimmedFrom, to: trimmedTo }],
-            }
-          : worker
-      )
-    );
-    setAvailabilityForm({ ...availabilityForm, day: '', from: '', to: '' });
+    const result = await addAvailability(trimmedWorkerId, normalizedDay as DayOfWeek, trimmedFrom, trimmedTo);
+    if (result.success) {
+      setAvailabilitySuccessPromptVisible(true);
+      setAvailabilityForm({ ...availabilityForm, day: '', from: '', to: '' });
+    } else {
+      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+    }
   };
 
-  const handleShiftSubmit = () => {
+  const handleShiftSubmit = async () => {
     const trimmedWorkerId = shiftForm.workerId.trim();
     const trimmedTemplateId = shiftForm.templateId.trim();
     const trimmedDate = shiftForm.date.trim();
@@ -830,18 +768,19 @@ export default function SchedulerScreen() {
     }
 
     setShiftError(null);
-    setRoster((prev) => [
-      ...prev,
-      {
-        id: `shift-${prev.length + 1}`,
-        date: trimmedDate,
-        workerId: trimmedWorkerId,
-        templateId: trimmedTemplateId,
-        location: 'HQ',
-        status: 'Draft',
-      },
-    ]);
-    setShiftForm({ ...shiftForm, date: '' });
+    const result = await addShift({
+      date: trimmedDate,
+      workerId: trimmedWorkerId,
+      templateId: trimmedTemplateId,
+      location: 'HQ',
+      status: 'Draft',
+      notified: false,
+    });
+    if (result.success) {
+      setShiftForm({ ...shiftForm, date: '' });
+    } else {
+      setShiftError(result.error ?? 'Failed to save shift. Please try again.');
+    }
   };
 
   const handleTargetSubmit = () => {
@@ -1341,12 +1280,11 @@ export default function SchedulerScreen() {
             return;
           }
 
-          setRoster((prev) =>
-            prev.map((candidate) =>
-              candidate.id === shiftId ? { ...candidate, status: 'Published', notified: false } : candidate
-            )
-          );
-          await persistShiftStatus(shiftId, 'Published');
+          const publishResult = await setShiftStatus(shiftId, 'Published');
+          if (!publishResult.success) {
+            showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error');
+            return;
+          }
           showActionBanner(
             `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
             'success'
@@ -1365,10 +1303,7 @@ export default function SchedulerScreen() {
       return;
     }
 
-    setRoster((prev) =>
-      prev.map((candidate) => (candidate.id === shiftId ? { ...candidate, status: 'Draft', notified: false } : candidate))
-    );
-    await persistShiftStatus(shiftId, 'Draft');
+    await setShiftStatus(shiftId, 'Draft');
     showActionBanner(`Unpublished ${shift.workerId} for ${shift.date}.`, 'info');
   };
 
@@ -1386,8 +1321,7 @@ export default function SchedulerScreen() {
       return;
     }
 
-    setRoster((prev) => prev.map((candidate) => (candidate.id === shiftId ? { ...candidate, notified: true } : candidate)));
-    await persistShiftNotification(shiftId);
+    await notifyShift(shiftId);
     showActionBanner(`Sent notifications for ${shift.workerId} on ${shift.date}.`, 'success');
   };
 

@@ -142,6 +142,19 @@ export const deleteWorker = async (id: string): Promise<MutationResult> => {
 
 // ─── Worker Availability ──────────────────────────────────────────────────────
 
+export const listWorkerAvailability = async (accountId: string): Promise<DbAvailability[]> => {
+  try {
+    const result = await proxyPost<{ availabilities: DbAvailability[] }>({
+      action: 'listWorkerAvailability',
+      accountId,
+    });
+    return result.availabilities ?? [];
+  } catch (err) {
+    console.warn('Unable to list worker availability', err);
+    return [];
+  }
+};
+
 export const upsertAvailability = async (availability: DbAvailability): Promise<UpsertAvailabilityResult> => {
   try {
     const result = await proxyPost<{ success: boolean; availability: DbAvailability; error?: string }>(

@@ -74,6 +74,21 @@
 
 ---
 
+### CHG-006 — 2026-03-28 02:30:00 UTC
+**Type:** CHANGE
+**Files changed:** `app/api/secure-proxy/route.ts` (listWorkerAvailability added), `services/rosterService.ts` (listWorkerAvailability added), `services/__tests__/rosterService.test.ts` (2 new tests), `hooks/useWorkers.ts` (created), `hooks/useShiftTemplates.ts` (created), `hooks/useRoster.ts` (created), `hooks/__tests__/useWorkers.test.tsx` (created, 4 tests), `hooks/__tests__/useShiftTemplates.test.tsx` (created, 3 tests), `hooks/__tests__/useRoster.test.tsx` (created, 6 tests), `app/(tabs)/scheduler.tsx` (hooks wired, stubs removed), `app/(tabs)/__tests__/scheduler.test.tsx` (mocks added for new hooks)
+**Reasoning:** Phase 2D — DB-backed hooks + scheduler.tsx wiring. (1) Added `listWorkerAvailability` to proxy (new `dbListWorkerAvailability` DB function + ProxyRequest variant + switch case) and rosterService (new exported function). (2) Created `hooks/useWorkers.ts` — loads workers + their availability in parallel, joins into `WorkerWithAvailability[]`, exposes `addAvailability` which persists via proxy and updates local state. Uses `generateId()` (crypto.randomUUID with fallback) for new availability records. (3) Created `hooks/useShiftTemplates.ts` — loads `DbShiftTemplate[]` and maps `startTime/endTime → start/end` for the scheduler's `ShiftTemplate` type. (4) Created `hooks/useRoster.ts` — loads roster with JSON-stable filter dependency (prevents infinite loop from object reference churn), exposes `addShift`, `setShiftStatus` (updates status + resets notified), `notifyShift`, `removeShift`. (5) Wired hooks into scheduler.tsx: removed 3 hardcoded `useState` blocks (workers/templates/roster), removed `persistShiftStatus` and `persistShiftNotification` stubs, updated handlers to be async with real DB persistence and error feedback. (6) Fixed a latent infinite render loop in scheduler.tsx: the `useEffect` that resets `publishCelebration` when no shifts are published was creating new object references unconditionally — changed to functional updater that bails out if state already matches. (7) Added hook mocks to scheduler.test.tsx to prevent the component test from making real fetch calls.
+**Expected result:** 68/68 tests pass, lint clean. Workers, shift templates, and roster shifts now persist to Supabase across app restarts. All mutations (add availability, add shift, publish, unpublish, notify) go through the secure proxy.
+**Future considerations:**
+- Phase 3A: Split scheduler.tsx (600+ lines) into sub-components. Extract types, utils, sub-components.
+- Phase 3B: Auto-assignment algorithm (shiftAssigner.ts) — greedy + local-search.
+- Phase 3C: Live home screen with useLiveRosterSummary hook.
+- The `useRoster(accountId, filters?)` filtersKey pattern (JSON.stringify) should be extracted to a shared utility if reused across hooks.
+- The `generateId()` fallback should be replaced with a proper UUID library if crypto.randomUUID is not available in all target environments.
+**References:** CHG-005
+
+---
+
 ### CHG-005 — 2026-03-28 01:00:00 UTC
 **Type:** CHANGE
 **Files changed:** `app/api/secure-proxy/route.ts` (extended — 13 new switch cases), `services/rosterService.ts` (created), `services/__tests__/rosterService.test.ts` (created)

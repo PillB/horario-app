@@ -34,6 +34,38 @@ jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
 
+jest.mock('@/hooks/useWorkers', () => ({
+  useWorkers: () => ({
+    workers: [],
+    loading: false,
+    error: null,
+    addAvailability: jest.fn().mockResolvedValue({ success: true, availability: {} }),
+    refresh: jest.fn(),
+  }),
+}));
+
+jest.mock('@/hooks/useShiftTemplates', () => ({
+  useShiftTemplates: () => ({
+    shiftTemplates: [],
+    loading: false,
+    error: null,
+    refresh: jest.fn(),
+  }),
+}));
+
+jest.mock('@/hooks/useRoster', () => ({
+  useRoster: () => ({
+    roster: [],
+    loading: false,
+    error: null,
+    addShift: jest.fn().mockResolvedValue({ success: true, shift: {} }),
+    setShiftStatus: jest.fn().mockResolvedValue({ success: true }),
+    notifyShift: jest.fn().mockResolvedValue({ success: true }),
+    removeShift: jest.fn().mockResolvedValue({ success: true }),
+    refresh: jest.fn(),
+  }),
+}));
+
 describe('getWeekdayFromDate', () => {
   it('derives weekday using a supplied timezone offset to account for local boundaries', () => {
     const backwardTimezoneOffsetMinutes = -720; // UTC-12

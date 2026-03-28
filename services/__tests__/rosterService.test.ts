@@ -2,6 +2,7 @@ import {
   listWorkers,
   upsertWorker,
   deleteWorker,
+  listWorkerAvailability,
   upsertAvailability,
   deleteAvailability,
   listShiftTemplates,
@@ -149,6 +150,22 @@ describe('deleteWorker', () => {
 });
 
 // ─── availability ─────────────────────────────────────────────────────────────
+
+describe('listWorkerAvailability', () => {
+  it('returns availabilities from a successful response', async () => {
+    mockFetch({ availabilities: [availability] });
+    const result = await listWorkerAvailability('acc-1');
+    expect(result).toEqual([availability]);
+  });
+
+  it('returns empty array on error', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockFetchReject('Network error');
+    const result = await listWorkerAvailability('acc-1');
+    expect(result).toEqual([]);
+    warn.mockRestore();
+  });
+});
 
 describe('upsertAvailability', () => {
   it('returns success with availability record', async () => {
