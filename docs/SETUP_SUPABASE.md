@@ -2,9 +2,77 @@
 
 This guide explains how to create the Supabase tables that support the scheduling and demand-forecasting flows used by the app. The SQL below can be run in the Supabase SQL editor, via the Supabase CLI, or as part of a migration file for local development and CI.
 
+## Migration files
+
+Apply migrations in filename order:
+
+| File | Purpose |
+|---|---|
+| `supabase/migrations/20240613120000_onboarding_progress.sql` | Onboarding progress tracking |
+| `supabase/migrations/20260327000001_core_tables.sql` | Core scheduling tables (workers, availability, templates, roster) |
+
+Apply with:
+```bash
+supabase db push
+# or for CI:
+supabase db push --db-url "$SUPABASE_DB_URL"
+```
+
+---
+
 ## Required tables
 
-The schema uses three tables. Each table includes an auto-generated primary key for traceability while exposing the fields used by the app.
+The schema uses **seven** tables. Each has an auto-generated primary key for traceability.
+
+### Core scheduling tables (added in migration `20260327000001`)
+
+#### `workers`
+- `id` (`uuid`, PK, default `gen_random_uuid()`)
+- `account_id` (`text`, required) — tenant identifier
+- `name` (`text`, required, 1–100 chars)
+- `role` (`text`, required, 1–100 chars)
+- `skills` (`text[]`, default `{}`)
+- `created_at` (`timestamptz`)
+
+Index: `(account_id)`
+
+#### `worker_availability`
+- `id` (`uuid`, PK)
+- `account_id` (`text`, required)
+- `worker_id` (`uuid`, FK → `workers.id`, cascade delete)
+- `day_of_week` (`text`, one of `Mon Tue Wed Thu Fri Sat Sun`)
+- `from_time` (`text`, `HH:MM` format)
+- `to_time` (`text`, `HH:MM` format, must be > `from_time`)
+
+Unique constraint: `(worker_id, day_of_week, from_time)` — prevents duplicate slots.
+Indexes: `(worker_id)`, `(account_id)`
+
+#### `shift_templates`
+- `id` (`uuid`, PK)
+- `account_id` (`text`, required)
+- `name` (`text`, required, 1–100 chars)
+- `role` (`text`, required, 1–100 chars)
+- `start_time` (`text`, `HH:MM`)
+- `end_time` (`text`, `HH:MM`, must be > `start_time`)
+- `coverage` (`integer`, min 1) — number of workers needed per slot
+- `created_at` (`timestamptz`)
+
+Index: `(account_id)`
+
+#### `roster`
+- `id` (`uuid`, PK)
+- `account_id` (`text`, required)
+- `date` (`date`, required)
+- `worker_id` (`uuid`, FK → `workers.id`, restrict delete)
+- `template_id` (`uuid`, FK → `shift_templates.id`, restrict delete)
+- `location` (`text`, max 200 chars)
+- `status` (`text`, one of `Draft Published`)
+- `notified` (`boolean`, default `false`)
+- `created_at` / `updated_at` (`timestamptz`, `updated_at` auto-managed by trigger)
+
+Indexes: `(account_id, date)`, `(worker_id, date)`
+
+### Legacy scheduling tables (from initial setup)
 
 ### `shifts`
 - `date` (`date`, required)

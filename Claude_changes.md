@@ -74,6 +74,20 @@
 
 ---
 
+### CHG-004 — 2026-03-28 00:05:00 UTC
+**Type:** CHANGE
+**Files changed:** `supabase/migrations/20260327000001_core_tables.sql` (created), `docs/SETUP_SUPABASE.md` (updated)
+**Reasoning:** Phase 2B — Database Schema. Created migration with 4 new tables: `workers` (uuid PK, account_id, name, role, skills[], created_at), `worker_availability` (FK→workers, day_of_week enum, from/to_time with HH:MM validation and time-order constraint), `shift_templates` (uuid PK, account_id, name, role, start/end_time, coverage), `roster` (FK→workers+shift_templates, date, status enum Draft/Published, notified, updated_at trigger). All 4 tables have RLS enabled: anon=SELECT only, service_role=ALL. Indexes added for all common query patterns. Updated SETUP_SUPABASE.md to describe all 7 tables and reference both migration files. References: CHG-003.
+**Expected result:** Supabase project can have this migration applied to gain the core scheduling schema. All 4 new tables are ready to back the hooks in Phase 2D.
+**Future considerations:**
+- Phase 4A (auth) will add FK from roster/workers to auth.users and tighten RLS to per-user policies using auth.uid()
+- The `worker_availability.from_time < to_time` constraint is enforced at DB level AND will be enforced in the proxy validator (Phase 2C)
+- roster.worker_id uses `on delete restrict` (not cascade) — must delete roster shifts before deleting a worker
+- uuid PKs chosen over bigint for future multi-region/distributed support
+**References:** CHG-003
+
+---
+
 ### CHG-003 — 2026-03-27 23:45:00 UTC
 **Type:** CHANGE
 **Files changed:** `babel.config.js`, `app/(tabs)/__tests__/scheduler.test.tsx`, `app/(tabs)/scheduler.tsx`, `app/(tabs)/index.tsx`, `.env.example`, `package-lock.json`
