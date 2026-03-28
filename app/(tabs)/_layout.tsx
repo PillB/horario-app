@@ -1,8 +1,6 @@
-import { Tabs } from 'expo-router';
-import { Redirect } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
-import { useAuth } from '@clerk/expo';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -10,16 +8,11 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-export default function TabLayout() {
+// Auth gate only active when a valid Clerk publishable key is provided.
+const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
+
+function TabNavigator() {
   const colorScheme = useColorScheme();
-  const { isSignedIn, isLoaded } = useAuth();
-
-  // Wait for Clerk to load before deciding redirect
-  if (!isLoaded) return null;
-
-  // Unauthenticated users go to sign-in
-  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-
   return (
     <Tabs
       screenOptions={{
@@ -28,9 +21,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: {
-            position: 'absolute',
-          },
+          ios: { position: 'absolute' },
           default: {},
         }),
       }}>
@@ -57,4 +48,20 @@ export default function TabLayout() {
       />
     </Tabs>
   );
+}
+
+function AuthGuardedTabLayout() {
+  // Dynamic import avoids calling useAuth() when ClerkProvider is not mounted
+  const { useAuth } = require('@clerk/expo');
+  const { isSignedIn, isLoaded } = useAuth();
+  if (!isLoaded) return null;
+  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+  return <TabNavigator />;
+}
+
+export default function TabLayout() {
+  if (!authEnabled) {
+    return <TabNavigator />;
+  }
+  return <AuthGuardedTabLayout />;
 }

@@ -32,6 +32,23 @@
 
 ---
 
+### CHG-016 — 2026-03-28 UTC
+**Type:** BUGFIX
+**Phase:** 5A — Dev bypass blank-screen fix + test file rename
+**Files changed:**
+- `app/_layout.tsx` — added `authEnabled = publishableKey.startsWith('pk_')` guard; when key is missing/invalid, renders app without `ClerkProvider` (dev bypass mode), avoiding the blank-screen caused by `ClerkProvider` with an invalid key never resolving `isLoaded: true`
+- `app/(tabs)/_layout.tsx` — rewrote auth guard: `authEnabled` check at export level; `AuthGuardedTabLayout` uses `require('@clerk/expo')` dynamic import to avoid calling `useAuth()` when `ClerkProvider` is not mounted; `TabNavigator` rendered directly in dev bypass mode
+- `app/(tabs)/__tests__/scheduler.test.ts` (deleted) — renamed to `schedulerMetrics.test.ts` to fix fatal route conflict in server output mode (both `.ts` and `.tsx` with same base name map to the same route)
+- `app/(tabs)/__tests__/schedulerMetrics.test.ts` (created) — contains `computeUncoveredLoss` pure function tests (previously in scheduler.test.ts)
+**Reasoning:**
+- Blank screen root cause: `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is empty in dev → `ClerkProvider` with empty key never resolves `isLoaded: true` → `useAuth()` in tab layout always returns `{ isLoaded: false }` → tab layout returns `null` indefinitely. Fix: skip `ClerkProvider` entirely when key is not configured.
+- Route conflict root cause: expo-router server mode detects both `app/(tabs)/__tests__/scheduler.test.ts` and `app/(tabs)/__tests__/scheduler.test.tsx` as conflicting routes for the same path. Renaming `.ts` to `schedulerMetrics.test.ts` (accurate name for its content) eliminates the conflict.
+**Expected result:** Home screen renders with 3 tabs when no Clerk key configured. Server starts without route conflict errors. All tests pass.
+**Future considerations:** When `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...` is set in `.env.local`, the full auth flow (sign-in/sign-up → email verification) will activate. Add sign-out button to app header.
+**References:** CHG-015
+
+---
+
 ### CHG-015 — 2026-03-28 UTC
 **Type:** BUGFIX + FEATURE
 **Phase:** 5A — Playwright audit, critical bug fixes, Clerk auth, Add Worker/Template forms

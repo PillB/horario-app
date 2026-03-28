@@ -10,6 +10,19 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
+// Auth is only active when a Clerk publishable key is configured.
+// Without it the app runs in "dev bypass" mode (no auth wall).
+const authEnabled = publishableKey.startsWith('pk_');
+
+function AppNavigator() {
+  return (
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -21,20 +34,24 @@ export default function RootLayout() {
     return null;
   }
 
+  const inner = (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
+          fallback UI have access to the theme context. */}
+      <ErrorBoundary>
+        <AppNavigator />
+      </ErrorBoundary>
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
+
+  if (!authEnabled) {
+    return inner;
+  }
+
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
-            fallback UI have access to the theme context. */}
-        <ErrorBoundary>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-        </ErrorBoundary>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      {inner}
     </ClerkProvider>
   );
 }
