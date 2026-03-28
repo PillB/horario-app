@@ -6,6 +6,29 @@
 
 ---
 
+### CHG-010 — 2026-03-28 UTC
+**Type:** CHANGE
+**Phase:** 4A — Error Boundaries + Skeleton Loading
+**Files changed:**
+- `components/ErrorBoundary.tsx` (committed) — class-based boundary with functional wrapper, default fallback UI (ThemedText/ThemedView), custom fallback prop, onRetry callback
+- `components/SkeletonCard.tsx` (committed) — animated pulsing loading placeholder (N rows), Animated.loop with useNativeDriver: false for web + test compatibility
+- `components/__tests__/ErrorBoundary.test.tsx` (committed) — 5 tests: renders children, default fallback, error message display, retry callback, custom fallback
+- `components/__tests__/SkeletonCard.test.tsx` (fixed + committed) — 5 tests: fixed for React 19 (Animated.View creates 3 fiber layers; use jest.useFakeTimers() + filter findAll to typeof node.type === 'string' to select host nodes only)
+**Reasoning:** These components were written but not committed. SkeletonCard test was also broken for React 19: without act(), .root was inaccessible; with act() the findAll returned 3x expected count (AnimatedComponent→AnimatedProps→View each forward testID). Fixed by using fake timers to block RAF and filtering findAll to host nodes.
+**Expected result:** 131/131 tests pass, lint clean.
+**References:** CHG-009
+
+---
+
+### [SUMMARY] — 2026-03-28 (Phase 4A start)
+**Last CHG completed:** CHG-009 (Phase 3C — Live Home Screen)
+**Current state:** 121/121 tests passing. scheduler.tsx is 238 lines (fully split). Auto-assignment algorithm (greedy + 2-opt) in services/shiftAssigner.ts. Live home screen via useLiveRosterSummary. DB-backed hooks (useWorkers, useShiftTemplates, useRoster). SQL migration for core tables. Secure proxy handles all CRUD. ErrorBoundary.tsx + SkeletonCard.tsx + their tests are written but NOT YET COMMITTED (4 untracked files).
+**Active decisions:** DB persistence before auth. Service-role key in proxy only. Greedy algorithm. SMB focus. IconSymbol MAPPING must be extended for any new SF Symbol (chart.bar.fill → bar-chart needed). `loadDemandTargets` only returns override targets (source==='override'). `computeUncoveredLoss` in schedulerMetrics.ts takes ShiftTemplate with `start`/`end` (NOT `startTime`/`endTime`) — must map DbShiftTemplate before passing.
+**Next action:** Phase 4A = (1) CHG-010: commit ErrorBoundary+SkeletonCard. (2) CHG-011: wire into _layout.tsx, index.tsx, scheduler.tsx. (3) CHG-012: build useAnalytics hook + transform explore.tsx into live Analytics tab + update tab label/icon.
+**Watch out for:** IconSymbol.tsx MAPPING is type-checked against SymbolViewProps['name'] — must add chart.bar.fill to the mapping or TypeScript will error. SkeletonCard animation uses `Animated.loop` which starts in useEffect — tests must NOT wrap in `act()` or timers will leak. ErrorBoundary DefaultFallback uses ThemedText/ThemedView (need ThemeProvider above it — place boundary INSIDE ThemeProvider in _layout.tsx). `computeUncoveredLoss` signature: (targets: DemandForecast[], roster: Shift[], templates: ShiftTemplate[], rate?) — Shift type needs: id, date, workerId, templateId, location, status.
+
+---
+
 ### CHG-009 — 2026-03-28 UTC
 **Type:** CHANGE
 **Phase:** 3C — Live Home Screen
