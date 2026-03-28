@@ -2,9 +2,11 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PersonalizedFeed } from '@/components/PersonalizedFeed';
 import { ProfileAchievements } from '@/components/ProfileAchievements';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
+import { SkeletonCard } from '@/components/SkeletonCard';
 import { StreakCounter } from '@/components/StreakCounter';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -66,48 +68,50 @@ export default function HomeScreen() {
         />
       </ThemedView>
 
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle">Upcoming shifts</ThemedText>
-        {rosterLoading ? (
-          <ThemedText style={styles.mutedText}>Loading…</ThemedText>
-        ) : upcomingShifts.length === 0 ? (
-          <ThemedText style={styles.mutedText}>No shifts scheduled in the next 7 days.</ThemedText>
-        ) : (
-          upcomingShifts.map((shift) => (
-            <View key={shift.id} style={styles.rowBetween}>
-              <View>
-                <ThemedText type="defaultSemiBold">{shift.workerName}</ThemedText>
-                <ThemedText style={styles.mutedText}>
-                  {shift.templateName} • {shift.templateStart}–{shift.templateEnd}
-                </ThemedText>
+      <ErrorBoundary onRetry={refresh}>
+        <ThemedView style={styles.card}>
+          <ThemedText type="subtitle">Upcoming shifts</ThemedText>
+          {rosterLoading ? (
+            <SkeletonCard rows={3} />
+          ) : upcomingShifts.length === 0 ? (
+            <ThemedText style={styles.mutedText}>No shifts scheduled in the next 7 days.</ThemedText>
+          ) : (
+            upcomingShifts.map((shift) => (
+              <View key={shift.id} style={styles.rowBetween}>
+                <View>
+                  <ThemedText type="defaultSemiBold">{shift.workerName}</ThemedText>
+                  <ThemedText style={styles.mutedText}>
+                    {shift.templateName} • {shift.templateStart}–{shift.templateEnd}
+                  </ThemedText>
+                </View>
+                <ThemedText style={styles.badge}>{shift.date}</ThemedText>
               </View>
-              <ThemedText style={styles.badge}>{shift.date}</ThemedText>
-            </View>
-          ))
-        )}
-      </ThemedView>
+            ))
+          )}
+        </ThemedView>
 
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle">Staffing gaps</ThemedText>
-        {rosterLoading ? (
-          <ThemedText style={styles.mutedText}>Loading…</ThemedText>
-        ) : staffingGaps.length === 0 ? (
-          <ThemedText style={styles.mutedText}>No staffing gaps detected.</ThemedText>
-        ) : (
-          staffingGaps.map((gap) => (
-            <View key={`${gap.date}::${gap.role}`} style={styles.rowBetween}>
-              <View>
-                <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
-                <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
+        <ThemedView style={styles.card}>
+          <ThemedText type="subtitle">Staffing gaps</ThemedText>
+          {rosterLoading ? (
+            <SkeletonCard rows={2} />
+          ) : staffingGaps.length === 0 ? (
+            <ThemedText style={styles.mutedText}>No staffing gaps detected.</ThemedText>
+          ) : (
+            staffingGaps.map((gap) => (
+              <View key={`${gap.date}::${gap.role}`} style={styles.rowBetween}>
+                <View>
+                  <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
+                  <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
+                </View>
+                <ThemedView style={styles.gapPill}>
+                  <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
+                  <ThemedText style={styles.mutedText}>{gap.required} required</ThemedText>
+                </ThemedView>
               </View>
-              <ThemedView style={styles.gapPill}>
-                <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
-                <ThemedText style={styles.mutedText}>{gap.required} required</ThemedText>
-              </ThemedView>
-            </View>
-          ))
-        )}
-      </ThemedView>
+            ))
+          )}
+        </ThemedView>
+      </ErrorBoundary>
 
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">Quick actions</ThemedText>

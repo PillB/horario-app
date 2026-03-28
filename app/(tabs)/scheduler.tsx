@@ -10,6 +10,7 @@
 import React from 'react';
 import { ScrollView, View, Pressable } from 'react-native';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import ConfettiBurst from '@/components/ConfettiBurst';
@@ -112,6 +113,7 @@ export default function SchedulerScreen() {
   } = useSchedulerHandlers();
 
   return (
+    <ErrorBoundary>
     <ThemedView style={styles.screenContainer}>
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
@@ -238,6 +240,7 @@ export default function SchedulerScreen() {
         />
       </ScrollView>
     </ThemedView>
+    </ErrorBoundary>
   );
 }
 

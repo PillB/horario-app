@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function RootLayout() {
@@ -19,10 +20,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
+          fallback UI have access to the theme context. */}
+      <ErrorBoundary>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </ErrorBoundary>
       <StatusBar style="auto" />
     </ThemeProvider>
   );

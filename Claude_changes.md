@@ -6,6 +6,19 @@
 
 ---
 
+### CHG-011 — 2026-03-28 UTC
+**Type:** CHANGE
+**Phase:** 4A — Wire ErrorBoundary + SkeletonCard into app
+**Files changed:**
+- `app/_layout.tsx` — wrapped Stack in ErrorBoundary (inside ThemeProvider so fallback ThemedText/ThemedView have theme context)
+- `app/(tabs)/index.tsx` — added SkeletonCard (rows=3/2) replacing "Loading…" text in upcoming-shifts and staffing-gaps cards; wrapped both cards in a single ErrorBoundary with onRetry=refresh from useLiveRosterSummary
+- `app/(tabs)/scheduler.tsx` — wrapped entire screen content in ErrorBoundary (root safety net for sub-component render errors)
+**Reasoning:** Three boundary levels: (1) root boundary in _layout catches any navigator/tab-level crash, (2) section boundary in index.tsx catches data-loading section errors and surfaces a retry action tied to the refresh callback, (3) scheduler boundary catches sub-component render errors. SkeletonCard replaces text-only loading states with shape-matching animated placeholders.
+**Expected result:** 131/131 tests pass. No regressions. App now has production-grade error recovery at all three levels.
+**References:** CHG-010
+
+---
+
 ### CHG-010 — 2026-03-28 UTC
 **Type:** CHANGE
 **Phase:** 4A — Error Boundaries + Skeleton Loading
