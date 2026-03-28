@@ -1,0 +1,920 @@
+/**
+ * useSchedulerHandlers — all state, effects, derived values, and handlers
+ * for the Scheduler screen.  Extracted here to keep scheduler.tsx lean.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Alert, ScrollView, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import { useDemandForecast } from '@/hooks/useDemandForecast';
+import { useWorkers } from '@/hooks/useWorkers';
+import { useShiftTemplates } from '@/hooks/useShiftTemplates';
+import { useRoster } from '@/hooks/useRoster';
+import { useSessionWellness } from '@/hooks/useSessionWellness';
+import { type DemandForecast } from '@/services/demandForecast';
+import { type DayOfWeek } from '@/services/rosterService';
+import { type Shift, type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+import { type OnboardingStep, type Worker } from '@/types/scheduler';
+import {
+  createChangeHandler,
+  defaultTimezoneOffsetMinutes,
+  getTemplateWindow,
+  isValidDate,
+  isoDate,
+  windowsOverlap,
+} from '@/utils/schedulerUtils';
+import {
+  findCoveringAvailability,
+  validateAvailabilitySubmission,
+  validateShiftReadiness,
+} from '@/utils/schedulerValidators';
+import {
+  fetchOnboardingProgress,
+  type OnboardingProgress,
+  upsertOnboardingProgress,
+} from '@/services/onboardingProgress';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ActionBanner = { type: 'success' | 'error' | 'info'; message: string } | null;
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+export function useSchedulerHandlers() {
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const router = useRouter();
+
+  const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
+  const userId = process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
+
+  // ── DB-backed data hooks ──────────────────────────────────────────────────
+  const {
+    demandTargets,
+    triggerForecast,
+    overrideTarget,
+    loading: forecastLoading,
+    error: forecastError,
+    forecasting,
+    dataStatus,
+    seedBaselineTargets,
+  } = useDemandForecast();
+
+  const { workers, addAvailability } = useWorkers(accountId);
+  const { shiftTemplates } = useShiftTemplates(accountId);
+  const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
+  const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
+    useSessionWellness();
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [savedOnboardingProgress, setSavedOnboardingProgress] =
+    useState<OnboardingProgress | null>(null);
+  const [shiftError, setShiftError] = useState<string | null>(null);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [targetError, setTargetError] = useState<string | null>(null);
+  const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
+  const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
+  const [publishCelebration, setPublishCelebration] = useState({
+    badgeVisible: false,
+    confettiBurst: false,
+  });
+  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
+
+  // ── Form state ────────────────────────────────────────────────────────────
+  const [availabilityForm, setAvailabilityForm] = useState({
+    workerId: 'W-01',
+    day: 'Fri',
+    from: '09:00',
+    to: '17:00',
+  });
+  const [shiftForm, setShiftForm] = useState({
+    workerId: 'W-01',
+    templateId: 'morning',
+    date: isoDate(2),
+  });
+  const [targetForm, setTargetForm] = useState({
+    date: isoDate(3),
+    role: 'Support',
+    required: '3',
+    notes: 'Weekend backlog',
+  });
+  const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual'>('homogeneous');
+  const [fallbackForm, setFallbackForm] = useState({
+    role: 'Support',
+    startDate: new Date().toISOString().slice(0, 10),
+    days: '7',
+    homogeneousDemand: '4',
+    shiftsPerDay: '2',
+    workersPerShift: '2',
+    notes: 'Baseline targets without history',
+  });
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
+  const [forecastPending, setForecastPending] = useState(false);
+  const [forecastEditStarted, setForecastEditStarted] = useState(false);
+
+  // ── Section layout offsets (for scroll-to-section) ────────────────────────
+  const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
+  const [workerSectionOffset, setWorkerSectionOffset] = useState<number | null>(null);
+  const [templateSectionOffset, setTemplateSectionOffset] = useState<number | null>(null);
+  const [demandSectionOffset, setDemandSectionOffset] = useState<number | null>(null);
+
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const baselineTargetsRef = useRef<DemandForecast[] | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const shiftSectionRef = useRef<View>(null);
+  const workerSectionRef = useRef<View>(null);
+  const templateSectionRef = useRef<View>(null);
+  const demandSectionRef = useRef<View>(null);
+
+  // ── Derived / memoised values ─────────────────────────────────────────────
+  const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
+
+  const updateAvailabilityField = useMemo(
+    () => createChangeHandler(setAvailabilityForm, recordInteraction),
+    [recordInteraction]
+  );
+  const updateShiftField = useMemo(
+    () => createChangeHandler(setShiftForm, recordInteraction),
+    [recordInteraction]
+  );
+  const updateFallbackField = useMemo(
+    () => createChangeHandler(setFallbackForm, recordInteraction),
+    [recordInteraction]
+  );
+  const updateTargetField = useCallback(
+    (key: keyof typeof targetForm) =>
+      (value: string) => {
+        recordInteraction();
+        setForecastEditStarted(true);
+        setTargetForm((prev) => ({ ...prev, [key]: value }));
+      },
+    [recordInteraction]
+  );
+
+  const rosterLookup = useMemo(() => {
+    const map = new Map<string, boolean>();
+    roster.forEach((shift) =>
+      map.set(`${shift.workerId}::${shift.date}::${shift.templateId}`, true)
+    );
+    return map;
+  }, [roster]);
+
+  const rosterByDate = useMemo(
+    () =>
+      roster.reduce<Record<string, (Shift & { template?: ShiftTemplate; worker?: Worker })[]>>(
+        (acc, shift) => {
+          if (!acc[shift.date]) acc[shift.date] = [];
+          const template = shiftTemplates.find((t) => t.id === shift.templateId);
+          const worker = workers.find((w) => w.id === shift.workerId);
+          acc[shift.date].push({ ...shift, template, worker });
+          return acc;
+        },
+        {}
+      ),
+    [roster, shiftTemplates, workers]
+  );
+
+  const upcomingShifts = useMemo(
+    () =>
+      [...roster]
+        .map((shift) => ({
+          ...shift,
+          template: shiftTemplates.find((t) => t.id === shift.templateId),
+          worker: workers.find((w) => w.id === shift.workerId),
+        }))
+        .sort((a, b) => {
+          const aDate = new Date(`${a.date}T${a.template?.start ?? '00:00'}:00`).getTime();
+          const bDate = new Date(`${b.date}T${b.template?.start ?? '00:00'}:00`).getTime();
+          return aDate - bDate;
+        })
+        .slice(0, 4),
+    [roster, shiftTemplates, workers]
+  );
+
+  const staffingGaps = useMemo(
+    () =>
+      demandTargets
+        .map((target) => {
+          const scheduled = roster.reduce((total, shift) => {
+            const template = shiftTemplates.find((t) => t.id === shift.templateId);
+            if (shift.date === target.date && template?.role === target.role) {
+              return total + (template.coverage ?? 1);
+            }
+            return total;
+          }, 0);
+          return { ...target, scheduled, gap: target.required - scheduled };
+        })
+        .filter((t) => t.gap > 0),
+    [demandTargets, roster, shiftTemplates]
+  );
+
+  const forecastDate = targetForm.date.trim();
+  const forecastRole = targetForm.role.trim();
+
+  const needsFallbackSetup = useMemo(
+    () =>
+      !dataStatus.hasHistorical && !dataStatus.hasExternalSignals && !dataStatus.hasExistingTargets,
+    [dataStatus.hasExistingTargets, dataStatus.hasExternalSignals, dataStatus.hasHistorical]
+  );
+
+  const isForecastInputValid = useMemo(
+    () => isValidDate(forecastDate) && forecastRole.length > 0,
+    [forecastDate, forecastRole]
+  );
+
+  const forecastBlockingReason = useMemo(() => {
+    if (!isForecastInputValid) return 'Add date & role to forecast';
+    if (forecastPending) return 'Waiting for edits…';
+    return null;
+  }, [forecastPending, isForecastInputValid]);
+
+  const forecastActionDisabled =
+    !isForecastInputValid || forecasting || forecastLoading || forecastPending;
+
+  const forecastButtonLabel = useMemo(() => {
+    if (forecasting || forecastLoading) return 'Running…';
+    return forecastBlockingReason ?? "Run forecast with today's signals";
+  }, [forecastBlockingReason, forecastLoading, forecasting]);
+
+  const forecastHelperText = useMemo(() => {
+    if (!isForecastInputValid)
+      return 'Enter a valid YYYY-MM-DD date and role to generate a forecast.';
+    if (needsFallbackSetup)
+      return 'No historical shifts or external signals found. Use quick setup to seed demand targets.';
+    if (!dataStatus.apiAvailable)
+      return 'Forecast API unavailable. Use quick setup or manual targets to proceed.';
+    if (forecastPending) return 'Waiting for input to settle before forecasting…';
+    if (forecastLoading || forecasting) return 'Running forecast...';
+    return "Ready to run forecast with today's signals.";
+  }, [
+    dataStatus.apiAvailable,
+    forecastLoading,
+    forecasting,
+    forecastPending,
+    isForecastInputValid,
+    needsFallbackSetup,
+  ]);
+
+  const derivedOnboardingFlags = useMemo(
+    () => ({
+      workers: workers.length > 0,
+      templates: shiftTemplates.length > 0,
+      forecast: demandTargets.length > 0 || forecasting || forecastLoading,
+    }),
+    [demandTargets.length, forecastLoading, forecasting, shiftTemplates.length, workers.length]
+  );
+
+  const effectiveOnboardingFlags = useMemo(() => {
+    const persisted = savedOnboardingProgress ?? {
+      workers: false,
+      templates: false,
+      forecast: false,
+    };
+    return {
+      workers: persisted.workers || derivedOnboardingFlags.workers,
+      templates: persisted.templates || derivedOnboardingFlags.templates,
+      forecast: persisted.forecast || derivedOnboardingFlags.forecast,
+    };
+  }, [derivedOnboardingFlags, savedOnboardingProgress]);
+
+  // ── Callbacks ─────────────────────────────────────────────────────────────
+
+  const showActionBanner = useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+      setActionBanner({ message, type });
+      if (actionBannerTimerRef.current) clearTimeout(actionBannerTimerRef.current);
+      actionBannerTimerRef.current = setTimeout(() => {
+        setActionBanner(null);
+        actionBannerTimerRef.current = null;
+      }, 4500);
+    },
+    []
+  );
+
+  const celebrateRosterPublish = useCallback(() => {
+    setPublishCelebration((prev) => ({
+      badgeVisible: true,
+      confettiBurst: prev.badgeVisible || reduceMotionEnabled ? false : true,
+    }));
+  }, [reduceMotionEnabled]);
+
+  const scrollToSection = useCallback((offset: number | null) => {
+    if (offset == null) return;
+    scrollViewRef.current?.scrollTo({ y: Math.max(offset - 12, 0), animated: true });
+  }, []);
+
+  const scrollToShiftSection = useCallback(
+    () => scrollToSection(shiftSectionOffset),
+    [scrollToSection, shiftSectionOffset]
+  );
+
+  const goToSection = useCallback(
+    (target: OnboardingStep['key']) => {
+      const offsetLookup: Record<OnboardingStep['key'], number | null> = {
+        workers: workerSectionOffset,
+        templates: templateSectionOffset,
+        forecast: demandSectionOffset,
+      };
+      scrollToSection(offsetLookup[target]);
+      router.setParams({ section: target });
+    },
+    [demandSectionOffset, router, scrollToSection, templateSectionOffset, workerSectionOffset]
+  );
+
+  const runForecast = useCallback(() => {
+    if (!isForecastInputValid || forecasting || forecastLoading) return;
+    setForecastPending(false);
+    if (!baselineTargetsRef.current && demandTargets.length) {
+      baselineTargetsRef.current = demandTargets;
+    }
+    triggerForecast({ date: forecastDate, role: forecastRole });
+  }, [
+    baselineTargetsRef,
+    demandTargets,
+    forecastDate,
+    forecastRole,
+    forecasting,
+    forecastLoading,
+    isForecastInputValid,
+    triggerForecast,
+  ]);
+
+  const buildDateSequence = useCallback((startDate: string, days: number) => {
+    const sequence: string[] = [];
+    const anchor = new Date(`${startDate}T00:00:00Z`);
+    if (!Number.isFinite(anchor.getTime())) return sequence;
+    for (let offset = 0; offset < days; offset += 1) {
+      const next = new Date(anchor);
+      next.setUTCDate(anchor.getUTCDate() + offset);
+      sequence.push(next.toISOString().slice(0, 10));
+    }
+    return sequence;
+  }, []);
+
+  const onboardingSteps = useMemo<OnboardingStep[]>(
+    () => [
+      {
+        key: 'workers',
+        title: 'Add workers',
+        description: 'Create worker profiles and availability.',
+        completed: effectiveOnboardingFlags.workers,
+        actionLabel: 'Add workers',
+        onPress: () => goToSection('workers'),
+      },
+      {
+        key: 'templates',
+        title: 'Save templates',
+        description: 'Standardize common shifts with coverage.',
+        completed: effectiveOnboardingFlags.templates,
+        actionLabel: 'Add template',
+        onPress: () => goToSection('templates'),
+      },
+      {
+        key: 'forecast',
+        title: 'Run forecast',
+        description: 'Generate demand targets to compare coverage.',
+        completed: effectiveOnboardingFlags.forecast,
+        actionLabel: forecastLoading || forecasting ? 'Running…' : 'Run forecast',
+        onPress: () => goToSection('forecast'),
+      },
+    ],
+    [
+      effectiveOnboardingFlags.forecast,
+      effectiveOnboardingFlags.templates,
+      effectiveOnboardingFlags.workers,
+      forecastLoading,
+      forecasting,
+      goToSection,
+    ]
+  );
+
+  const onboardingProgress = useMemo(() => {
+    if (!onboardingSteps.length) return 0;
+    return onboardingSteps.filter((s) => s.completed).length / onboardingSteps.length;
+  }, [onboardingSteps]);
+
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotionEnabled);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchOnboardingProgress(accountId, userId).then((progress) => {
+      if (progress && isMounted) setSavedOnboardingProgress(progress);
+    });
+    return () => { isMounted = false; };
+  }, [accountId, userId]);
+
+  useEffect(() => {
+    if (!publishCelebration.confettiBurst) return;
+    const timer = setTimeout(
+      () => setPublishCelebration((prev) => ({ ...prev, confettiBurst: false })),
+      1600
+    );
+    return () => clearTimeout(timer);
+  }, [publishCelebration.confettiBurst]);
+
+  useEffect(() => {
+    if (reduceMotionEnabled && publishCelebration.confettiBurst) {
+      setPublishCelebration((prev) => ({ ...prev, confettiBurst: false }));
+    }
+  }, [publishCelebration.confettiBurst, reduceMotionEnabled]);
+
+  useEffect(() => {
+    if (roster.some((s) => s.status === 'Published')) return;
+    setPublishCelebration((prev) =>
+      prev.badgeVisible || prev.confettiBurst
+        ? { badgeVisible: false, confettiBurst: false }
+        : prev
+    );
+  }, [roster]);
+
+  useEffect(() => {
+    const persistProgress = async () => {
+      const previous = savedOnboardingProgress ?? {
+        workers: false,
+        templates: false,
+        forecast: false,
+      };
+      const next: OnboardingProgress = { ...previous };
+      (['workers', 'templates', 'forecast'] as const).forEach((key) => {
+        if (derivedOnboardingFlags[key] && !previous[key]) next[key] = true;
+      });
+      const shouldPersist =
+        next.workers !== previous.workers ||
+        next.templates !== previous.templates ||
+        next.forecast !== previous.forecast;
+      if (!shouldPersist) return;
+      const persisted = await upsertOnboardingProgress(accountId, next, userId);
+      if (persisted) {
+        setSavedOnboardingProgress(persisted);
+      } else {
+        setActionBanner({ message: 'Unable to save onboarding progress right now.', type: 'error' });
+        if (actionBannerTimerRef.current) clearTimeout(actionBannerTimerRef.current);
+        actionBannerTimerRef.current = setTimeout(() => {
+          setActionBanner(null);
+          actionBannerTimerRef.current = null;
+        }, 4500);
+      }
+    };
+    persistProgress();
+  }, [accountId, derivedOnboardingFlags, savedOnboardingProgress, userId]);
+
+  useEffect(() => {
+    if (forecastTimerRef.current) {
+      clearTimeout(forecastTimerRef.current);
+      forecastTimerRef.current = null;
+    }
+    if (!forecastEditStarted || !isForecastInputValid || forecastLoading || forecasting) {
+      setForecastPending(false);
+      return;
+    }
+    setForecastPending(true);
+    forecastTimerRef.current = setTimeout(() => {
+      runForecast();
+      forecastTimerRef.current = null;
+    }, 600);
+    return () => {
+      if (forecastTimerRef.current) {
+        clearTimeout(forecastTimerRef.current);
+        forecastTimerRef.current = null;
+      }
+    };
+  }, [
+    forecastDate,
+    forecastRole,
+    forecastEditStarted,
+    forecastLoading,
+    forecasting,
+    isForecastInputValid,
+    runForecast,
+  ]);
+
+  useEffect(() => {
+    if (!targetForm.date || !targetForm.role) return;
+    const match = demandTargets.find(
+      (t) =>
+        t.date === targetForm.date && t.role.toLowerCase() === targetForm.role.toLowerCase()
+    );
+    if (match && `${match.required}` !== targetForm.required) {
+      setTargetForm((prev) => ({
+        ...prev,
+        required: `${match.required}`,
+        notes: prev.notes || match.notes || '',
+      }));
+    }
+  }, [demandTargets, targetForm.date, targetForm.role, targetForm.required, targetForm.notes]);
+
+  useEffect(() => {
+    if (!baselineTargetsRef.current && demandTargets.length) {
+      baselineTargetsRef.current = demandTargets;
+    }
+  }, [demandTargets]);
+
+  useEffect(() => {
+    if (section === 'workers') { scrollToSection(workerSectionOffset); return; }
+    if (section === 'templates') { scrollToSection(templateSectionOffset); return; }
+    if (section === 'forecast') { scrollToSection(demandSectionOffset); return; }
+    if (section === 'shifts') { scrollToShiftSection(); }
+  }, [
+    demandSectionOffset,
+    scrollToSection,
+    scrollToShiftSection,
+    section,
+    shiftSectionOffset,
+    templateSectionOffset,
+    workerSectionOffset,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (actionBannerTimerRef.current) {
+        clearTimeout(actionBannerTimerRef.current);
+        actionBannerTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // ── Event handlers ────────────────────────────────────────────────────────
+
+  const handleAvailabilitySubmit = useCallback(async () => {
+    const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
+      validateAvailabilitySubmission(availabilityForm, workers);
+
+    if (errors.length > 0 || !normalizedDay) {
+      setAvailabilityError(errors.join(' '));
+      setAvailabilitySuccessPromptVisible(false);
+      return;
+    }
+
+    setAvailabilityError(null);
+    const result = await addAvailability(
+      trimmedWorkerId,
+      normalizedDay as DayOfWeek,
+      trimmedFrom,
+      trimmedTo
+    );
+    if (result.success) {
+      setAvailabilitySuccessPromptVisible(true);
+      setAvailabilityForm((prev) => ({ ...prev, day: '', from: '', to: '' }));
+    } else {
+      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+    }
+  }, [addAvailability, availabilityForm, workers]);
+
+  const handleShiftSubmit = useCallback(async () => {
+    const trimmedWorkerId = shiftForm.workerId.trim();
+    const trimmedTemplateId = shiftForm.templateId.trim();
+    const trimmedDate = shiftForm.date.trim();
+    const errors: string[] = [];
+
+    const template = shiftTemplates.find((t) => t.id === trimmedTemplateId);
+    const worker = workers.find((w) => w.id === trimmedWorkerId);
+    const { coveringSlot, weekdayLabel } =
+      template && worker
+        ? findCoveringAvailability(worker, template, trimmedDate, businessTimezoneOffsetMinutes)
+        : {
+            coveringSlot: undefined,
+            weekdayLabel: null,
+          };
+
+    if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate)
+      errors.push('All fields are required.');
+    if (trimmedDate && !isValidDate(trimmedDate))
+      errors.push('Date must use the YYYY-MM-DD format.');
+    if (trimmedWorkerId && !workers.some((w) => w.id === trimmedWorkerId))
+      errors.push('Worker ID must match an existing worker.');
+    if (trimmedTemplateId && !shiftTemplates.some((t) => t.id === trimmedTemplateId))
+      errors.push('Template ID must match an existing template.');
+    if (template && worker && worker.role !== template.role)
+      errors.push(
+        `Worker role (${worker.role}) must match template role (${template.role}) before scheduling a shift.`
+      );
+
+    const shiftKey = `${trimmedWorkerId}::${trimmedDate}::${trimmedTemplateId}`;
+    if (rosterLookup.has(shiftKey))
+      errors.push('This worker, date, and template combination is already scheduled.');
+
+    if (template && worker && weekdayLabel && !coveringSlot)
+      errors.push(
+        `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
+      );
+
+    if (template && weekdayLabel) {
+      const newWindow = getTemplateWindow(template);
+      const overlappingShift = roster.find((existing) => {
+        if (existing.workerId !== trimmedWorkerId || existing.date !== trimmedDate) return false;
+        const existingTemplate = shiftTemplates.find((t) => t.id === existing.templateId);
+        if (!existingTemplate) return false;
+        return windowsOverlap(getTemplateWindow(existingTemplate), newWindow);
+      });
+      if (overlappingShift) {
+        const conflictingTemplate = shiftTemplates.find(
+          (t) => t.id === overlappingShift.templateId
+        );
+        errors.push(
+          `Worker already has a shift on ${trimmedDate} from ${conflictingTemplate?.start ?? '??'} to ${conflictingTemplate?.end ?? '??'}. Adjust the time window to avoid overlaps.`
+        );
+      }
+    }
+
+    if (errors.length > 0) { setShiftError(errors.join(' ')); return; }
+    setShiftError(null);
+
+    const result = await addShift({
+      date: trimmedDate,
+      workerId: trimmedWorkerId,
+      templateId: trimmedTemplateId,
+      location: 'HQ',
+      status: 'Draft',
+      notified: false,
+    });
+    if (result.success) {
+      setShiftForm((prev) => ({ ...prev, date: '' }));
+    } else {
+      setShiftError(result.error ?? 'Failed to save shift. Please try again.');
+    }
+  }, [
+    addShift,
+    businessTimezoneOffsetMinutes,
+    roster,
+    rosterLookup,
+    shiftForm,
+    shiftTemplates,
+    workers,
+  ]);
+
+  const handleTargetSubmit = useCallback(() => {
+    const trimmedDate = targetForm.date.trim();
+    const trimmedRole = targetForm.role.trim();
+    const trimmedNotes = targetForm.notes.trim();
+    const errors: string[] = [];
+
+    if (!trimmedDate) errors.push('Date is required.');
+    else if (!isValidDate(trimmedDate)) errors.push('Date must use the YYYY-MM-DD format.');
+    if (!trimmedRole) errors.push('Role is required.');
+
+    const requiredInput = targetForm.required.trim();
+    const normalizedRequired = Number(requiredInput);
+    if (requiredInput.length === 0 || Number.isNaN(normalizedRequired))
+      errors.push('Required must be a valid number.');
+    else if (normalizedRequired < 0) errors.push('Required must be greater than or equal to 0.');
+    else if (!Number.isInteger(normalizedRequired)) errors.push('Required must be a whole number.');
+
+    if (errors.length > 0) { setTargetError(errors.join(' ')); return; }
+    setTargetError(null);
+
+    const matchingForecast = demandTargets.find(
+      (t) => t.date === trimmedDate && t.role.toLowerCase() === trimmedRole.toLowerCase()
+    );
+    overrideTarget({
+      date: trimmedDate,
+      role: trimmedRole,
+      required: normalizedRequired,
+      notes: trimmedNotes,
+      confidence: matchingForecast?.confidence,
+      lowerBound: matchingForecast?.lowerBound,
+      upperBound: matchingForecast?.upperBound,
+      source: 'override',
+    });
+  }, [demandTargets, overrideTarget, targetForm]);
+
+  const handleFallbackSubmit = useCallback(async () => {
+    const trimmedRole = fallbackForm.role.trim();
+    const trimmedStart = fallbackForm.startDate.trim();
+    const trimmedNotes = fallbackForm.notes.trim();
+    setFallbackError(null);
+    setFallbackMessage(null);
+
+    if (!trimmedRole) { setFallbackError('Role is required to create baseline demand.'); return; }
+    if (!isValidDate(trimmedStart)) {
+      setFallbackError('Start date must use the YYYY-MM-DD format.'); return;
+    }
+    const normalizedDays = Number(fallbackForm.days);
+    if (!Number.isFinite(normalizedDays) || normalizedDays <= 0 || !Number.isInteger(normalizedDays)) {
+      setFallbackError('Days must be a positive whole number.'); return;
+    }
+
+    const safeDays = Math.min(normalizedDays, 60);
+    let required = 0;
+
+    if (fallbackMode === 'homogeneous') {
+      const normalized = Number(fallbackForm.homogeneousDemand);
+      if (!Number.isFinite(normalized) || normalized <= 0) {
+        setFallbackError('Enter a positive homogeneous demand.'); return;
+      }
+      required = normalized;
+    } else {
+      const normalizedShifts = Number(fallbackForm.shiftsPerDay);
+      const normalizedWorkers = Number(fallbackForm.workersPerShift);
+      if (
+        !Number.isFinite(normalizedShifts) || normalizedShifts <= 0 ||
+        !Number.isFinite(normalizedWorkers) || normalizedWorkers <= 0
+      ) {
+        setFallbackError('Provide positive worker and shift counts.'); return;
+      }
+      required = normalizedShifts * normalizedWorkers;
+    }
+
+    const sequence = buildDateSequence(trimmedStart, safeDays);
+    if (!sequence.length) {
+      setFallbackError('Unable to build a date range from the provided start date.'); return;
+    }
+
+    const generatedTargets: DemandForecast[] = sequence.map((date) => ({
+      date,
+      role: trimmedRole,
+      required,
+      notes:
+        trimmedNotes ||
+        (fallbackMode === 'homogeneous'
+          ? 'Homogeneous demand fallback'
+          : 'Manual worker/shift fallback'),
+      source: 'override',
+    }));
+
+    const result = await seedBaselineTargets(generatedTargets);
+    if (result.success) {
+      setFallbackError(null);
+      setFallbackMessage(
+        'Baseline demand targets saved. You can now publish coverage or refine forecasts.'
+      );
+    } else {
+      const message = result.error ?? 'Unable to save baseline targets. Please try again.';
+      setFallbackMessage(null);
+      setFallbackError(message);
+      showActionBanner(message, 'error');
+    }
+  }, [
+    buildDateSequence,
+    fallbackForm,
+    fallbackMode,
+    seedBaselineTargets,
+    showActionBanner,
+  ]);
+
+  const handlePublishShift = useCallback(
+    (shiftId: string) => {
+      const shift = roster.find((s) => s.id === shiftId);
+      if (!shift) return;
+
+      const { errors } = validateShiftReadiness(
+        shift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+      );
+      if (errors.length) { showActionBanner(errors.join(' '), 'error'); return; }
+
+      Alert.alert('Publish shift', 'Re-run validation and publish this roster entry?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Publish',
+          onPress: async () => {
+            const latestShift = roster.find((s) => s.id === shiftId);
+            if (!latestShift) return;
+            const validation = validateShiftReadiness(
+              latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+            );
+            if (validation.errors.length) {
+              showActionBanner(validation.errors.join(' '), 'error'); return;
+            }
+            const publishResult = await setShiftStatus(shiftId, 'Published');
+            if (!publishResult.success) {
+              showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
+            }
+            showActionBanner(
+              `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
+              'success'
+            );
+            celebrateRosterPublish();
+          },
+        },
+      ]);
+    },
+    [
+      businessTimezoneOffsetMinutes,
+      celebrateRosterPublish,
+      roster,
+      setShiftStatus,
+      shiftTemplates,
+      showActionBanner,
+      workers,
+    ]
+  );
+
+  const handleUnpublishShift = useCallback(
+    async (shiftId: string) => {
+      const shift = roster.find((s) => s.id === shiftId);
+      if (!shift) return;
+      if (shift.status === 'Draft') { showActionBanner('Shift is already in Draft.', 'info'); return; }
+      await setShiftStatus(shiftId, 'Draft');
+      showActionBanner(`Unpublished ${shift.workerId} for ${shift.date}.`, 'info');
+    },
+    [roster, setShiftStatus, showActionBanner]
+  );
+
+  const handleNotifyShift = useCallback(
+    async (shiftId: string) => {
+      const shift = roster.find((s) => s.id === shiftId);
+      if (!shift) return;
+      if (shift.status !== 'Published') {
+        showActionBanner('Publish the shift before notifying workers.', 'info'); return;
+      }
+      if (shift.notified) {
+        showActionBanner('Notifications already sent for this shift.', 'info'); return;
+      }
+      await notifyShift(shiftId);
+      showActionBanner(`Sent notifications for ${shift.workerId} on ${shift.date}.`, 'success');
+    },
+    [notifyShift, roster, showActionBanner]
+  );
+
+  // ── Return all state and handlers for the screen ──────────────────────────
+  return {
+    // Data
+    workers,
+    shiftTemplates,
+    roster,
+    demandTargets,
+    forecastError,
+    forecastLoading,
+    forecasting,
+    needsFallbackSetup,
+
+    // Wellness
+    acknowledgeBreak,
+    dismissPrompt,
+    minutesActive,
+    promptVisible,
+
+    // Refs (attached to JSX elements)
+    scrollViewRef,
+    workerSectionRef,
+    shiftSectionRef,
+    templateSectionRef,
+    demandSectionRef,
+    baselineTargetsRef,
+
+    // Layout offsets (set by onLayout)
+    setWorkerSectionOffset,
+    setShiftSectionOffset,
+    setTemplateSectionOffset,
+    setDemandSectionOffset,
+
+    // UI state
+    actionBanner,
+    publishCelebration,
+    reduceMotionEnabled,
+    availabilitySuccessPromptVisible,
+    setAvailabilitySuccessPromptVisible,
+    availabilityError,
+    shiftError,
+    targetError,
+    fallbackError,
+    fallbackMessage,
+
+    // Form state
+    availabilityForm,
+    shiftForm,
+    targetForm,
+    fallbackForm,
+    fallbackMode,
+    setFallbackMode,
+
+    // Form change handlers
+    updateAvailabilityField,
+    updateShiftField,
+    updateTargetField,
+    updateFallbackField,
+
+    // Derived / computed
+    rosterByDate,
+    upcomingShifts,
+    staffingGaps,
+    onboardingSteps,
+    onboardingProgress,
+
+    // Forecast UI
+    forecastButtonLabel,
+    forecastHelperText,
+    forecastActionDisabled,
+
+    // Navigation
+    scrollToShiftSection,
+    router,
+
+    // Handlers
+    handleAvailabilitySubmit,
+    handleShiftSubmit,
+    handleTargetSubmit,
+    handleFallbackSubmit,
+    handlePublishShift,
+    handleUnpublishShift,
+    handleNotifyShift,
+    runForecast,
+  } as const;
+}

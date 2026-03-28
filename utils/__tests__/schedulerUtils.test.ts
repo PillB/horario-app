@@ -1,0 +1,128 @@
+import {
+  formatCurrency,
+  getWeekdayFromDate,
+  isValidDate,
+  isValidTime,
+  isoDate,
+  normalizeDay,
+  parseTimeToMinutes,
+  windowsOverlap,
+  getTemplateWindow,
+  defaultTimezoneOffsetMinutes,
+} from '../schedulerUtils';
+import { type ShiftTemplate } from '@/app/(tabs)/schedulerMetrics';
+
+describe('formatCurrency', () => {
+  it('formats zero', () => expect(formatCurrency(0)).toBe('$0'));
+  it('formats positive integer', () => expect(formatCurrency(1250)).toBe('$1,250'));
+  it('rounds fractional values', () => expect(formatCurrency(99.7)).toBe('$100'));
+});
+
+describe('isValidDate', () => {
+  it('accepts valid ISO dates', () => {
+    expect(isValidDate('2024-12-15')).toBe(true);
+    expect(isValidDate('2000-01-01')).toBe(true);
+  });
+  it('rejects invalid formats', () => {
+    expect(isValidDate('2024-13-01')).toBe(false);
+    expect(isValidDate('24-12-15')).toBe(false);
+    expect(isValidDate('not-a-date')).toBe(false);
+    expect(isValidDate('')).toBe(false);
+  });
+});
+
+describe('isValidTime', () => {
+  it('accepts valid HH:MM times', () => {
+    expect(isValidTime('09:00')).toBe(true);
+    expect(isValidTime('23:59')).toBe(true);
+    expect(isValidTime('00:00')).toBe(true);
+  });
+  it('rejects invalid formats', () => {
+    expect(isValidTime('9:00')).toBe(false);
+    expect(isValidTime('25:00')).toBe(false);
+    expect(isValidTime('09:60')).toBe(false);
+    expect(isValidTime('')).toBe(false);
+  });
+});
+
+describe('parseTimeToMinutes', () => {
+  it('converts HH:MM to minutes since midnight', () => {
+    expect(parseTimeToMinutes('00:00')).toBe(0);
+    expect(parseTimeToMinutes('09:00')).toBe(540);
+    expect(parseTimeToMinutes('17:30')).toBe(1050);
+  });
+});
+
+describe('normalizeDay', () => {
+  it('normalizes full day names', () => {
+    expect(normalizeDay('monday')).toBe('Mon');
+    expect(normalizeDay('Friday')).toBe('Fri');
+    expect(normalizeDay('SUNDAY')).toBe('Sun');
+  });
+  it('normalizes abbreviations', () => {
+    expect(normalizeDay('Mon')).toBe('Mon');
+    expect(normalizeDay('Tue')).toBe('Tue');
+    expect(normalizeDay('Thur')).toBe('Thu');
+  });
+  it('returns undefined for unknown values', () => {
+    expect(normalizeDay('holiday')).toBeUndefined();
+    expect(normalizeDay('')).toBeUndefined();
+  });
+});
+
+describe('getWeekdayFromDate', () => {
+  it('derives weekday using a supplied timezone offset', () => {
+    // 2024-06-01 is a Saturday in UTC. UTC-12 pushes it to Friday.
+    expect(getWeekdayFromDate('2024-06-01', -720)).toBe('Fri');
+  });
+  it('returns null for invalid dates', () => {
+    expect(getWeekdayFromDate('not-a-date')).toBeNull();
+    expect(getWeekdayFromDate('2024-13-01')).toBeNull();
+  });
+  it('uses defaultTimezoneOffsetMinutes when no offset provided', () => {
+    const result = getWeekdayFromDate('2024-12-16'); // known Monday in UTC
+    expect(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).toContain(result);
+  });
+});
+
+describe('getTemplateWindow', () => {
+  const template: ShiftTemplate = {
+    id: 'morning',
+    name: 'Morning',
+    role: 'Support',
+    start: '09:00',
+    end: '17:00',
+    coverage: 2,
+  };
+  it('returns start and end in minutes', () => {
+    expect(getTemplateWindow(template)).toEqual({ startMinutes: 540, endMinutes: 1020 });
+  });
+});
+
+describe('windowsOverlap', () => {
+  it('detects overlapping windows', () => {
+    expect(windowsOverlap({ startMinutes: 0, endMinutes: 600 }, { startMinutes: 300, endMinutes: 900 })).toBe(true);
+  });
+  it('does not flag adjacent windows as overlapping', () => {
+    expect(windowsOverlap({ startMinutes: 0, endMinutes: 600 }, { startMinutes: 600, endMinutes: 900 })).toBe(false);
+  });
+  it('does not flag non-overlapping windows', () => {
+    expect(windowsOverlap({ startMinutes: 0, endMinutes: 300 }, { startMinutes: 600, endMinutes: 900 })).toBe(false);
+  });
+});
+
+describe('isoDate', () => {
+  it('returns today for offset 0', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    expect(isoDate(0)).toBe(today);
+  });
+  it('returns YYYY-MM-DD format', () => {
+    expect(isoDate(1)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('defaultTimezoneOffsetMinutes', () => {
+  it('is a finite number', () => {
+    expect(Number.isFinite(defaultTimezoneOffsetMinutes)).toBe(true);
+  });
+});

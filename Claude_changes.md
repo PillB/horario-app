@@ -74,6 +74,44 @@
 
 ---
 
+### CHG-007 — 2026-03-28 (Phase 3A)
+**Type:** REFACTOR
+**Files changed:**
+- `types/scheduler.ts` (created) — Availability, Worker, OnboardingStep types
+- `utils/schedulerUtils.ts` (created) — all pure scheduler utilities (formatCurrency, isValidDate, isValidTime, parseTimeToMinutes, normalizeDay, getWeekdayFromDate, getTemplateWindow, windowsOverlap, isoDate, defaultTimezoneOffsetMinutes, createChangeHandler)
+- `utils/schedulerValidators.ts` (created) — findCoveringAvailability, validateAvailabilitySubmission, validateShiftReadiness
+- `utils/__tests__/schedulerUtils.test.ts` (created) — 22 unit tests for utils
+- `utils/__tests__/schedulerValidators.test.ts` (created) — 16 unit tests for validators
+- `app/(tabs)/scheduler.styles.ts` (created) — extracted StyleSheet.create (311 lines)
+- `components/scheduler/AvailabilityLabel.tsx` (created)
+- `components/scheduler/SectionCard.tsx` (created)
+- `components/scheduler/InputField.tsx` (created)
+- `components/scheduler/Checklist.tsx` (created)
+- `components/scheduler/LostRevenueSummary.tsx` (created)
+- `components/scheduler/WorkerSection.tsx` (created)
+- `components/scheduler/ShiftTemplateSection.tsx` (created)
+- `components/scheduler/DemandSection.tsx` (created)
+- `components/scheduler/RosterSection.tsx` (created)
+- `hooks/useSchedulerHandlers.ts` (created) — all state, effects, derived values, handlers (920 lines)
+- `app/(tabs)/scheduler.tsx` (rewritten) — reduced from 2,108 → 238 lines (orchestration only)
+- `playwright.config.ts` (created) — Playwright E2E config targeting Expo web on port 8081
+- `e2e/` (directory created) — for Playwright .spec.ts files
+**Reasoning:** Phase 3A split. scheduler.tsx was 2,108 lines (a monolith). Split into: types, pure utils, validators, styles, 9 sub-components, 1 business-logic hook. scheduler.tsx is now 238 lines (orchestration only). Existing test exports re-exported from scheduler.tsx for backward compat. Added 38 new unit tests covering all extracted utils and validators.
+**Expected result:** 106/106 tests pass, lint clean. scheduler.tsx is 238 lines. All existing behavior preserved.
+**Future considerations:**
+- useSchedulerHandlers.ts is now 920 lines — could be split further (e.g., separate forecast handlers, onboarding handlers) but it's a single concern so acceptable for now
+- Phase 3B next: auto-assignment algorithm (services/shiftAssigner.ts, greedy + 2-opt)
+- Phase 3C: live home screen (useLiveRosterSummary hook)
+- Playwright E2E: start `expo start --web` then run `npx playwright test --reporter=line`
+**References:** CHG-006
+
+### [SUMMARY] — 2026-03-28 (new session)
+**Last CHG completed:** CHG-006 (Phase 2D)
+**Current state:** 68/68 tests pass. DB-backed hooks (useWorkers, useShiftTemplates, useRoster) created and wired into scheduler.tsx. All CRUD goes through secure proxy (route.ts, 843 lines). SQL migration for workers/availability/shift_templates/roster tables created. scheduler.tsx is now 2,108 lines (monolithic — critical split needed). Playwright not yet installed.
+**Active decisions:** DB persistence before auth. Service-role key stays in proxy only. Greedy algorithm. SMB focus. scheduler.tsx exports (findCoveringAvailability, getWeekdayFromDate, ShiftTemplate, Worker) must remain accessible after refactor.
+**Next action:** Phase 0: Install Playwright. Phase 1: Output full plan, pause for approval. Phase 3A (after approval): Split scheduler.tsx into sub-components/hooks.
+**Watch out for:** scheduler.tsx grew from 600 to 2,108 lines — split is now urgent. `app/(tabs)/worker.tsx` and `app/(tabs)/profile.tsx` exist (not in CLAUDE.md — need to verify purpose). 14 test files, 1,873 test lines. No auth, no push notifications, no realtime yet.
+
 ### CHG-006 — 2026-03-28 02:30:00 UTC
 **Type:** CHANGE
 **Files changed:** `app/api/secure-proxy/route.ts` (listWorkerAvailability added), `services/rosterService.ts` (listWorkerAvailability added), `services/__tests__/rosterService.test.ts` (2 new tests), `hooks/useWorkers.ts` (created), `hooks/useShiftTemplates.ts` (created), `hooks/useRoster.ts` (created), `hooks/__tests__/useWorkers.test.tsx` (created, 4 tests), `hooks/__tests__/useShiftTemplates.test.tsx` (created, 3 tests), `hooks/__tests__/useRoster.test.tsx` (created, 6 tests), `app/(tabs)/scheduler.tsx` (hooks wired, stubs removed), `app/(tabs)/__tests__/scheduler.test.tsx` (mocks added for new hooks)
