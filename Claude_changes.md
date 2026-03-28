@@ -74,6 +74,19 @@
 
 ---
 
+### CHG-005 — 2026-03-28 01:00:00 UTC
+**Type:** CHANGE
+**Files changed:** `app/api/secure-proxy/route.ts` (extended — 13 new switch cases), `services/rosterService.ts` (created), `services/__tests__/rosterService.test.ts` (created)
+**Reasoning:** Phase 2C — Secure proxy CRUD + rosterService. (1) Added 13 new `case` blocks to the `switch(payload.action)` handler in route.ts covering all workers/availability/templates/roster actions. All DB functions (`dbListWorkers`, `dbUpsertWorker`, `dbDeleteWorker`, `dbUpsertAvailability`, `dbDeleteAvailability`, `dbListShiftTemplates`, `dbUpsertShiftTemplate`, `dbDeleteShiftTemplate`, `dbListRoster`, `dbUpsertRosterShift`, `dbUpdateShiftStatus`, `dbMarkShiftNotified`, `dbDeleteRosterShift`) were added in the previous session along with validators, row types, row-to-domain mappers, and the extended `ProxyRequest` union. (2) Created `services/rosterService.ts` — client-side service mirroring `demandForecast.ts` pattern; all 13 CRUD functions route through `proxyPost()`. (3) Created `services/__tests__/rosterService.test.ts` — 23 tests written TDD-first; covers happy path, proxy errors, network failures, and payload verification.
+**Expected result:** 52/52 tests pass, lint clean. All roster CRUD is now wired end-to-end from the React client through the secure proxy to Supabase.
+**Future considerations:**
+- Phase 2D next: create `hooks/useWorkers.ts`, `hooks/useShiftTemplates.ts`, `hooks/useRoster.ts` — replace in-memory useState in scheduler.tsx with DB-backed hooks. Write tests first.
+- `dbUpsertWorker` uses `onConflict: 'id'` — if id is absent a new row is inserted (correct). If id is present the row is updated (upsert). This matches the client expectation.
+- The proxy validates all inputs before hitting Supabase — HH:MM regex, day_of_week enum, status enum, ISO date regex. Any invalid input returns 400 before a DB call is made.
+**References:** CHG-004
+
+---
+
 ### CHG-004 — 2026-03-28 00:05:00 UTC
 **Type:** CHANGE
 **Files changed:** `supabase/migrations/20260327000001_core_tables.sql` (created), `docs/SETUP_SUPABASE.md` (updated)
