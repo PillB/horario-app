@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
@@ -27,12 +26,15 @@ export default function HomeScreen() {
 
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
+      headerBackgroundColor={{ light: '#0F766E', dark: '#134E4A' }}
       headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
+        <View style={styles.heroContainer}>
+          <View style={styles.heroLogoMark}>
+            <ThemedText style={styles.heroLogoText}>H</ThemedText>
+          </View>
+          <ThemedText style={styles.heroWordmark}>Horario</ThemedText>
+          <ThemedText style={styles.heroTagline}>Smart scheduling, simplified.</ThemedText>
+        </View>
       }>
       <ThemedView
         style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
@@ -246,11 +248,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  heroContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  heroLogoMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  heroLogoText: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  heroWordmark: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  heroTagline: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
   },
 });

@@ -20,8 +20,10 @@ import { WorkerSection } from '@/components/scheduler/WorkerSection';
 import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSection';
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
+import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
+import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
 
 export default function SchedulerScreen() {
   const {
@@ -118,6 +120,9 @@ export default function SchedulerScreen() {
     // Auto-assign state
     autoAssignSuggestions,
     autoAssignApplying,
+
+    // Freemium
+    usageCount,
   } = useSchedulerHandlers();
 
   return (
@@ -131,6 +136,8 @@ export default function SchedulerScreen() {
         <ThemedText style={styles.mutedText}>
           Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
         </ThemedText>
+
+        <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
 
         {actionBanner ? (
           <ThemedView

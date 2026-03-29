@@ -67,7 +67,7 @@ export function useSchedulerHandlers() {
   const { workers, addWorker, addAvailability } = useWorkers(accountId);
   const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
   const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
-  const { canAutoAssign, increment: incrementUsage } = useUsageLimit(userId, accountId);
+  const { canAutoAssign, count: usageCount, increment: incrementUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
 
@@ -480,14 +480,9 @@ export function useSchedulerHandlers() {
       const persisted = await upsertOnboardingProgress(accountId, next, userId);
       if (persisted) {
         setSavedOnboardingProgress(persisted);
-      } else {
-        setActionBanner({ message: 'Unable to save onboarding progress right now.', type: 'error' });
-        if (actionBannerTimerRef.current) clearTimeout(actionBannerTimerRef.current);
-        actionBannerTimerRef.current = setTimeout(() => {
-          setActionBanner(null);
-          actionBannerTimerRef.current = null;
-        }, 4500);
       }
+      // Silently ignore onboarding persistence failures — this is non-critical
+      // and showing an error banner every load is noisy when DB isn't configured.
     };
     persistProgress();
   }, [accountId, derivedOnboardingFlags, savedOnboardingProgress, userId]);
@@ -1060,5 +1055,9 @@ export function useSchedulerHandlers() {
     // Auto-assign state
     autoAssignSuggestions,
     autoAssignApplying,
+
+    // Usage / freemium
+    canAutoAssign,
+    usageCount,
   } as const;
 }

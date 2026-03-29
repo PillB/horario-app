@@ -6,6 +6,37 @@
 
 ---
 
+### CHG-018 — 2026-03-29 07:00 UTC
+**Type:** FEATURE + BUGFIX
+**Files changed:**
+- `constants/Colors.ts` — full design-system rewrite (teal/amber/violet tokens, semantic light+dark theme)
+- `app/(auth)/sign-in.tsx` — complete UI redesign + ticket-based auth support (`__clerk_ticket` param)
+- `app/(auth)/sign-up.tsx` — complete UI redesign (promo card, verification step, trust signals)
+- `hooks/useSubscription.ts` — new: reads Clerk `publicMetadata.plan` + `subscriptionStatus`
+- `components/UpgradeBanner.tsx` — new: free/trial/pro banner with billing CTA
+- `hooks/useSchedulerHandlers.ts` — BUG-008 fix (silent onboarding failures), expose `usageCount`
+- `app/(tabs)/scheduler.tsx` — add `UpgradeBanner`
+- `app/(tabs)/index.tsx` — BUG-011 fix: replace React logo hero with Horario branded teal header
+- `services/rosterService.ts` — BUG-009 improvement: 404 → "Service unavailable" error message
+- `.env.local` (gitignored) — real Supabase + Clerk credentials
+- `app/(tabs)/_layout.tsx` — sign-out button, dev bypass, `AuthGuardedTabLayout`
+- `app/_layout.tsx` — conditional `ClerkProvider`
+- `.env.example` — BUG-007 fix: blank out pk_ placeholder to prevent false ClerkProvider mount
+- `supabase/migrations/20260328000001_usage_limits.sql` — `usage_limits` table + RLS
+- `services/usageService.ts` — freemium usage get/increment via proxy
+- `hooks/useUsageLimit.ts` — `FREE_AUTO_ASSIGN_LIMIT=1`, fail-open hook
+- `app/api/secure-proxy/route.ts` — add getUsageLimit + incrementAutoAssign actions
+**Reasoning:** Phase 5B + UI overhaul. Implements freemium subscription model (Clerk Billing: `user_subscription`/`free_user`, 10-day trial, $12/mo), award-winning UI redesign with brand design system, Clerk authentication with dev bypass mode, sign-in token flow for Playwright testing. Fixes BUG-007 (blank screen from fake pk_ key), BUG-008 (noisy onboarding error banner), BUG-009 (unhelpful "Unknown error" on proxy 404), BUG-011 (React logo in Home hero).
+**Expected result:** 164/164 tests pass, lint clean, full auth flow via `__clerk_ticket`, UpgradeBanner visible in Scheduler, Horario branded hero on Home.
+**Future considerations:**
+- Supabase tables (workers, shift_templates, roster, availability, usage_limits, onboarding_progress) need migrations run in Supabase dashboard SQL editor — see `supabase/migrations/` folder
+- CAPTCHA prevents automated sign-up; use Clerk backend API to create users in tests
+- CLERK_SECRET_KEY available server-side for future JWT verification in proxy
+- BUG-010 (Analytics overflow on web) confirmed non-issue — content is scrollable
+**References:** CHG-017
+
+---
+
 ### [TEMP] — 2026-03-28 (Playwright audit + Clerk auth session)
 **Context dump:**
 - Playwright MCP used to walk all 3 real tabs + 2 broken ghost tabs

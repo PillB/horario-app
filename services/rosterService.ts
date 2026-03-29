@@ -89,7 +89,10 @@ const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
   });
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: 'Unknown error' }));
+    if (response.status === 404) {
+      throw new Error('Service unavailable. Please check your connection or run database migrations.');
+    }
+    const payload = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
     throw new Error((payload as { error?: string }).error ?? `Proxy responded with ${response.status}`);
   }
 
