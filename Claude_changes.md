@@ -6,6 +6,15 @@
 
 ---
 
+### CHG-025 — 2026-03-29 21:00 UTC
+**Type:** FIX (Link asChild + style array crashes React DOM via CSSStyleDeclaration indexed setter)
+**Files changed:**
+- `components/scheduler/WorkerSection.tsx` — removed `Link asChild` wrapper from availability success banner's "Assign to a template now" button; removed unused `Link` import from expo-router.
+**Reasoning:** Playwright captured the full stack trace: `setValueForStyle → setValueForStyles → setProp → setInitialProperties` inside React DOM's renderer, originating in `<a>` (from `ExpoRouterLink`). Root cause: `Link asChild` injects an `href` into the child `Pressable → View` chain, causing React Native Web to render the `View` as an `<a>` DOM element. That `<a>` then receives a **style array** (`[styles.secondaryButton, styles.tightButton]`) from RN's `StyleSheet.create`. React DOM's style setter iterates the array by numeric index and tries `element.style[0] = value`, which browsers reject with "Indexed property setter is not supported". Single-style usages of `Link asChild` elsewhere (index.tsx, explore.tsx) don't crash because they pass one style object, not an array. Fix: removed the `Link asChild` entirely — the `onPress` handler already covers all navigation via `router.setParams` + `scrollToShiftSection`. The Link was redundant and only caused the crash. 164/164 tests pass.
+**References:** CHG-024
+
+---
+
 ### CHG-024 — 2026-03-29 12:00 UTC
 **Type:** FIX (ConfettiBurst crashes React Native Web with CSSStyleDeclaration error)
 **Files changed:**

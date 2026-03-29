@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
 import { type Router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -201,21 +200,19 @@ export const WorkerSection = ({
             </Pressable>
           </View>
           <ThemedText style={styles.mutedText}>Assign to a template now.</ThemedText>
-          <Link
-            href={{ pathname: '/(tabs)/scheduler', params: { section: 'shifts' } }}
-            asChild
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Assign to a template now"
+            accessibilityHint="Scrolls to the shift creation section"
+            onPress={() => {
+              scrollToShiftSection();
+              setAvailabilitySuccessPromptVisible(false);
+              router.setParams({ section: 'shifts' });
+            }}
+            style={[styles.secondaryButton, styles.tightButton]}
           >
-            <Pressable
-              onPress={() => {
-                scrollToShiftSection();
-                setAvailabilitySuccessPromptVisible(false);
-                router.setParams({ section: 'shifts' });
-              }}
-              style={[styles.secondaryButton, styles.tightButton]}
-            >
-              <ThemedText style={styles.primaryButtonText}>Assign to a template now</ThemedText>
-            </Pressable>
-          </Link>
+            <ThemedText style={styles.primaryButtonText}>Assign to a template now</ThemedText>
+          </Pressable>
         </ThemedView>
       ) : null}
       {availabilityError ? (
