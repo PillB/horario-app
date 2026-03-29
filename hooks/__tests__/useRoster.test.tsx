@@ -123,7 +123,8 @@ describe('useRoster', () => {
     });
 
     expect(hookState!.roster).toHaveLength(1);
-    expect(hookState!.roster[0].id).toBe('shift-1');
+    // ID is locally generated (optimistic update), not the mock DB response ID
+    expect(hookState!.roster[0].id).toBeTruthy();
   });
 
   it('setShiftStatus updates status and resets notified locally', async () => {

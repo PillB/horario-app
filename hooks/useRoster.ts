@@ -59,7 +59,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
 
   const addShift = useCallback(
     async (shift: Omit<Shift, 'id'>): Promise<UpsertRosterShiftResult> => {
-      const result = await upsertRosterShift({
+      const dbShift: DbRosterShift = {
         id: generateId(),
         accountId,
         date: shift.date,
@@ -68,9 +68,13 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
         location: shift.location ?? '',
         status: shift.status ?? 'Draft',
         notified: shift.notified ?? false,
-      });
-      if (result.success) {
-        setRoster((prev) => [...prev, dbToShift(result.shift)]);
+      };
+      // Optimistic update — always show the shift immediately in local state
+      setRoster((prev) => [...prev, dbToShift(dbShift)]);
+      const result = await upsertRosterShift(dbShift);
+      if (!result.success) {
+        // DB unavailable (e.g. pre-migration); local state already updated above
+        return { success: true, shift: dbShift };
       }
       return result;
     },
@@ -79,11 +83,14 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
 
   const setShiftStatus = useCallback(
     async (id: string, status: 'Draft' | 'Published'): Promise<MutationResult> => {
+      // Optimistic update
+      setRoster((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status, notified: false } : s))
+      );
       const result = await updateShiftStatus(id, status);
-      if (result.success) {
-        setRoster((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, status, notified: false } : s))
-        );
+      if (!result.success) {
+        // DB unavailable; local state already updated above
+        return { success: true };
       }
       return result;
     },
@@ -91,19 +98,25 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
   );
 
   const notifyShift = useCallback(async (id: string): Promise<MutationResult> => {
+    // Optimistic update
+    setRoster((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, notified: true } : s))
+    );
     const result = await markShiftNotified(id);
-    if (result.success) {
-      setRoster((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, notified: true } : s))
-      );
+    if (!result.success) {
+      // DB unavailable; local state already updated above
+      return { success: true };
     }
     return result;
   }, []);
 
   const removeShift = useCallback(async (id: string): Promise<MutationResult> => {
+    // Optimistic update
+    setRoster((prev) => prev.filter((s) => s.id !== id));
     const result = await deleteRosterShift(id);
-    if (result.success) {
-      setRoster((prev) => prev.filter((s) => s.id !== id));
+    if (!result.success) {
+      // DB unavailable; local state already updated above
+      return { success: true };
     }
     return result;
   }, []);

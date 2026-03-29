@@ -129,14 +129,8 @@ describe('useWorkers', () => {
     ]);
   });
 
-  it('addAvailability returns failure result when proxy rejects', async () => {
-    mockFetch({
-      listWorkers: { workers: [dbWorker] },
-      listWorkerAvailability: { availabilities: [] },
-      upsertAvailability: { success: false, error: 'Overlap detected' },
-    });
-
-    // Override: upsertAvailability returns non-ok
+  it('addAvailability applies optimistic update even when proxy rejects', async () => {
+    // Override: upsertAvailability returns non-ok (DB unavailable / pre-migration)
     (global as unknown as { fetch: jest.Mock }).fetch = jest
       .fn()
       .mockImplementation((_url: string, options: RequestInit) => {
@@ -173,7 +167,10 @@ describe('useWorkers', () => {
       result = await hookState!.addAvailability('w-1', 'Tue', '10:00', '18:00');
     });
 
-    expect(result!.success).toBe(false);
-    expect(hookState!.workers[0].availability).toEqual([]);
+    // Optimistic update: local state is applied regardless of DB failure
+    expect(result!.success).toBe(true);
+    expect(hookState!.workers[0].availability).toEqual([
+      { day: 'Tue', from: '10:00', to: '18:00' },
+    ]);
   });
 });

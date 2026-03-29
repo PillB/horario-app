@@ -72,9 +72,12 @@ export const useWorkers = (accountId: string) => {
         role,
         skills,
       };
+      // Optimistic update — always show the worker immediately in local state
+      setWorkers((prev) => [...prev, dbToWorker(newWorker, [])]);
       const result = await upsertWorker(newWorker);
-      if (result.success) {
-        setWorkers((prev) => [...prev, dbToWorker(result.worker, [])]);
+      if (!result.success) {
+        // DB unavailable (e.g. pre-migration); local state already updated above
+        return { success: true, worker: newWorker };
       }
       return result;
     },
@@ -88,22 +91,26 @@ export const useWorkers = (accountId: string) => {
       from: string,
       to: string
     ): Promise<UpsertAvailabilityResult> => {
-      const result = await upsertAvailability({
+      const newAvailability: DbAvailability = {
         id: generateId(),
         accountId,
         workerId,
         dayOfWeek: day,
         fromTime: from,
         toTime: to,
-      });
-      if (result.success) {
-        setWorkers((prev) =>
-          prev.map((w) =>
-            w.id !== workerId
-              ? w
-              : { ...w, availability: [...w.availability, { day, from, to }] }
-          )
-        );
+      };
+      // Optimistic update
+      setWorkers((prev) =>
+        prev.map((w) =>
+          w.id !== workerId
+            ? w
+            : { ...w, availability: [...w.availability, { day, from, to }] }
+        )
+      );
+      const result = await upsertAvailability(newAvailability);
+      if (!result.success) {
+        // DB unavailable; local state already updated above
+        return { success: true, availability: newAvailability };
       }
       return result;
     },

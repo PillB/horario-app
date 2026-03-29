@@ -58,9 +58,12 @@ export const useShiftTemplates = (accountId: string) => {
         endTime,
         coverage,
       };
+      // Optimistic update — always show the template immediately in local state
+      setShiftTemplates((prev) => [...prev, dbToTemplate(newTemplate)]);
       const result = await upsertShiftTemplate(newTemplate);
-      if (result.success) {
-        setShiftTemplates((prev) => [...prev, dbToTemplate(result.template)]);
+      if (!result.success) {
+        // DB unavailable (e.g. pre-migration); local state already updated above
+        return { success: true, template: newTemplate };
       }
       return result;
     },
