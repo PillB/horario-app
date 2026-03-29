@@ -3,7 +3,7 @@
  * for the Scheduler screen.  Extracted here to keep scheduler.tsx lean.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, ScrollView, View } from 'react-native';
+import { AccessibilityInfo, Alert, Platform, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useDemandForecast } from '@/hooks/useDemandForecast';
@@ -865,33 +865,37 @@ export function useSchedulerHandlers() {
       );
       if (errors.length) { showActionBanner(errors.join(' '), 'error'); return; }
 
-      Alert.alert('Publish shift', 'Re-run validation and publish this roster entry?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Publish',
-          onPress: async () => {
-            const latestShift = roster.find((s) => s.id === shiftId);
-            if (!latestShift) return;
-            const validation = validateShiftReadiness(
-              latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
-            );
-            if (validation.errors.length) {
-              showActionBanner(validation.errors.join(' '), 'error'); return;
-            }
-            const publishResult = await setShiftStatus(shiftId, 'Published');
-            if (!publishResult.success) {
-              showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
-            }
-            const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
-            showActionBanner(
-              `${workerName} scheduled for ${latestShift.date}. Tap "Notify" to send their shift via Horario.`,
-              'success'
-            );
-            void trackEvent('schedule_published');
-            celebrateRosterPublish();
-          },
-        },
-      ]);
+      // Alert.alert is a no-op on web — skip confirmation and publish directly.
+      const doPublish = async () => {
+        const latestShift = roster.find((s) => s.id === shiftId);
+        if (!latestShift) return;
+        const validation = validateShiftReadiness(
+          latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+        );
+        if (validation.errors.length) {
+          showActionBanner(validation.errors.join(' '), 'error'); return;
+        }
+        const publishResult = await setShiftStatus(shiftId, 'Published');
+        if (!publishResult.success) {
+          showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
+        }
+        const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
+        showActionBanner(
+          `${workerName} scheduled for ${latestShift.date}. Tap "Notify" to send their shift via Horario.`,
+          'success'
+        );
+        void trackEvent('schedule_published');
+        celebrateRosterPublish();
+      };
+
+      if (Platform.OS === 'web') {
+        void doPublish();
+      } else {
+        Alert.alert('Publish shift', 'Re-run validation and publish this roster entry?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Publish', onPress: doPublish },
+        ]);
+      }
     },
     [
       businessTimezoneOffsetMinutes,
@@ -926,9 +930,10 @@ export function useSchedulerHandlers() {
         showActionBanner('Notifications already sent for this shift.', 'info'); return;
       }
       await notifyShift(shiftId);
-      showActionBanner(`Sent notifications for ${shift.workerId} on ${shift.date}.`, 'success');
+      const workerName = workers.find((w) => w.id === shift.workerId)?.name ?? shift.workerId;
+      showActionBanner(`Sent notifications for ${workerName} on ${shift.date}.`, 'success');
     },
-    [notifyShift, roster, showActionBanner]
+    [notifyShift, roster, showActionBanner, workers]
   );
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
@@ -937,11 +942,15 @@ export function useSchedulerHandlers() {
    *  The user must call applyAutoAssign to commit them to the roster. */
   const handleAutoAssign = useCallback(() => {
     if (!canAutoAssign) {
-      Alert.alert(
-        'Free limit reached',
-        'You have used your 1 free auto-assign. Upgrade to Pro for unlimited optimizations.',
-        [{ text: 'OK' }]
-      );
+      if (Platform.OS === 'web') {
+        showActionBanner('Free limit reached. Upgrade to Pro for unlimited auto-assign.', 'error');
+      } else {
+        Alert.alert(
+          'Free limit reached',
+          'You have used your 1 free auto-assign. Upgrade to Pro for unlimited optimizations.',
+          [{ text: 'OK' }]
+        );
+      }
       return;
     }
     const date = shiftForm.date.trim();

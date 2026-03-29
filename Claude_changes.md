@@ -6,6 +6,15 @@
 
 ---
 
+### CHG-026 — 2026-03-29 21:15 UTC
+**Type:** FIX (Alert.alert is a no-op on React Native Web — publish and paywall blocked)
+**Files changed:**
+- `hooks/useSchedulerHandlers.ts` — added `Platform` import; in `handlePublishShift`: extracted `doPublish` async function, on web calls it directly, on native wraps it in `Alert.alert` confirmation; in `handleAutoAssign`: on web falls through to `showActionBanner` with "Free limit reached" message, on native keeps `Alert.alert`.
+**Reasoning:** Playwright confirmed `Alert.alert` is a complete no-op on React Native Web (no `window.confirm`, no `window.alert` calls were ever made). As a result: (1) clicking Publish silently did nothing — the shift stayed Draft forever; (2) the auto-assign paywall message was invisible. Root cause: RN Web's `Alert` implementation does not map to any browser dialog API. Fix: platform split using `Platform.OS === 'web'` — web skips the confirmation dialog and executes the action directly (single-click publish), native keeps the existing Alert.alert confirmation flow. The paywall case routes to the existing `showActionBanner` inline error mechanism on web. 164/164 tests pass.
+**References:** CHG-025
+
+---
+
 ### CHG-025 — 2026-03-29 21:00 UTC
 **Type:** FIX (Link asChild + style array crashes React DOM via CSSStyleDeclaration indexed setter)
 **Files changed:**
