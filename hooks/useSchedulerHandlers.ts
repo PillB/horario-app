@@ -589,6 +589,9 @@ export function useSchedulerHandlers() {
     const result = await addWorker(trimmedName, trimmedRole, skills);
     if (result.success) {
       setWorkerForm({ name: '', role: '', skills: '' });
+      // Auto-populate availability and shift forms with the new worker's ID
+      setAvailabilityForm((prev) => ({ ...prev, workerId: result.worker.id }));
+      setShiftForm((prev) => ({ ...prev, workerId: result.worker.id }));
       const isFirst = workers.length === 0;
       void trackEvent('worker_added', { isFirst });
       if (workerSuccessTimerRef.current) clearTimeout(workerSuccessTimerRef.current);
@@ -619,6 +622,8 @@ export function useSchedulerHandlers() {
     const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
     if (result.success) {
       setTemplateForm({ name: '', role: '', start: '09:00', end: '17:00', coverage: '1' });
+      // Auto-populate shift form with the new template's ID
+      setShiftForm((prev) => ({ ...prev, templateId: result.template.id }));
       void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
       if (templateSuccessTimerRef.current) clearTimeout(templateSuccessTimerRef.current);
       setTemplateSuccessMessage(
