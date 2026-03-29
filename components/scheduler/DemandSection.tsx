@@ -8,6 +8,7 @@ import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { LostRevenueSummary } from './LostRevenueSummary';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
+import { useT } from '@/contexts/LocaleContext';
 
 type FallbackFormState = {
   role: string;
@@ -73,189 +74,202 @@ export const DemandSection = ({
   roster,
   shiftTemplates,
   forecastError,
-}: Props) => (
-  <SectionCard title="Demand targets" subtitle="Define expected demand and staffing gaps by role.">
-    <ThemedView style={styles.fallbackCard}>
-      <View style={styles.rowBetween}>
-        <ThemedText type="defaultSemiBold">Quick setup</ThemedText>
-        <View style={[styles.badge, styles.fallbackBadge]}>
-          <ThemedText style={styles.badgeText}>Fallback</ThemedText>
+}: Props) => {
+  const { t } = useT();
+  return (
+    <SectionCard
+      title={t('scheduler.demand.sectionTitle')}
+      subtitle={t('scheduler.demand.sectionSubtitle')}
+      tooltip={t('scheduler.demand.tooltip')}
+    >
+      <ThemedView style={styles.fallbackCard}>
+        <View style={styles.rowBetween}>
+          <ThemedText type="defaultSemiBold">{t('scheduler.demand.quickSetupTab')}</ThemedText>
+          <View style={[styles.badge, styles.fallbackBadge]}>
+            <ThemedText style={styles.badgeText}>{t('scheduler.demand.fallbackTab')}</ThemedText>
+          </View>
         </View>
+        <ThemedText style={styles.mutedText}>
+          {t('scheduler.demand.quickSetupDesc')}
+        </ThemedText>
+        <View style={styles.inlineActions}>
+          <Pressable
+            onPress={() => setFallbackMode('homogeneous')}
+            style={[styles.toggleChip, fallbackMode === 'homogeneous' && styles.toggleChipActive]}
+          >
+            <ThemedText
+              style={[
+                styles.toggleChipText,
+                fallbackMode === 'homogeneous' && styles.toggleChipTextActive,
+              ]}
+            >
+              {t('scheduler.demand.homogeneous')}
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => setFallbackMode('manual')}
+            style={[styles.toggleChip, fallbackMode === 'manual' && styles.toggleChipActive]}
+          >
+            <ThemedText
+              style={[
+                styles.toggleChipText,
+                fallbackMode === 'manual' && styles.toggleChipTextActive,
+              ]}
+            >
+              {t('scheduler.demand.manualCounts')}
+            </ThemedText>
+          </Pressable>
+        </View>
+        <View style={styles.inlineInputs}>
+          <InputField
+            label={t('scheduler.demand.roleLabel')}
+            value={fallbackForm.role}
+            placeholder={t('scheduler.demand.rolePlaceholder')}
+            onChangeText={updateFallbackField('role')}
+          />
+          <InputField
+            label={t('scheduler.demand.startDateLabel')}
+            value={fallbackForm.startDate}
+            placeholder={t('scheduler.demand.startDatePlaceholder')}
+            onChangeText={updateFallbackField('startDate')}
+          />
+        </View>
+        <View style={styles.inlineInputs}>
+          <InputField
+            label={t('scheduler.demand.daysLabel')}
+            value={fallbackForm.days}
+            placeholder={t('scheduler.demand.daysCoverage')}
+            keyboardType="numeric"
+            onChangeText={updateFallbackField('days')}
+          />
+          {fallbackMode === 'homogeneous' ? (
+            <InputField
+              label={t('scheduler.demand.dailyDemandLabel')}
+              value={fallbackForm.homogeneousDemand}
+              placeholder="4"
+              keyboardType="numeric"
+              onChangeText={updateFallbackField('homogeneousDemand')}
+            />
+          ) : (
+            <View style={styles.inlineInputs}>
+              <InputField
+                label={t('scheduler.demand.shiftsPerDayLabel')}
+                value={fallbackForm.shiftsPerDay}
+                placeholder="2"
+                keyboardType="numeric"
+                onChangeText={updateFallbackField('shiftsPerDay')}
+              />
+              <InputField
+                label={t('scheduler.demand.workersPerShiftLabel')}
+                value={fallbackForm.workersPerShift}
+                placeholder="2"
+                keyboardType="numeric"
+                onChangeText={updateFallbackField('workersPerShift')}
+              />
+            </View>
+          )}
+        </View>
+        <InputField
+          label={t('scheduler.demand.notesLabel')}
+          value={fallbackForm.notes}
+          placeholder={t('scheduler.demand.notesPlaceholder')}
+          onChangeText={updateFallbackField('notes')}
+        />
+        <Pressable onPress={handleFallbackSubmit} style={[styles.secondaryButton, styles.tightButton]}>
+          <ThemedText style={styles.primaryButtonText}>{t('scheduler.demand.saveBaseline')}</ThemedText>
+        </Pressable>
+        {fallbackError ? <ThemedText style={styles.errorText}>{fallbackError}</ThemedText> : null}
+        {fallbackMessage ? (
+          <ThemedText style={styles.successText}>{fallbackMessage}</ThemedText>
+        ) : null}
+      </ThemedView>
+
+      <View style={styles.inlineInputs}>
+        <InputField
+          label={t('scheduler.demand.dateLabel')}
+          value={targetForm.date}
+          placeholder={t('scheduler.demand.datePlaceholder')}
+          onChangeText={updateTargetField('date')}
+        />
+        <InputField
+          label={t('scheduler.demand.roleLabel')}
+          value={targetForm.role}
+          placeholder={t('scheduler.demand.rolePlaceholder')}
+          onChangeText={updateTargetField('role')}
+        />
       </View>
-      <ThemedText style={styles.mutedText}>
-        Seed baseline demand when historical shifts or external signals are unavailable.
-      </ThemedText>
+      <View style={styles.inlineInputs}>
+        <InputField
+          label={t('common.required')}
+          value={targetForm.required}
+          placeholder="3"
+          keyboardType="numeric"
+          onChangeText={updateTargetField('required')}
+        />
+        <InputField
+          label={t('scheduler.demand.notesLabel')}
+          value={targetForm.notes}
+          placeholder={t('scheduler.demand.targetNotesPlaceholder')}
+          onChangeText={updateTargetField('notes')}
+        />
+      </View>
+      <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
+        <ThemedText style={styles.primaryButtonText}>{t('scheduler.demand.saveTarget')}</ThemedText>
+      </Pressable>
+      {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
+
       <View style={styles.inlineActions}>
         <Pressable
-          onPress={() => setFallbackMode('homogeneous')}
-          style={[styles.toggleChip, fallbackMode === 'homogeneous' && styles.toggleChipActive]}
+          accessibilityLabel={forecastButtonLabel}
+          onPress={() => { if (!forecastActionDisabled) runForecast(); }}
+          style={[
+            styles.secondaryButton,
+            styles.actionButton,
+            forecastActionDisabled && styles.disabledButton,
+          ]}
         >
-          <ThemedText
-            style={[
-              styles.toggleChipText,
-              fallbackMode === 'homogeneous' && styles.toggleChipTextActive,
-            ]}
-          >
-            Homogeneous demand
-          </ThemedText>
+          <ThemedText style={styles.primaryButtonText}>{forecastButtonLabel}</ThemedText>
         </Pressable>
-        <Pressable
-          onPress={() => setFallbackMode('manual')}
-          style={[styles.toggleChip, fallbackMode === 'manual' && styles.toggleChipActive]}
-        >
-          <ThemedText
-            style={[
-              styles.toggleChipText,
-              fallbackMode === 'manual' && styles.toggleChipTextActive,
-            ]}
-          >
-            Manual worker/shift counts
-          </ThemedText>
-        </Pressable>
+        <ThemedText style={[styles.mutedText, styles.helperText]}>{forecastHelperText}</ThemedText>
       </View>
-      <View style={styles.inlineInputs}>
-        <InputField
-          label="Role"
-          value={fallbackForm.role}
-          placeholder="Support"
-          onChangeText={updateFallbackField('role')}
-        />
-        <InputField
-          label="Start date"
-          value={fallbackForm.startDate}
-          placeholder="2024-12-15"
-          onChangeText={updateFallbackField('startDate')}
-        />
-      </View>
-      <View style={styles.inlineInputs}>
-        <InputField
-          label="Days"
-          value={fallbackForm.days}
-          placeholder="7"
-          keyboardType="numeric"
-          onChangeText={updateFallbackField('days')}
-        />
-        {fallbackMode === 'homogeneous' ? (
-          <InputField
-            label="Daily demand"
-            value={fallbackForm.homogeneousDemand}
-            placeholder="4"
-            keyboardType="numeric"
-            onChangeText={updateFallbackField('homogeneousDemand')}
-          />
-        ) : (
-          <View style={styles.inlineInputs}>
-            <InputField
-              label="Shifts per day"
-              value={fallbackForm.shiftsPerDay}
-              placeholder="2"
-              keyboardType="numeric"
-              onChangeText={updateFallbackField('shiftsPerDay')}
-            />
-            <InputField
-              label="Workers per shift"
-              value={fallbackForm.workersPerShift}
-              placeholder="2"
-              keyboardType="numeric"
-              onChangeText={updateFallbackField('workersPerShift')}
-            />
-          </View>
-        )}
-      </View>
-      <InputField
-        label="Notes"
-        value={fallbackForm.notes}
-        placeholder="Baseline while we collect history"
-        onChangeText={updateFallbackField('notes')}
-      />
-      <Pressable onPress={handleFallbackSubmit} style={[styles.secondaryButton, styles.tightButton]}>
-        <ThemedText style={styles.primaryButtonText}>Save baseline targets</ThemedText>
-      </Pressable>
-      {fallbackError ? <ThemedText style={styles.errorText}>{fallbackError}</ThemedText> : null}
-      {fallbackMessage ? (
-        <ThemedText style={styles.successText}>{fallbackMessage}</ThemedText>
-      ) : null}
-    </ThemedView>
 
-    <View style={styles.inlineInputs}>
-      <InputField
-        label="Date"
-        value={targetForm.date}
-        placeholder="2024-12-15"
-        onChangeText={updateTargetField('date')}
+      <LostRevenueSummary
+        baselineTargets={baselineTargetsRef.current ?? demandTargets}
+        currentTargets={demandTargets}
+        roster={roster}
+        shiftTemplates={shiftTemplates}
       />
-      <InputField
-        label="Role"
-        value={targetForm.role}
-        placeholder="Support"
-        onChangeText={updateTargetField('role')}
-      />
-    </View>
-    <View style={styles.inlineInputs}>
-      <InputField
-        label="Required"
-        value={targetForm.required}
-        placeholder="3"
-        keyboardType="numeric"
-        onChangeText={updateTargetField('required')}
-      />
-      <InputField
-        label="Notes"
-        value={targetForm.notes}
-        placeholder="Backlog, promo, etc"
-        onChangeText={updateTargetField('notes')}
-      />
-    </View>
-    <Pressable onPress={handleTargetSubmit} style={styles.primaryButton}>
-      <ThemedText style={styles.primaryButtonText}>Save target</ThemedText>
-    </Pressable>
-    {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
 
-    <View style={styles.inlineActions}>
-      <Pressable
-        accessibilityLabel={forecastButtonLabel}
-        onPress={() => { if (!forecastActionDisabled) runForecast(); }}
-        style={[
-          styles.secondaryButton,
-          styles.actionButton,
-          forecastActionDisabled && styles.disabledButton,
-        ]}
-      >
-        <ThemedText style={styles.primaryButtonText}>{forecastButtonLabel}</ThemedText>
-      </Pressable>
-      <ThemedText style={[styles.mutedText, styles.helperText]}>{forecastHelperText}</ThemedText>
-    </View>
-
-    <LostRevenueSummary
-      baselineTargets={baselineTargetsRef.current ?? demandTargets}
-      currentTargets={demandTargets}
-      roster={roster}
-      shiftTemplates={shiftTemplates}
-    />
-
-    <View style={styles.divider} />
-    {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
-    {demandTargets.map((target) => (
-      <View key={`${target.date}-${target.role}`} style={styles.rowBetween}>
-        <View>
-          <ThemedText type="defaultSemiBold">{target.role}</ThemedText>
-          <ThemedText style={styles.mutedText}>{target.date}</ThemedText>
-          {target.notes ? (
-            <ThemedText style={styles.mutedText}>{target.notes}</ThemedText>
-          ) : null}
-          {(target.lowerBound || target.upperBound || target.confidence) ? (
+      <View style={styles.divider} />
+      {forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
+      {demandTargets.map((target) => (
+        <View key={`${target.date}-${target.role}`} style={styles.rowBetween}>
+          <View>
+            <ThemedText type="defaultSemiBold">{target.role}</ThemedText>
+            <ThemedText style={styles.mutedText}>{target.date}</ThemedText>
+            {target.notes ? (
+              <ThemedText style={styles.mutedText}>{target.notes}</ThemedText>
+            ) : null}
+            {(target.lowerBound || target.upperBound || target.confidence) ? (
+              <ThemedText style={styles.mutedText}>
+                {t('scheduler.demand.ci', {
+                  low: String(target.lowerBound ?? target.required),
+                  high: String(target.upperBound ?? target.required),
+                })}
+                {target.confidence
+                  ? ` • ${t('scheduler.demand.confidence', { pct: (target.confidence * 100).toFixed(0) })}`
+                  : ''}
+              </ThemedText>
+            ) : null}
             <ThemedText style={styles.mutedText}>
-              CI: {target.lowerBound ?? target.required} -{' '}
-              {target.upperBound ?? target.required}
-              {target.confidence
-                ? ` • ${(target.confidence * 100).toFixed(0)}% confidence`
-                : ''}
+              {t('scheduler.demand.source', { src: target.source ?? 'model' })}
             </ThemedText>
-          ) : null}
-          <ThemedText style={styles.mutedText}>Source: {target.source ?? 'model'}</ThemedText>
+          </View>
+          <ThemedText style={styles.badgeText}>
+            {t('scheduler.demand.requiredLabel', { n: String(target.required) })}
+          </ThemedText>
         </View>
-        <ThemedText style={styles.badgeText}>{target.required} needed</ThemedText>
-      </View>
-    ))}
-  </SectionCard>
-);
+      ))}
+    </SectionCard>
+  );
+};

@@ -34,6 +34,28 @@ jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
 
+jest.mock('@/contexts/LocaleContext', () => {
+  const { en } = require('@/locales/en');
+  function resolve(obj: Record<string, unknown>, path: string): string {
+    const val = path.split('.').reduce((a: unknown, k) => (a as Record<string, unknown>)?.[k], obj);
+    return typeof val === 'string' ? val : path;
+  }
+  return {
+    useT: () => ({
+      t: (key: string, params?: Record<string, string>) => {
+        let val = resolve(en, key);
+        if (params) Object.entries(params).forEach(([k, v]) => { val = val.replace(`{${k}}`, v); });
+        return val;
+      },
+      locale: en,
+      langCode: 'en',
+      setLanguage: () => {},
+      isLoading: false,
+    }),
+    LocaleProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
+
 jest.mock('@/hooks/useWorkers', () => ({
   useWorkers: () => ({
     workers: [],

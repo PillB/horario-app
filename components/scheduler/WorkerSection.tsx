@@ -8,6 +8,7 @@ import { AvailabilityLabel } from './AvailabilityLabel';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
+import { useT } from '@/contexts/LocaleContext';
 
 type AvailabilityFormState = {
   workerId: string;
@@ -54,170 +55,175 @@ export const WorkerSection = ({
   availabilityError,
   scrollToShiftSection,
   router,
-}: Props) => (
-  <>
-    <SectionCard
-      title="Worker management"
-      subtitle="Track skills, role fit, and availability to place the right people in the right shifts."
-    >
-      {workers.map((worker) => (
-        <View key={worker.id} style={styles.rowBetween}>
-          <View style={styles.rowContent}>
-            <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
-            <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
-            <View style={styles.tagRow}>
-              {worker.skills.map((skill) => (
-                <View key={`${worker.id}-${skill}`} style={styles.tag}>
-                  <ThemedText style={styles.badgeText}>{skill}</ThemedText>
-                </View>
+}: Props) => {
+  const { t } = useT();
+  return (
+    <>
+      <SectionCard
+        title={t('scheduler.workers.sectionTitle')}
+        subtitle={t('scheduler.workers.sectionSubtitle')}
+        tooltip={t('scheduler.workers.tooltip')}
+      >
+        {workers.map((worker) => (
+          <View key={worker.id} style={styles.rowBetween}>
+            <View style={styles.rowContent}>
+              <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
+              <ThemedText style={styles.mutedText}>{worker.role}</ThemedText>
+              <View style={styles.tagRow}>
+                {worker.skills.map((skill) => (
+                  <View key={`${worker.id}-${skill}`} style={styles.tag}>
+                    <ThemedText style={styles.badgeText}>{skill}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={styles.availabilityList}>
+              {worker.availability.map((slot, index) => (
+                <AvailabilityLabel
+                  key={`${worker.id}-${index}`}
+                  day={slot.day}
+                  from={slot.from}
+                  to={slot.to}
+                />
               ))}
             </View>
           </View>
-          <View style={styles.availabilityList}>
-            {worker.availability.map((slot, index) => (
-              <AvailabilityLabel
-                key={`${worker.id}-${index}`}
-                day={slot.day}
-                from={slot.from}
-                to={slot.to}
-              />
-            ))}
-          </View>
-        </View>
-      ))}
-      {workers.length === 0 && (
-        <View>
-          {/* Ghost preview — shows what populated workers look like */}
-          <View style={styles.ghostContainer} accessibilityElementsHidden>
-            {[0, 1].map((i) => (
-              <View key={i} style={styles.ghostRow}>
-                <View style={styles.ghostBlock}>
-                  <View style={styles.ghostNameBar} />
-                  <View style={styles.ghostRoleBar} />
-                  <View style={styles.ghostTagRow}>
-                    <View style={styles.ghostTag} />
-                    <View style={styles.ghostTag} />
+        ))}
+        {workers.length === 0 && (
+          <View>
+            {/* Ghost preview — shows what populated workers look like */}
+            <View style={styles.ghostContainer} accessibilityElementsHidden>
+              {[0, 1].map((i) => (
+                <View key={i} style={styles.ghostRow}>
+                  <View style={styles.ghostBlock}>
+                    <View style={styles.ghostNameBar} />
+                    <View style={styles.ghostRoleBar} />
+                    <View style={styles.ghostTagRow}>
+                      <View style={styles.ghostTag} />
+                      <View style={styles.ghostTag} />
+                    </View>
                   </View>
+                  <View style={styles.ghostBadgeBar} />
                 </View>
-                <View style={styles.ghostBadgeBar} />
-              </View>
-            ))}
+              ))}
+            </View>
+            <View style={styles.ghostEmptyCta}>
+              <ThemedText style={styles.ghostEmptyCtaText}>{t('scheduler.workers.emptyTitle')}</ThemedText>
+            </View>
+            <ThemedText style={styles.ghostEmptyNote}>
+              {t('scheduler.workers.emptyDesc')}
+            </ThemedText>
           </View>
-          <View style={styles.ghostEmptyCta}>
-            <ThemedText style={styles.ghostEmptyCtaText}>Add your first worker below ↓</ThemedText>
-          </View>
-          <ThemedText style={styles.ghostEmptyNote}>
-            Add 2–3 people to unlock auto-assign and scheduling.
-          </ThemedText>
-        </View>
-      )}
-    </SectionCard>
+        )}
+      </SectionCard>
 
-    <SectionCard
-      title="Add worker"
-      subtitle="Create a worker profile with role and skills."
-    >
-      <InputField
-        label="Name"
-        value={workerForm.name}
-        placeholder="e.g. Alice"
-        onChangeText={updateWorkerField('name')}
-        accessibilityLabel="Worker name"
-        accessibilityHint="Full name of the worker"
-      />
-      <InputField
-        label="Role"
-        value={workerForm.role}
-        placeholder="e.g. Support"
-        onChangeText={updateWorkerField('role')}
-        accessibilityLabel="Worker role"
-        accessibilityHint="Role or job title"
-      />
-      <InputField
-        label="Skills (comma-separated)"
-        value={workerForm.skills}
-        placeholder="e.g. barista, cashier"
-        onChangeText={updateWorkerField('skills')}
-        accessibilityLabel="Worker skills"
-        accessibilityHint="Comma-separated list of skills"
-      />
-      <Pressable
-        onPress={handleAddWorker}
-        style={styles.primaryButton}
-        accessibilityRole="button"
-        accessibilityLabel="Add worker"
-        accessibilityHint="Save the new worker profile"
+      <SectionCard
+        title={t('scheduler.workers.addCardTitle')}
+        subtitle={t('scheduler.workers.addCardSubtitle')}
       >
-        <ThemedText style={styles.primaryButtonText}>Add worker</ThemedText>
-      </Pressable>
-      {workerError ? (
-        <ThemedText style={styles.errorText}>{workerError}</ThemedText>
-      ) : null}
-      {workerSuccessMessage ? (
-        <ThemedText style={styles.successText}>{workerSuccessMessage}</ThemedText>
-      ) : null}
-    </SectionCard>
+        <InputField
+          label={t('scheduler.workers.nameLabel')}
+          value={workerForm.name}
+          placeholder={t('scheduler.workers.namePlaceholder')}
+          onChangeText={updateWorkerField('name')}
+          accessibilityLabel={t('scheduler.workers.nameA11y')}
+          accessibilityHint={t('scheduler.workers.nameA11yHint')}
+        />
+        <InputField
+          label={t('scheduler.workers.roleLabel')}
+          value={workerForm.role}
+          placeholder={t('scheduler.workers.rolePlaceholder')}
+          onChangeText={updateWorkerField('role')}
+          accessibilityLabel={t('scheduler.workers.roleA11y')}
+          accessibilityHint={t('scheduler.workers.roleA11yHint')}
+        />
+        <InputField
+          label={t('scheduler.workers.skillsLabel')}
+          value={workerForm.skills}
+          placeholder={t('scheduler.workers.skillsPlaceholder')}
+          onChangeText={updateWorkerField('skills')}
+          accessibilityLabel={t('scheduler.workers.skillsA11y')}
+          accessibilityHint={t('scheduler.workers.skillsA11yHint')}
+        />
+        <Pressable
+          onPress={handleAddWorker}
+          style={styles.primaryButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('scheduler.workers.addButtonA11y')}
+          accessibilityHint={t('scheduler.workers.addButtonHint')}
+        >
+          <ThemedText style={styles.primaryButtonText}>{t('scheduler.workers.addButton')}</ThemedText>
+        </Pressable>
+        {workerError ? (
+          <ThemedText style={styles.errorText}>{workerError}</ThemedText>
+        ) : null}
+        {workerSuccessMessage ? (
+          <ThemedText style={styles.successText}>{workerSuccessMessage}</ThemedText>
+        ) : null}
+      </SectionCard>
 
-    <SectionCard
-      title="Availability intake"
-      subtitle="Capture recent changes before building rosters."
-    >
-      <InputField
-        label="Worker ID"
-        value={availabilityForm.workerId}
-        placeholder="Worker ID"
-        onChangeText={updateAvailabilityField('workerId')}
-      />
-      <View style={styles.inlineInputs}>
+      <SectionCard
+        title={t('scheduler.availability.sectionTitle')}
+        subtitle={t('scheduler.availability.sectionSubtitle')}
+        tooltip={t('scheduler.availability.tooltip')}
+      >
         <InputField
-          label="Day"
-          value={availabilityForm.day}
-          placeholder="Mon"
-          onChangeText={updateAvailabilityField('day')}
+          label={t('scheduler.availability.workerIdLabel')}
+          value={availabilityForm.workerId}
+          placeholder={t('scheduler.availability.workerIdPlaceholder')}
+          onChangeText={updateAvailabilityField('workerId')}
         />
-        <InputField
-          label="From"
-          value={availabilityForm.from}
-          placeholder="09:00"
-          onChangeText={updateAvailabilityField('from')}
-        />
-        <InputField
-          label="To"
-          value={availabilityForm.to}
-          placeholder="17:00"
-          onChangeText={updateAvailabilityField('to')}
-        />
-      </View>
-      <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
-        <ThemedText style={styles.primaryButtonText}>Add availability</ThemedText>
-      </Pressable>
-      {availabilitySuccessPromptVisible ? (
-        <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
-          <View style={styles.bannerHeader}>
-            <ThemedText style={styles.bannerText}>Availability saved.</ThemedText>
-            <Pressable onPress={() => setAvailabilitySuccessPromptVisible(false)}>
-              <ThemedText style={styles.dismissText}>Dismiss</ThemedText>
+        <View style={styles.inlineInputs}>
+          <InputField
+            label={t('scheduler.availability.dayLabel')}
+            value={availabilityForm.day}
+            placeholder={t('scheduler.availability.dayPlaceholder')}
+            onChangeText={updateAvailabilityField('day')}
+          />
+          <InputField
+            label={t('scheduler.availability.fromLabel')}
+            value={availabilityForm.from}
+            placeholder={t('scheduler.availability.fromPlaceholder')}
+            onChangeText={updateAvailabilityField('from')}
+          />
+          <InputField
+            label={t('scheduler.availability.toLabel')}
+            value={availabilityForm.to}
+            placeholder={t('scheduler.availability.toPlaceholder')}
+            onChangeText={updateAvailabilityField('to')}
+          />
+        </View>
+        <Pressable onPress={handleAvailabilitySubmit} style={styles.primaryButton}>
+          <ThemedText style={styles.primaryButtonText}>{t('scheduler.availability.addButton')}</ThemedText>
+        </Pressable>
+        {availabilitySuccessPromptVisible ? (
+          <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
+            <View style={styles.bannerHeader}>
+              <ThemedText style={styles.bannerText}>{t('scheduler.availability.savedTitle')}</ThemedText>
+              <Pressable onPress={() => setAvailabilitySuccessPromptVisible(false)}>
+                <ThemedText style={styles.dismissText}>{t('common.dismiss')}</ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText style={styles.mutedText}>{t('scheduler.availability.savedNext')}</ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.availability.assignNow')}
+              accessibilityHint={t('scheduler.availability.assignNowHint')}
+              onPress={() => {
+                scrollToShiftSection();
+                setAvailabilitySuccessPromptVisible(false);
+                router.setParams({ section: 'shifts' });
+              }}
+              style={[styles.secondaryButton, styles.tightButton]}
+            >
+              <ThemedText style={styles.primaryButtonText}>{t('scheduler.availability.assignNow')}</ThemedText>
             </Pressable>
-          </View>
-          <ThemedText style={styles.mutedText}>Assign to a template now.</ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Assign to a template now"
-            accessibilityHint="Scrolls to the shift creation section"
-            onPress={() => {
-              scrollToShiftSection();
-              setAvailabilitySuccessPromptVisible(false);
-              router.setParams({ section: 'shifts' });
-            }}
-            style={[styles.secondaryButton, styles.tightButton]}
-          >
-            <ThemedText style={styles.primaryButtonText}>Assign to a template now</ThemedText>
-          </Pressable>
-        </ThemedView>
-      ) : null}
-      {availabilityError ? (
-        <ThemedText style={styles.errorText}>{availabilityError}</ThemedText>
-      ) : null}
-    </SectionCard>
-  </>
-);
+          </ThemedView>
+        ) : null}
+        {availabilityError ? (
+          <ThemedText style={styles.errorText}>{availabilityError}</ThemedText>
+        ) : null}
+      </SectionCard>
+    </>
+  );
+};

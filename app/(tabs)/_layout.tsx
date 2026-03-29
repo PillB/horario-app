@@ -1,24 +1,33 @@
 import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
+import { LanguageSelector } from '@/components/LanguageSelector';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useT } from '@/contexts/LocaleContext';
 
 // Auth gate only active when a valid Clerk publishable key is provided.
 const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
 
-function TabNavigator({ headerRight }: { headerRight?: React.ReactNode }) {
+function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode }) {
   const colorScheme = useColorScheme();
+  const { t, langCode, setLanguage, locale } = useT();
+  const headerRightContent = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }}>
+      <LanguageSelector currentLang={langCode} onSelect={setLanguage} locale={locale} />
+      {extraHeaderRight}
+    </View>
+  );
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: Boolean(headerRight),
-        headerRight: headerRight ? () => headerRight : undefined,
+        headerShown: true,
+        headerRight: () => headerRightContent,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
@@ -29,21 +38,21 @@ function TabNavigator({ headerRight }: { headerRight?: React.ReactNode }) {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('nav.home'),
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="scheduler"
         options={{
-          title: 'Scheduler',
+          title: t('nav.scheduler'),
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Analytics',
+          title: t('nav.analytics'),
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
         }}
       />
@@ -79,7 +88,7 @@ function AuthGuardedTabLayout() {
   const { isSignedIn, isLoaded } = useAuth();
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
-  return <TabNavigator headerRight={<SignOutButton />} />;
+  return <TabNavigator extraHeaderRight={<SignOutButton />} />;
 }
 
 export default function TabLayout() {
@@ -88,3 +97,4 @@ export default function TabLayout() {
   }
   return <AuthGuardedTabLayout />;
 }
+

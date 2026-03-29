@@ -24,8 +24,10 @@ import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
+import { useT } from '@/contexts/LocaleContext';
 
 export default function SchedulerScreen() {
+  const { t } = useT();
   const {
     // Data
     workers,
@@ -133,10 +135,10 @@ export default function SchedulerScreen() {
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         <ThemedText type="title" style={styles.pageTitle}>
-          Scheduler
+          {t('scheduler.title')}
         </ThemedText>
         <ThemedText style={styles.mutedText}>
-          Coordinate coverage across workers, shift templates, and day-by-day staffing plans.
+          {t('scheduler.subtitle')}
         </ThemedText>
 
         <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
@@ -158,14 +160,13 @@ export default function SchedulerScreen() {
         {needsFallbackSetup ? (
           <ThemedView style={[styles.banner, styles.bannerWarning, styles.dismissibleBanner]}>
             <View style={styles.bannerHeader}>
-              <ThemedText style={styles.bannerText}>Missing data detected</ThemedText>
+              <ThemedText style={styles.bannerText}>{t('scheduler.missingData.title')}</ThemedText>
               <Pressable onPress={() => router.setParams({ section: 'forecast' })}>
-                <ThemedText style={styles.linkText}>Open quick setup</ThemedText>
+                <ThemedText style={styles.linkText}>{t('scheduler.missingData.openSetup')}</ThemedText>
               </Pressable>
             </View>
             <ThemedText style={styles.mutedText}>
-              We could not find historical shifts or external signals. Seed homogeneous demand or
-              manual worker/shift counts to unlock forecasting.
+              {t('scheduler.missingData.desc')}
             </ThemedText>
           </ThemedView>
         ) : null}

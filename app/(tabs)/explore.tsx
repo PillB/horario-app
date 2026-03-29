@@ -19,6 +19,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
 import { formatCurrency } from '@/utils/schedulerUtils';
+import { useT } from '@/contexts/LocaleContext';
 
 const ACCOUNT_ID = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
 
@@ -81,17 +82,15 @@ function HoursBar({
   );
 }
 
-function getFairnessConfig(score: number): { label: string; color: string; barPct: number } {
-  const MAX_SCORE = 16;
-  // barPct is inversely proportional to score: perfect equity = 100% fill.
-  const barPct = Math.max(4, Math.round((1 - Math.min(score, MAX_SCORE) / MAX_SCORE) * 100));
-  if (score < 4) return { label: 'Excellent', color: '#22C55E', barPct };
-  if (score < 8) return { label: 'Good', color: '#F59E0B', barPct };
-  return { label: 'Needs attention', color: '#EF4444', barPct };
-}
-
 function FairnessGauge({ score }: { score: number }) {
-  const { label, color, barPct } = getFairnessConfig(score);
+  const { t } = useT();
+  const MAX_SCORE = 16;
+  const barPct = Math.max(4, Math.round((1 - Math.min(score, MAX_SCORE) / MAX_SCORE) * 100));
+  let label: string;
+  let color: string;
+  if (score < 4) { label = t('analytics.fairnessExcellent'); color = '#22C55E'; }
+  else if (score < 8) { label = t('analytics.fairnessGood'); color = '#F59E0B'; }
+  else { label = t('analytics.fairnessNeedsAttention'); color = '#EF4444'; }
   return (
     <View style={styles.fairnessRow}>
       <View style={styles.fairnessBarTrack}>
@@ -100,7 +99,9 @@ function FairnessGauge({ score }: { score: number }) {
         />
       </View>
       <ThemedText style={[styles.fairnessLabel, { color }]}>{label}</ThemedText>
-      <ThemedText style={styles.metricSub}>{score.toFixed(1)}h std dev</ThemedText>
+      <ThemedText style={styles.metricSub}>
+        {t('analytics.fairnessStdDev', { n: score.toFixed(1) })}
+      </ThemedText>
     </View>
   );
 }
@@ -108,6 +109,7 @@ function FairnessGauge({ score }: { score: number }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AnalyticsScreen() {
+  const { t } = useT();
   const {
     coverageRate,
     draftShifts,
@@ -126,12 +128,12 @@ export default function AnalyticsScreen() {
     <ErrorBoundary onRetry={refresh}>
       <ScrollView
         contentContainerStyle={styles.container}
-        accessibilityLabel="Analytics screen"
+        accessibilityLabel={t('nav.analytics')}
       >
         <ThemedView style={styles.header}>
-          <ThemedText type="title">Analytics</ThemedText>
+          <ThemedText type="title">{t('analytics.title')}</ThemedText>
           <ThemedText style={styles.mutedText}>
-            Scheduling performance at a glance.
+            {t('analytics.subtitle')}
           </ThemedText>
         </ThemedView>
 
@@ -146,12 +148,12 @@ export default function AnalyticsScreen() {
             </ThemedText>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Retry loading analytics"
-              accessibilityHint="Attempts to reload scheduling data"
+              accessibilityLabel={t('analytics.retryA11y')}
+              accessibilityHint={t('analytics.retryA11yHint')}
               onPress={refresh}
               style={styles.retryButton}
             >
-              <ThemedText style={styles.retryButtonText}>Try again</ThemedText>
+              <ThemedText style={styles.retryButtonText}>{t('common.tryAgain')}</ThemedText>
             </Pressable>
           </ThemedView>
         ) : (
@@ -159,9 +161,9 @@ export default function AnalyticsScreen() {
             {/* ── KPI row ────────────────────────────────────────────────── */}
             <View style={styles.kpiRow}>
               <MetricCard
-                label="Coverage"
+                label={t('analytics.coverageLabel')}
                 value={`${coverageRate}%`}
-                sub="of demand filled"
+                sub={t('analytics.coverageSub')}
                 accent={
                   coverageRate >= 80
                     ? '#22C55E'
@@ -172,9 +174,9 @@ export default function AnalyticsScreen() {
                 testID="analytics-coverage-rate"
               />
               <MetricCard
-                label="Drafts pending"
+                label={t('analytics.draftsPending')}
                 value={String(draftShifts)}
-                sub="awaiting approval"
+                sub={t('analytics.draftsAwaiting')}
                 accent={draftShifts > 0 ? '#F59E0B' : '#22C55E'}
                 testID="analytics-draft-shifts"
               />
@@ -182,7 +184,7 @@ export default function AnalyticsScreen() {
 
             {/* ── Revenue at risk ───────────────────────────────────────── */}
             <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">Revenue at risk</ThemedText>
+              <ThemedText type="subtitle">{t('analytics.revenueAtRisk')}</ThemedText>
               <ThemedText
                 type="title"
                 testID="analytics-uncovered-revenue"
@@ -194,19 +196,18 @@ export default function AnalyticsScreen() {
                 {formatCurrency(uncoveredRevenue)}
               </ThemedText>
               <ThemedText style={styles.mutedText}>
-                Estimated exposure from uncovered demand targets (
-                {publishedShifts} published shifts across all dates).
+                {t('analytics.revenueDesc', { n: String(publishedShifts) })}
               </ThemedText>
             </ThemedView>
 
             {/* ── Worker hours distribution ─────────────────────────────── */}
             <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">Worker hours</ThemedText>
+              <ThemedText type="subtitle">{t('analytics.workerHours')}</ThemedText>
               <ThemedText style={styles.mutedText}>
-                Published shifts only · all time
+                {t('analytics.workerHoursSub')}
               </ThemedText>
               {workerHours.length === 0 ? (
-                <ThemedText style={styles.mutedText}>No published shifts yet.</ThemedText>
+                <ThemedText style={styles.mutedText}>{t('analytics.noPublishedShifts')}</ThemedText>
               ) : (
                 (workerHours as WorkerHoursEntry[]).map((entry) => (
                   <HoursBar
@@ -222,24 +223,24 @@ export default function AnalyticsScreen() {
 
             {/* ── Fairness score ────────────────────────────────────────── */}
             <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">Schedule fairness</ThemedText>
+              <ThemedText type="subtitle">{t('analytics.fairness')}</ThemedText>
               <ThemedText style={styles.mutedText}>
-                Standard deviation of hours per worker — lower is fairer.
+                {t('analytics.fairnessSub')}
               </ThemedText>
               <FairnessGauge score={fairnessScore} />
             </ThemedView>
 
             {/* ── Quick actions ─────────────────────────────────────────── */}
             <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">Quick actions</ThemedText>
+              <ThemedText type="subtitle">{t('analytics.quickActions')}</ThemedText>
               <Link href="/(tabs)/scheduler" asChild>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Open Scheduler"
-                  accessibilityHint="Go to the scheduling view to fill coverage gaps"
+                  accessibilityLabel={t('analytics.openScheduler')}
+                  accessibilityHint={t('analytics.openSchedulerHint')}
                   style={styles.primaryButton}
                 >
-                  <ThemedText style={styles.primaryButtonText}>Open Scheduler</ThemedText>
+                  <ThemedText style={styles.primaryButtonText}>{t('analytics.openScheduler')}</ThemedText>
                 </Pressable>
               </Link>
             </ThemedView>

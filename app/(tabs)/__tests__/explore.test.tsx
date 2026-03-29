@@ -6,6 +6,29 @@ jest.mock('@/hooks/useAnalytics', () => ({
   useAnalytics: jest.fn(),
 }));
 
+// Provide a minimal LocaleContext so components using useT() work without a Provider.
+jest.mock('@/contexts/LocaleContext', () => {
+  const { en } = require('@/locales/en');
+  function resolve(obj, path) {
+    return path.split('.').reduce((a, k) => a?.[k], obj) ?? path;
+  }
+  return {
+    useT: () => ({
+      t: (key, params) => {
+        let val = resolve(en, key);
+        if (typeof val !== 'string') val = key;
+        if (params) Object.entries(params).forEach(([k, v]) => { val = val.replace(`{${k}}`, v); });
+        return val;
+      },
+      locale: en,
+      langCode: 'en',
+      setLanguage: () => {},
+      isLoading: false,
+    }),
+    LocaleProvider: ({ children }) => children,
+  };
+});
+
 // Themed components need useColorScheme.
 jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',

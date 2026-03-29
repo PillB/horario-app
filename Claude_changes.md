@@ -6,6 +6,33 @@
 
 ---
 
+### CHG-027 — 2026-03-29 22:00 UTC
+**Type:** FEATURE (Full internationalization / i18n — 9 languages)
+**Files changed:**
+- `locales/en.ts` — master locale file; ~300 keys covering all user-facing text; defines `Translations` type and `LangCode` union (`en|es|de|fr|it|zh|sw|tl|hi`)
+- `locales/index.ts` — locale registry with lazy loaders (dynamic imports), deep-merge fallback to English per-key, `loadLocale()` async loader, `getBaseLocale()` sync accessor
+- `locales/es.ts`, `locales/de.ts`, `locales/fr.ts`, `locales/it.ts`, `locales/zh.ts`, `locales/sw.ts`, `locales/tl.ts`, `locales/hi.ts` — full translations for Spanish, German, French, Italian, Chinese, Swahili, Tagalog, Hindi
+- `hooks/useLocale.ts` — core i18n hook: loads persisted language from AsyncStorage on mount, exposes `t(path, params?)` with dot-path resolution + `{variable}` interpolation, falls back to English per-key
+- `contexts/LocaleContext.tsx` — React Context wrapping `useLocale()`; `LocaleProvider` + `useT()` hook for tree-wide access without prop drilling
+- `components/InfoTooltip.tsx` — reusable ⓘ tooltip (hover on web, long-press on native); web pointer events use `@ts-ignore`; removed unused `Colors` import
+- `components/LanguageSelector.tsx` — pill button showing current language flag/code; opens Modal with FlatList of all 9 languages
+- `app/_layout.tsx` — wrapped entire app in `LocaleProvider`
+- `app/(tabs)/_layout.tsx` — tab titles translated via `useT()`; `LanguageSelector` in header
+- `components/scheduler/SectionCard.tsx` — added optional `tooltip` prop with `InfoTooltip` render
+- `components/scheduler/WorkerSection.tsx` — all strings via `useT()`; tooltips on Worker/Availability sections
+- `components/scheduler/ShiftTemplateSection.tsx` — all strings via `useT()`
+- `components/scheduler/RosterSection.tsx` — all strings via `useT()`
+- `components/scheduler/DemandSection.tsx` — all strings via `useT()`
+- `components/scheduler/Checklist.tsx` — all strings via `useT()`
+- `app/(tabs)/scheduler.tsx` — page title/subtitle + missing-data banner via `useT()`
+- `app/(tabs)/explore.tsx` — all KPI labels, section titles, error/retry text via `useT()`; error text rendered in own element so tests can find it
+- `app/(tabs)/__tests__/explore.test.tsx` — added `LocaleContext` mock returning English values so tests pass without a Provider
+- `app/(tabs)/__tests__/scheduler.test.tsx` — same `LocaleContext` mock
+**Reasoning:** Added complete i18n infrastructure using a game-dev inventory pattern: English master file defines the `Translations` type via `as const`; all other locales implement the same shape and are deep-merged at runtime (missing keys fall back to English per-key). Language choice is persisted to AsyncStorage under `@horario:language`. Tooltips provide encouraging, context-sensitive help copy for each tab section. Three underrepresented languages (Swahili, Tagalog, Hindi) included alongside European and Chinese. Notable fixes during implementation: French locale apostrophes in single-quoted strings; TypeScript literal type conflicts resolved via `Record<string, any>` loader registry; `@ts-expect-error` → `@ts-ignore` for web pointer events. 164/164 tests pass, lint exit 0.
+**References:** CHG-026
+
+---
+
 ### CHG-026 — 2026-03-29 21:15 UTC
 **Type:** FIX (Alert.alert is a no-op on React Native Web — publish and paywall blocked)
 **Files changed:**
