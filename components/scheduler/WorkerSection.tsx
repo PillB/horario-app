@@ -29,6 +29,7 @@ type Props = {
   updateWorkerField: (key: keyof WorkerFormState) => (value: string) => void;
   handleAddWorker: () => void;
   workerError: string | null;
+  workerSuccessMessage: string | null;
   availabilityForm: AvailabilityFormState;
   updateAvailabilityField: (key: keyof AvailabilityFormState) => (value: string) => void;
   handleAvailabilitySubmit: () => void;
@@ -45,6 +46,7 @@ export const WorkerSection = ({
   updateWorkerField,
   handleAddWorker,
   workerError,
+  workerSuccessMessage,
   availabilityForm,
   updateAvailabilityField,
   handleAvailabilitySubmit,
@@ -85,7 +87,9 @@ export const WorkerSection = ({
         </View>
       ))}
       {workers.length === 0 && (
-        <ThemedText style={styles.mutedText}>No workers yet. Add your first worker below.</ThemedText>
+        <ThemedText style={styles.mutedText}>
+          Your team roster is empty. Add a worker below — it takes 30 seconds.
+        </ThemedText>
       )}
     </SectionCard>
 
@@ -128,6 +132,9 @@ export const WorkerSection = ({
       </Pressable>
       {workerError ? (
         <ThemedText style={styles.errorText}>{workerError}</ThemedText>
+      ) : null}
+      {workerSuccessMessage ? (
+        <ThemedText style={styles.successText}>{workerSuccessMessage}</ThemedText>
       ) : null}
     </SectionCard>
 

@@ -76,7 +76,17 @@ export default function HomeScreen() {
           {rosterLoading ? (
             <SkeletonCard rows={3} />
           ) : upcomingShifts.length === 0 ? (
-            <ThemedText style={styles.mutedText}>No shifts scheduled in the next 7 days.</ThemedText>
+            <>
+              <ThemedText style={styles.mutedText}>No shifts scheduled yet.</ThemedText>
+              <Link href="/(tabs)/scheduler" asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Build your first roster"
+                  style={styles.emptyStateCta}>
+                  <ThemedText style={styles.emptyStateCtaText}>Build your first roster →</ThemedText>
+                </Pressable>
+              </Link>
+            </>
           ) : (
             upcomingShifts.map((shift) => (
               <View key={shift.id} style={styles.rowBetween}>
@@ -97,7 +107,11 @@ export default function HomeScreen() {
           {rosterLoading ? (
             <SkeletonCard rows={2} />
           ) : staffingGaps.length === 0 ? (
-            <ThemedText style={styles.mutedText}>No staffing gaps detected.</ThemedText>
+            <ThemedText style={styles.mutedText}>
+              {upcomingShifts.length > 0
+                ? 'All shifts are fully staffed.'
+                : 'No demand targets yet — run a forecast in the Scheduler.'}
+            </ThemedText>
           ) : (
             staffingGaps.map((gap) => (
               <View key={`${gap.date}::${gap.role}`} style={styles.rowBetween}>
@@ -277,6 +291,15 @@ const styles = StyleSheet.create({
   },
   heroTagline: {
     color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+  },
+  emptyStateCta: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  emptyStateCtaText: {
+    color: '#0D9488',
+    fontWeight: '600',
     fontSize: 14,
   },
 });

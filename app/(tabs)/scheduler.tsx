@@ -68,6 +68,8 @@ export default function SchedulerScreen() {
     fallbackMessage,
     workerError,
     templateError,
+    workerSuccessMessage,
+    templateSuccessMessage,
 
     // Form state
     availabilityForm,
@@ -178,6 +180,7 @@ export default function SchedulerScreen() {
             updateWorkerField={updateWorkerField}
             handleAddWorker={handleAddWorker}
             workerError={workerError}
+            workerSuccessMessage={workerSuccessMessage}
             availabilityForm={availabilityForm}
             updateAvailabilityField={updateAvailabilityField}
             handleAvailabilitySubmit={handleAvailabilitySubmit}
@@ -199,6 +202,7 @@ export default function SchedulerScreen() {
             updateTemplateField={updateTemplateField}
             handleAddTemplate={handleAddTemplate}
             templateError={templateError}
+            templateSuccessMessage={templateSuccessMessage}
             shiftForm={shiftForm}
             updateShiftField={updateShiftField}
             handleShiftSubmit={handleShiftSubmit}

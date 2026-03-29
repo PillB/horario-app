@@ -28,6 +28,7 @@ type Props = {
   updateTemplateField: (key: keyof TemplateFormState) => (value: string) => void;
   handleAddTemplate: () => void;
   templateError: string | null;
+  templateSuccessMessage: string | null;
   shiftForm: ShiftFormState;
   updateShiftField: (key: keyof ShiftFormState) => (value: string) => void;
   handleShiftSubmit: () => void;
@@ -44,6 +45,7 @@ export const ShiftTemplateSection = ({
   updateTemplateField,
   handleAddTemplate,
   templateError,
+  templateSuccessMessage,
   shiftForm,
   updateShiftField,
   handleShiftSubmit,
@@ -70,7 +72,9 @@ export const ShiftTemplateSection = ({
         </View>
       ))}
       {shiftTemplates.length === 0 && (
-        <ThemedText style={styles.mutedText}>No templates yet. Add your first template below.</ThemedText>
+        <ThemedText style={styles.mutedText}>
+          No templates yet. Templates let you build a full roster in one tap.
+        </ThemedText>
       )}
     </SectionCard>
 
@@ -132,6 +136,9 @@ export const ShiftTemplateSection = ({
         <ThemedText style={styles.primaryButtonText}>Add template</ThemedText>
       </Pressable>
       {templateError ? <ThemedText style={styles.errorText}>{templateError}</ThemedText> : null}
+      {templateSuccessMessage ? (
+        <ThemedText style={styles.successText}>{templateSuccessMessage}</ThemedText>
+      ) : null}
     </SectionCard>
 
     <SectionCard

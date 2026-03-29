@@ -38,6 +38,7 @@ import {
   type AssignedShift,
 } from '@/services/shiftAssigner';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
+import { trackEvent } from '@/services/analytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,10 @@ export function useSchedulerHandlers() {
   const [targetError, setTargetError] = useState<string | null>(null);
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [workerSuccessMessage, setWorkerSuccessMessage] = useState<string | null>(null);
+  const [templateSuccessMessage, setTemplateSuccessMessage] = useState<string | null>(null);
+  const workerSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const templateSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
   const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
   const [publishCelebration, setPublishCelebration] = useState({
@@ -384,7 +389,7 @@ export function useSchedulerHandlers() {
       {
         key: 'workers',
         title: 'Add workers',
-        description: 'Create worker profiles and availability.',
+        description: 'Create worker profiles and set availability. ⏱ ~2 min',
         completed: effectiveOnboardingFlags.workers,
         actionLabel: 'Add workers',
         onPress: () => goToSection('workers'),
@@ -392,7 +397,7 @@ export function useSchedulerHandlers() {
       {
         key: 'templates',
         title: 'Save templates',
-        description: 'Standardize common shifts with coverage.',
+        description: 'Define reusable shifts with role and coverage. ⏱ ~1 min',
         completed: effectiveOnboardingFlags.templates,
         actionLabel: 'Add template',
         onPress: () => goToSection('templates'),
@@ -400,7 +405,7 @@ export function useSchedulerHandlers() {
       {
         key: 'forecast',
         title: 'Run forecast',
-        description: 'Generate demand targets to compare coverage.',
+        description: 'Generate demand targets — then auto-assign in one tap. ⏱ ~1 min',
         completed: effectiveOnboardingFlags.forecast,
         actionLabel: forecastLoading || forecasting ? 'Running…' : 'Run forecast',
         onPress: () => goToSection('forecast'),
@@ -555,10 +560,9 @@ export function useSchedulerHandlers() {
 
   useEffect(() => {
     return () => {
-      if (actionBannerTimerRef.current) {
-        clearTimeout(actionBannerTimerRef.current);
-        actionBannerTimerRef.current = null;
-      }
+      if (actionBannerTimerRef.current) clearTimeout(actionBannerTimerRef.current);
+      if (workerSuccessTimerRef.current) clearTimeout(workerSuccessTimerRef.current);
+      if (templateSuccessTimerRef.current) clearTimeout(templateSuccessTimerRef.current);
     };
   }, []);
 
@@ -574,10 +578,20 @@ export function useSchedulerHandlers() {
     const result = await addWorker(trimmedName, trimmedRole, skills);
     if (result.success) {
       setWorkerForm({ name: '', role: '', skills: '' });
+      const isFirst = workers.length === 0;
+      void trackEvent('worker_added', { isFirst });
+      if (workerSuccessTimerRef.current) clearTimeout(workerSuccessTimerRef.current);
+      setWorkerSuccessMessage(
+        `${trimmedName} added! Now set their availability to enable accurate scheduling.`
+      );
+      workerSuccessTimerRef.current = setTimeout(() => {
+        setWorkerSuccessMessage(null);
+        workerSuccessTimerRef.current = null;
+      }, 5000);
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, workerForm]);
+  }, [addWorker, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -594,10 +608,19 @@ export function useSchedulerHandlers() {
     const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
     if (result.success) {
       setTemplateForm({ name: '', role: '', start: '09:00', end: '17:00', coverage: '1' });
+      void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
+      if (templateSuccessTimerRef.current) clearTimeout(templateSuccessTimerRef.current);
+      setTemplateSuccessMessage(
+        `"${trimmedName}" template saved! You can now auto-assign workers to this shift.`
+      );
+      templateSuccessTimerRef.current = setTimeout(() => {
+        setTemplateSuccessMessage(null);
+        templateSuccessTimerRef.current = null;
+      }, 5000);
     } else {
       setTemplateError(result.error ?? 'Failed to add template. Please try again.');
     }
-  }, [addShiftTemplate, templateForm]);
+  }, [addShiftTemplate, shiftTemplates.length, templateForm]);
 
   const handleAvailabilitySubmit = useCallback(async () => {
     const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
@@ -693,6 +716,7 @@ export function useSchedulerHandlers() {
     });
     if (result.success) {
       setShiftForm((prev) => ({ ...prev, date: '' }));
+      void trackEvent('shift_assigned');
     } else {
       setShiftError(result.error ?? 'Failed to save shift. Please try again.');
     }
@@ -846,6 +870,7 @@ export function useSchedulerHandlers() {
               `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
               'success'
             );
+            void trackEvent('schedule_published');
             celebrateRosterPublish();
           },
         },
@@ -951,6 +976,7 @@ export function useSchedulerHandlers() {
     if (successCount > 0) {
       // Record freemium usage after at least one shift was successfully applied
       await incrementUsage();
+      void trackEvent('auto_assign_used', { successCount });
     }
     showActionBanner(
       `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).`,
@@ -1003,6 +1029,8 @@ export function useSchedulerHandlers() {
     fallbackMessage,
     workerError,
     templateError,
+    workerSuccessMessage,
+    templateSuccessMessage,
 
     // Form state
     availabilityForm,

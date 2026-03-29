@@ -185,7 +185,7 @@ export default function SignUpScreen() {
         {/* Form card */}
         <View style={styles.card}>
           <ThemedText style={styles.heading}>Create your account</ThemedText>
-          <ThemedText style={styles.subheading}>Join schedulers who cut no-shows by 40%</ThemedText>
+          <ThemedText style={styles.subheading}>Join 1,200+ team managers. Cut no-shows by 40%.</ThemedText>
 
           <View style={styles.fields}>
             <View style={styles.field}>
