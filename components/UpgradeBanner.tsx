@@ -10,6 +10,7 @@ import { View, Pressable, StyleSheet, Linking } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
 import { useSubscription } from '@/hooks/useSubscription';
+import { trackEvent } from '@/services/analytics';
 
 const CLERK_BILLING_URL = 'https://pleased-falcon-63.clerk.accounts.dev/user/billing';
 
@@ -25,6 +26,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   if (plan === 'user_subscription' && !isTrialing) return null;
 
   const openBilling = () => {
+    void trackEvent('upgrade_cta_tapped', { plan, source: 'banner' });
     Linking.openURL(CLERK_BILLING_URL).catch(() => {
       // Silently ignore if the URL can't be opened
     });
@@ -36,17 +38,26 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
         <View style={styles.trialBadge}>
           <ThemedText style={styles.trialBadgeText}>TRIAL</ThemedText>
         </View>
-        <ThemedText style={styles.trialText}>
-          Your Pro trial is active — enjoy unlimited auto-assigns.
-        </ThemedText>
+        <View style={styles.trialContent}>
+          <ThemedText style={styles.trialText}>
+            Pro trial active — unlimited auto-assigns enabled.
+          </ThemedText>
+          <ThemedText style={styles.trialSub}>
+            $12/mo flat after trial. No per-employee fees.
+          </ThemedText>
+        </View>
       </View>
     );
   }
 
-  // Free plan
-  const usesLabel = autoAssignUsesLeft <= 0
-    ? 'Auto-assign limit reached'
+  // Free plan — outcome-framed copy
+  const limitReached = autoAssignUsesLeft <= 0;
+  const outcomeHeadline = limitReached
+    ? 'Stop building rosters by hand — you\'ve hit the free limit.'
     : `${autoAssignUsesLeft} free auto-assign${autoAssignUsesLeft === 1 ? '' : 's'} left`;
+  const outcomeCta = limitReached
+    ? 'Unlock unlimited auto-assigns — no per-employee fees →'
+    : 'Auto-assign your whole team in one tap. Try Pro free 10 days →';
 
   return (
     <Pressable
@@ -54,16 +65,15 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
       style={({ pressed }) => [styles.banner, styles.freeBanner, pressed && styles.bannerPressed]}
       accessibilityRole="button"
       accessibilityLabel="Upgrade to Pro plan"
-      accessibilityHint="Opens billing page to start your free trial">
+      accessibilityHint="Opens billing page to start your free Pro trial">
       <View style={styles.bannerContent}>
         <View style={styles.freeBadge}>
           <ThemedText style={styles.freeBadgeText}>FREE</ThemedText>
         </View>
         <View style={styles.bannerText}>
-          <ThemedText style={styles.freePlanTitle}>{usesLabel}</ThemedText>
-          <ThemedText style={styles.freePlanCta}>
-            Try Pro free for 10 days · $12/mo after →
-          </ThemedText>
+          <ThemedText style={styles.freePlanTitle}>{outcomeHeadline}</ThemedText>
+          <ThemedText style={styles.freePlanCta}>{outcomeCta}</ThemedText>
+          <ThemedText style={styles.pricingNote}>$12/mo flat · no per-employee fees · cancel anytime</ThemedText>
         </View>
       </View>
     </Pressable>
@@ -103,10 +113,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
   },
+  trialContent: {
+    flex: 1,
+    gap: 2,
+  },
   trialText: {
     fontSize: 13,
     color: brand.primaryDeep,
-    flex: 1,
+    fontWeight: '600',
+  },
+  trialSub: {
+    fontSize: 11,
+    color: brand.primaryDark,
   },
   // Free plan banner
   freeBanner: {
@@ -145,6 +163,11 @@ const styles = StyleSheet.create({
   freePlanCta: {
     fontSize: 12,
     color: brand.pro,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  pricingNote: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 2,
   },
 });

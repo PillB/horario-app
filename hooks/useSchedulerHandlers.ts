@@ -145,6 +145,7 @@ export function useSchedulerHandlers() {
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const baselineTargetsRef = useRef<DemandForecast[] | null>(null);
+  const prevOnboardingFlagsRef = useRef({ workers: false, templates: false, forecast: false });
   const scrollViewRef = useRef<ScrollView>(null);
   const shiftSectionRef = useRef<View>(null);
   const workerSectionRef = useRef<View>(null);
@@ -491,6 +492,16 @@ export function useSchedulerHandlers() {
     };
     persistProgress();
   }, [accountId, derivedOnboardingFlags, savedOnboardingProgress, userId]);
+
+  // Track onboarding step completion events exactly once per step transition
+  useEffect(() => {
+    const prev = prevOnboardingFlagsRef.current;
+    const curr = derivedOnboardingFlags;
+    if (!prev.workers && curr.workers) void trackEvent('onboarding_step_completed', { step: 'workers' });
+    if (!prev.templates && curr.templates) void trackEvent('onboarding_step_completed', { step: 'templates' });
+    if (!prev.forecast && curr.forecast) void trackEvent('onboarding_step_completed', { step: 'forecast' });
+    prevOnboardingFlagsRef.current = curr;
+  }, [derivedOnboardingFlags]);
 
   useEffect(() => {
     if (forecastTimerRef.current) {
@@ -866,8 +877,9 @@ export function useSchedulerHandlers() {
             if (!publishResult.success) {
               showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
             }
+            const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
             showActionBanner(
-              `Published ${latestShift.workerId} for ${latestShift.date} (${latestShift.templateId}).`,
+              `${workerName} scheduled for ${latestShift.date}. Tap "Notify" to send their shift via Horario.`,
               'success'
             );
             void trackEvent('schedule_published');

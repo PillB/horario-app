@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -13,6 +13,7 @@ import { useSignUp } from '@clerk/expo/legacy';
 import { Link, useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
+import { trackEvent } from '@/services/analytics';
 
 export default function SignUpScreen() {
   const { signUp, setActive, isLoaded } = useSignUp();
@@ -27,6 +28,7 @@ export default function SignUpScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [codeFocused, setCodeFocused] = useState(false);
+  const hasTrackedStart = useRef(false);
 
   const extractClerkError = (err: unknown): string => {
     const clerkError = err as { errors?: { longMessage?: string; message?: string }[] };
@@ -59,6 +61,7 @@ export default function SignUpScreen() {
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === 'complete') {
+        void trackEvent('sign_up_completed');
         await setActive({ session: result.createdSessionId });
         router.replace('/');
       } else {
@@ -192,7 +195,13 @@ export default function SignUpScreen() {
               <ThemedText style={styles.label}>Work email</ThemedText>
               <TextInput
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  if (!hasTrackedStart.current && v.length > 0) {
+                    hasTrackedStart.current = true;
+                    void trackEvent('sign_up_started');
+                  }
+                }}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
                 placeholder="you@company.com"
@@ -247,6 +256,9 @@ export default function SignUpScreen() {
 
             <ThemedText style={styles.legalText}>
               By signing up you agree to our Terms of Service and Privacy Policy.
+            </ThemedText>
+            <ThemedText style={styles.pricingNote}>
+              Free forever for 1 team · Pro from $12/mo flat — no per-employee fees
             </ThemedText>
           </View>
 
@@ -437,6 +449,13 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 16,
+  },
+  pricingNote: {
+    fontSize: 11,
+    color: '#0D9488',
+    textAlign: 'center',
+    fontWeight: '500',
+    marginTop: 2,
   },
   // Footer
   footer: {

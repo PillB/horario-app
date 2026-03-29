@@ -308,4 +308,78 @@ export const schedulerStyles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 4,
   },
+  // ── Ghost / preview empty-state styles ────────────────────────────────────
+  ghostContainer: {
+    gap: 10,
+    opacity: 0.4,
+    pointerEvents: 'none',
+  },
+  ghostRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
+  },
+  ghostBlock: {
+    gap: 6,
+    flex: 1,
+  },
+  ghostNameBar: {
+    height: 13,
+    borderRadius: 6,
+    backgroundColor: '#9CA3AF',
+    width: '55%',
+  },
+  ghostRoleBar: {
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#D1D5DB',
+    width: '35%',
+  },
+  ghostTagRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  ghostTag: {
+    height: 18,
+    width: 48,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+  },
+  ghostBadgeBar: {
+    height: 22,
+    width: 72,
+    borderRadius: 8,
+    backgroundColor: '#D1D5DB',
+  },
+  ghostTimeBar: {
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#D1D5DB',
+    width: '60%',
+  },
+  ghostEmptyCta: {
+    marginTop: 8,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#0D9488',
+    borderStyle: 'dashed',
+  },
+  ghostEmptyCtaText: {
+    color: '#0D9488',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  ghostEmptyNote: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 4,
+  },
 });

@@ -72,9 +72,26 @@ export const ShiftTemplateSection = ({
         </View>
       ))}
       {shiftTemplates.length === 0 && (
-        <ThemedText style={styles.mutedText}>
-          No templates yet. Templates let you build a full roster in one tap.
-        </ThemedText>
+        <View>
+          {/* Ghost preview — shows what shift templates look like populated */}
+          <View style={styles.ghostContainer} accessibilityElementsHidden>
+            {[0, 1].map((i) => (
+              <View key={i} style={styles.ghostRow}>
+                <View style={styles.ghostBlock}>
+                  <View style={styles.ghostNameBar} />
+                  <View style={styles.ghostTimeBar} />
+                </View>
+                <View style={styles.ghostBadgeBar} />
+              </View>
+            ))}
+          </View>
+          <View style={styles.ghostEmptyCta}>
+            <ThemedText style={styles.ghostEmptyCtaText}>Define your first shift below ↓</ThemedText>
+          </View>
+          <ThemedText style={styles.ghostEmptyNote}>
+            Templates let you build a full roster in one tap.
+          </ThemedText>
+        </View>
       )}
     </SectionCard>
 

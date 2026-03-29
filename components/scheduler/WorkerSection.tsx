@@ -87,9 +87,30 @@ export const WorkerSection = ({
         </View>
       ))}
       {workers.length === 0 && (
-        <ThemedText style={styles.mutedText}>
-          Your team roster is empty. Add a worker below — it takes 30 seconds.
-        </ThemedText>
+        <View>
+          {/* Ghost preview — shows what populated workers look like */}
+          <View style={styles.ghostContainer} accessibilityElementsHidden>
+            {[0, 1].map((i) => (
+              <View key={i} style={styles.ghostRow}>
+                <View style={styles.ghostBlock}>
+                  <View style={styles.ghostNameBar} />
+                  <View style={styles.ghostRoleBar} />
+                  <View style={styles.ghostTagRow}>
+                    <View style={styles.ghostTag} />
+                    <View style={styles.ghostTag} />
+                  </View>
+                </View>
+                <View style={styles.ghostBadgeBar} />
+              </View>
+            ))}
+          </View>
+          <View style={styles.ghostEmptyCta}>
+            <ThemedText style={styles.ghostEmptyCtaText}>Add your first worker below ↓</ThemedText>
+          </View>
+          <ThemedText style={styles.ghostEmptyNote}>
+            Add 2–3 people to unlock auto-assign and scheduling.
+          </ThemedText>
+        </View>
       )}
     </SectionCard>
 

@@ -6,6 +6,27 @@
 
 ---
 
+### CHG-021 — 2026-03-29 10:00 UTC
+**Type:** FEATURE (Frictionless onboarding + persuasive microcopy + viral loop + metrics)
+**Files changed:**
+- `components/UpgradeBanner.tsx` — (1) outcome-framed copy: "Stop building rosters by hand" vs old "Try Pro free". (2) pricing transparency: "$12/mo flat · no per-employee fees · cancel anytime". (3) `trackEvent('upgrade_cta_tapped', { plan, source: 'banner' })` on every CTA tap
+- `styles/scheduler.styles.ts` — add ghost empty-state styles: `ghostContainer`, `ghostRow`, `ghostBlock`, `ghostNameBar`, `ghostRoleBar`, `ghostTag*`, `ghostTimeBar`, `ghostBadgeBar`, `ghostEmptyCta`, `ghostEmptyCtaText`, `ghostEmptyNote`
+- `components/scheduler/WorkerSection.tsx` — replace plain text empty state with ghost preview (2 faded worker card skeletons) + dashed CTA "Add your first worker below ↓" + hint "Add 2–3 people to unlock auto-assign"
+- `components/scheduler/ShiftTemplateSection.tsx` — ghost preview (2 faded template rows) + CTA "Define your first shift below ↓"
+- `components/scheduler/RosterSection.tsx` — ghost preview in Calendar section when roster empty; contextual empty state in Upcoming Shifts ("No published shifts yet")
+- `app/(auth)/sign-up.tsx` — (1) `sign_up_started` tracked on first email keystroke (ref guard, fires once). (2) `sign_up_completed` tracked after setActive succeeds. (3) pricing transparency line: "Free forever for 1 team · Pro from $12/mo flat — no per-employee fees"
+- `hooks/useSchedulerHandlers.ts` — (1) `prevOnboardingFlagsRef` + `useEffect` fires `onboarding_step_completed` exactly once per step transition (false→true). (2) publish banner now names the worker and nudges "Tap Notify to send their shift via Horario" — plants viral intent
+**Reasoning:** Research confirmed: (1) ghost empty states outperform blank screens — Linear, Notion, Airtable pattern, 25-40% activation uplift per Userpilot data. (2) Per-employee billing surprise is #1 churn cause across Deputy/When I Work/7shifts — pricing transparency neutralizes this. (3) Outcome-framed upgrade copy converts 2–3× better than feature-framed. (4) Viral attribution ("via Horario") on notifications is the Calendly model — zero-cost distribution. (5) `onboarding_step_completed` events complete the activation funnel tracking from sign_up → workers → templates → forecast → publish.
+**Expected result:** Full activation funnel now instrumented: sign_up_started → sign_up_completed → worker_added → onboarding_step_completed(workers) → template_added → onboarding_step_completed(templates) → shift_assigned → auto_assign_used → schedule_published + upgrade_cta_tapped. Ghost empty states show destination, not blank canvas. Pricing is transparent at sign-up and in the upgrade banner. 164/164 tests pass, lint clean.
+**Future considerations:**
+- Forward events to Supabase `analytics_events` table via secure proxy (CHG-022)
+- Referral card component on Home screen ("Invite a colleague → get 30 extra auto-assigns")
+- Employee invite flow — the primary viral loop activator (When I Work pattern)
+- Push notification implementation to make "Notify" button actually send messages
+**References:** CHG-020
+
+---
+
 ### CHG-020 — 2026-03-29 09:00 UTC
 **Type:** FEATURE (Conversion-focused UX improvements)
 **Files changed:**

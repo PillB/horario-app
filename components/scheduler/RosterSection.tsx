@@ -40,6 +40,27 @@ export const RosterSection = ({
           <ThemedText style={styles.badgeText}>Next 7 days secured.</ThemedText>
         </View>
       ) : null}
+      {Object.entries(rosterByDate).length === 0 ? (
+        <View>
+          <View style={styles.ghostContainer} accessibilityElementsHidden>
+            {[0, 1].map((i) => (
+              <View key={i} style={styles.ghostRow}>
+                <View style={styles.ghostBlock}>
+                  <View style={styles.ghostNameBar} />
+                  <View style={styles.ghostTimeBar} />
+                </View>
+                <View style={[styles.ghostBadgeBar, { width: 52 }]} />
+              </View>
+            ))}
+          </View>
+          <View style={styles.ghostEmptyCta}>
+            <ThemedText style={styles.ghostEmptyCtaText}>Assign shifts to see your roster here ↑</ThemedText>
+          </View>
+          <ThemedText style={styles.ghostEmptyNote}>
+            Create a shift in Shift Creation above — it appears here instantly.
+          </ThemedText>
+        </View>
+      ) : null}
       {Object.entries(rosterByDate).map(([date, shifts]) => (
         <View key={date} style={styles.rosterDay}>
           <ThemedText type="defaultSemiBold">{date}</ThemedText>
@@ -98,6 +119,11 @@ export const RosterSection = ({
     </SectionCard>
 
     <SectionCard title="Upcoming shifts" subtitle="Stay ahead of the next roster window.">
+      {upcomingShifts.length === 0 ? (
+        <ThemedText style={styles.mutedText}>
+          No published shifts yet — publish a shift above to see it here.
+        </ThemedText>
+      ) : null}
       {upcomingShifts.map((shift) => (
         <View key={shift.id} style={styles.rowBetween}>
           <View>
