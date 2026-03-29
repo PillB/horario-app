@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+
+// useNativeDriver: true causes `CSSStyleDeclaration` indexed-property errors on web.
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 const PARTICLE_COUNT = 14;
 const COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EC4899', '#0EA5E9'];
@@ -37,19 +40,19 @@ const ConfettiBurst = ({ running, disabled }: ConfettiBurstProps) => {
           toValue: fallDistance,
           duration: 900 + index * 10,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(particle.translateX, {
           toValue: scatter,
           duration: 900 + index * 10,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(particle.rotate, {
           toValue: Math.random() * 540,
           duration: 1100,
           easing: Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]);
     });
