@@ -6,6 +6,19 @@
 
 ---
 
+### CHG-019 — 2026-03-29 07:30 UTC
+**Type:** BUGFIX (CRITICAL)
+**Files changed:**
+- `app/api/secure-proxy+api.ts` (renamed from `app/api/secure-proxy/route.ts`)
+**Reasoning:** BUG-002 root cause identified: Expo Router API routes MUST use the `+api.ts` suffix convention (e.g., `endpoint+api.ts`), NOT `route.ts` (Next.js/Remix convention). The file at `app/api/secure-proxy/route.ts` was being treated as a page component (Expo Router logged "missing required default export"), causing all POST requests to `/api/secure-proxy` to return the SPA HTML instead of a JSON API response. Renaming to `app/api/secure-proxy+api.ts` fixes the routing — `isApi` check in expo-router uses regex `/\+api\.(\w+\.)?[jt]sx?$/`. The URL `/api/secure-proxy` remains unchanged since `+api` is stripped from the path.
+**Expected result:** POST to `http://localhost:8081/api/secure-proxy` returns JSON, not HTML. All DB operations (listWorkers, upsertWorker, listShiftTemplates, listRoster, etc.) now route through the proxy correctly.
+**Future considerations:**
+- Supabase DB tables still need to be created — run `supabase/migrations/` SQL files in the Supabase dashboard SQL editor at https://supabase.com/dashboard/project/rfmdlzaqvmhbzbgjwhqn/sql/new
+- After migrations run, restart the Expo dev server and all data operations should persist to DB
+**References:** CHG-018
+
+---
+
 ### CHG-018 — 2026-03-29 07:00 UTC
 **Type:** FEATURE + BUGFIX
 **Files changed:**
