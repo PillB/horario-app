@@ -6,6 +6,15 @@
 
 ---
 
+### [SUMMARY] — 2026-03-29 07:45 UTC
+**Last CHG completed:** CHG-019
+**Current state:** Auth (Clerk) is fully working with sign-in/sign-up/sign-out. The secure proxy is now correctly named (`app/api/secure-proxy+api.ts`) and returns JSON. The design system, UpgradeBanner, Horario hero, and ticket-based sign-in flow are all in. 164/164 tests pass. The only remaining blocker is DB: Supabase tables don't exist yet — all proxy calls return "Could not find the table" from Supabase. Once migrations run, everything will persist.
+**Active decisions:** (1) Expo Router API routes use `+api.ts` suffix, not `route.ts`. (2) Clerk dev bypass = `authEnabled = key.startsWith('pk_')`. (3) Freemium: FREE_AUTO_ASSIGN_LIMIT=1, plan slugs `user_subscription` / `free_user`. (4) Service role key server-only in `app/api/secure-proxy+api.ts`.
+**Next action:** User needs to run Supabase migrations in the dashboard SQL editor (`supabase/migrations/` — 3 files in order). After that, test DB persistence: add worker, add template, create shift, publish shift.
+**Watch out for:** (1) DB password / Management API PAT not available — migrations must be run manually. (2) Clerk CAPTCHA blocks automated sign-up/password-signin — use ticket flow for E2E tests. (3) The `app.json` `M` status in git (unstaged) — contains real changes like `"output": "server"` that must NOT be reverted.
+
+---
+
 ### CHG-019 — 2026-03-29 07:30 UTC
 **Type:** BUGFIX (CRITICAL)
 **Files changed:**
