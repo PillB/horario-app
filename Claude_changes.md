@@ -6,6 +6,15 @@
 
 ---
 
+### CHG-024 — 2026-03-29 12:00 UTC
+**Type:** FIX (ConfettiBurst crashes React Native Web with CSSStyleDeclaration error)
+**Files changed:**
+- `components/ConfettiBurst.tsx` — added `const USE_NATIVE_DRIVER = Platform.OS !== 'web'` and replaced all `useNativeDriver: true` with `useNativeDriver: USE_NATIVE_DRIVER`. Import `Platform` from react-native.
+**Reasoning:** Playwright testing revealed a crash whenever any re-render happens while ConfettiBurst's 14 Animated.View particles are mounted (even when `running=false`). Root cause: `useNativeDriver: true` in React Native Web makes the animation system apply CSS transforms using integer-indexed style properties (`element.style[0] = transform`), which browsers reject with `Failed to set an indexed property [0] on 'CSSStyleDeclaration': Indexed property setter is not supported`. The ConfettiBurst error boundary caught this and showed "Something went wrong" — crashing the entire Scheduler screen on every state update after mount. Fix: disable native driver on web via Platform.OS check; animation is still GPU-accelerated on iOS/Android. 164/164 tests pass.
+**References:** CHG-021 (confetti added), CHG-010 (ErrorBoundary added)
+
+---
+
 ### CHG-023 — 2026-03-29 11:30 UTC
 **Type:** FIX (Auto-populate worker/template IDs in availability and shift forms)
 **Files changed:**

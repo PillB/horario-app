@@ -21,7 +21,10 @@ type ConfettiBurstProps = {
   disabled?: boolean;
 };
 
-const ConfettiBurst = ({ running, disabled }: ConfettiBurstProps) => {
+// On web, Animated.View transforms (rotate interpolation) trigger a
+// CSSStyleDeclaration indexed-property error in react-native-web.
+// Confetti is a mobile-first delight — skip it entirely on web.
+const ConfettiBurstNative = ({ running, disabled }: ConfettiBurstProps) => {
   const particles = useMemo(() => Array.from({ length: PARTICLE_COUNT }, createParticle), []);
 
   useEffect(() => {
@@ -94,6 +97,10 @@ const ConfettiBurst = ({ running, disabled }: ConfettiBurstProps) => {
     </View>
   );
 };
+
+const ConfettiBurst = Platform.OS === 'web'
+  ? (_props: ConfettiBurstProps) => null
+  : ConfettiBurstNative;
 
 const styles = StyleSheet.create({
   container: {
