@@ -6,6 +6,27 @@
 
 ---
 
+### CHG-035 — 2026-03-30 UTC
+**Type:** INFRA (Vercel deployment readiness — config, web compat, env vars)
+**Files changed:**
+- `vercel.json` — Rewritten for Expo Router SSR (`output: "server"`): `framework: null`, proper routes for `dist/server/_expo/functions/` and `dist/client/` static assets, Node.js 20.x function runtime.
+- `app/_layout.tsx` — Fixed native-only `@clerk/expo/token-cache` import: now conditionally required only when `Platform.OS !== 'web'`; `tokenCache` is `undefined` on web (Clerk uses cookies automatically). Removed unsafe static top-level import that would crash Vercel's web bundle.
+- `package.json` — Added `"build": "expo export --platform web"` script for Vercel parity and CI use.
+- `.env.example` — Added `EXPO_PUBLIC_CLERK_FRONTEND_API`, `CLERK_JWKS_URL`, `CLERK_SECRET_KEY` (server-only) that were missing after auth wiring in CHG-034.
+- `VERCEL_DEPLOY.md` (NEW) — Step-by-step deployment checklist: code fixes, Vercel dashboard config, env vars table, CORS setup for Supabase and Clerk, post-deploy verification, rollback.
+- `scripts/vercel-deploy-batch.mjs` (NEW) — 5-request Batch API script that generated all the above.
+
+**Key decisions:**
+- Keep `"web.output": "server"` in app.json so API routes (`app/api/secure-proxy+api.ts`) run as Vercel serverless functions. Switching to static would break JWT verification and all DB writes.
+- `EXPO_PUBLIC_SECURE_PROXY_URL` must be updated from `http://localhost:8081/api/secure-proxy` → `https://<vercel-domain>/api/secure-proxy` in Vercel dashboard before go-live.
+- `ANTHROPIC_API_KEY` is intentionally NOT added to Vercel — local batch scripts only.
+- `EXPO_PUBLIC_ACCOUNT_ID` / `EXPO_PUBLIC_USER_ID` remain as pre-auth placeholders until Clerk `sub` is fully propagated throughout the app.
+
+**Notes:**
+- 164/164 tests pass. 0 lint errors. 6 pre-existing warnings (unrelated files).
+
+---
+
 ### CHG-034 — 2026-03-30 UTC
 **Type:** FEATURE (Clerk auth end-to-end + per-user Supabase persistence)
 **Files changed:**

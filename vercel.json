@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "framework": null,
+  "buildCommand": "npx expo export --platform web",
+  "outputDirectory": "dist",
+  "functions": {
+    "dist/server/_expo/functions/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/_expo/static/(.*)",
+      "dest": "/client/_expo/static/$1"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/client/assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/client/favicon.ico"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/server/_expo/functions/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/server/_expo/functions/__root__.js"
+    }
+  ]
+}

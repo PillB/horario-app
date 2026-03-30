@@ -4,8 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { ClerkProvider } from '@clerk/expo';
-import { tokenCache } from '@clerk/expo/token-cache';
-import { ActivityIndicator, View } from 'react-native';
+import { Platform, ActivityIndicator, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,6 +13,18 @@ import { IdentityProvider } from '@/contexts/IdentityContext';
 import { WelcomeTourProvider } from '@/contexts/WelcomeTourContext';
 import { TourSpotlight } from '@/components/TourSpotlight';
 import { Colors, brand } from '@/constants/Colors';
+
+// expo-secure-store (used by @clerk/expo/token-cache) is a native-only module
+// and will crash during Vercel's Node.js / web bundle step. We therefore only
+// import it on native platforms and pass `undefined` on web — Clerk handles web
+// auth automatically via cookies when no tokenCache is provided.
+import type { TokenCache } from '@clerk/expo/token-cache';
+
+const tokenCache: TokenCache | undefined =
+  Platform.OS !== 'web'
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('@clerk/expo/token-cache').tokenCache as TokenCache)
+    : undefined;
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 // Auth is only active when a Clerk publishable key is configured.
