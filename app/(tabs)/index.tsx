@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mutedText: {
-    color: '#9CA3AF',
+    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
   },
   card: {
     gap: 12,

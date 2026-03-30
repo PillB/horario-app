@@ -212,6 +212,7 @@ export default function SchedulerScreen() {
             applyAutoAssign={applyAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
             autoAssignApplying={autoAssignApplying}
+            workers={workers}
           />
         </View>
 

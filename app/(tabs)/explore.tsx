@@ -87,18 +87,27 @@ function FairnessGauge({ score }: { score: number }) {
   const MAX_SCORE = 16;
   const barPct = Math.max(4, Math.round((1 - Math.min(score, MAX_SCORE) / MAX_SCORE) * 100));
   let label: string;
-  let color: string;
-  if (score < 4) { label = t('analytics.fairnessExcellent'); color = '#22C55E'; }
-  else if (score < 8) { label = t('analytics.fairnessGood'); color = '#F59E0B'; }
-  else { label = t('analytics.fairnessNeedsAttention'); color = '#EF4444'; }
+  let textColor: string;
+  let barColor: string;
+  // Text colors are AA-compliant on white (#FFFFFF):
+  //   Green 700  #15803D → 5.44:1 ✓ (bar fill keeps bright #22C55E)
+  //   Amber 700  #B45309 → 4.82:1 ✓ (bar fill keeps bright #F59E0B)
+  //   Red   600  #DC2626 → 4.64:1 ✓ (bar fill keeps bright #EF4444)
+  if (score < 4) {
+    label = t('analytics.fairnessExcellent'); textColor = '#15803D'; barColor = '#22C55E';
+  } else if (score < 8) {
+    label = t('analytics.fairnessGood'); textColor = '#B45309'; barColor = '#F59E0B';
+  } else {
+    label = t('analytics.fairnessNeedsAttention'); textColor = '#DC2626'; barColor = '#EF4444';
+  }
   return (
     <View style={styles.fairnessRow}>
       <View style={styles.fairnessBarTrack}>
         <View
-          style={[styles.fairnessBarFill, { width: `${barPct}%` as `${number}%`, backgroundColor: color }]}
+          style={[styles.fairnessBarFill, { width: `${barPct}%` as `${number}%`, backgroundColor: barColor }]}
         />
       </View>
-      <ThemedText style={[styles.fairnessLabel, { color }]}>{label}</ThemedText>
+      <ThemedText style={[styles.fairnessLabel, { color: textColor }]}>{label}</ThemedText>
       <ThemedText style={styles.metricSub}>
         {t('analytics.fairnessStdDev', { n: score.toFixed(1) })}
       </ThemedText>
@@ -165,11 +174,13 @@ export default function AnalyticsScreen() {
                 value={`${coverageRate}%`}
                 sub={t('analytics.coverageSub')}
                 accent={
+                  // Text-safe AA colors (left-border accent + metric value color):
+                  //   Green 700 #15803D 5.44:1 · Amber 700 #B45309 4.82:1 · Red 600 #DC2626 4.64:1
                   coverageRate >= 80
-                    ? '#22C55E'
+                    ? '#15803D'
                     : coverageRate >= 50
-                      ? '#F59E0B'
-                      : '#EF4444'
+                      ? '#B45309'
+                      : '#DC2626'
                 }
                 testID="analytics-coverage-rate"
               />
@@ -177,7 +188,7 @@ export default function AnalyticsScreen() {
                 label={t('analytics.draftsPending')}
                 value={String(draftShifts)}
                 sub={t('analytics.draftsAwaiting')}
-                accent={draftShifts > 0 ? '#F59E0B' : '#22C55E'}
+                accent={draftShifts > 0 ? '#B45309' : '#15803D'}
                 testID="analytics-draft-shifts"
               />
             </View>
@@ -190,7 +201,7 @@ export default function AnalyticsScreen() {
                 testID="analytics-uncovered-revenue"
                 style={[
                   styles.revenueValue,
-                  { color: uncoveredRevenue > 0 ? '#EF4444' : '#22C55E' },
+                  { color: uncoveredRevenue > 0 ? '#DC2626' : '#15803D' },
                 ]}
               >
                 {formatCurrency(uncoveredRevenue)}
@@ -292,11 +303,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   metricSub: {
-    color: '#9CA3AF',
+    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
     fontSize: 12,
   },
   mutedText: {
-    color: '#9CA3AF',
+    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
     fontSize: 14,
   },
   revenueValue: {

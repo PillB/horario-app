@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type AssignedShift } from '@/services/shiftAssigner';
+import { type Worker } from '@/types/scheduler';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
@@ -38,6 +39,7 @@ type Props = {
   applyAutoAssign: () => void;
   autoAssignSuggestions: AssignedShift[] | null;
   autoAssignApplying: boolean;
+  workers: Worker[];
 };
 
 export const ShiftTemplateSection = ({
@@ -55,6 +57,7 @@ export const ShiftTemplateSection = ({
   applyAutoAssign,
   autoAssignSuggestions,
   autoAssignApplying,
+  workers,
 }: Props) => {
   const { t } = useT();
   return (
@@ -213,11 +216,15 @@ export const ShiftTemplateSection = ({
             <ThemedText style={styles.bannerText}>
               {t('scheduler.shifts.suggestions', { n: String(autoAssignSuggestions.length) })}
             </ThemedText>
-            {autoAssignSuggestions.map((s) => (
-              <ThemedText key={`${s.templateId}-${s.workerId}`} style={styles.mutedText}>
-                {t('scheduler.shifts.suggestionItem', { worker: s.workerId, template: s.templateId, date: s.date })}
-              </ThemedText>
-            ))}
+            {autoAssignSuggestions.map((s) => {
+              const workerName = workers.find((w) => w.id === s.workerId)?.name ?? s.workerId;
+              const templateName = shiftTemplates.find((tpl) => tpl.id === s.templateId)?.name ?? s.templateId;
+              return (
+                <ThemedText key={`${s.templateId}-${s.workerId}`} style={styles.mutedText}>
+                  {t('scheduler.shifts.suggestionItem', { worker: workerName, template: templateName, date: s.date })}
+                </ThemedText>
+              );
+            })}
             <Pressable
               accessibilityLabel={t('scheduler.shifts.applyButton')}
               onPress={applyAutoAssign}

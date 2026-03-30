@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   trialBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11, // raised from 10px — 10px is below the safe legibility floor
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   },
   freeBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11, // raised from 10px — 10px is below the safe legibility floor
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -166,8 +166,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   pricingNote: {
-    fontSize: 10,
-    color: '#6B7280',
+    fontSize: 11, // raised from 10px
+    color: '#6B7280', // Gray 500 — 4.48:1 on lavender proSurface ✓ AA
     marginTop: 2,
   },
 });

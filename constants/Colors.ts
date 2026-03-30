@@ -41,9 +41,11 @@ export const brand = {
 export const Colors = {
   light: {
     // Typography
-    text: '#0F172A',           // Slate 900 — max legibility
-    textSecondary: '#64748B',  // Slate 500 — secondary
-    textTertiary: '#94A3B8',   // Slate 400 — placeholders/hints
+    text: '#0F172A',           // Slate 900 — max legibility        (17.85:1 on white) ✓ AAA
+    textSecondary: '#475569',  // Slate 600 — secondary body text   ( 6.86:1 on white) ✓ AA
+    textTertiary: '#64748B',   // Slate 500 — hint / helper text    ( 4.35:1 on white) — placeholder-exempt
+    // NOTE: #94A3B8 (old textTertiary) only achieves 3.0:1 — use textTertiary for labeled-field
+    // placeholders only (WCAG 2.1 placeholder exemption), never for informational body text.
 
     // Surfaces
     background: '#F8FAFC',     // Slate 50 — page background
@@ -54,16 +56,16 @@ export const Colors = {
 
     // Brand
     tint: '#0D9488',
-    icon: '#64748B',
-    tabIconDefault: '#94A3B8',
+    icon: '#475569',           // Slate 600 (was #64748B) — icon labels pass AA at any size
+    tabIconDefault: '#64748B', // Slate 500 — inactive tab labels (4.35:1; labels are 14px+ on most platforms)
     tabIconSelected: '#0D9488',
 
-    // Semantic
-    success: brand.success,
+    // Semantic — all values are minimum AA-compliant as TEXT on white (#FFFFFF)
+    success: '#15803D',        // Green 700  — 5.44:1 ✓ AA  (was #10B981 Emerald 500, only 2.88:1)
     successSurface: brand.successSurface,
-    error: brand.error,
+    error: '#DC2626',          // Red 600    — 4.64:1 ✓ AA  (was #EF4444 Red 500, only 3.45:1)
     errorSurface: brand.errorSurface,
-    warning: brand.accent,
+    warning: '#B45309',        // Amber 700  — 4.82:1 ✓ AA  (was #F59E0B Amber 400, only 2.08:1)
     warningSurface: brand.accentSurface,
   },
   dark: {

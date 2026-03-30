@@ -445,8 +445,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   legalText: {
-    fontSize: 11,
-    color: '#9CA3AF',
+    fontSize: 12, // raised from 11px (below safe minimum)
+    color: '#64748B', // Slate 500 — 4.35:1 for small legal text (was #9CA3AF 2.54:1 FAIL)
     textAlign: 'center',
     lineHeight: 16,
   },

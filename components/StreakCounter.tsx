@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   helperText: {
-    color: '#9CA3AF',
+    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
   },
   progressTrack: {
     height: 10,

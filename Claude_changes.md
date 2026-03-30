@@ -639,3 +639,48 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
 **References:** CHG-001 | [SUMMARY-2026-03-27]
 
 ---
+
+### CHG-028 — 2026-03-29 23:55 UTC
+**Type:** FIX (WCAG contrast audit + Playwright comprehensive walkthrough + UX bug fixes)
+
+**Playwright walkthrough completed — all major user flows tested:**
+- Worker management: add David Park (Cashier) + Elena Vasquez (Barista/skills) ✓
+- Availability intake: Mon–Fri for both workers, dismissible success toast ✓
+- Shift templates: Morning Barista (07:00–15:00, cov 2) + Afternoon Cashier (10:00–18:00, cov 1) ✓
+- Shift creation: valid shift (Elena/Morning Barista/2026-03-31) ✓; invalid (role+availability mismatch caught simultaneously) ✓
+- Publish → Unpublish → Re-publish → Notify full cycle ✓
+- Auto-assign: suggested 2 matches for 2026-04-08 (Elena→Barista, David→Cashier), applied ✓
+- Demand targets: baseline save (surfaced DB-missing error), manual save, run forecast (local avg fallback) ✓
+- Onboarding checklist: 33% → 67% → 100% across actions ✓
+- All 6 section tooltips (Worker mgmt, Availability, Templates, Shift creation, Demand, Calendar) ✓
+- Language selector: EN→ES full switch (all strings translated), ES→EN back ✓; "Source: model" untranslated (minor)
+- Analytics tab: KPI colors verified via computed styles, "Open Scheduler" link ✓
+- Sign out → redirects to /sign-in ✓
+
+**WCAG contrast fixes applied (prior session, verified in this session):**
+- `#9CA3AF` (2.54:1 FAIL) → `#475569` Slate 600 (6.86:1 ✓ AA) across 8 files
+- `#22C55E` text → `#15803D` Green 700 (5.44:1 ✓ AA); `#F59E0B` text → `#B45309` Amber 700 (4.82:1 ✓ AA)
+- `#EF4444` text → `#DC2626` Red 600 (4.64:1 ✓ AA)
+- Badge/skeleton background `#9CA3AF` → `#CBD5E1` (decorative, no text)
+- Font size floors: 10px → 11px for badge labels
+- Computed style verification: `"0%"=rgb(220,38,38)` ✓, `"$0"=rgb(21,128,61)` ✓, subtitle text=`rgb(71,85,105)` ✓
+
+**Bugs found and fixed:**
+1. Unpublish toast showed worker UUID instead of name → resolved via `workers.find()` lookup, same pattern as Notify toast
+2. Auto-assign suggestion preview showed raw UUIDs → `ShiftTemplateSection` now accepts `workers: Worker[]` prop and resolves names from both `workers` and `shiftTemplates`
+3. "Save target" async failure showed silently (error rendered far from button) → `forecastError` now also displayed immediately below Save target button
+
+**Known remaining issues (not fixed — require larger scope):**
+- UUID raw-input UX for Worker/Template ID fields (needs dropdown/autocomplete)
+- Tooltip overflow when button is near left viewport edge (positioning logic)
+- `demand_targets`, `workers`, `shift_templates`, `roster` Supabase tables not migrated (all writes fail gracefully)
+- "Source: model" i18n key not translated in any non-English locale
+
+**Files changed:**
+- `hooks/useSchedulerHandlers.ts` — fix Unpublish toast to use worker name + add `workers` to dependency array
+- `components/scheduler/ShiftTemplateSection.tsx` — add `workers: Worker[]` prop; resolve worker/template names in suggestion preview
+- `app/(tabs)/scheduler.tsx` — pass `workers` to `ShiftTemplateSection`
+- `components/scheduler/DemandSection.tsx` — show `forecastError` also below Save target button for immediate async feedback
+- `Claude_changes.md` — this entry
+
+---

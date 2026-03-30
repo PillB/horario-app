@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     flex: 2,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton placeholder (was #9CA3AF)
   },
   lineLong: {
     flex: 1,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton placeholder (was #9CA3AF)
   },
 });

@@ -914,9 +914,10 @@ export function useSchedulerHandlers() {
       if (!shift) return;
       if (shift.status === 'Draft') { showActionBanner('Shift is already in Draft.', 'info'); return; }
       await setShiftStatus(shiftId, 'Draft');
-      showActionBanner(`Unpublished ${shift.workerId} for ${shift.date}.`, 'info');
+      const workerName = workers.find((w) => w.id === shift.workerId)?.name ?? shift.workerId;
+      showActionBanner(`Unpublished ${workerName} for ${shift.date}.`, 'info');
     },
-    [roster, setShiftStatus, showActionBanner]
+    [roster, setShiftStatus, showActionBanner, workers]
   );
 
   const handleNotifyShift = useCallback(

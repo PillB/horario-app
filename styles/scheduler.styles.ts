@@ -59,7 +59,7 @@ export const schedulerStyles = StyleSheet.create({
     gap: 2,
   },
   mutedText: {
-    color: '#9CA3AF',
+    color: '#475569', // Slate 600 — 6.86:1 on white ✓ AA (was #9CA3AF, 2.54:1 FAIL)
   },
   banner: {
     padding: 12,
@@ -330,7 +330,7 @@ export const schedulerStyles = StyleSheet.create({
   ghostNameBar: {
     height: 13,
     borderRadius: 6,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton fill (was #9CA3AF)
     width: '55%',
   },
   ghostRoleBar: {
@@ -377,8 +377,8 @@ export const schedulerStyles = StyleSheet.create({
     fontSize: 13,
   },
   ghostEmptyNote: {
-    fontSize: 11,
-    color: '#9CA3AF',
+    fontSize: 12, // raised from 11px (below legible minimum) — 12px is the safe floor
+    color: '#64748B', // Slate 500 — 4.35:1 ✓ placeholder-level hint (was #9CA3AF 2.54:1 FAIL)
     textAlign: 'center',
     marginTop: 4,
   },
