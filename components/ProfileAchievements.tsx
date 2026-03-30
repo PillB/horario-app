@@ -1,5 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
+import { Colors, brand } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 
@@ -15,7 +17,71 @@ type ProfileAchievementsProps = {
   items: Achievement[];
 };
 
+import type { ThemeColors } from '@/constants/Colors';
+
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceRaised,
+    },
+    list: {
+      gap: 10,
+    },
+    card: {
+      gap: 8,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    rowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    helperText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    badge: {
+      fontWeight: '700',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 99,
+      backgroundColor: colors.tint,
+      color: '#FFFFFF',
+      overflow: 'hidden',
+    },
+    progressTrack: {
+      height: 8,
+      borderRadius: 999,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 999,
+      backgroundColor: colors.tint,
+    },
+    progressFillEmpty: {
+      height: '100%',
+      borderRadius: 999,
+      width: 4,
+      backgroundColor: colors.tint,
+      opacity: 0.3,
+    },
+  });
+
 export function ProfileAchievements({ items }: ProfileAchievementsProps) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors);
+
   if (!items.length) return null;
 
   return (
@@ -35,10 +101,14 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
                 <ThemedText style={styles.badge}>{percent}%</ThemedText>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${percent}%` }]} />
+                {percent === 0 ? (
+                  <View style={styles.progressFillEmpty} />
+                ) : (
+                  <View style={[styles.progressFill, { width: `${percent}%` }]} />
+                )}
               </View>
               <ThemedText style={styles.helperText}>
-                {achievement.progress} of {safeGoal}
+                {percent === 0 ? 'Not started' : `${achievement.progress} of ${safeGoal}`}
               </ThemedText>
             </ThemedView>
           );
@@ -47,48 +117,6 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff11',
-  },
-  list: {
-    gap: 10,
-  },
-  card: {
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#ffffff',
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  helperText: {
-    color: '#6b7280',
-  },
-  badge: {
-    fontWeight: '700',
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#2563EB',
-  },
-});
 
 export default ProfileAchievements;
 export type { Achievement };

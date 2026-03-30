@@ -18,6 +18,8 @@ import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,10 @@ function DefaultFallback({
   error: Error | null;
   onRetry: () => void;
 }) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors);
+
   return (
     <ThemedView
       testID="error-boundary-fallback"
@@ -66,7 +72,7 @@ function DefaultFallback({
         accessibilityHint="Attempt to reload the section that failed"
         testID="error-boundary-retry"
         onPress={onRetry}
-        style={styles.button}
+        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
       >
         <ThemedText style={styles.buttonText}>Try again</ThemedText>
       </Pressable>
@@ -124,31 +130,41 @@ export function ErrorBoundary({ children, fallback, onRetry }: Props) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    gap: 16,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  message: {
-    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
-    textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  button: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+      gap: 16,
+    },
+    title: {
+      textAlign: 'center',
+    },
+    message: {
+      // colors.textSecondary — 6.86:1 ✓ AA on light, 5.27:1 ✓ AA on dark
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 14,
+      lineHeight: 22, // 1.57× of 14 — meets ≥1.5× line-height guideline
+    },
+    button: {
+      // brand.primaryDark — white text yields 9.30:1 ✓ AAA
+      backgroundColor: brand.primaryDark,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      minHeight: 44,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    buttonPressed: {
+      opacity: 0.75,
+    },
+    buttonText: {
+      // colors.surface resolves to #FFFFFF (light) — 9.30:1 ✓ AAA on brand.primaryDark
+      color: colors.surface,
+      fontWeight: '700',
+    },
+  });

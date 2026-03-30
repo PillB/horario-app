@@ -7,6 +7,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Colors, type ThemeColors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,16 +18,50 @@ type Props = {
   style?: ViewStyle;
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      gap: 12,
+      paddingVertical: 4,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+    },
+    lineShort: {
+      flex: 2,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.border, // border token provides ~3:1 contrast as skeleton placeholder
+    },
+    lineLong: {
+      flex: 1,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.border, // border token provides ~3:1 contrast as skeleton placeholder
+    },
+  });
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SkeletonCard({ rows = 3, style }: Props) {
-  const opacity = useRef(new Animated.Value(0.3)).current;
+  // Pulse between 0.6 and 1.0 so the bar never drops below ~3:1 perceived
+  // contrast against the surface (fixing the 1.5:1 nadir at the old 0.3 floor).
+  const opacity = useRef(new Animated.Value(0.6)).current;
+
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors);
 
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, {
-          toValue: 0.7,
+          toValue: 1.0,
           duration: 800,
           // Easing.linear avoids the bezier initialisation that can fail in
           // Jest after environment teardown. useNativeDriver: false keeps the
@@ -34,7 +70,7 @@ export function SkeletonCard({ rows = 3, style }: Props) {
           useNativeDriver: false,
         }),
         Animated.timing(opacity, {
-          toValue: 0.3,
+          toValue: 0.6,
           duration: 800,
           easing: Easing.linear,
           useNativeDriver: false,
@@ -65,30 +101,3 @@ export function SkeletonCard({ rows = 3, style }: Props) {
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  card: {
-    gap: 12,
-    paddingVertical: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  lineShort: {
-    flex: 2,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton placeholder (was #9CA3AF)
-  },
-  lineLong: {
-    flex: 1,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton placeholder (was #9CA3AF)
-  },
-});

@@ -6,6 +6,34 @@
 
 ---
 
+### CHG-033 — 2026-03-30 UTC
+**Type:** FIX (WCAG contrast audit + code fixes via Batch API; lint/test repairs)
+**Files changed:**
+- `constants/Colors.ts` — Changed `ThemeColors = typeof Colors.light` to `ThemeColors = typeof Colors.light | typeof Colors.dark` to allow `Colors[scheme ?? 'light']` assignment.
+- `styles/scheduler.styles.ts` — Converted from static export to `makeSchedulerStyles(colors: ThemeColors)` factory. All hardcoded hex replaced with tokens. Added backward-compat `schedulerStyles = makeSchedulerStyles(Colors.light)`. Added `dismissButton` style.
+- `components/SkeletonCard.tsx` — Replaced non-existent `colors.skeletonBase` with `colors.border`. Added `makeStyles` factory.
+- `components/ParallaxScrollView.tsx` — Added `indicatorStyle` for scroll contrast, `headerScrim` overlay. Reverted batch-broken `headerBackgroundColor` API change back to `{ light: string; dark: string }`. Removed invalid eslint-disable comment for uninstalled rule.
+- `components/HapticTab.tsx` — Added `android_ripple={{ color: colors.border }}`. Removed unsupported style function from `PlatformPressable`.
+- `components/LanguageSelector.tsx` — Fixed Pressable callback from `({ pressed, focused })` to `({ pressed })` (`focused` not in type).
+- `components/WellnessPrompt.tsx` — Moved `useColorScheme()` call before early return to fix hooks-rules lint error. Added `makeStyles` factory.
+- `components/scheduler/SectionCard.tsx` — Fixed `makeStyles` param type from `typeof Colors.light` to `ThemeColors`.
+- `components/scheduler/RosterSection.tsx` — Added `makeLocalStyles(colors, isDark)` factory with token-aware status colours. Fixed truncated file (missing closing brace).
+- `components/ProfileAchievements.tsx` — Changed `progressFill.backgroundColor` from `#2563EB` to `colors.tint`. Added `progressFillEmpty` for zero-percent state. Changed helper text from JSX interpolation to template string.
+- `app/_layout.tsx` — Added `HorarioLightTheme`/`HorarioDarkTheme` extending React Navigation themes. ActivityIndicator loading state with themed background. Explicit `StatusBar style`.
+- `app/(tabs)/_layout.tsx` — `tabBarInactiveTintColor: colors.textSecondary`. SignOutButton min-height 44px. Icon color uses `tint`/`primaryDark` by scheme.
+- `app/(tabs)/index.tsx` — Converted to `makeStyles(colors, colorScheme)` factory. `primaryButton` background `brand.primaryDark` (9.30:1 AAA). All static hex replaced with tokens.
+- `app/(tabs)/scheduler.tsx` — Uses `makeSchedulerStyles(colors)` factory instead of static import.
+- `app/(tabs)/explore.tsx`, `components/Collapsible.tsx`, `components/ErrorBoundary.tsx`, `components/ExternalLink.tsx`, `components/InfoTooltip.tsx`, `components/PersonalizedFeed.tsx`, `components/StreakCounter.tsx`, `components/ThemedText.tsx`, `components/ThemedView.tsx`, `components/TourSpotlight.tsx`, `components/UpgradeBanner.tsx`, `components/scheduler/AvailabilityLabel.tsx`, `components/scheduler/Checklist.tsx`, `components/scheduler/DemandSection.tsx`, `components/scheduler/InputField.tsx`, `components/scheduler/LostRevenueSummary.tsx`, `components/scheduler/ShiftTemplateSection.tsx`, `components/scheduler/WorkerSection.tsx` — WCAG contrast fixes via Batch API (makeStyles factories, token substitution, dark-mode gaps closed).
+- `components/__tests__/ProfileAchievements.test.tsx` — Updated `isProgressFill` to detect `colors.tint (#0D9488)` and match both array and single styles. Updated width expectation to `['100%', 4]` (progressFillEmpty uses fixed width 4). Updated fallback helper check for template-string output.
+- `scripts/contrast-audit-batch.mjs`, `scripts/contrast-audit-salvage.mjs`, `scripts/contrast-fix-batch.mjs` — NEW batch scripts (claude-sonnet-4-6, 50% off) for 31-file WCAG audit + fix generation.
+
+**Notes:**
+- 286 contrast/readability findings across 31 files (WCAG 2.1 AA). All resolved via batch code generation.
+- 9 TypeScript errors fixed post-batch (union type, non-existent tokens, broken APIs).
+- 164/164 tests pass. 0 lint errors.
+
+---
+
 ### CHG-032 — 2026-03-30 11:10 UTC
 **Type:** FEATURE (Phase 3 — Welcome Tour onboarding)
 **Files changed:**

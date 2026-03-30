@@ -19,12 +19,14 @@ const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').starts
 function TourTriggerButton() {
   const { startTour } = useWelcomeTour();
   const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
   return (
     <Pressable
       onPress={startTour}
       accessibilityRole="button"
       accessibilityLabel="Start app tour"
       accessibilityHint="Opens the welcome tour that explains each section of the app"
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={({ pressed }) => ({
         width: 28,
         height: 28,
@@ -32,11 +34,11 @@ function TourTriggerButton() {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed
-          ? brand.primary + '22'
-          : Colors[colorScheme ?? 'light'].surface + '00',
+          ? brand.primary + '55'
+          : colors.border,
       })}
     >
-      <ThemedText style={{ fontSize: 16, color: brand.primary, lineHeight: 20 }}>?</ThemedText>
+      <ThemedText style={{ fontSize: 16, color: colors.text, lineHeight: 24 }}>?</ThemedText>
     </Pressable>
   );
 }
@@ -55,6 +57,7 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].textSecondary,
         headerShown: true,
         headerRight: () => headerRightContent,
         tabBarButton: HapticTab,
@@ -103,12 +106,12 @@ function SignOutButton() {
       onPress={() => signOut()}
       accessibilityRole="button"
       accessibilityLabel="Sign out"
-      style={{ paddingHorizontal: 14, paddingVertical: 8 }}
+      style={{ paddingHorizontal: 14, paddingVertical: 11, minHeight: 44 }}
     >
       <IconSymbol
         size={22}
         name="rectangle.portrait.and.arrow.right"
-        color={Colors[colorScheme ?? 'light'].tint}
+        color={colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDark}
       />
     </Pressable>
   );
@@ -130,4 +133,3 @@ export default function TabLayout() {
   }
   return <AuthGuardedTabLayout />;
 }
-

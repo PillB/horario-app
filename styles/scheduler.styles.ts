@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
+import { Colors, brand, ThemeColors } from '@/constants/Colors';
 
-export const schedulerStyles = StyleSheet.create({
+export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     position: 'relative',
@@ -16,9 +17,9 @@ export const schedulerStyles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     gap: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   onboardingStep: {
     paddingVertical: 6,
@@ -28,63 +29,63 @@ export const schedulerStyles = StyleSheet.create({
     height: 30,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.background,
   },
   stepIndicatorDone: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#22C55E',
+    backgroundColor: colors.successSurface,
+    borderColor: colors.success,
   },
   stepIndicatorText: {
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.text,
   },
   progressBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: brand.proSurface,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: brand.proLight,
   },
   card: {
     borderRadius: 12,
     padding: 16,
-    backgroundColor: '#ffffff11',
+    backgroundColor: colors.surface,
     gap: 12,
   },
   cardHeader: {
     gap: 2,
   },
   mutedText: {
-    color: '#475569', // Slate 600 — 6.86:1 on white ✓ AA (was #9CA3AF, 2.54:1 FAIL)
+    color: colors.textSecondary, // Slate 600 light / Slate 400 dark — both pass AA
   },
   banner: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: brand.proSurface,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: brand.proLight,
   },
   dismissibleBanner: {
     gap: 8,
   },
   bannerSuccess: {
-    backgroundColor: '#ECFDF3',
-    borderColor: '#BBF7D0',
+    backgroundColor: colors.successSurface,
+    borderColor: colors.success,
   },
   bannerError: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: colors.errorSurface,
+    borderColor: colors.error,
   },
   bannerWarning: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
+    backgroundColor: colors.warningSurface,
+    borderColor: colors.warning,
   },
   bannerText: {
-    color: '#0F172A',
+    color: colors.text,
     fontWeight: '600',
   },
   bannerHeader: {
@@ -93,8 +94,15 @@ export const schedulerStyles = StyleSheet.create({
     alignItems: 'center',
   },
   dismissText: {
-    color: '#4B5563',
+    color: colors.textSecondary,
     fontWeight: '600',
+  },
+  dismissButton: {
+    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowBetween: {
     flexDirection: 'row',
@@ -112,31 +120,34 @@ export const schedulerStyles = StyleSheet.create({
     gap: 6,
   },
   tag: {
-    backgroundColor: '#eef2ff',
+    backgroundColor: colors.surfaceRaised,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 10,
     borderRadius: 12,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#e0f2fe',
+    backgroundColor: colors.successSurface,
     borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   positiveBadge: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: colors.successSurface,
   },
   badgeText: {
     fontWeight: '700',
+    color: colors.text,
   },
   successText: {
-    color: '#15803D',
+    color: colors.success,
   },
   linkText: {
-    color: '#2563EB',
+    color: brand.pro,
     fontWeight: '600',
   },
   securedBadge: {
@@ -149,7 +160,7 @@ export const schedulerStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#16a34a',
+    backgroundColor: colors.success,
   },
   availabilityList: {
     flexDirection: 'row',
@@ -166,12 +177,12 @@ export const schedulerStyles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
-    color: '#111827',
+    backgroundColor: colors.surface,
+    color: colors.text,
   },
   inlineInputs: {
     flexDirection: 'row',
@@ -186,31 +197,33 @@ export const schedulerStyles = StyleSheet.create({
   fallbackCard: {
     gap: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   fallbackBadge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceRaised,
   },
   toggleChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   toggleChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: colors.text,
+    borderColor: colors.text,
   },
   toggleChipText: {
-    color: '#111827',
+    color: colors.text,
     fontWeight: '600',
   },
   toggleChipTextActive: {
-    color: '#ffffff',
+    color: colors.surface,
   },
   actionButton: {
     flex: 1,
@@ -219,17 +232,17 @@ export const schedulerStyles = StyleSheet.create({
     flex: 1,
   },
   primaryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: brand.pro,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontWeight: '700',
   },
   secondaryButton: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.text,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -238,34 +251,35 @@ export const schedulerStyles = StyleSheet.create({
     paddingVertical: 10,
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.4,
+    backgroundColor: colors.border,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
   lossSummary: {
     gap: 8,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#0b1224',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   progressTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#2563EB',
+    backgroundColor: brand.pro,
   },
   errorText: {
-    color: '#DC2626',
+    color: colors.error,
   },
   rosterDay: {
     gap: 8,
@@ -273,18 +287,18 @@ export const schedulerStyles = StyleSheet.create({
   rosterRow: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     gap: 4,
   },
   status: {
-    color: '#065f46',
+    color: colors.success,
     fontWeight: '600',
   },
   draftStatus: {
-    color: '#92400e',
+    color: colors.warning,
   },
   publishedStatus: {
-    color: '#15803d',
+    color: colors.success,
   },
   rosterActions: {
     flexDirection: 'row',
@@ -295,13 +309,13 @@ export const schedulerStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: colors.text,
   },
   actionChipPrimary: {
-    backgroundColor: '#2563EB',
+    backgroundColor: brand.pro,
   },
   actionChipText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontWeight: '700',
   },
   statusPill: {
@@ -320,7 +334,7 @@ export const schedulerStyles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     gap: 8,
   },
   ghostBlock: {
@@ -330,13 +344,13 @@ export const schedulerStyles = StyleSheet.create({
   ghostNameBar: {
     height: 13,
     borderRadius: 6,
-    backgroundColor: '#CBD5E1', // Slate 300 — softer skeleton fill (was #9CA3AF)
+    backgroundColor: colors.border, // Slate 300 — softer skeleton fill (was #9CA3AF)
     width: '55%',
   },
   ghostRoleBar: {
     height: 11,
     borderRadius: 6,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: colors.border,
     width: '35%',
   },
   ghostTagRow: {
@@ -348,18 +362,18 @@ export const schedulerStyles = StyleSheet.create({
     height: 18,
     width: 48,
     borderRadius: 10,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
   },
   ghostBadgeBar: {
     height: 22,
     width: 72,
     borderRadius: 8,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: colors.border,
   },
   ghostTimeBar: {
     height: 11,
     borderRadius: 6,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: colors.border,
     width: '60%',
   },
   ghostEmptyCta: {
@@ -368,18 +382,24 @@ export const schedulerStyles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#0D9488',
+    borderColor: colors.tint,
     borderStyle: 'dashed',
   },
   ghostEmptyCtaText: {
-    color: '#0D9488',
+    color: brand.primaryDeep,
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 16,
   },
   ghostEmptyNote: {
-    fontSize: 12, // raised from 11px (below legible minimum) — 12px is the safe floor
-    color: '#64748B', // Slate 500 — 4.35:1 ✓ placeholder-level hint (was #9CA3AF 2.54:1 FAIL)
+    fontSize: 14, // raised from 11px (below legible minimum) — 14px improves ambient-light legibility
+    color: colors.textSecondary, // ensures dark-mode contrast passes AA (was #64748B hardcoded)
     textAlign: 'center',
     marginTop: 4,
   },
 });
+
+// Backward-compatible static export for sub-components that receive styles via
+// the shared schedulerStyles reference. Color-critical styles are overridden
+// inline per-component using makeLocalStyles(colors). For the main scheduler
+// screen, prefer makeSchedulerStyles(colors) with live useColorScheme() values.
+export const schedulerStyles = makeSchedulerStyles(Colors.light);

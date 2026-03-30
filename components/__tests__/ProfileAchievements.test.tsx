@@ -10,10 +10,16 @@ import { Text, View } from 'react-native';
 
 import { ProfileAchievements } from '../ProfileAchievements';
 
-const isProgressFill = (node: renderer.ReactTestInstance) =>
-  node.type === View &&
-  Array.isArray(node.props.style) &&
-  node.props.style.some((style: unknown) => style && style.backgroundColor === '#2563EB');
+// Matches both progressFill (array style) and progressFillEmpty (single style),
+// both of which use colors.tint (#0D9488 in light mode) as backgroundColor.
+const isProgressFill = (node: renderer.ReactTestInstance) => {
+  if (node.type !== View) return false;
+  const style = node.props.style;
+  const hasTint = (s: unknown) =>
+    s !== null && typeof s === 'object' && (s as Record<string, unknown>).backgroundColor === '#0D9488';
+  if (Array.isArray(style)) return style.some(hasTint);
+  return hasTint(style);
+};
 
 describe('ProfileAchievements', () => {
   it('handles non-positive and missing goals safely', () => {
@@ -64,21 +70,28 @@ describe('ProfileAchievements', () => {
 
     const progressFills = tree.root.findAll(isProgressFill);
     const widths = progressFills.map((fill) => {
-      const widthStyle = fill.props.style.find(
-        (style: unknown) => style && typeof style === 'object' && 'width' in style,
-      );
-      return widthStyle?.width;
+      const style = fill.props.style;
+      if (Array.isArray(style)) {
+        const widthStyle = style.find(
+          (s: unknown) => s && typeof s === 'object' && 'width' in s,
+        );
+        return widthStyle?.width;
+      }
+      // progressFillEmpty uses a single style object with fixed width
+      return (style as Record<string, unknown>).width;
     });
 
-    expect(widths).toEqual(['100%', '0%']);
+    // First item (goal=0 → safeGoal=1, progress=2 → 100%): progressFill with width '100%'
+    // Second item (missing goal, progress=0 → 0%): progressFillEmpty with fixed width 4
+    expect(widths).toEqual(['100%', 4]);
 
+    // When goal is missing/zero, safeGoal falls back to 1.
+    // The component renders the helper as a template string "2 of 1".
     const fallbackGoalHelper = tree.root.find(
       (node) =>
         node.type === Text &&
-        Array.isArray(node.props.children) &&
-        node.props.children[0] === 2 &&
-        node.props.children.includes(' of ') &&
-        node.props.children.includes(1),
+        typeof node.props.children === 'string' &&
+        node.props.children === '2 of 1',
     );
 
     expect(fallbackGoalHelper).toBeDefined();

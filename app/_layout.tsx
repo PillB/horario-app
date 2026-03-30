@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { ClerkProvider } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { ActivityIndicator, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -12,11 +13,38 @@ import { LocaleProvider } from '@/contexts/LocaleContext';
 import { IdentityProvider } from '@/contexts/IdentityContext';
 import { WelcomeTourProvider } from '@/contexts/WelcomeTourContext';
 import { TourSpotlight } from '@/components/TourSpotlight';
+import { Colors, brand } from '@/constants/Colors';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 // Auth is only active when a Clerk publishable key is configured.
 // Without it the app runs in "dev bypass" mode (no auth wall).
 const authEnabled = publishableKey.startsWith('pk_');
+
+// Extend React Navigation themes with Horario design tokens so that all
+// navigator-owned UI (headers, bottom sheets, modals) uses audited colours.
+const HorarioLightTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: Colors.light.background,
+    card: Colors.light.surface,
+    text: Colors.light.text,
+    border: Colors.light.border,
+    primary: brand.primary,
+  },
+};
+
+const HorarioDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: Colors.dark.background,
+    card: Colors.dark.surface,
+    text: Colors.dark.text,
+    border: Colors.dark.border,
+    primary: brand.primary,
+  },
+};
 
 function AppNavigator() {
   return (
@@ -35,20 +63,33 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    return null;
+    // Render a themed loading screen instead of null so users always receive
+    // visible feedback and the abrupt content flash is minimised.
+    const loadingColors = Colors[colorScheme ?? 'light'];
+    return (
+      <View
+        style={{ flex: 1, backgroundColor: loadingColors.background, alignItems: 'center', justifyContent: 'center' }}
+        accessible
+        accessibilityLabel="Loading"
+      >
+        <ActivityIndicator size="large" color={loadingColors.tint} />
+      </View>
+    );
   }
 
   const inner = (
     <LocaleProvider>
       <WelcomeTourProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={colorScheme === 'dark' ? HorarioDarkTheme : HorarioLightTheme}>
           {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
               fallback UI have access to the theme context. */}
           <ErrorBoundary>
             <AppNavigator />
           </ErrorBoundary>
           <TourSpotlight />
-          <StatusBar style="auto" />
+          {/* Explicit style ensures status-bar icons are always the inverse of
+              the app background, guaranteeing sufficient contrast in both modes. */}
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         </ThemeProvider>
       </WelcomeTourProvider>
     </LocaleProvider>

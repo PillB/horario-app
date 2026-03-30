@@ -17,9 +17,11 @@ import {
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { brand } from '@/constants/Colors';
+import { Colors, brand } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { LANG_CODES } from '@/locales/index';
 import type { LangCode, Translations } from '@/locales/en';
+import type { ThemeColors } from '@/constants/Colors';
 
 // Meta info needed to render the selector (available without loading the full locale)
 const LANG_META: Record<LangCode, { flag: string; langNameNative: string; langName: string }> = {
@@ -40,8 +42,87 @@ type Props = {
   locale: Translations;
 };
 
+const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
+  StyleSheet.create({
+    trigger: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    triggerPressed: {
+      backgroundColor: colorScheme === 'dark' ? Colors.dark.surfaceRaised : brand.primarySurface,
+      borderColor: colors.borderFocus,
+      borderWidth: 2,
+    },
+    triggerText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDeep,
+    },
+    overlay: {
+      flex: 1,
+      backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)',
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: 20,
+      paddingBottom: 40,
+      paddingHorizontal: 16,
+      maxHeight: '75%',
+    },
+    sheetTitle: {
+      fontSize: 16,
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    langRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 8,
+      borderRadius: 10,
+    },
+    langRowSelected: {
+      backgroundColor: colorScheme === 'dark' ? brand.primaryDeep : brand.primarySurface,
+    },
+    langFlag: {
+      fontSize: 24,
+      marginRight: 14,
+    },
+    langLabels: {
+      flex: 1,
+    },
+    langNative: {
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    langEnglish: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    checkmark: {
+      fontSize: 18,
+      color: colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDeep,
+      fontWeight: '700',
+    },
+    separator: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 8,
+    },
+  });
+
 export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
   const [open, setOpen] = useState(false);
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors, colorScheme ?? 'light');
   const current = LANG_META[currentLang];
 
   const handleSelect = useCallback(async (code: LangCode) => {
@@ -53,7 +134,10 @@ export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
     <View>
       <Pressable
         onPress={() => setOpen(true)}
-        style={styles.trigger}
+        style={({ pressed }) => [
+          styles.trigger,
+          pressed && styles.triggerPressed,
+        ]}
         accessibilityRole="button"
         accessibilityLabel={locale.language.selectorA11y}
         accessibilityHint={locale.language.selectorHint}
@@ -106,73 +190,3 @@ export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  trigger: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: brand.primary + '44',
-    backgroundColor: brand.primarySurface,
-  },
-  triggerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: brand.primary,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
-    paddingHorizontal: 16,
-    maxHeight: '75%',
-  },
-  sheetTitle: {
-    fontSize: 16,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  langRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-  },
-  langRowSelected: {
-    backgroundColor: brand.primarySurface,
-  },
-  langFlag: {
-    fontSize: 24,
-    marginRight: 14,
-  },
-  langLabels: {
-    flex: 1,
-  },
-  langNative: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  langEnglish: {
-    fontSize: 13,
-    opacity: 0.6,
-    marginTop: 1,
-  },
-  checkmark: {
-    fontSize: 18,
-    color: brand.primary,
-    fontWeight: '700',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
-  },
-});

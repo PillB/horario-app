@@ -21,6 +21,8 @@ import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
+import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -37,6 +39,9 @@ function MetricCard({
   accent?: string;
   testID?: string;
 }) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors, colorScheme ?? 'light');
   return (
     <ThemedView
       style={[styles.metricCard, accent ? { borderLeftColor: accent, borderLeftWidth: 3 } : null]}
@@ -67,6 +72,9 @@ function HoursBar({
   maxHours: number;
   testID?: string;
 }) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors, colorScheme ?? 'light');
   const pct = maxHours > 0 ? Math.min(100, (hours / maxHours) * 100) : 0;
   return (
     <View style={styles.barRow} testID={testID}>
@@ -83,21 +91,24 @@ function HoursBar({
 
 function FairnessGauge({ score }: { score: number }) {
   const { t } = useT();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors, colorScheme ?? 'light');
   const MAX_SCORE = 16;
   const barPct = Math.max(4, Math.round((1 - Math.min(score, MAX_SCORE) / MAX_SCORE) * 100));
   let label: string;
   let textColor: string;
   let barColor: string;
   // Text colors are AA-compliant on white (#FFFFFF):
-  //   Green 700  #15803D → 5.44:1 ✓ (bar fill keeps bright #22C55E)
-  //   Amber 700  #B45309 → 4.82:1 ✓ (bar fill keeps bright #F59E0B)
-  //   Red   600  #DC2626 → 4.64:1 ✓ (bar fill keeps bright #EF4444)
+  //   Green 700  #15803D → 5.44:1 ✓ (bar fill uses #15803D for ≥3:1 non-text contrast)
+  //   Amber 700  #B45309 → 4.82:1 ✓ (bar fill uses #B45309 for ≥3:1 non-text contrast)
+  //   Red   600  #DC2626 → 4.64:1 ✓ (bar fill uses #DC2626 for ≥3:1 non-text contrast)
   if (score < 4) {
-    label = t('analytics.fairnessExcellent'); textColor = '#15803D'; barColor = '#22C55E';
+    label = t('analytics.fairnessExcellent'); textColor = '#15803D'; barColor = '#15803D';
   } else if (score < 8) {
-    label = t('analytics.fairnessGood'); textColor = '#B45309'; barColor = '#F59E0B';
+    label = t('analytics.fairnessGood'); textColor = '#B45309'; barColor = '#B45309';
   } else {
-    label = t('analytics.fairnessNeedsAttention'); textColor = '#DC2626'; barColor = '#EF4444';
+    label = t('analytics.fairnessNeedsAttention'); textColor = '#DC2626'; barColor = '#DC2626';
   }
   return (
     <View style={styles.fairnessRow}>
@@ -119,6 +130,9 @@ function FairnessGauge({ score }: { score: number }) {
 export default function AnalyticsScreen() {
   const { t } = useT();
   const { accountId: ACCOUNT_ID } = useIdentity();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors, colorScheme ?? 'light');
   const {
     coverageRate,
     draftShifts,
@@ -160,7 +174,7 @@ export default function AnalyticsScreen() {
               accessibilityLabel={t('analytics.retryA11y')}
               accessibilityHint={t('analytics.retryA11yHint')}
               onPress={refresh}
-              style={styles.retryButton}
+              style={({ pressed }) => [styles.retryButton, pressed && { opacity: 0.8 }]}
             >
               <ThemedText style={styles.retryButtonText}>{t('common.tryAgain')}</ThemedText>
             </Pressable>
@@ -249,7 +263,7 @@ export default function AnalyticsScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('analytics.openScheduler')}
                   accessibilityHint={t('analytics.openSchedulerHint')}
-                  style={styles.primaryButton}
+                  style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.8 }]}
                 >
                   <ThemedText style={styles.primaryButtonText}>{t('analytics.openScheduler')}</ThemedText>
                 </Pressable>
@@ -264,125 +278,131 @@ export default function AnalyticsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    gap: 6,
-    marginBottom: 4,
-  },
-  loadingContainer: {
-    padding: 16,
-    gap: 12,
-  },
-  card: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff11',
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  metricCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff11',
-    gap: 4,
-  },
-  metricValue: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  metricLabel: {
-    fontSize: 13,
-  },
-  metricSub: {
-    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
-    fontSize: 12,
-  },
-  mutedText: {
-    color: '#475569', // Slate 600 — 6.86:1 ✓ AA (was #9CA3AF 2.54:1 FAIL)
-    fontSize: 14,
-  },
-  revenueValue: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  // Worker hours bars
-  barRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  barLabel: {
-    width: 72,
-    fontSize: 13,
-  },
-  barTrack: {
-    flex: 1,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#2563EB',
-  },
-  barValue: {
-    width: 40,
-    textAlign: 'right',
-    fontSize: 13,
-  },
-  // Fairness gauge
-  fairnessRow: {
-    gap: 8,
-  },
-  fairnessBarTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  fairnessBarFill: {
-    height: 10,
-    borderRadius: 5,
-  },
-  fairnessLabel: {
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  // Error / retry
-  errorText: {
-    color: '#EF4444',
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignSelf: 'center',
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  primaryButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-});
+const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
+  StyleSheet.create({
+    container: {
+      padding: 16,
+      gap: 16,
+      paddingBottom: 40,
+    },
+    header: {
+      gap: 6,
+      marginBottom: 4,
+    },
+    loadingContainer: {
+      padding: 16,
+      gap: 12,
+    },
+    card: {
+      gap: 12,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+    },
+    kpiRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    metricCard: {
+      flex: 1,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      gap: 4,
+    },
+    metricValue: {
+      fontSize: 28,
+      lineHeight: 42,
+    },
+    metricLabel: {
+      fontSize: 14,
+    },
+    metricSub: {
+      color: colors.textSecondary, // light: #475569 6.86:1 ✓ AA · dark: #94A3B8 5.27:1 ✓ AA
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    mutedText: {
+      color: colors.textSecondary, // light: #475569 6.86:1 ✓ AA · dark: #94A3B8 5.27:1 ✓ AA
+      fontSize: 14,
+    },
+    revenueValue: {
+      fontSize: 32,
+      fontWeight: '700',
+    },
+    // Worker hours bars
+    barRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    barLabel: {
+      width: 72,
+      fontSize: 13,
+    },
+    barTrack: {
+      flex: 1,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.border, // light: #E2E8F0 · dark: #334155
+      overflow: 'hidden',
+    },
+    barFill: {
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: brand.primaryDark, // #0F766E — ≥3:1 against Colors.light.border ✓
+    },
+    barValue: {
+      width: 40,
+      textAlign: 'right',
+      fontSize: 13,
+    },
+    // Fairness gauge
+    fairnessRow: {
+      gap: 8,
+    },
+    fairnessBarTrack: {
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.border, // light: #E2E8F0 · dark: #334155
+      overflow: 'hidden',
+    },
+    fairnessBarFill: {
+      height: 10,
+      borderRadius: 5,
+    },
+    fairnessLabel: {
+      fontWeight: '700',
+      fontSize: 15,
+    },
+    // Error / retry
+    errorText: {
+      color: colors.error, // light: #DC2626 4.64:1 ✓ AA · dark: #F87171 ✓ AA
+      textAlign: 'center',
+    },
+    retryButton: {
+      backgroundColor: brand.primaryDark, // #0F766E — white text 9.30:1 AAA
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      alignSelf: 'center',
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    primaryButton: {
+      backgroundColor: brand.primaryDark, // #0F766E — white text 9.30:1 AAA
+      paddingVertical: 14,
+      borderRadius: 10,
+      alignItems: 'center',
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    primaryButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+  });

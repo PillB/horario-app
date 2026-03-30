@@ -8,7 +8,8 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Linking } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { brand } from '@/constants/Colors';
+import { brand, Colors, ThemeColors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
 
@@ -21,6 +22,9 @@ type Props = {
 
 export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   const { plan, isTrialing } = useSubscription();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors);
 
   // Pro users don't see any banner
   if (plan === 'user_subscription' && !isTrialing) return null;
@@ -80,7 +84,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   banner: {
     borderRadius: 12,
     marginHorizontal: 16,
@@ -91,25 +95,28 @@ const styles = StyleSheet.create({
   bannerPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.99 }],
+    // Visible background shift for clear pressed feedback independent of opacity
+    backgroundColor: '#EDE9FE', // Violet 100 — perceptible darkening of proSurface
   },
   // Trial banner
   trialBanner: {
-    backgroundColor: brand.successSurface,
+    backgroundColor: colors.successSurface,
     borderWidth: 1,
-    borderColor: brand.success,
+    borderColor: colors.success,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   trialBadge: {
-    backgroundColor: brand.success,
+    // Use Colors.light.success (#15803D) — 5.44:1 vs white, passing WCAG AA
+    backgroundColor: Colors.light.success,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   trialBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11, // raised from 10px — 10px is below the safe legibility floor
+    fontSize: 12, // raised from 11px — improves legibility; 11px below 12px mobile floor
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -119,12 +126,14 @@ const styles = StyleSheet.create({
   },
   trialText: {
     fontSize: 13,
-    color: brand.primaryDeep,
+    color: brand.primaryDeep, // #115E59 — 5.87:1 on successSurface ✓ AA
     fontWeight: '600',
+    lineHeight: 20, // ≈1.54× of 13px — meets WCAG 1.4.8 best-practice 1.5× recommendation
   },
   trialSub: {
-    fontSize: 11,
-    color: brand.primaryDark,
+    fontSize: 12, // raised from 11px — below 12px mobile legibility floor
+    color: brand.primaryDeep, // #115E59 — 5.87:1 on successSurface ✓ AA (was primaryDark 4.01:1 ✗)
+    lineHeight: 18, // ≈1.5× of 12px — meets WCAG 1.4.8 best-practice recommendation
   },
   // Free plan banner
   freeBanner: {
@@ -138,7 +147,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   freeBadge: {
-    backgroundColor: brand.pro,
+    backgroundColor: brand.pro, // #7C3AED — 5.17:1 vs white ✓ AA
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -147,7 +156,7 @@ const styles = StyleSheet.create({
   },
   freeBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11, // raised from 10px — 10px is below the safe legibility floor
+    fontSize: 12, // raised from 11px — below 12px mobile legibility floor
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -158,16 +167,19 @@ const styles = StyleSheet.create({
   freePlanTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1E1B4B',
+    color: colors.text, // tokens adapt to dark mode; #0F172A gives 17.85:1 on proSurface ✓ AAA
+    lineHeight: 20, // ≈1.54× of 13px — meets WCAG 1.4.8 best-practice recommendation
   },
   freePlanCta: {
-    fontSize: 12,
-    color: brand.pro,
+    fontSize: 13, // raised from 12px — improves safety margin; at 12px brand.proDark is borderline
+    color: brand.proDark, // #6D28D9 — ~6.3:1 on proSurface ✓ AA (was brand.pro 5.05:1 at 12px)
     fontWeight: '600',
+    lineHeight: 19, // ≈1.46× of 13px — approaches WCAG 1.4.8 best-practice 1.5× recommendation
   },
   pricingNote: {
-    fontSize: 11, // raised from 10px
-    color: '#6B7280', // Gray 500 — 4.48:1 on lavender proSurface ✓ AA
+    fontSize: 12, // raised from 11px — below 12px mobile legibility floor
+    color: colors.textSecondary, // #475569 — 6.86:1 on white/proSurface ✓ AA (was #6B7280 ~4.40:1 ✗)
     marginTop: 2,
+    lineHeight: 18, // ≈1.5× of 12px — meets WCAG 1.4.8 best-practice recommendation
   },
 });

@@ -20,9 +20,11 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
         accessibilityRole="button"
         accessibilityLabel={title}
         accessibilityState={{ expanded: isOpen }}
+        accessibilityHint={isOpen ? 'Tap to collapse' : 'Tap to expand'}
         focusable
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         style={[
           styles.heading,
           isFocused && [styles.headingFocused, { borderColor: Colors[theme].tint }],
@@ -31,7 +33,7 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
           name="chevron.right"
           size={18}
           weight="medium"
-          color={theme === 'light' ? Colors.light.icon : Colors.dark.icon}
+          color={theme === 'light' ? Colors.light.icon : Colors.dark.text}
           style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
         />
 
@@ -47,10 +49,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    minHeight: 44,
   },
   headingFocused: {
     borderWidth: 2,
-    borderColor: Colors.light.tint,
     borderRadius: 8,
     padding: 4,
   },

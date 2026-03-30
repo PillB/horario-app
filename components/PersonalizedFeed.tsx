@@ -3,6 +3,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import type { RankedFeedItem } from '@/hooks/usePersonalizedFeed';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import type { ThemeColors } from '@/constants/Colors';
 
 type PersonalizedFeedProps = {
   items: RankedFeedItem[];
@@ -10,6 +13,10 @@ type PersonalizedFeedProps = {
 };
 
 export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeStyles(colors);
+
   if (!items.length) return null;
 
   return (
@@ -20,7 +27,10 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
           <Pressable
             key={item.id}
             onPress={() => onSelectItem?.(item)}
-            style={styles.card}
+            style={({ pressed }) => [
+              styles.card,
+              pressed && { backgroundColor: colors.background, borderColor: colors.borderFocus },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={`${item.title}. ${item.summary}`}
           >
@@ -38,35 +48,43 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff11',
-  },
-  list: {
-    gap: 10,
-  },
-  card: {
-    gap: 6,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#ffffff',
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  helperText: {
-    color: '#6b7280',
-  },
-  badge: {
-    fontWeight: '700',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceRaised,
+    },
+    list: {
+      gap: 10,
+    },
+    card: {
+      gap: 6,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    rowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    helperText: {
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    badge: {
+      fontWeight: '700',
+      color: '#FFFFFF',
+      backgroundColor: colors.tint,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+  });
 
 export default PersonalizedFeed;

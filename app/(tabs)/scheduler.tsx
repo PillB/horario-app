@@ -22,13 +22,19 @@ import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
-import { schedulerStyles as styles } from '@/styles/scheduler.styles';
+import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
 import { useT } from '@/contexts/LocaleContext';
 import { TourStep } from '@/components/TourStep';
+import { Colors, brand } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function SchedulerScreen() {
   const { t } = useT();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const styles = makeSchedulerStyles(colors);
+
   const {
     // Data
     workers,
@@ -130,15 +136,29 @@ export default function SchedulerScreen() {
     usageCount,
   } = useSchedulerHandlers();
 
+  // [Finding 2] linkText must meet AA on warningSurface:
+  //   light: brand.primaryDeep (#115E59, 5.87:1 on white/warm surface)
+  //   dark:  Colors.dark.tint (#2DD4BF, 8.95:1 on dark amber surface)
+  const linkTextColor =
+    colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDeep;
+
+  // [Finding 3] Banner text colours derived from theme-aware semantic tokens
+  //   success: Colors[scheme].success on Colors[scheme].successSurface
+  //   error:   Colors[scheme].error   on Colors[scheme].errorSurface
+  const bannerSuccessTextColor = colors.success;
+  const bannerErrorTextColor = colors.error;
+
   return (
     <ErrorBoundary>
     <ThemedView style={styles.screenContainer}>
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
+        {/* [Finding 6] pageTitle contrast confirmed AAA — no change needed */}
         <ThemedText type="title" style={styles.pageTitle}>
           {t('scheduler.title')}
         </ThemedText>
-        <ThemedText style={styles.mutedText}>
+        {/* [Finding 7] subtitle uses textSecondary (6.86:1) instead of textTertiary (4.35:1) */}
+        <ThemedText style={[styles.mutedText, { color: colors.textSecondary }]}>
           {t('scheduler.subtitle')}
         </ThemedText>
 
@@ -152,7 +172,16 @@ export default function SchedulerScreen() {
               actionBanner.type === 'error' && styles.bannerError,
             ]}
           >
-            <ThemedText style={styles.bannerText}>{actionBanner.message}</ThemedText>
+            {/* [Finding 3] Use semantic text colours for success/error banners */}
+            <ThemedText
+              style={[
+                styles.bannerText,
+                actionBanner.type === 'success' && { color: bannerSuccessTextColor },
+                actionBanner.type === 'error' && { color: bannerErrorTextColor },
+              ]}
+            >
+              {actionBanner.message}
+            </ThemedText>
           </ThemedView>
         ) : null}
 
@@ -162,11 +191,36 @@ export default function SchedulerScreen() {
           <ThemedView style={[styles.banner, styles.bannerWarning, styles.dismissibleBanner]}>
             <View style={styles.bannerHeader}>
               <ThemedText style={styles.bannerText}>{t('scheduler.missingData.title')}</ThemedText>
-              <Pressable onPress={() => router.setParams({ section: 'forecast' })}>
-                <ThemedText style={styles.linkText}>{t('scheduler.missingData.openSetup')}</ThemedText>
+              {/* [Finding 5] Accessible dismiss close button */}
+              <Pressable
+                onPress={() => router.setParams({ section: undefined })}
+                accessibilityLabel={t('common.dismiss')}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.dismissButton,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <ThemedText style={{ color: colors.textSecondary, fontSize: 18, lineHeight: 22 }}>
+                  {'×'}
+                </ThemedText>
               </Pressable>
             </View>
-            <ThemedText style={styles.mutedText}>
+            {/* [Finding 4] Pressable for openSetup with pressed visual state */}
+            <Pressable
+              onPress={() => router.setParams({ section: 'forecast' })}
+              accessibilityRole="link"
+              style={({ pressed }) => [
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              {/* [Finding 2] linkText uses brand.primaryDeep / dark tint for AA contrast */}
+              <ThemedText style={[styles.linkText, { color: linkTextColor }]}>
+                {t('scheduler.missingData.openSetup')}
+              </ThemedText>
+            </Pressable>
+            {/* [Finding 1] description copy uses textSecondary for AA on warm amber surface */}
+            <ThemedText style={[styles.mutedText, { color: colors.textSecondary }]}>
               {t('scheduler.missingData.desc')}
             </ThemedText>
           </ThemedView>

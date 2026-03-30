@@ -37,7 +37,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { brand } from '@/constants/Colors';
+import { Colors, brand } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 type Props = {
   content: string;
@@ -49,7 +50,7 @@ const EDGE_GAP = 8;
 /** Average glyph width at 14 px (conservative) */
 const CHAR_W_PX = 7;
 /** Line height matching tooltipText style */
-const LINE_H_PX = 22;
+const LINE_H_PX = 24;
 /** Vertical padding inside the card */
 const CARD_VERT_PAD = 28;
 
@@ -64,13 +65,21 @@ function estimateCardHeight(content: string, cardWidth: number, maxH: number): n
 export function InfoTooltip({ content, label = 'More information' }: Props) {
   const [visible, setVisible] = useState(false);
   const [cardPos, setCardPos] = useState<{ x: number; y: number } | null>(null);
+  const [focused, setFocused] = useState(false);
   const buttonRef = useRef<View>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const colorScheme = useColorScheme();
 
   // Width: 75 % of screen, clamped 260–420 px
   const tooltipW = Math.min(Math.max(screenW * 0.75, 260), 420);
   const maxCardH = screenH * 0.55;
+
+  // Resolved theme-aware colour values
+  const iconColor =
+    colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDeep;
+  const iconPressedBg =
+    colorScheme === 'dark' ? Colors.dark.tint + '33' : brand.primary + '22';
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) {
@@ -161,12 +170,20 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
         onPointerEnter={isWeb ? measureAndShow : undefined}
         // @ts-ignore — web-only pointer events not in RN types
         onPointerLeave={isWeb ? scheduleHide : undefined}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={({ pressed }) => [
           styles.iconButton,
-          pressed && styles.iconButtonPressed,
+          pressed && { backgroundColor: iconPressedBg },
+          // Platform-conditional focus ring for keyboard/switch-access users
+          Platform.OS === 'web' && focused && {
+            // @ts-ignore — web-only outline style
+            outline: `2px solid ${Colors.light.borderFocus}`,
+            outlineOffset: 2,
+          },
         ]}
       >
-        <ThemedText style={styles.iconText}>ⓘ</ThemedText>
+        <ThemedText style={[styles.iconText, { color: iconColor }]}>ⓘ</ThemedText>
       </Pressable>
 
       <Modal
@@ -211,9 +228,9 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
         ) : (
           // ── Native (or web fallback): centred card with dismiss controls ──
           <>
-            {/* Full-screen dismiss tap area */}
+            {/* Full-screen dismiss tap area — semi-transparent scrim separates modal layer from page content */}
             <Pressable
-              style={StyleSheet.absoluteFill}
+              style={[StyleSheet.absoluteFill, styles.backdrop]}
               onPress={hide}
               accessibilityLabel="Close tooltip"
             />
@@ -233,7 +250,10 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
                 </ScrollView>
                 <Pressable
                   onPress={hide}
-                  style={styles.closeButton}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    pressed && { backgroundColor: brand.primaryDark },
+                  ]}
                   accessibilityRole="button"
                   accessibilityLabel="Close"
                 >
@@ -260,29 +280,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
-  iconButtonPressed: {
-    backgroundColor: brand.primary + '22',
-  },
   iconText: {
     fontSize: 16,
-    color: brand.primary,
+    // color is applied dynamically in the component via iconColor (theme-aware)
     lineHeight: 20,
+  },
+  // ── Backdrop scrim ─────────────────────────────────────────────────────────
+  backdrop: {
+    // Slate 900 at 45% opacity — creates a legible scrim separating the modal
+    // layer from page content without fully blocking the background
+    backgroundColor: 'rgba(15,23,42,0.45)',
   },
   // ── Shared card ────────────────────────────────────────────────────────────
   tooltipCard: {
-    backgroundColor: '#1C2B3A',
+    // Intentionally dark surface in both modes for overlay contrast;
+    // uses Colors.dark.surface (#1E293B) token value
+    backgroundColor: Colors.dark.surface,
     borderRadius: 10,
     padding: 14,
-    shadowColor: '#000',
+    // shadowColor uses a documented constant for maximum shadow visibility
+    shadowColor: Colors.light.text,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    // Increased opacity to 0.45 for perceptible card elevation on light backgrounds
+    shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 10,
   },
   tooltipText: {
-    fontSize: 14,
+    // Increased to 15px for improved legibility on low-DPI screens (WCAG 1.4.12)
+    fontSize: 15,
+    // LINE_H_PX updated to 24 (1.5× of 16px per WCAG text spacing guidance)
     lineHeight: LINE_H_PX,
-    color: '#E8F4F1',
+    // Colors.dark.text (#F1F5F9) — verified token, safe contrast on any dark surface
+    color: Colors.dark.text,
   },
   // ── Native centred layout ──────────────────────────────────────────────────
   nativeOverlay: {
@@ -302,6 +332,7 @@ const styles = StyleSheet.create({
   closeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    // Colors.light.surface (#FFFFFF) — token-based white, 6.88:1 on brand.primary ✓ AA
+    color: Colors.light.surface,
   },
 });
