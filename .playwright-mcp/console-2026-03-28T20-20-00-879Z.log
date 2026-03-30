@@ -1,0 +1,387 @@
+[     994ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:25628
+[    1074ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[    1142ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:25628
+[    2453ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    2454ms] [WARNING] Unable to list roster Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111825:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112032:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143309:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112037
+[    2482ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    2483ms] [WARNING] Unable to load demand targets from secure proxy Error: Unknown error
+    at handleSecureFetch (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112175:13)
+    at async loadDemandTargets (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112222:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143309:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112227
+[    2537ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    2538ms] [WARNING] Unable to list workers Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111825:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111834:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143309:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111839
+[    2539ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    2540ms] [WARNING] Unable to list shift templates Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111825:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111966:22)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143309:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111971
+[  448794ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  448936ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  449089ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  449427ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  450385ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  451409ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  453889ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  453898ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  463809ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  648592ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  648606ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  648860ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  649266ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  649912ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  651039ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  653132ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  653136ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  654459ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  654471ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  654664ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  655017ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  655972ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  657130ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  659175ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  659191ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  659263ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  659267ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  659421ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  659845ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  660636ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  661802ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  663601ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  665557ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  665560ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  669467ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  674184ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  680800ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  680815ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  680961ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  681347ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  682220ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  684094ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  684421ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  684436ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  684600ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  685076ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  686025ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  687342ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  687704ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  687708ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  690661ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  690664ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  691477ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  691493ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  691677ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  692046ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  692846ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  694496ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  695809ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  696529ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  696533ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  699430ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  699891ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[  699904ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  700053ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  700430ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  700976ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  702172ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  705863ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://npm/@clerk/clerk-js@6/dist/clerk.browser.js:0
+[  705867ms] ClerkRuntimeError: Clerk: Failed to load Clerk JS, failed to load script: https:///npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57754:13
+[  706485ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[  714897ms] [ERROR] ClerkRuntimeError: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at rejectWith (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57730:33)
+    at loadClerkJSScript (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:57747:85)
+    at _IsomorphicClerk.getClerkJsEntryChunk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46782:62)
+    at _IsomorphicClerk.getEntryChunks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46759:34)
+    at new _IsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46629:19)
+    at _IsomorphicClerk.getOrCreateInstance (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46657:39)
+    at useLoadedIsomorphicClerk (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46950:78)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46936:9)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13357:76)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593

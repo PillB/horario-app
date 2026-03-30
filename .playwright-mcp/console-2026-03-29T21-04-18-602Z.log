@@ -1,0 +1,708 @@
+[    1294ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    1726ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ https://pleased-falcon-63.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:11
+[    2027ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    2367ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2367ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[    2374ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[    2375ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126318
+[    2380ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2380ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125919:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[    2394ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2396ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125997:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[    2409ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2411ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[    2550ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2551ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126349
+[    2553ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   18244ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   18244ms] [WARNING] Unable to upsert worker Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async upsertWorker (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91571:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125840:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125141:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91586
+[   18260ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   18262ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126349
+[   26253ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   26254ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91637:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125867:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125236:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91652
+[   35388ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   35389ms] [WARNING] Unable to upsert shift template Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async upsertShiftTemplate (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91703:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125938:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125196:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91718
+[   35434ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   35435ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126349
+[   43109ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   43110ms] [WARNING] Unable to upsert roster shift Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async upsertRosterShift (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91769:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126020:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125288:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91784
+[   51791ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   51792ms] [WARNING] Unable to update shift status Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async updateShiftStatus (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91795:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126036:22
+    at async doPublish (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125412:31) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91810
+[   60275ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   60275ms] [WARNING] Unable to mark shift notified Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async markShiftNotified (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91821:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126050:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125455:7 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91835
+[   69741ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   69742ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91422:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[   69745ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   69745ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91422:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[   69758ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   69758ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91422:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[  119379ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[  119381ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126318
+[  119438ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119439ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125997:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[  119454ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119454ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119455ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119457ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[  119457ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[  119457ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125919:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[  119605ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119622ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  119624ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126349
+[  130008ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[  130009ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126318
+[  130104ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130105ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125997:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[  130123ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130123ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130125ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[  130125ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125823:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[  130151ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130151ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125919:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[  130223ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130280ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  130281ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126349
+[  595574ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[  595975ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ https://pleased-falcon-63.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:11
+[  596311ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[  597287ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[  597288ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126319
+[  597300ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597301ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[  597305ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597306ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125920:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[  597324ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597324ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597326ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[  597326ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125998:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[  597490ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597508ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  597510ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126350
+[  603644ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  603645ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120770:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[  603650ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  603650ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120770:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[  603655ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  603656ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120770:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[ 1653205ms] Error: undefined Unable to resolve module ./de from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/de(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/de
+[0m [90m 23 |[39m   en[33m:[39m [36masync[39m () [33m=>[39m ({ en })[33m,[39m
+ [90m 24 |[39m   es[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./es'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ es[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1658702ms] Error: undefined Unable to resolve module ./de from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/de(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/de
+[0m [90m 23 |[39m   en[33m:[39m [36masync[39m () [33m=>[39m ({ en })[33m,[39m
+ [90m 24 |[39m   es[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./es'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ es[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1668547ms] Error: undefined Unable to resolve module ./de from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/de(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/de
+[0m [90m 23 |[39m   en[33m:[39m [36masync[39m () [33m=>[39m ({ en })[33m,[39m
+ [90m 24 |[39m   es[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./es'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ es[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1672852ms] Error: undefined Unable to resolve module ./de from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/de(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/de
+[0m [90m 23 |[39m   en[33m:[39m [36masync[39m () [33m=>[39m ({ en })[33m,[39m
+ [90m 24 |[39m   es[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./es'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ es[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1677045ms] Error: undefined Unable to resolve module ./de from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/de(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/de
+[0m [90m 23 |[39m   en[33m:[39m [36masync[39m () [33m=>[39m ({ en })[33m,[39m
+ [90m 24 |[39m   es[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./es'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ es[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1692276ms] Error: undefined Unable to resolve module ./it from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/it(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/it
+[0m [90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1705361ms] Error: undefined Unable to resolve module ./it from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/it(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/it
+[0m [90m 25 |[39m   de[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./de'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ de[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 26 |[39m   fr[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./fr'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ fr[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1727777ms] Error: undefined Unable to resolve module ./sw from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/sw(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/sw
+[0m [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1735370ms] Error: undefined Unable to resolve module ./sw from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/sw(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/sw
+[0m [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1769265ms] Error: undefined Unable to resolve module ./sw from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/sw(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/sw
+[0m [90m 27 |[39m   it[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./it'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ it[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1779865ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1801776ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1837974ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1857988ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1866093ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1867108ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1876605ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1877604ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1883377ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1884369ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1890567ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1891553ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1904785ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1905774ms] Error: undefined Unable to resolve module ./tl from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/tl(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/tl
+[0m [90m 28 |[39m   zh[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./zh'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ zh[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1915149ms] Error: undefined Unable to resolve module ./hi from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/hi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/hi
+[0m [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [90m/** All supported language codes */[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1915170ms] Error: undefined Unable to resolve module ./hi from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/hi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/hi
+[0m [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [90m/** All supported language codes */[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1916136ms] Error: undefined Unable to resolve module ./hi from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/hi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/hi
+[0m [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [90m/** All supported language codes */[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1947483ms] Error: undefined Unable to resolve module ./hi from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/hi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/hi
+[0m [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [90m/** All supported language codes */[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 1948486ms] Error: undefined Unable to resolve module ./hi from /Users/pabloillescas/Documents/GitHub/horario-app/locales/index.ts: 
+
+None of these files exist:
+  * locales/hi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * locales/hi
+[0m [90m 29 |[39m   sw[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./sw'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ sw[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m 30 |[39m   tl[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./tl'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ tl[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+[31m[1m>[22m[39m[90m 31 |[39m   hi[33m:[39m [36masync[39m () [33m=>[39m [36mimport[39m([32m'./hi'[39m) [36mas[39m [33mPromise[39m[33m<[39m{ hi[33m:[39m [33mTranslations[39m }[33m>[39m[33m,[39m
+ [90m    |[39m                           [31m[1m^[22m[39m
+ [90m 32 |[39m }[33m;[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [90m/** All supported language codes */[39m[0m
+    at showCompileError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2014:19)
+    at HMRClient.<anonymous> (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1936:13)
+    at HMRClient.emit (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2262:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:2077:18)
+[ 2068775ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[ 2068777ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126319
+[ 2068794ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 2068795ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125998:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[ 2068812ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 2068812ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 2068812ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 2068814ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[ 2068814ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125920:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[ 2068815ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[ 2068981ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 2068982ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126350
+[ 2069070ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3962992ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[ 3962993ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126319
+[ 3963007ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3963007ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3963008ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91756:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125998:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761
+[ 3963020ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91558:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91563
+[ 3963021ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3963021ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3963023ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91690:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125920:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695
+[ 3963023ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91549:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91624:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125824:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629
+[ 3963209ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[ 3963210ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126350
+[ 3963210ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0

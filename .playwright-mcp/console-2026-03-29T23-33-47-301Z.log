@@ -1,0 +1,217 @@
+[    1048ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    1969ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ https://pleased-falcon-63.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:11
+[    2375ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    3698ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    3699ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91814:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120828:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91819
+[    3753ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    3754ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91616:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120828:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91621
+[    3758ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    3759ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91748:22)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:120828:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91753
+[   67072ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67073ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91616:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126007:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91621
+[   67203ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67252ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67253ms] [WARNING] Unable to list worker availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listWorkerAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91682:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126007:45 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91687
+[   67272ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67274ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91748:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126103:25 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91753
+[   67289ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67290ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91814:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126181:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91819
+[   67321ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[   67325ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[   67349ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/onboarding_progress?select=workers_completed%2Ctemplates_completed%2Cforecast_completed&account_id=eq.demo-account&limit=1&user_id=eq.local-user:0
+[   67350ms] [WARNING] Unable to load onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126502
+[  153468ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  153468ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  153469ms] [WARNING] Unable to upsert worker Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertWorker (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126024:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125324:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91644
+[  153492ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  281953ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  281954ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  281957ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  281958ms] [WARNING] Unable to upsert worker Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertWorker (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91629:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126024:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125324:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91644
+[  300616ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  300617ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  311549ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  311550ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  317731ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  317732ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  325908ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  325909ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  334928ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  334928ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  342135ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  342135ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  348332ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  348333ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  354656ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  354657ms] [WARNING] Unable to upsert availability Error: Could not find the table 'public.worker_availability' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertAvailability (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91695:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126051:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125419:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91710
+[  364932ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  364933ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  364942ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  364942ms] [WARNING] Unable to upsert shift template Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertShiftTemplate (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126122:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125379:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91776
+[  374008ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  374008ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  374020ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  374020ms] [WARNING] Unable to upsert shift template Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertShiftTemplate (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91761:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126122:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125379:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91776
+[  398314ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  398315ms] [WARNING] Unable to upsert roster shift Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertRosterShift (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91827:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126204:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125471:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91842
+[  405256ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  405257ms] [WARNING] Unable to update shift status Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async updateShiftStatus (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91853:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126220:22
+    at async doPublish (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125595:31) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91868
+[  411907ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  411908ms] [WARNING] Unable to mark shift notified Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async markShiftNotified (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91879:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126234:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125638:7 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91893
+[  417020ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  417021ms] [WARNING] Unable to update shift status Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async updateShiftStatus (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91853:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126220:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125624:7 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91868
+[  426070ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  426071ms] [WARNING] Unable to update shift status Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async updateShiftStatus (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91853:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126220:22
+    at async doPublish (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125595:31) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91868
+[  435453ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  435454ms] [WARNING] Unable to upsert roster shift Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertRosterShift (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91827:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126204:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125471:22 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91842
+[  467918ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  467919ms] [WARNING] Unable to upsert roster shift Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertRosterShift (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91827:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126204:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125684:24 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91842
+[  468121ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  468122ms] [WARNING] Unable to upsert roster shift Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async upsertRosterShift (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91827:22)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126204:22
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:125684:24 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91842
+[  468696ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480906ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480918ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480934ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480935ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480938ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  480944ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  481088ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  481088ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  481114ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  481299ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  481300ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  486942ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  486970ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  486974ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  487135ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  487135ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  495511ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  495512ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  496031ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  496032ms] [WARNING] Unable to persist onboarding progress Could not find the table 'public.onboarding_progress' in the schema cache @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:126533
+[  955590ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  955591ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91814:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91480:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91819
+[  955591ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  955592ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91616:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91480:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91621
+[  955592ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  955593ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91607:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91748:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91480:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91753
+[ 1051211ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[ 1051695ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ https://pleased-falcon-63.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:11

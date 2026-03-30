@@ -1,0 +1,117 @@
+[     794ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:25628
+[     826ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220
+[   31329ms] [ERROR] %o
+
+%s
+
+%s
+ Error: @clerk/react: useAuth can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider
+    at Object.throwMissingClerkProviderError (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:51656:15)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73730:20
+    at useAssertWrappedByClerkProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:47302:9)
+    at useAssertWrappedByClerkProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73729:56)
+    at useAuth (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:74446:5)
+    at useAuth (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:77572:43)
+    at TabLayout (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:105988:27)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:17953:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9270:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:10539:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:11157:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6498:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13742:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13636:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13620:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13381:44)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14191:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:14114:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:13500:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6170:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:965:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:957:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:721:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 The above error occurred in the <TabLayout(./(tabs)/_layout.tsx)> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundaryInner. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[   31330ms] [ERROR] [ErrorBoundary] Uncaught render error: @clerk/react: useAuth can only be used within the <ClerkProvider /> component. Learn more: https://clerk.com/docs/components/clerk-provider 
+    at TabLayout (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:105984:60)
+    at Suspense (<anonymous>)
+    at Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:92256:5)
+    at BaseRoute (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:92629:11)
+    at StaticContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:85018:18)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:81023:5)
+    at SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84868:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:26346:27)
+    at AnimatedHeaderHeightProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:87710:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:26346:27)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:26346:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:37332:62
+    at Background (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:87991:9)
+    at Screen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91941:73)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:26346:27)
+    at SafeAreaProviderCompat (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91827:5)
+    at NativeStackView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:87607:5)
+    at PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83463:5)
+    at NavigationContent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84596:5)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84612:7
+    at NativeStackNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:87527:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:92179:21
+    at AppNavigator (<anonymous>)
+    at ErrorBoundaryInner (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111396:3)
+    at ErrorBoundary (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111438:5)
+    at ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:81156:5)
+    at RootLayout (http://localhost:8081/app/_layout.bundle//&platform=web&hot=false&lazy=true&transform.routerRoot=app&dev=true&minify=false&modulesOnly=true&runModule=false&shallow=true:59:60)
+    at Suspense (<anonymous>)
+    at Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:92256:5)
+    at BaseRoute (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:92629:11)
+    at StaticContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:85018:18)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:81023:5)
+    at SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84868:5)
+    at PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83463:5)
+    at NavigationContent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84596:5)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84612:7
+    at Content (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:103794:43)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:26346:27)
+    at NativeSafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:90612:5)
+    at SafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:90483:9)
+    at wrapper (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:103650:7)
+    at ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:81156:5)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:81023:5)
+    at BaseNavigationContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:79396:5)
+    at NavigationContainerInner (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:103972:9)
+    at ContextNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:103691:5)
+    at ExpoRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:103641:18)
+    at _HelmetProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:167176:7)
+    at App (<anonymous>)
+    at LogBoxStateSubscription (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3942:9)
+    at ErrorOverlay (<anonymous>)
+    at withDevTools(ErrorOverlay) (<anonymous>)
+    at AppContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:65995:5) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:3593
+[   42652ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:25628
+[   44269ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   44270ms] [WARNING] Unable to list workers Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111794:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111803:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143278:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111808
+[   44271ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   44272ms] [WARNING] Unable to list roster Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111794:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112001:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143278:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112006
+[   44274ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   44275ms] [WARNING] Unable to load demand targets from secure proxy Error: Unknown error
+    at handleSecureFetch (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112144:13)
+    at async loadDemandTargets (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112191:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143278:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:112196
+[   44276ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   44277ms] [WARNING] Unable to list shift templates Error: Unknown error
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111794:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111935:22)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143278:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:111940

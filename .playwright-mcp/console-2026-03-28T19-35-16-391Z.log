@@ -1,0 +1,24 @@
+[    1832ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1835ms] [WARNING] Unable to list roster Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:3219)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[    1856ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1856ms] [WARNING] Unable to load demand targets from secure proxy Error: Unknown error
+    at s (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:614)
+    at async e.loadDemandTargets (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:1456)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622
+[    1885ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1885ms] [WARNING] Unable to list workers Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:688)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[    1890ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1891ms] [WARNING] Unable to list shift templates Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:2366)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621

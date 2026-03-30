@@ -1,0 +1,354 @@
+[    1022ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    1273ms] [WARNING] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview @ https://pleased-falcon-63.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:11
+[    1815ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9433
+[    2159ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2160ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[    2163ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2163ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[    2170ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[    2171ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  287908ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  287908ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  287908ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  287909ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  287909ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  287910ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  291717ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  291718ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  291730ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  291731ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  291759ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  291762ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  296634ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  296635ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  296658ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  296659ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  296712ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  296712ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  300825ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  300825ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  300855ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  300856ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  300878ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  300879ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  310801ms] [ERROR] %o
+
+%s
+
+%s
+ ReferenceError: color is not defined
+    at FairnessGauge (http://localhost:8081/app/(tabs)/explore.bundle//&platform=web&hot=false&lazy=true&transform.routerRoot=app&dev=true&minify=false&modulesOnly=true&runModule=false&shallow=true:170:30)
+    at react-stack-bottom-frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:143276:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:134593:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:135862:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:136480:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:131821:16)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:139065:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:138959:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:138943:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:138704:44)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:139514:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:139437:237)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:138823:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:131493:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1385:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1377:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:1144:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:430:21 The above error occurred in the <FairnessGauge> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundaryInner. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:4005
+[  310802ms] [ERROR] [ErrorBoundary] Uncaught render error: color is not defined 
+    at FairnessGauge (http://localhost:8081/app/(tabs)/explore.bundle//&platform=web&hot=false&lazy=true&transform.routerRoot=app&dev=true&minify=false&modulesOnly=true&runModule=false&shallow=true:135:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at ThemedView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91248:9)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:6933:26
+    at ScrollView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:5637:7)
+    at ScrollView (<anonymous>)
+    at ErrorBoundaryInner (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91141:3)
+    at ErrorBoundary (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91183:5)
+    at AnalyticsScreen (http://localhost:8081/app/(tabs)/explore.bundle//&platform=web&hot=false&lazy=true&transform.routerRoot=app&dev=true&minify=false&modulesOnly=true&runModule=false&shallow=true:216:33)
+    at Suspense (<anonymous>)
+    at Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73337:5)
+    at BaseRoute (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73710:11)
+    at StaticContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32832:18)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:28892:5)
+    at SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32682:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:20583:62
+    at Background (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:71197:9)
+    at Screen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73022:73)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at MaybeScreen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:75425:9)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at MaybeScreenContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:75412:9)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at SafeAreaProviderCompat (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:72908:5)
+    at BottomTabView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:74300:7)
+    at PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:31277:5)
+    at NavigationContent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32410:5)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32426:7
+    at BottomTabNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:74207:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73260:21
+    at TabNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:86859:5)
+    at AuthGuardedTabLayout (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:87022:9)
+    at TabLayout(./(tabs)/_layout.tsx) (<anonymous>)
+    at Suspense (<anonymous>)
+    at Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73337:5)
+    at BaseRoute (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73710:11)
+    at StaticContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32832:18)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:28892:5)
+    at SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32682:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at AnimatedHeaderHeightProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:70916:5)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:20583:62
+    at Background (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:71197:9)
+    at Screen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73022:73)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at SafeAreaProviderCompat (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:72908:5)
+    at NativeStackView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:70813:5)
+    at PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:31277:5)
+    at NavigationContent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32410:5)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32426:7
+    at NativeStackNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:70733:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73260:21
+    at AppNavigator (<anonymous>)
+    at ErrorBoundaryInner (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91141:3)
+    at ErrorBoundary (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91183:5)
+    at ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:29462:5)
+    at LocaleProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:167137:5)
+    at __experimental_CheckoutProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46442:9)
+    at InitialStateProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46422:5)
+    at ClerkContextProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:48901:25)
+    at ClerkProviderBase (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:46091:9)
+    at Hoc (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:43480:7)
+    at ClerkProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:58240:9)
+    at RootLayout (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:129157:60)
+    at Suspense (<anonymous>)
+    at Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73337:5)
+    at BaseRoute (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:73710:11)
+    at StaticContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32832:18)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:28892:5)
+    at SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32682:5)
+    at PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:31277:5)
+    at NavigationContent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32410:5)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:32426:7
+    at Content (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83978:43)
+    at div (<anonymous>)
+    at View (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:9720:27)
+    at NativeSafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:149997:5)
+    at SafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:149868:9)
+    at wrapper (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83834:7)
+    at ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:29462:5)
+    at EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:28892:5)
+    at BaseNavigationContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:27292:5)
+    at NavigationContainerInner (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:84156:9)
+    at ContextNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83875:5)
+    at ExpoRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:83825:18)
+    at _HelmetProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:129751:7)
+    at App (<anonymous>)
+    at LogBoxStateSubscription (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:4354:9)
+    at ErrorOverlay (<anonymous>)
+    at withDevTools(ErrorOverlay) (<anonymous>)
+    at AppContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:38255:5) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:4005
+[  311079ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  311080ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  311115ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  311116ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  311118ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  311118ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  315845ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  315846ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  315868ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  315869ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  315870ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  315870ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  327197ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  327198ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  327217ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  327217ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  327294ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  327294ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  329892ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  329893ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  329893ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  329894ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  329905ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  329906ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  332773ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  332774ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  332786ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  332787ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  332792ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  332792ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  344798ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  344799ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598
+[  344813ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  344814ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  344846ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  344847ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  365757ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  365758ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  365758ms] [WARNING] Unable to list shift templates Error: Could not find the table 'public.shift_templates' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91725:22)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91730
+[  365758ms] [WARNING] Unable to list roster Error: Could not find the table 'public.roster' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91791:22)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91796
+[  365822ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:8081/api/secure-proxy:0
+[  365823ms] [WARNING] Unable to list workers Error: Could not find the table 'public.workers' in the schema cache
+    at proxyPost (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91584:13)
+    at async listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91593:22)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91457:57 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:91598

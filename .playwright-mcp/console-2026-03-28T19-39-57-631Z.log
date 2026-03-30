@@ -1,0 +1,141 @@
+[    1276ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1277ms] [WARNING] Unable to list roster Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:3219)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621:445 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[    1292ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1293ms] [WARNING] Unable to list workers Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:688)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621:445 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[    1309ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1309ms] [WARNING] Unable to list shift templates Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:2366)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621:445 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[    1311ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[    1311ms] [WARNING] Unable to load demand targets from secure proxy Error: Unknown error
+    at s (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:614)
+    at async e.loadDemandTargets (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:1456)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621:445 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622
+[   28683ms] [ERROR] Error: Minified React error #130; visit https://react.dev/errors/130?args[]=undefined&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at ns (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:105574)
+    at w (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:42439)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:43297
+    at li (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:65197)
+    at ui (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:66738)
+    at Ni (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:80202)
+    at fc (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:118949)
+    at uc (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:118035)
+    at ic (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:117877)
+    at Ys (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:995:114985) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:994
+[   28684ms] [ERROR] [ErrorBoundary] Uncaught render error: Minified React error #130; visit https://react.dev/errors/130?args[]=undefined&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings. 
+    at Suspense (<anonymous>)
+    at e.Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:477:386)
+    at l (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:480:2405)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:106:651
+    at _e.EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:45:140)
+    at _e.SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:104:141)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:303:169
+    at _e.Background (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:428:147)
+    at _e.Screen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:473:163)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at _e.MaybeScreen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:500:150)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at _e.MaybeScreenContainer (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:500:1002)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at f (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:472:847)
+    at _e.BottomTabView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:491:153)
+    at _e.PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:80:155)
+    at n (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:915)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:220
+    at l (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:490:391)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:476:1057
+    at e.default (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:415:142)
+    at Suspense (<anonymous>)
+    at e.Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:477:386)
+    at l (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:480:2405)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:106:651
+    at _e.EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:45:140)
+    at _e.SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:104:141)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at b (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:421:2714)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:303:169
+    at _e.Background (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:428:147)
+    at _e.Screen (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:473:163)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at f (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:472:847)
+    at _e.NativeStackView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:421:146)
+    at _e.PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:80:155)
+    at n (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:915)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:220
+    at c (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:420:865)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:476:1057
+    at y (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:616:894)
+    at e.ErrorBoundary (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:616:128)
+    at _e.ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:51:129)
+    at e.default (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:873:128)
+    at Suspense (<anonymous>)
+    at e.Route (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:477:386)
+    at l (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:480:2405)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:106:651
+    at _e.EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:45:140)
+    at _e.SceneView (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:104:141)
+    at _e.PreventRemoveProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:80:155)
+    at n (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:915)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:101:220
+    at k (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:582:2547)
+    at div (<anonymous>)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:279:1477
+    at _e.NativeSafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:961:143)
+    at _e.SafeAreaProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:960:238)
+    at wrapper (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:582:1048)
+    at _e.ThemeProvider (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:51:129)
+    at _e.EnsureSingleNavigator (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:45:140)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:30:1162
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:586:535
+    at M (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:582:1659)
+    at e.ExpoRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:582:969)
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:879:6715)
+    at e.default (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:359:125) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:615
+[   31736ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   31737ms] [WARNING] Unable to list roster Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listRoster (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:3219)
+    at async Promise.all (index 0)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[   31758ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   31758ms] [WARNING] Unable to load demand targets from secure proxy Error: Unknown error
+    at s (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:614)
+    at async e.loadDemandTargets (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:623:1456)
+    at async Promise.all (index 1)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622
+[   31774ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   31775ms] [WARNING] Unable to list workers Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listWorkers (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:688)
+    at async Promise.all (index 2)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
+[   31776ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8081/api/secure-proxy:0
+[   31777ms] [WARNING] Unable to list shift templates Error: Unknown error
+    at t (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:575)
+    at async e.listShiftTemplates (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:622:2366)
+    at async Promise.all (index 3)
+    at async http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:835:363 @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=false&hot=false&lazy=true&minify=true&transform.routerRoot=app:621
