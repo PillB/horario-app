@@ -20,8 +20,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
-
-const ACCOUNT_ID = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -119,6 +118,7 @@ function FairnessGauge({ score }: { score: number }) {
 
 export default function AnalyticsScreen() {
   const { t } = useT();
+  const { accountId: ACCOUNT_ID } = useIdentity();
   const {
     coverageRate,
     draftShifts,

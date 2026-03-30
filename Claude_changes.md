@@ -733,3 +733,51 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
 - `Claude_changes.md` — this entry
 
 ---
+
+### CHG-031 — 2026-03-30 01:30 UTC
+**Type:** FEAT — autosave scoped to the logged-in Clerk account
+
+**Background:**
+DB persistence was already fully implemented (workers, shift templates, roster,
+and availability all write to Supabase via the secure proxy with optimistic
+updates). The missing piece: every hook used the hardcoded env-var fallback
+`EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account'` and `EXPO_PUBLIC_USER_ID ?? 'local-user'`
+as the account scope. All users' data was being saved under the same
+`demo-account` bucket — not scoped to the signed-in Clerk user.
+
+**What was implemented:**
+- `contexts/IdentityContext.tsx` — new context that derives `{ accountId, userId, isLoaded }`:
+  - Auth enabled (Clerk key starts with `pk_`): reads `userId` from Clerk's `useAuth()`; uses it as both `accountId` and `userId`; `isLoaded=false` while Clerk initialises (fallback to env vars during that window)
+  - Auth disabled (dev bypass): returns env vars with `isLoaded=true` immediately
+  - Uses `require('@clerk/expo').useAuth()` inside `ClerkIdentityProvider` — same pattern already in `app/(tabs)/_layout.tsx` — so the hook is only called when `ClerkProvider` is mounted, avoiding "useAuth outside ClerkProvider" errors
+- `app/_layout.tsx` — wraps app with `<IdentityProvider>` inside `ClerkProvider` (when auth enabled) or directly (when disabled)
+- `hooks/useSchedulerHandlers.ts` — replaced `process.env.EXPO_PUBLIC_ACCOUNT_ID/USER_ID` with `useIdentity()`
+- `app/(tabs)/index.tsx` — replaced module-level `ACCOUNT_ID` constant with `useIdentity()` inside the component
+- `app/(tabs)/explore.tsx` — same
+
+**How autosave works end-to-end:**
+1. User signs in with Clerk → `userId` (e.g. `user_2abc123`) resolves via `isLoaded=true`
+2. `useIdentity()` returns `{ accountId: 'user_2abc123', userId: 'user_2abc123' }`
+3. All data hooks (`useWorkers`, `useShiftTemplates`, `useRoster`) receive this as their `accountId` parameter and re-fetch automatically
+4. Every write (add worker, add template, create shift, set status, etc.) sends `accountId` to the secure proxy → Supabase row includes `account_id = 'user_2abc123'`
+5. On next app load, hooks fetch with the same `accountId` → user sees their data
+
+**Pre-requisite: DB migrations must be run in Supabase SQL Editor**
+All 3 migration files in `supabase/migrations/` must be applied before data
+actually persists (without migrations, writes fail silently and data resets on
+reload — see project_migrations.md):
+1. `20240613120000_onboarding_progress.sql`
+2. `20260327000001_core_tables.sql` (workers, worker_availability, shift_templates, roster)
+3. `20260328000001_usage_limits.sql` (freemium quota)
+
+**Tests:** 164/164 passing. Lint: exit 0 (2 known no-require-imports warnings in test mocks).
+
+**Files changed:**
+- `contexts/IdentityContext.tsx` — new file
+- `app/_layout.tsx` — add IdentityProvider
+- `hooks/useSchedulerHandlers.ts` — use useIdentity()
+- `app/(tabs)/index.tsx` — use useIdentity()
+- `app/(tabs)/explore.tsx` — use useIdentity()
+- `Claude_changes.md` — this entry
+
+---

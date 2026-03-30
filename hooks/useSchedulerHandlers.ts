@@ -40,6 +40,7 @@ import {
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,9 +52,7 @@ export function useSchedulerHandlers() {
   const { section } = useLocalSearchParams<{ section?: string }>();
   const router = useRouter();
   const { t } = useT();
-
-  const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
-  const userId = process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
+  const { accountId, userId } = useIdentity();
 
   // ── DB-backed data hooks ──────────────────────────────────────────────────
   const {

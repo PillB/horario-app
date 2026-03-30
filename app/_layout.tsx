@@ -9,6 +9,7 @@ import { tokenCache } from '@clerk/expo/token-cache';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LocaleProvider } from '@/contexts/LocaleContext';
+import { IdentityProvider } from '@/contexts/IdentityContext';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 // Auth is only active when a Clerk publishable key is configured.
@@ -49,12 +50,12 @@ export default function RootLayout() {
   );
 
   if (!authEnabled) {
-    return inner;
+    return <IdentityProvider>{inner}</IdentityProvider>;
   }
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      {inner}
+      <IdentityProvider>{inner}</IdentityProvider>
     </ClerkProvider>
   );
 }

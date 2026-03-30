@@ -14,11 +14,11 @@ import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 import { useT } from '@/contexts/LocaleContext';
-
-const ACCOUNT_ID = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 export default function HomeScreen() {
   const { t } = useT();
+  const { accountId: ACCOUNT_ID } = useIdentity();
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 768;
   const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
