@@ -15,6 +15,7 @@ import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
+import { TourStep } from '@/components/TourStep';
 
 export default function HomeScreen() {
   const { t } = useT();
@@ -38,6 +39,7 @@ export default function HomeScreen() {
           <ThemedText style={styles.heroTagline}>Smart scheduling, simplified.</ThemedText>
         </View>
       }>
+      <TourStep target="home-header">
       <ThemedView
         style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
         <View style={[styles.heroCopy, isWideLayout && styles.heroCopyWide]}>
@@ -58,7 +60,9 @@ export default function HomeScreen() {
           </Pressable>
         </Link>
       </ThemedView>
+      </TourStep>
 
+      <TourStep target="streak-counter">
       <ThemedView style={styles.card}>
         <StreakCounter
           label={t('home.streak.title')}
@@ -71,6 +75,7 @@ export default function HomeScreen() {
           onRecordToday={() => recordAction()}
         />
       </ThemedView>
+      </TourStep>
 
       <ErrorBoundary onRetry={refresh}>
         <ThemedView style={styles.card}>

@@ -10,6 +10,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LocaleProvider } from '@/contexts/LocaleContext';
 import { IdentityProvider } from '@/contexts/IdentityContext';
+import { WelcomeTourProvider } from '@/contexts/WelcomeTourContext';
+import { TourSpotlight } from '@/components/TourSpotlight';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
 // Auth is only active when a Clerk publishable key is configured.
@@ -38,14 +40,17 @@ export default function RootLayout() {
 
   const inner = (
     <LocaleProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
-            fallback UI have access to the theme context. */}
-        <ErrorBoundary>
-          <AppNavigator />
-        </ErrorBoundary>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <WelcomeTourProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          {/* ErrorBoundary is inside ThemeProvider so ThemedText/ThemedView in the
+              fallback UI have access to the theme context. */}
+          <ErrorBoundary>
+            <AppNavigator />
+          </ErrorBoundary>
+          <TourSpotlight />
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </WelcomeTourProvider>
     </LocaleProvider>
   );
 

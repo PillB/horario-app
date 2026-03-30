@@ -25,6 +25,7 @@ import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
 import { useT } from '@/contexts/LocaleContext';
+import { TourStep } from '@/components/TourStep';
 
 export default function SchedulerScreen() {
   const { t } = useT();
@@ -175,6 +176,7 @@ export default function SchedulerScreen() {
           ref={workerSectionRef}
           onLayout={(e) => setWorkerSectionOffset(e.nativeEvent.layout.y)}
         >
+          <TourStep target="workers-section">
           <WorkerSection
             workers={workers}
             workerForm={workerForm}
@@ -191,12 +193,14 @@ export default function SchedulerScreen() {
             scrollToShiftSection={scrollToShiftSection}
             router={router}
           />
+          </TourStep>
         </View>
 
         <View
           ref={templateSectionRef}
           onLayout={(e) => setTemplateSectionOffset(e.nativeEvent.layout.y)}
         >
+          <TourStep target="shift-templates-section">
           <ShiftTemplateSection
             shiftTemplates={shiftTemplates}
             templateForm={templateForm}
@@ -214,6 +218,7 @@ export default function SchedulerScreen() {
             autoAssignApplying={autoAssignApplying}
             workers={workers}
           />
+          </TourStep>
         </View>
 
         <View
@@ -227,6 +232,7 @@ export default function SchedulerScreen() {
           ref={demandSectionRef}
           onLayout={(e) => setDemandSectionOffset(e.nativeEvent.layout.y)}
         >
+          <TourStep target="demand-section">
           <DemandSection
             fallbackMode={fallbackMode}
             setFallbackMode={setFallbackMode}
@@ -249,8 +255,10 @@ export default function SchedulerScreen() {
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
           />
+          </TourStep>
         </View>
 
+        <TourStep target="roster-section">
         <RosterSection
           publishCelebration={publishCelebration}
           rosterByDate={rosterByDate}
@@ -260,6 +268,7 @@ export default function SchedulerScreen() {
           upcomingShifts={upcomingShifts}
           staffingGaps={staffingGaps}
         />
+        </TourStep>
 
         <WellnessPrompt
           visible={promptVisible}

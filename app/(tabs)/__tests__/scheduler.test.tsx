@@ -34,6 +34,11 @@ jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
 
+jest.mock('@/contexts/WelcomeTourContext', () => ({
+  useWelcomeTour: () => ({ registerLayout: jest.fn() }),
+  TOUR_STEPS: [],
+}));
+
 jest.mock('@/contexts/LocaleContext', () => {
   const { en } = require('@/locales/en');
   function resolve(obj: Record<string, unknown>, path: string): string {

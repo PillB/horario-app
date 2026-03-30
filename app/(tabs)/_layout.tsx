@@ -6,18 +6,47 @@ import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { Colors } from '@/constants/Colors';
+import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
+import { ThemedText } from '@/components/ThemedText';
+import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
+import { TourStep } from '@/components/TourStep';
 
 // Auth gate only active when a valid Clerk publishable key is provided.
 const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
+
+function TourTriggerButton() {
+  const { startTour } = useWelcomeTour();
+  const colorScheme = useColorScheme();
+  return (
+    <Pressable
+      onPress={startTour}
+      accessibilityRole="button"
+      accessibilityLabel="Start app tour"
+      accessibilityHint="Opens the welcome tour that explains each section of the app"
+      style={({ pressed }) => ({
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: pressed
+          ? brand.primary + '22'
+          : Colors[colorScheme ?? 'light'].surface + '00',
+      })}
+    >
+      <ThemedText style={{ fontSize: 16, color: brand.primary, lineHeight: 20 }}>?</ThemedText>
+    </Pressable>
+  );
+}
 
 function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode }) {
   const colorScheme = useColorScheme();
   const { t, langCode, setLanguage, locale } = useT();
   const headerRightContent = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }}>
+      <TourTriggerButton />
       <LanguageSelector currentLang={langCode} onSelect={setLanguage} locale={locale} />
       {extraHeaderRight}
     </View>
@@ -46,7 +75,11 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
         name="scheduler"
         options={{
           title: t('nav.scheduler'),
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <TourStep target="scheduler-tab">
+              <IconSymbol size={28} name="calendar" color={color} />
+            </TourStep>
+          ),
         }}
       />
       <Tabs.Screen

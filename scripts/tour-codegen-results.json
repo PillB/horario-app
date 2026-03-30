@@ -1,0 +1,18 @@
+{
+  "batchId": "msgbatch_01EkL7j2i2z5pNNAbnjhqaqF",
+  "results": {
+    "TOUR_CONTEXT": {
+      "outPath": "contexts/WelcomeTourContext.tsx",
+      "lines": 289
+    },
+    "TOUR_SPOTLIGHT": {
+      "outPath": "components/TourSpotlight.tsx",
+      "lines": 576
+    },
+    "TOUR_STEP": {
+      "outPath": "components/TourStep.tsx",
+      "lines": 43
+    }
+  },
+  "errors": []
+}
