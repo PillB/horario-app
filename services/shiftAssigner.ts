@@ -326,51 +326,60 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
   const unassigned: UnassignedTemplate[] = [];
 
   for (const template of templates) {
-    // Find all eligible workers for this template
-    const candidates = workers.filter((worker) => {
-      if (worker.role !== template.role) return false;
-      if (!workerCoversTemplate(worker, template, date, tzOffset)) return false;
-      if (hasTimeOverlap(worker.id, template, date, liveRoster, templates)) return false;
-      if (constraints && !passesConstraints(worker.id, template, date, liveRoster, catalog, constraints)) return false;
-      return true;
-    });
-
-    if (candidates.length === 0) {
-      unassigned.push({
-        templateId: template.id,
-        reason: noAssignmentReason(template, workers, date, liveRoster, catalog, tzOffset, constraints),
-      });
-      continue;
-    }
-
-    // Score and sort candidates (highest score first)
-    const scored = candidates.map((worker) => ({
-      worker,
-      score: fairnessScore(worker.id, accumulatedHours),
-    }));
-    scored.sort((a, b) => b.score - a.score);
-
-    const best = scored[0].worker;
+    const slotsNeeded = Math.max(1, template.coverage ?? 1);
     const { startMinutes, endMinutes } = getTemplateWindow(template);
     const hours =
       endMinutes > startMinutes
         ? (endMinutes - startMinutes) / 60
         : (endMinutes + 1440 - startMinutes) / 60;
 
-    // Commit assignment
-    assignments.push({ date, templateId: template.id, workerId: best.id });
-    accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + hours);
+    let slotsAssigned = 0;
 
-    // Record in live roster for overlap checks on subsequent templates
-    liveRoster.push({
-      id: `new::${date}::${template.id}::${best.id}`,
-      date,
-      workerId: best.id,
-      templateId: template.id,
-      location: 'HQ',
-      status: 'Draft',
-      notified: false,
-    });
+    for (let slot = 0; slot < slotsNeeded; slot++) {
+      // Find all eligible workers for this slot (excludes already-assigned workers via liveRoster overlap check)
+      const candidates = workers.filter((worker) => {
+        if (worker.role !== template.role) return false;
+        if (!workerCoversTemplate(worker, template, date, tzOffset)) return false;
+        if (hasTimeOverlap(worker.id, template, date, liveRoster, templates)) return false;
+        if (constraints && !passesConstraints(worker.id, template, date, liveRoster, catalog, constraints)) return false;
+        return true;
+      });
+
+      if (candidates.length === 0) break; // no more eligible workers for this template
+
+      // Score and sort candidates (highest score first)
+      const scored = candidates.map((worker) => ({
+        worker,
+        score: fairnessScore(worker.id, accumulatedHours),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+
+      const best = scored[0].worker;
+
+      // Commit assignment
+      assignments.push({ date, templateId: template.id, workerId: best.id });
+      accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + hours);
+
+      // Record in live roster for overlap checks on subsequent slots/templates
+      liveRoster.push({
+        id: `new::${date}::${template.id}::${best.id}`,
+        date,
+        workerId: best.id,
+        templateId: template.id,
+        location: 'HQ',
+        status: 'Draft',
+        notified: false,
+      });
+
+      slotsAssigned++;
+    }
+
+    if (slotsAssigned === 0) {
+      unassigned.push({
+        templateId: template.id,
+        reason: noAssignmentReason(template, workers, date, liveRoster, catalog, tzOffset, constraints),
+      });
+    }
   }
 
   // ── 2-opt local swap improvement ──────────────────────────────────────────

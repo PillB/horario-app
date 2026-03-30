@@ -684,3 +684,52 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
 - `Claude_changes.md` — this entry
 
 ---
+
+### [TEMP] — 2026-03-30 00:30 UTC
+**Context dump:**
+- Playwright walkthrough complete (CHG-028). 4 bugs identified and queued:
+  - ISSUE-10: forecastError shown 4x on demand save failure (DemandSection.tsx line 220 duplicate + showActionBanner in handleFallbackSubmit)
+  - ISSUE-11: auto-assign only assigns 1 worker per template regardless of coverage field
+  - ISSUE-8: home screen (index.tsx) has 0% body content translated — all home.* keys already exist in en.ts
+  - ISSUE-9: onboardingSteps, forecastButtonLabel, forecastHelperText still hardcoded in useSchedulerHandlers.ts; also UpgradeBanner has no i18n
+**Files in flight:**
+  - components/scheduler/DemandSection.tsx (remove line 220 duplicate forecastError)
+  - hooks/useSchedulerHandlers.ts (remove showActionBanner from handleFallbackSubmit error path; add useT(); translate onboardingSteps + forecastButtonLabel/Helper)
+  - services/shiftAssigner.ts (loop up to template.coverage times per template)
+  - app/(tabs)/index.tsx (add useT(), replace all hardcoded strings)
+  - locales/en.ts (add forecastButtonLabel/Helper keys under scheduler.demand)
+  - all other locales (add same keys with English fallback acceptable since deep-merge handles it)
+**Resumption point:** About to implement ISSUE-10 first (simplest), then ISSUE-11, then ISSUE-8, then ISSUE-9.
+
+### CHG-029 — 2026-03-30 00:45 UTC
+**Type:** FIX (4 bugs: duplicate error display, auto-assign coverage, home i18n, scheduler i18n)
+
+**Bug fixes implemented:**
+
+**ISSUE-10: Demand error shown 4× simultaneously on baseline save failure**
+- Root cause: `DemandSection.tsx` rendered `forecastError` twice (original + CHG-028 addition); `handleFallbackSubmit` also called `showActionBanner` on error path, producing 4 simultaneous error displays
+- Fix: Removed duplicate `forecastError` render (line 220 in DemandSection.tsx); removed `showActionBanner(message, 'error')` call from `handleFallbackSubmit` error path; removed `showActionBanner` from that callback's dependency array
+
+**ISSUE-11: Auto-assign generates only 1 suggestion per template regardless of coverage**
+- Root cause: `shiftAssigner.ts` main loop assigned exactly 1 worker per template — `template.coverage` field was never consulted
+- Fix: Changed inner loop to assign up to `template.coverage` workers per template; each slot picks the next eligible worker (already-assigned workers are excluded via `liveRoster` overlap check); unassigned entry only emitted when `slotsAssigned === 0` (not per unfilled slot)
+
+**ISSUE-8: Home screen body content (index.tsx) entirely untranslated**
+- Root cause: `index.tsx` had no `useT()` import — all strings were English hardcoded
+- Fix: Added `useT()` import and `const { t } = useT()`; replaced all hardcoded strings using existing `home.*` locale keys (taglines, "Open Scheduler", streak label, upcoming shifts, staffing gaps, quick actions, achievements); all 9 locales benefit immediately via deep-merge fallback
+
+**ISSUE-9: Onboarding checklist and forecast button/helper text untranslated in useSchedulerHandlers.ts**
+- Root cause: `onboardingSteps` useMemo and `forecastButtonLabel`/`forecastHelperText` useMemos had all-hardcoded English strings; `useT()` was not imported in this hook
+- Fix: Added `useT()` import + `const { t } = useT()`; replaced all `onboardingSteps` strings with `scheduler.onboarding.*` keys; replaced all `forecastButtonLabel`/`forecastHelperText` strings with new `scheduler.demand.forecastRunning/Waiting/NeedInput/HelperInvalid/HelperNoData/HelperApiDown/HelperPending/HelperRunning/HelperReady` keys; added all 9 new keys to `locales/en.ts`; added `t` to all affected `useMemo` dependency arrays
+
+**Tests:** 164/164 passing. Lint: exit 0 (2 known no-require-imports warnings in test mocks).
+
+**Files changed:**
+- `components/scheduler/DemandSection.tsx` — remove duplicate forecastError render
+- `hooks/useSchedulerHandlers.ts` — remove showActionBanner from fallback error; add useT(); translate onboardingSteps + forecastButtonLabel/Helper
+- `services/shiftAssigner.ts` — loop up to coverage slots per template
+- `app/(tabs)/index.tsx` — add useT(); replace all hardcoded strings with home.* keys
+- `locales/en.ts` — add 9 new scheduler.demand.forecast* keys
+- `Claude_changes.md` — this entry
+
+---

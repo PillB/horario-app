@@ -39,6 +39,7 @@ import {
 } from '@/services/shiftAssigner';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
+import { useT } from '@/contexts/LocaleContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ type ActionBanner = { type: 'success' | 'error' | 'info'; message: string } | nu
 export function useSchedulerHandlers() {
   const { section } = useLocalSearchParams<{ section?: string }>();
   const router = useRouter();
+  const { t } = useT();
 
   const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
   const userId = process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
@@ -257,29 +259,26 @@ export function useSchedulerHandlers() {
   );
 
   const forecastBlockingReason = useMemo(() => {
-    if (!isForecastInputValid) return 'Add date & role to forecast';
-    if (forecastPending) return 'Waiting for edits…';
+    if (!isForecastInputValid) return t('scheduler.demand.forecastNeedInput');
+    if (forecastPending) return t('scheduler.demand.forecastWaiting');
     return null;
-  }, [forecastPending, isForecastInputValid]);
+  }, [forecastPending, isForecastInputValid, t]);
 
   const forecastActionDisabled =
     !isForecastInputValid || forecasting || forecastLoading || forecastPending;
 
   const forecastButtonLabel = useMemo(() => {
-    if (forecasting || forecastLoading) return 'Running…';
-    return forecastBlockingReason ?? "Run forecast with today's signals";
-  }, [forecastBlockingReason, forecastLoading, forecasting]);
+    if (forecasting || forecastLoading) return t('scheduler.demand.forecastRunning');
+    return forecastBlockingReason ?? t('scheduler.demand.runForecast');
+  }, [forecastBlockingReason, forecastLoading, forecasting, t]);
 
   const forecastHelperText = useMemo(() => {
-    if (!isForecastInputValid)
-      return 'Enter a valid YYYY-MM-DD date and role to generate a forecast.';
-    if (needsFallbackSetup)
-      return 'No historical shifts or external signals found. Use quick setup to seed demand targets.';
-    if (!dataStatus.apiAvailable)
-      return 'Forecast API unavailable. Use quick setup or manual targets to proceed.';
-    if (forecastPending) return 'Waiting for input to settle before forecasting…';
-    if (forecastLoading || forecasting) return 'Running forecast...';
-    return "Ready to run forecast with today's signals.";
+    if (!isForecastInputValid) return t('scheduler.demand.forecastHelperInvalid');
+    if (needsFallbackSetup) return t('scheduler.demand.forecastHelperNoData');
+    if (!dataStatus.apiAvailable) return t('scheduler.demand.forecastHelperApiDown');
+    if (forecastPending) return t('scheduler.demand.forecastHelperPending');
+    if (forecastLoading || forecasting) return t('scheduler.demand.forecastHelperRunning');
+    return t('scheduler.demand.forecastHelperReady');
   }, [
     dataStatus.apiAvailable,
     forecastLoading,
@@ -287,6 +286,7 @@ export function useSchedulerHandlers() {
     forecastPending,
     isForecastInputValid,
     needsFallbackSetup,
+    t,
   ]);
 
   const derivedOnboardingFlags = useMemo(
@@ -389,26 +389,26 @@ export function useSchedulerHandlers() {
     () => [
       {
         key: 'workers',
-        title: 'Add workers',
-        description: 'Create worker profiles and set availability. ⏱ ~2 min',
+        title: t('scheduler.onboarding.addWorkers'),
+        description: t('scheduler.onboarding.addWorkersDesc'),
         completed: effectiveOnboardingFlags.workers,
-        actionLabel: 'Add workers',
+        actionLabel: t('scheduler.onboarding.addWorkersAction'),
         onPress: () => goToSection('workers'),
       },
       {
         key: 'templates',
-        title: 'Save templates',
-        description: 'Define reusable shifts with role and coverage. ⏱ ~1 min',
+        title: t('scheduler.onboarding.saveTemplates'),
+        description: t('scheduler.onboarding.saveTemplatesDesc'),
         completed: effectiveOnboardingFlags.templates,
-        actionLabel: 'Add template',
+        actionLabel: t('scheduler.onboarding.saveTemplatesAction'),
         onPress: () => goToSection('templates'),
       },
       {
         key: 'forecast',
-        title: 'Run forecast',
-        description: 'Generate demand targets — then auto-assign in one tap. ⏱ ~1 min',
+        title: t('scheduler.onboarding.runForecast'),
+        description: t('scheduler.onboarding.runForecastDesc'),
         completed: effectiveOnboardingFlags.forecast,
-        actionLabel: forecastLoading || forecasting ? 'Running…' : 'Run forecast',
+        actionLabel: forecastLoading || forecasting ? t('scheduler.demand.forecastRunning') : t('scheduler.onboarding.runForecastAction'),
         onPress: () => goToSection('forecast'),
       },
     ],
@@ -419,6 +419,7 @@ export function useSchedulerHandlers() {
       forecastLoading,
       forecasting,
       goToSection,
+      t,
     ]
   );
 
@@ -845,14 +846,12 @@ export function useSchedulerHandlers() {
       const message = result.error ?? 'Unable to save baseline targets. Please try again.';
       setFallbackMessage(null);
       setFallbackError(message);
-      showActionBanner(message, 'error');
     }
   }, [
     buildDateSequence,
     fallbackForm,
     fallbackMode,
     seedBaselineTargets,
-    showActionBanner,
   ]);
 
   const handlePublishShift = useCallback(

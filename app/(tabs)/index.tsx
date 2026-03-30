@@ -13,10 +13,12 @@ import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
+import { useT } from '@/contexts/LocaleContext';
 
 const ACCOUNT_ID = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? 'demo-account';
 
 export default function HomeScreen() {
+  const { t } = useT();
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 768;
   const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
@@ -40,26 +42,26 @@ export default function HomeScreen() {
         style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
         <View style={[styles.heroCopy, isWideLayout && styles.heroCopyWide]}>
           <ThemedText type="title">
-            Cut no-shows by auto-matching availability to demand in seconds.
+            {t('home.hero.tagline1')}
           </ThemedText>
           <ThemedText style={styles.mutedText}>
-            Keep worker availability, templates, and roster health in sync.
+            {t('home.hero.tagline2')}
           </ThemedText>
         </View>
         <Link href="/(tabs)/scheduler" asChild>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open Scheduler to plan shifts"
-            accessibilityHint="Open the scheduling view to align availability with coverage"
+            accessibilityLabel={t('home.openSchedulerA11y')}
+            accessibilityHint={t('home.openSchedulerHint')}
             style={styles.primaryButton}>
-            <ThemedText style={styles.primaryButtonText}>Open Scheduler</ThemedText>
+            <ThemedText style={styles.primaryButtonText}>{t('home.openScheduler')}</ThemedText>
           </Pressable>
         </Link>
       </ThemedView>
 
       <ThemedView style={styles.card}>
         <StreakCounter
-          label="Roster health streak"
+          label={t('home.streak.title')}
           streakCount={streakCount}
           longestStreak={longestStreak}
           progress={progress}
@@ -72,18 +74,18 @@ export default function HomeScreen() {
 
       <ErrorBoundary onRetry={refresh}>
         <ThemedView style={styles.card}>
-          <ThemedText type="subtitle">Upcoming shifts</ThemedText>
+          <ThemedText type="subtitle">{t('home.upcomingShifts.title')}</ThemedText>
           {rosterLoading ? (
             <SkeletonCard rows={3} />
           ) : upcomingShifts.length === 0 ? (
             <>
-              <ThemedText style={styles.mutedText}>No shifts scheduled yet.</ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.upcomingShifts.empty')}</ThemedText>
               <Link href="/(tabs)/scheduler" asChild>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Build your first roster"
+                  accessibilityLabel={t('home.upcomingShifts.buildFirstA11y')}
                   style={styles.emptyStateCta}>
-                  <ThemedText style={styles.emptyStateCtaText}>Build your first roster →</ThemedText>
+                  <ThemedText style={styles.emptyStateCtaText}>{t('home.upcomingShifts.buildFirst')}</ThemedText>
                 </Pressable>
               </Link>
             </>
@@ -103,14 +105,14 @@ export default function HomeScreen() {
         </ThemedView>
 
         <ThemedView style={styles.card}>
-          <ThemedText type="subtitle">Staffing gaps</ThemedText>
+          <ThemedText type="subtitle">{t('home.staffingGaps.title')}</ThemedText>
           {rosterLoading ? (
             <SkeletonCard rows={2} />
           ) : staffingGaps.length === 0 ? (
             <ThemedText style={styles.mutedText}>
               {upcomingShifts.length > 0
-                ? 'All shifts are fully staffed.'
-                : 'No demand targets yet — run a forecast in the Scheduler.'}
+                ? t('home.staffingGaps.allStaffed')
+                : t('home.staffingGaps.noTargets')}
             </ThemedText>
           ) : (
             staffingGaps.map((gap) => (
@@ -120,8 +122,8 @@ export default function HomeScreen() {
                   <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
                 </View>
                 <ThemedView style={styles.gapPill}>
-                  <ThemedText style={styles.badge}>{gap.gap} open</ThemedText>
-                  <ThemedText style={styles.mutedText}>{gap.required} required</ThemedText>
+                  <ThemedText style={styles.badge}>{t('home.staffingGaps.open', { n: String(gap.gap) })}</ThemedText>
+                  <ThemedText style={styles.mutedText}>{t('home.staffingGaps.requiredCount', { n: String(gap.required) })}</ThemedText>
                 </ThemedView>
               </View>
             ))
@@ -130,36 +132,36 @@ export default function HomeScreen() {
       </ErrorBoundary>
 
       <ThemedView style={styles.card}>
-        <ThemedText type="subtitle">Quick actions</ThemedText>
+        <ThemedText type="subtitle">{t('home.quickActions.title')}</ThemedText>
         <View style={styles.actions}>
           <Link href="/(tabs)/scheduler" asChild>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Add availability update"
-              accessibilityHint="Capture new availability details in the scheduler"
+              accessibilityLabel={t('home.quickActions.addAvailabilityA11y')}
+              accessibilityHint={t('home.quickActions.addAvailabilityHint')}
               style={styles.actionButton}>
-              <ThemedText type="defaultSemiBold">Add availability</ThemedText>
-              <ThemedText style={styles.mutedText}>Capture changes from the floor</ThemedText>
+              <ThemedText type="defaultSemiBold">{t('home.quickActions.addAvailability')}</ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.quickActions.addAvailabilityDesc')}</ThemedText>
             </Pressable>
           </Link>
           <Link href="/(tabs)/scheduler" asChild>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Build shifts from templates"
-              accessibilityHint="Open the scheduler to generate shifts using templates"
+              accessibilityLabel={t('home.quickActions.buildShiftsA11y')}
+              accessibilityHint={t('home.quickActions.buildShiftsHint')}
               style={styles.actionButton}>
-              <ThemedText type="defaultSemiBold">Build shifts</ThemedText>
-              <ThemedText style={styles.mutedText}>Start from templates</ThemedText>
+              <ThemedText type="defaultSemiBold">{t('home.quickActions.buildShifts')}</ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.quickActions.buildShiftsDesc')}</ThemedText>
             </Pressable>
           </Link>
           <Link href="/(tabs)/scheduler" asChild>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Publish roster"
-              accessibilityHint="Review targets and publish the roster to your team"
+              accessibilityLabel={t('home.quickActions.publishRosterA11y')}
+              accessibilityHint={t('home.quickActions.publishRosterHint')}
               style={styles.actionButton}>
-              <ThemedText type="defaultSemiBold">Publish roster</ThemedText>
-              <ThemedText style={styles.mutedText}>Review targets vs coverage</ThemedText>
+              <ThemedText type="defaultSemiBold">{t('home.quickActions.publishRoster')}</ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.quickActions.publishRosterDesc')}</ThemedText>
             </Pressable>
           </Link>
         </View>
@@ -181,15 +183,15 @@ export default function HomeScreen() {
           items={[
             {
               id: 'ach-1',
-              title: 'Consistent coverage checks',
-              description: 'Logged updates 5 of the last 7 days.',
+              title: t('home.achievements.coverageChecks'),
+              description: t('home.achievements.coverageChecksDesc'),
               progress: Math.max(streakCount, 1),
               goal: 7,
             },
             {
               id: 'ach-2',
-              title: 'Drafts published',
-              description: 'Move drafts into published when teams are ready.',
+              title: t('home.achievements.draftsPublished'),
+              description: t('home.achievements.draftsPublishedDesc'),
               progress: 3,
               goal: 5,
             },

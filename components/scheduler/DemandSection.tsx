@@ -217,7 +217,6 @@ export const DemandSection = ({
         <ThemedText style={styles.primaryButtonText}>{t('scheduler.demand.saveTarget')}</ThemedText>
       </Pressable>
       {targetError ? <ThemedText style={styles.errorText}>{targetError}</ThemedText> : null}
-      {!targetError && forecastError ? <ThemedText style={styles.errorText}>{forecastError}</ThemedText> : null}
 
       <View style={styles.inlineActions}>
         <Pressable
