@@ -24,7 +24,8 @@
  *   This avoids a "useAuth called outside ClerkProvider" error when auth is disabled.
  */
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
+import { setTokenProvider } from '@/services/authToken';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,11 @@ const IdentityContext = createContext<Identity>({
 function ClerkIdentityProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useAuth } = require('@clerk/expo') as typeof import('@clerk/expo');
-  const { userId, isLoaded } = useAuth();
+  const { userId, isLoaded, getToken } = useAuth();
+
+  useEffect(() => {
+    setTokenProvider(getToken);
+  }, [getToken]);
 
   const value: Identity = {
     // While isLoaded=false, userId is null; fall back to env var so hooks

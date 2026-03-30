@@ -1,3 +1,5 @@
+import { getSessionToken } from '@/services/authToken';
+
 const SECURE_PROXY_URL =
   process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? 'http://localhost:8081/api/secure-proxy';
 
@@ -11,9 +13,14 @@ type IncrementResult =
 
 const proxyPost = async <T>(body: unknown): Promise<T | null> => {
   try {
+    const token = await getSessionToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     const res = await fetch(SECURE_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     });
     if (!res.ok) return null;

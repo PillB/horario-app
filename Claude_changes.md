@@ -6,6 +6,31 @@
 
 ---
 
+### CHG-034 — 2026-03-30 UTC
+**Type:** FEATURE (Clerk auth end-to-end + per-user Supabase persistence)
+**Files changed:**
+- `.env.local` — Added `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` (pk_test_*), `CLERK_JWKS_URL`, `CLERK_SECRET_KEY` (server-only), `EXPO_PUBLIC_CLERK_FRONTEND_API`. Supabase URL + new-format publishable/secret keys also filled in.
+- `services/authToken.ts` (NEW) — Module-level token provider: `setTokenProvider(fn)` + `getSessionToken()`. Allows non-React service files to attach Clerk session tokens to proxy requests.
+- `contexts/IdentityContext.tsx` — `ClerkIdentityProvider` now calls `setTokenProvider(getToken)` via `useEffect` whenever `getToken` changes, wiring the Clerk session into all service calls.
+- `services/rosterService.ts` — `proxyPost` gets Clerk token from `getSessionToken()` and adds `Authorization: Bearer <token>` header when present.
+- `services/demandForecast.ts` — Same token attachment in `handleSecureFetch`.
+- `services/onboardingProgress.ts` — Same in `upsertOnboardingProgress`.
+- `services/usageService.ts` — Same in `proxyPost`.
+- `app/api/secure-proxy+api.ts` — JWT verification using Node.js built-in `crypto` + JWKS fetch from `CLERK_JWKS_URL` (5-min cache). `verifyClerkToken` decodes JWT header/payload, finds matching JWK by `kid`, verifies RSA-SHA256 signature, checks expiry. `getAuthorizedAccountId` returns verified `sub` or null. `resolveAccountId` helper falls back to body accountId in dev-bypass mode. All switch cases that accept `accountId` now use `resolveAccountId(authorizedAccountId, body.accountId)`. Proxy returns 401 when auth is enabled and token is missing/invalid.
+
+**Security model:**
+- Client attaches `Authorization: Bearer <clerk_token>` to all proxy requests (via `setTokenProvider`)
+- Proxy verifies JWT via JWKS and extracts `sub` (= Clerk user ID) as the authoritative `accountId`
+- Per-user data isolation enforced at the application layer in the proxy
+- Dev bypass: when no Clerk key configured, everything works as before (no breaking change)
+- No new npm dependencies — Node.js built-in `crypto` only
+
+**Notes:**
+- Batch output was truncated for the 918-line proxy file — last 211 lines recovered from git and POST handler wired manually with `resolveAccountId` calls.
+- 164/164 tests pass. 0 lint errors.
+
+---
+
 ### CHG-033 — 2026-03-30 UTC
 **Type:** FIX (WCAG contrast audit + code fixes via Batch API; lint/test repairs)
 **Files changed:**

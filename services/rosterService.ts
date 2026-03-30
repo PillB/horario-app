@@ -9,6 +9,8 @@
  * Pattern mirrors services/demandForecast.ts.
  */
 
+import { getSessionToken } from '@/services/authToken';
+
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
 // ─── Domain types (DB-aligned) ────────────────────────────────────────────────
@@ -82,9 +84,13 @@ export type MutationResult =
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
+  const token = await getSessionToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const response = await fetch(SECURE_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
 

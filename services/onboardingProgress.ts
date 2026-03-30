@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseClient';
+import { getSessionToken } from '@/services/authToken';
 
 export type OnboardingProgress = {
   workers: boolean;
@@ -66,9 +67,16 @@ export const upsertOnboardingProgress = async (
   userId?: string | null
 ) => {
   try {
+    const token = await getSessionToken();
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ action: 'upsertOnboarding', accountId, flags, userId }),
     });
 

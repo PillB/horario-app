@@ -1,3 +1,5 @@
+import { getSessionToken } from '@/services/authToken';
+
 export type DemandForecast = {
   date: string;
   role: string;
@@ -53,9 +55,16 @@ const DEFAULT_FORECAST_METADATA: ForecastGenerationMetadata = {
 };
 
 const handleSecureFetch = async <T>(payload: Record<string, unknown>): Promise<T> => {
+  const token = await getSessionToken();
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(SECURE_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
 
