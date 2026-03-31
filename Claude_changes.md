@@ -6,6 +6,21 @@
 
 ---
 
+### CHG-037 — 2026-03-30 UTC
+**Type:** FIX + PREEMPT (Vercel deployment hardening — CORS, env vars, Node version, proxy URL fallback)
+**Files changed:**
+- `app/api/secure-proxy+api.ts` — Added `CORS_HEADERS` constant; applied to all `Response` constructors (`buildErrorResponse`, `jsonOk`, 5 inline responses); added `OPTIONS` export for preflight.
+- `services/usageService.ts` — Fixed fallback proxy URL from `http://localhost:8081/api/secure-proxy` to `/api/secure-proxy` (absolute localhost fallback would fail on Vercel if env var unset).
+- `package.json` — Added `engines: { node: ">=20.0.0" }` to pin Node 20 on Vercel.
+- `.env.local.template` — Added `CLERK_JWKS_URL` (server-only, critical for JWT verification in API route); updated `EXPO_PUBLIC_SECURE_PROXY_URL` comment to document Vercel relative-URL pattern.
+**Key decisions:**
+- CORS headers use `Access-Control-Allow-Origin: *` — the proxy is authenticated via Clerk JWT so wildcard origin is safe; no sensitive data is accessible without a valid token.
+- Relative fallback `/api/secure-proxy` works for web (browser resolves against current host). Native (iOS/Android) requires the absolute `EXPO_PUBLIC_SECURE_PROXY_URL` env var to be set.
+- `CLERK_JWKS_URL` is not in the Clerk SDK — it's fetched manually for manual JWT verification with Node `crypto`. Must be set in Vercel env vars.
+**Notes:**
+- 164 tests pass, 0 lint errors.
+- Required Vercel environment variables: `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_SECURE_PROXY_URL=/api/secure-proxy`, `SUPABASE_SERVICE_ROLE_KEY`, `CLERK_JWKS_URL`.
+
 ### CHG-036 — 2026-03-30 UTC
 **Type:** FIX (Vercel 404 — vercel.json routing rewritten for actual Expo Router v5 dist structure)
 **Files changed:**

@@ -405,14 +405,20 @@ const upsertOnboarding = async (client: SupabaseClient, accountId: string, flags
   return { success: true, progress: flags } as const;
 };
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 const buildErrorResponse = (message: string, status = 500) =>
   new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
   });
 
 const jsonOk = (body: unknown) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
 
 // When auth is enabled, authorizedAccountId is the verified JWT sub.
 // When disabled (dev), fall back to the account ID from the request body.
@@ -839,7 +845,7 @@ export async function POST(request: Request) {
     switch (payload.action) {
       case 'forecast': {
         const result = await forecastWithServiceRole(client, payload.filters);
-        return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
       }
       case 'status': {
         const status: ForecastGenerationMetadata = {
@@ -860,22 +866,22 @@ export async function POST(request: Request) {
         status.hasHistorical = historical.length > 0;
         status.hasExternalSignals = signals.length > 0;
         status.hasExistingTargets = existingTargets.length > 0;
-        return new Response(JSON.stringify(status), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(status), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
       }
       case 'upsertTargets': {
         const targets = payload.targets?.map((target) => ({ ...target, required: Number(target.required) })) ?? [];
         const result = await upsertTargets(client, targets);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
       }
       case 'loadTargets': {
         const targets = await fetchExistingTargets(client, payload.filters);
-        return new Response(JSON.stringify({ targets }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ targets }), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
       }
       case 'upsertOnboarding': {
         const acctId = resolveAccountId(authorizedAccountId, payload.accountId);
         if (!acctId || !payload.flags) return buildErrorResponse('Missing onboarding payload', 400);
         const result = await upsertOnboarding(client, acctId, payload.flags, payload.userId);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
       }
       case 'listWorkers': {
         const result = await dbListWorkers(client, resolveAccountId(authorizedAccountId, payload.accountId));
@@ -961,4 +967,8 @@ export async function POST(request: Request) {
     console.error('Secure proxy request failed', error);
     return buildErrorResponse(message, 500);
   }
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }

@@ -1,7 +1,7 @@
 import { getSessionToken } from '@/services/authToken';
 
 const SECURE_PROXY_URL =
-  process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? 'http://localhost:8081/api/secure-proxy';
+  process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
 type UsageLimitResult =
   | { success: true; count: number; canAutoAssign: boolean }
