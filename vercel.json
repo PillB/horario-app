@@ -4,9 +4,7 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "functions": {
-    "dist/server/_expo/functions/**/*.js": {
-      "runtime": "nodejs20.x"
-    }
+    "dist/server/_expo/functions/**/*.js": {}
   },
   "routes": [
     { "src": "/_expo/static/(.*)", "dest": "/client/_expo/static/$1" },
