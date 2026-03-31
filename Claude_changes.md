@@ -6,6 +6,27 @@
 
 ---
 
+### CHG-036 — 2026-03-30 UTC
+**Type:** FIX (Vercel 404 — vercel.json routing rewritten for actual Expo Router v5 dist structure)
+**Files changed:**
+- `vercel.json` — Complete rewrite: explicit routes for each pre-rendered HTML page derived from `dist/server/_expo/routes.json` namedRegex patterns; static assets routed via `/client/` prefix; API route fixed to reference `secure-proxy+api.js`; catch-all → `+not-found.html`
+- `app/(auth)/_layout.tsx` — Added `authEnabled` guard: when no Clerk key, render `AuthStack` directly without calling `useAuth()` (which requires `ClerkProvider`). Extracted `AuthStack` as shared inner component.
+- `VERCEL_DEPLOY.md` — §1.5 rewritten with correct `vercel.json` + explanation of why explicit routes are required; §1.6 smoke-test updated with exact expected file paths; §5.2 error table extended with 404 and `+api` suffix entries; §6.5 completed with runtime error table; §6.6 Troubleshoot-404s section added.
+- `scripts/vercel-404-fix-batch.mjs` *(NEW)* — Batch API script (claude-sonnet-4-6, 50% off) that generated and verified fixes.
+
+**Key decisions:**
+- Keep `"output": "server"` in app.json. Expo Router v5 with server output uses pre-rendered HTML (not SSR on every request), so each page requires an explicit Vercel route rather than a single catch-all handler.
+- `dist/server/_expo/routes.json` is the canonical source of truth for URL→file mapping. All `vercel.json` routes are derived from its `namedRegex` patterns.
+- Root cause of 404s was twofold: (1) catch-all dest pointed to `__root__.js` which does not exist in Expo Router v5 dist output; (2) API route dest omitted the `+api` suffix, referencing `secure-proxy.js` instead of `secure-proxy+api.js`.
+- React 19.0.0 peer dep warnings (`@clerk/react@6.1.3`) are transitive. `@clerk/expo@3.1.5` itself declares `react@"^18.0.0 || ^19.0.0"` — not a runtime issue.
+
+**Notes:**
+- 164/164 tests pass. 0 lint errors.
+- A full redeploy is required to pick up `vercel.json` changes — config-only changes do not hot-reload on Vercel.
+- Any new pages added to the app must receive a corresponding explicit entry in `vercel.json` routes (derived from the updated `routes.json` after re-running `expo export`).
+
+---
+
 ### CHG-035 — 2026-03-30 UTC
 **Type:** INFRA (Vercel deployment readiness — config, web compat, env vars)
 **Files changed:**
