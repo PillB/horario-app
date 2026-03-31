@@ -3,9 +3,6 @@
   "framework": null,
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-  "functions": {
-    "dist/server/_expo/functions/**/*.js": {}
-  },
   "routes": [
     { "src": "/_expo/static/(.*)", "dest": "/client/_expo/static/$1" },
     { "src": "/assets/(.*)", "dest": "/client/assets/$1" },
