@@ -1046,6 +1046,63 @@ export function useSchedulerHandlers() {
     showActionBanner(msg, 'success');
   }, [overrideTarget, showActionBanner, t]);
 
+  /**
+   * Seeds the app with realistic sample data after tour completion.
+   * Idempotent: only runs if no workers exist yet.
+   * Creates 3 workers, 2 templates, and 4 shifts across the current + next week.
+   */
+  const seedTourData = useCallback(async () => {
+    if (workers.length > 0) return; // already has data
+
+    // Helper: YYYY-MM-DD for today + offset days
+    const dateOffset = (days: number): string => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Step 1 — add sample workers
+    const [w1, w2] = await Promise.all([
+      addWorker('Alex Johnson', 'Server', ['Tables', 'POS']),
+      addWorker('Maria Garcia', 'Barista', ['Espresso', 'Cold Brew']),
+    ]);
+    // Third worker added serially to avoid race on optimistic state
+    await addWorker('James Williams', 'Server', ['Tables', 'Bar']);
+
+    // Step 2 — add sample templates
+    const [tmpl1, tmpl2] = await Promise.all([
+      addShiftTemplate('Morning Server', 'Server', '08:00', '14:00', 2),
+      addShiftTemplate('Evening Barista', 'Barista', '16:00', '22:00', 1),
+    ]);
+
+    // Step 3 — build roster shifts using IDs from the result objects
+    const w1Id = w1.worker?.id;
+    const w2Id = w2.worker?.id;
+    const t1Id = tmpl1.template?.id;
+    const t2Id = tmpl2.template?.id;
+
+    const shiftPromises: ReturnType<typeof addShift>[] = [];
+    if (w1Id && t1Id) {
+      shiftPromises.push(
+        addShift({ date: dateOffset(1), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(3), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Published', notified: true }),
+      );
+    }
+    if (w2Id && t2Id) {
+      shiftPromises.push(
+        addShift({ date: dateOffset(2), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(5), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Published', notified: true }),
+      );
+    }
+    if (shiftPromises.length > 0) await Promise.all(shiftPromises);
+
+    // Celebrate with confetti + banner
+    if (!reduceMotionEnabled) {
+      setPublishCelebration({ badgeVisible: false, confettiBurst: true });
+    }
+    showActionBanner(t('tour.completed.seedConfirmation'), 'success');
+  }, [workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
+
   // ── Return all state and handlers for the screen ──────────────────────────
   return {
     // Data
@@ -1150,5 +1207,8 @@ export function useSchedulerHandlers() {
     // Usage / freemium
     canAutoAssign,
     usageCount,
+
+    // Tour
+    seedTourData,
   } as const;
 }

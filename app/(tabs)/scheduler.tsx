@@ -7,7 +7,7 @@
  * Pure utils live in utils/schedulerUtils.ts and utils/schedulerValidators.ts.
  * Types live in types/scheduler.ts.
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ScrollView, View, Pressable, Modal } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -28,6 +28,7 @@ import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
 import { useT } from '@/contexts/LocaleContext';
 import { TourStep } from '@/components/TourStep';
+import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -137,7 +138,20 @@ export default function SchedulerScreen() {
 
     // Freemium
     usageCount,
+
+    // Tour
+    seedTourData,
   } = useSchedulerHandlers();
+
+  // ── Seed sample data when tour completes for the first time ─────────────
+  const { hasCompleted } = useWelcomeTour();
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (hasCompleted && !seededRef.current && workers.length === 0) {
+      seededRef.current = true;
+      seedTourData();
+    }
+  }, [hasCompleted, workers.length, seedTourData]);
 
   const [selectedShiftForNotes, setSelectedShiftForNotes] = React.useState<{
     shiftId: string;

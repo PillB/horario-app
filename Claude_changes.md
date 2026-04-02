@@ -1255,3 +1255,40 @@ reload — see project_migrations.md):
 **Tests:** 244/244 passing. Lint: exit 0.
 
 ---
+
+### CHG-051 — 2026-04-02 UTC
+**Type:** FEATURE (Tour language selector + "Why this matters" UI)
+
+**Changes:**
+1. **Language picker in tour onboarding modal**: Added a horizontal scrollable chip row showing all 9 language flags (🇺🇸🇪🇸🇩🇪🇫🇷🇮🇹🇨🇳🇰🇪🇵🇭🇮🇳) with native names at the TOP of the role-selection modal. Tapping any chip calls `setLanguage()` immediately, so all tour copy switches to the chosen language in real time. Selected chip shows teal border + background. Modal now wraps content in a `ScrollView` to handle tall viewports.
+
+2. **New locale key**: `tour.roleSelect.languageLabel: 'Choose your language'` added to `locales/en.ts`; other locales fall back to English via deep-merge.
+
+3. **"Why this matters" UI**: Already implemented in prior CHG-048 (whyToggleButton, whyContent, whySection styles all present and correct). Verified rendering with `▼ Why this matters` / `▲ Hide` toggle buttons.
+
+**Files changed:**
+- `components/TourSpotlight.tsx` — add `ScrollView`, `LangCode`, `LANG_META`, `LANG_CODES`; embed language chip row in `RoleSelectionModal`; add 7 new styles
+- `locales/en.ts` — add `tour.roleSelect.languageLabel`
+
+**Tests:** 244/244 passing. TypeScript: 0 errors. Lint: 0 errors.
+
+---
+
+### CHG-052 — 2026-04-02 UTC
+**Type:** FEATURE (Sample data seeding after tour completion + confetti celebration)
+
+**Changes:**
+1. **`seedTourData` function** in `hooks/useSchedulerHandlers.ts`: idempotent async function that creates 3 sample workers (Alex Johnson/Server, Maria Garcia/Barista, James Williams/Server), 2 shift templates (Morning Server 08:00–14:00, Evening Barista 16:00–22:00), and 4 roster shifts across the current + next week. Guards with `workers.length > 0` check. Fires `ConfettiBurst` via `setPublishCelebration` and shows a success banner.
+
+2. **Trigger in `app/(tabs)/scheduler.tsx`**: `useEffect` watching `hasCompleted && workers.length === 0` calls `seedTourData()` exactly once (via `seededRef`). Imports `useWelcomeTour` for the `hasCompleted` flag.
+
+3. **New locale key**: `tour.completed.seedConfirmation: '✅ Sample data added — explore your first team, templates, and shifts!'` in `locales/en.ts`.
+
+**Files changed:**
+- `hooks/useSchedulerHandlers.ts` — add `seedTourData` callback + export in return object
+- `app/(tabs)/scheduler.tsx` — import `useWelcomeTour`, `useEffect`, `useRef`; add seeding effect
+- `locales/en.ts` — add `tour.completed.seedConfirmation`
+
+**Tests:** 244/244 passing. TypeScript: 0 errors. Lint: 0 errors.
+
+---

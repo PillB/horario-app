@@ -3,6 +3,7 @@ import {
   Modal,
   View,
   Pressable,
+  ScrollView,
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
@@ -12,6 +13,21 @@ import { brand, Colors, type ThemeColors } from '@/constants/Colors';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
+import type { LangCode } from '@/locales/en';
+
+// Language meta for the inline picker — flags + native names
+const LANG_META: Record<LangCode, { flag: string; native: string }> = {
+  en: { flag: '🇺🇸', native: 'English' },
+  es: { flag: '🇪🇸', native: 'Español' },
+  de: { flag: '🇩🇪', native: 'Deutsch' },
+  fr: { flag: '🇫🇷', native: 'Français' },
+  it: { flag: '🇮🇹', native: 'Italiano' },
+  zh: { flag: '🇨🇳', native: '中文' },
+  sw: { flag: '🇰🇪', native: 'Kiswahili' },
+  tl: { flag: '🇵🇭', native: 'Filipino' },
+  hi: { flag: '🇮🇳', native: 'हिंदी' },
+};
+const LANG_CODES = Object.keys(LANG_META) as LangCode[];
 
 /** Tour step targets that live on the Scheduler screen. */
 const SCHEDULER_TARGETS = new Set([
@@ -50,7 +66,7 @@ function BackButton({ colors }: { colors: ThemeColors }) {
 /** Role selection card shown before the tour starts */
 function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
   const { setUserRole } = useWelcomeTour();
-  const { t } = useT();
+  const { t, langCode, setLanguage } = useT();
   const styles = makeStyles(colors);
 
   return (
@@ -61,48 +77,94 @@ function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
       statusBarTranslucent
     >
       <View style={styles.roleBackdrop}>
-        <View style={styles.roleCard}>
-          <ThemedText style={styles.roleTitle}>
-            {t('tour.roleSelect.title')}
-          </ThemedText>
-          <ThemedText style={styles.roleDesc}>
-            {t('tour.roleSelect.desc')}
-          </ThemedText>
+        <ScrollView
+          contentContainerStyle={styles.roleScrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.roleCard}>
+            {/* ── Language picker ──────────────────────────── */}
+            <ThemedText style={styles.roleLangLabel}>
+              {t('tour.roleSelect.languageLabel')}
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.langRow}
+            >
+              {LANG_CODES.map((code) => {
+                const meta = LANG_META[code];
+                const selected = code === langCode;
+                return (
+                  <Pressable
+                    key={code}
+                    onPress={() => setLanguage(code)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={meta.native}
+                    style={({ pressed }) => [
+                      styles.langChip,
+                      selected && styles.langChipSelected,
+                      pressed && { opacity: 0.75 },
+                    ]}
+                  >
+                    <ThemedText style={styles.langChipFlag}>{meta.flag}</ThemedText>
+                    <ThemedText
+                      style={[styles.langChipText, selected && styles.langChipTextSelected]}
+                      numberOfLines={1}
+                    >
+                      {meta.native}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-          <Pressable
-            onPress={() => setUserRole('manager')}
-            accessibilityRole="button"
-            accessibilityLabel={t('tour.roleSelect.managerTitle')}
-            style={({ pressed }) => [
-              styles.roleOptionButton,
-              pressed && styles.roleOptionButtonPressed,
-            ]}
-          >
-            <ThemedText style={styles.roleOptionTitle}>
-              {t('tour.roleSelect.managerTitle')}
-            </ThemedText>
-            <ThemedText style={styles.roleOptionDesc}>
-              {t('tour.roleSelect.managerDesc')}
-            </ThemedText>
-          </Pressable>
+            {/* ── Role divider ─────────────────────────────── */}
+            <View style={styles.roleDivider} />
 
-          <Pressable
-            onPress={() => setUserRole('worker')}
-            accessibilityRole="button"
-            accessibilityLabel={t('tour.roleSelect.workerTitle')}
-            style={({ pressed }) => [
-              styles.roleOptionButton,
-              pressed && styles.roleOptionButtonPressed,
-            ]}
-          >
-            <ThemedText style={styles.roleOptionTitle}>
-              {t('tour.roleSelect.workerTitle')}
+            <ThemedText style={styles.roleTitle}>
+              {t('tour.roleSelect.title')}
             </ThemedText>
-            <ThemedText style={styles.roleOptionDesc}>
-              {t('tour.roleSelect.workerDesc')}
+            <ThemedText style={styles.roleDesc}>
+              {t('tour.roleSelect.desc')}
             </ThemedText>
-          </Pressable>
-        </View>
+
+            <Pressable
+              onPress={() => setUserRole('manager')}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.roleSelect.managerTitle')}
+              style={({ pressed }) => [
+                styles.roleOptionButton,
+                pressed && styles.roleOptionButtonPressed,
+              ]}
+            >
+              <ThemedText style={styles.roleOptionTitle}>
+                {t('tour.roleSelect.managerTitle')}
+              </ThemedText>
+              <ThemedText style={styles.roleOptionDesc}>
+                {t('tour.roleSelect.managerDesc')}
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setUserRole('worker')}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.roleSelect.workerTitle')}
+              style={({ pressed }) => [
+                styles.roleOptionButton,
+                pressed && styles.roleOptionButtonPressed,
+              ]}
+            >
+              <ThemedText style={styles.roleOptionTitle}>
+                {t('tour.roleSelect.workerTitle')}
+              </ThemedText>
+              <ThemedText style={styles.roleOptionDesc}>
+                {t('tour.roleSelect.workerDesc')}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -454,6 +516,13 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       paddingHorizontal: 24,
     },
+    roleScrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 32,
+      width: '100%',
+    },
     roleCard: {
       backgroundColor: colors.surface,
       borderRadius: 16,
@@ -464,6 +533,52 @@ const makeStyles = (colors: ThemeColors) =>
       shadowOpacity: 0.18,
       shadowRadius: 12,
       elevation: 8,
+    },
+    // Language picker
+    roleLangLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    langRow: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingBottom: 4,
+    },
+    langChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    langChipSelected: {
+      borderColor: brand.primary,
+      backgroundColor: brand.primary + '18',
+    },
+    langChipFlag: {
+      fontSize: 16,
+    },
+    langChipText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    langChipTextSelected: {
+      color: brand.primaryDeep,
+      fontWeight: '700',
+    },
+    roleDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 18,
     },
     roleTitle: {
       fontSize: 22,

@@ -620,6 +620,7 @@ export const en = {
   // ─── Tour ────────────────────────────────────────────────────────────────
   tour: {
   roleSelect: {
+    languageLabel: 'Choose your language',
     title: 'Who are you?',
     desc: 'Tell us your role so we can personalise your tour and surface the features that matter most to you right away.',
     managerTitle: '👔 Manager / Owner',
@@ -717,6 +718,7 @@ export const en = {
   completed: {
     title: '🎉 You\'re all set!',
     desc: 'You\'ve completed the tour and have everything you need to build smarter schedules, reduce no-shows, and keep your team in sync. Your first great week starts now.',
+    seedConfirmation: '✅ Sample data added — explore your first team, templates, and shifts!',
   },
 },
 
