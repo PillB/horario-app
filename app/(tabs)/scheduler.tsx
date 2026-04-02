@@ -20,7 +20,6 @@ import { WorkerSection } from '@/components/scheduler/WorkerSection';
 import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSection';
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
-import PosUploadSection from '@/components/scheduler/PosUploadSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
@@ -128,6 +127,7 @@ export default function SchedulerScreen() {
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
+    handlePosTargetsGenerated,
 
     // Auto-assign state
     autoAssignSuggestions,
@@ -252,38 +252,6 @@ export default function SchedulerScreen() {
         </View>
 
         <View
-          ref={templateSectionRef}
-          onLayout={(e) => setTemplateSectionOffset(e.nativeEvent.layout.y)}
-        >
-          <TourStep target="shift-templates-section">
-          <ShiftTemplateSection
-            shiftTemplates={shiftTemplates}
-            templateForm={templateForm}
-            updateTemplateField={updateTemplateField}
-            handleAddTemplate={handleAddTemplate}
-            templateError={templateError}
-            templateSuccessMessage={templateSuccessMessage}
-            shiftForm={shiftForm}
-            updateShiftField={updateShiftField}
-            handleShiftSubmit={handleShiftSubmit}
-            shiftError={shiftError}
-            handleAutoAssign={handleAutoAssign}
-            applyAutoAssign={applyAutoAssign}
-            autoAssignSuggestions={autoAssignSuggestions}
-            autoAssignApplying={autoAssignApplying}
-            workers={workers}
-          />
-          </TourStep>
-        </View>
-
-        <View
-          ref={shiftSectionRef}
-          onLayout={(e) => setShiftSectionOffset(e.nativeEvent.layout.y)}
-        >
-          {/* shiftSectionRef anchors scroll-to-shift-section */}
-        </View>
-
-        <View
           ref={demandSectionRef}
           onLayout={(e) => setDemandSectionOffset(e.nativeEvent.layout.y)}
         >
@@ -309,13 +277,42 @@ export default function SchedulerScreen() {
             roster={roster}
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
+            onBulkSave={handlePosTargetsGenerated}
           />
           </TourStep>
         </View>
 
-        <PosUploadSection
-          accountId={process.env.EXPO_PUBLIC_ACCOUNT_ID ?? ''}
-        />
+        <View
+          ref={shiftSectionRef}
+          onLayout={(e) => setShiftSectionOffset(e.nativeEvent.layout.y)}
+        >
+          {/* shiftSectionRef anchors scroll-to-shift-section */}
+        </View>
+
+        <View
+          ref={templateSectionRef}
+          onLayout={(e) => setTemplateSectionOffset(e.nativeEvent.layout.y)}
+        >
+          <TourStep target="shift-templates-section">
+          <ShiftTemplateSection
+            shiftTemplates={shiftTemplates}
+            templateForm={templateForm}
+            updateTemplateField={updateTemplateField}
+            handleAddTemplate={handleAddTemplate}
+            templateError={templateError}
+            templateSuccessMessage={templateSuccessMessage}
+            shiftForm={shiftForm}
+            updateShiftField={updateShiftField}
+            handleShiftSubmit={handleShiftSubmit}
+            shiftError={shiftError}
+            handleAutoAssign={handleAutoAssign}
+            applyAutoAssign={applyAutoAssign}
+            autoAssignSuggestions={autoAssignSuggestions}
+            autoAssignApplying={autoAssignApplying}
+            workers={workers}
+          />
+          </TourStep>
+        </View>
 
         <TourStep target="roster-section">
         <RosterSection

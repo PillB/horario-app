@@ -304,6 +304,20 @@ export const en = {
       source: 'Source: {src}',
       requiredLabel: '{n} needed',
       tooltip: '📈 Demand targets tell the scheduler how many workers you need per role per day. Start with "Quick setup" to seed a week of baseline demand, then run a forecast to get AI-powered targets based on your historical shifts and external signals.',
+      posTab: 'POS Import',
+      posRole: 'Assign to role',
+      posRevenuePerHour: 'Revenue / worker-hour ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'Avg shift hours',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'Smoothing (days)',
+      posText: 'Paste CSV (date,revenue,covers,notes)',
+      posPreviewBtn: 'Preview CSV',
+      posGenerateBtn: 'Generate {n} demand targets',
+      posGenerating: 'Generating…',
+      posDone: '{n} targets saved from POS data',
+      posError: 'Error: {msg}',
+      posTooltip: 'Upload POS sales CSV to automatically calculate how many workers you need per day. The engine uses a rolling average to smooth revenue and converts it to required headcount using your revenue-per-worker-hour target.',
     },
 
     roster: {
@@ -358,6 +372,21 @@ export const en = {
       csvHelp: 'Accepted format: date (YYYY-MM-DD), revenue (number), covers (optional integer), notes (optional text). Up to 1,000 rows per upload.',
       dropHint: 'Drag & drop a .csv file here, or tap to browse',
     },
+  },
+
+  // ─── Week Calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Previous week',
+    nextWeek: 'Next week',
+    today: 'Today',
+    maximize: 'Fullscreen calendar',
+    closeFullscreen: 'Close fullscreen',
+    noShifts: 'No shifts this week.',
+    legend: 'Legend:',
+    legendDraft: 'Draft',
+    legendPublished: 'Published',
+    coverageMet: '{s}/{r} covered',
+    coverageShort: '{s}/{r} short',
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────

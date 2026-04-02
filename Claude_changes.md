@@ -6,6 +6,34 @@
 
 ---
 
+### [SUMMARY] — 2026-04-02 UTC
+**Last CHG completed:** CHG-039
+**Current state:** App has 6 implemented happy paths (add worker, set availability, create template, assign shift, POS CSV upload, demand forecast). Playwright spec exists at `e2e/scheduler.spec.ts`. Dev server must be running on :8081 for tests. 213/213 unit tests passing, 0 lint errors, 3 pre-existing TSC errors.
+**Active decisions:** Batch API (Sonnet 4.6) for all multi-file fix generation (50% off). Playwright MCP for interactive browser testing. Service-role key server-only. Clerk dev-bypass active.
+**Next action:** Run Playwright MCP against http://localhost:8081 to execute HP-1 through HP-6, collect failures, then batch fixes via Sonnet 4.6.
+**Watch out for:** Dev server may not be running (webServer block is commented out in playwright.config.ts — start manually). Workers/templates/roster are in-memory only — state resets between page loads. HP-2 depends on HP-1's worker ID.
+
+---
+
+### CHG-042 — 2026-04-02 UTC
+**Type:** FEATURE (POS-based demand forecasting integration + WeekCalendar coverage dots)
+
+**Files changed:**
+- `utils/posForecasting.ts` *(NEW)* — Pure TS demand forecasting from POS CSV: `PosRow`, `PosForecasterConfig`, `DEFAULT_POS_CONFIG` (revenuePerWorkerHour=50, avgShiftHours=8, smoothingWindow=7), `rollingAverage()`, `forecastDemandFromPOS()`. Algorithm: sorted rows → centered rolling average → required = ceil(smoothedRevenue / (rph * shiftHrs)), lowerBound=max(1,required-1), upperBound=required+1, confidence=0.80, source='pos_forecast'.
+- `components/scheduler/WeekCalendar.tsx` *(NEW)* — WeekCalendar component: COLUMN_WIDTH 110→120; optional `coverageByDate` prop renders colored dot + "s/r" ratio in column headers; legend row (amber Draft + teal Published) between header and grid; ShiftChip shows `start – end` time below worker name (fontSize 9); new locale keys: weekCalendar.legend/legendDraft/legendPublished/noShifts.
+- `components/scheduler/DemandSection.tsx` — Added 'pos' as third fallbackMode; POS import sub-panel with TextInput paste area, config inputs (revenue/hr, shift hours), preview table, generate button; inline CSV parser (splitCsvLine, parseRevenueFn, normaliseDateFn, parsePosPreview) with no external deps; calls `forecastDemandFromPOS` from posForecasting.ts; new `onBulkSave` prop to persist generated targets.
+- `hooks/useSchedulerHandlers.ts` — Updated `fallbackMode` useState type to include `'pos'`; added `if (fallbackMode === 'pos') return;` guard in handleFallbackSubmit; added `handlePosTargetsGenerated` callback (iterates targets, calls overrideTarget with source cast to `'model' | 'override'`, sets success banner with count); exported from return object.
+- `app/(tabs)/scheduler.tsx` — Removed standalone `PosUploadSection` import and render; destructures `handlePosTargetsGenerated` from useSchedulerHandlers; reordered sections: Workers → Demand → shiftSectionRef anchor → Templates → Roster; passes `onBulkSave={handlePosTargetsGenerated}` to DemandSection.
+- `locales/en.ts` — Added 14 POS keys to `scheduler.demand` (posTab, posRole, posRevenuePerHour, posRevenuePerHourPlaceholder, posShiftHours, posShiftHoursPlaceholder, posSmoothing, posText, posPreviewBtn, posGenerateBtn, posGenerating, posDone, posError, posTooltip); added top-level `weekCalendar` section (prevWeek, nextWeek, today, maximize, closeFullscreen, noShifts, legend, legendDraft, legendPublished, coverageMet, coverageShort).
+- `locales/es.ts` — Added same POS keys in Spanish; added missing roster calendar keys (calendarView, listView, noShiftsThisWeek, maximize, closeFullscreen, weekOf, prevWeek, nextWeek, today); added `weekCalendar` section in Spanish.
+
+**Method:** Anthropic Batch API (claude-sonnet-4-6, 7 requests). Truncated outputs for large files fixed with git-restore + surgical Edit. One post-batch TS fix: source cast `'manual'` removed (DemandForecast.source only accepts `'model' | 'override'`). Three Array<T> lint warnings fixed (`Array<{...}>` → `{...}[]`).
+
+**Tests:** 213/213 passed ✓
+**Lint:** 0 errors, 10 pre-existing warnings ✓
+
+---
+
 ### CHG-039 — 2026-04-02 UTC
 **Type:** FEATURE (Phase 1–3: Demand prediction, POS upload, logging, diagnostics — Batch API)
 
@@ -35,6 +63,49 @@
 **Tests:** 213/213 passed ✓ (49 new forecastEngine tests)
 **TSC:** 3 pre-existing errors only (app/_layout.tsx TokenCache, secure-proxy JWK cast) — 0 new errors ✓
 **Lint:** 0 errors, 10 pre-existing warnings ✓
+
+---
+
+### CHG-041 — 2026-04-02 UTC
+**Type:** FEATURE (Profile tab + comprehensive tooltip audit + full i18n)
+
+**Files changed:**
+- `app/(tabs)/profile.tsx` *(NEW)* — Full Profile screen: avatar circle with initials, email, dynamic plan badge; Subscription card (free/trial/pro) with contextual upgrade or manage-billing CTA; Settings card with LanguageSelector; Account card with Sign out (auth) or Sign in (bypass); About card with version + diagnostics link. All sections have InfoTooltip. Follows two-implementation pattern (useUserInfoAuth/useUserInfoBypass, useSignOutAuth/useSignOutBypass) for safe Clerk integration. Full WCAG AA+ contrast.
+- `app/(tabs)/_layout.tsx` — Added Profile tab (`person.crop.circle.fill` icon, `nav.profile` title). Removed `SignOutButton` from header (moved into Profile tab). Removed `brand` import (now unused). `TabNavigator` signature simplified (no more `extraHeaderRight` prop).
+- `app/(tabs)/explore.tsx` — Added `InfoTooltip` import + tooltip next to Analytics title using `analytics.tooltip` key.
+- `components/scheduler/WorkerSection.tsx` — Added `tooltip={t('scheduler.workers.addCardTooltip')}` to the "Add worker" SectionCard (was missing).
+- `components/scheduler/ShiftTemplateSection.tsx` — Added `tooltip={t('scheduler.templates.addCardTooltip')}` to the "Add shift template" SectionCard (was missing).
+- `locales/en.ts` — Added `nav.profile`; added `scheduler.workers.addCardTooltip` and `scheduler.templates.addCardTooltip` (WHY/WHAT/HOW pattern with concrete examples); added full `profile` section (identity, subscription, settings, actions, about — each with comprehensive tooltip following WHY/WHAT/HOW).
+- `locales/es.ts` — Full rewrite to add all new keys in Spanish: `nav.profile`, `common.copyToClipboard/copied/auditLogEmpty/exportDiagnostics`, `scheduler.roster` calendar keys, `scheduler.workers.addCardTooltip`, `scheduler.templates.addCardTooltip`, full `profile` section. Also ensured all existing keys remain intact.
+
+**Tooltip design pattern (WHY/WHAT/HOW):**
+- WHY: explains the business reason the field/section exists
+- WHAT: describes what to enter and what the valid values are
+- HOW: describes the action to take and the expected outcome
+- EXAMPLE: concrete filled-in example at the end
+
+**Tests:** 213/213 passed ✓
+**Lint:** 0 errors ✓
+
+---
+
+### CHG-040 — 2026-04-02 UTC
+**Type:** FIX (Human-readable worker IDs + POS locale + button label disambiguation)
+
+**Files changed:**
+- `types/scheduler.ts` — Added `displayId: string` field to `Worker` type (e.g. "W-1" derived from list position).
+- `hooks/useWorkers.ts` — Added `displayId` to `WorkerWithAvailability`; updated `dbToWorker` to accept `index` param and set `displayId: \`W-${index + 1}\``; patched `loadWorkers` (map with index) and `addWorker` (optimistic update passes `prev.length`).
+- `components/scheduler/WorkerIdPicker.tsx` — `resolvedWorker` now matches `w.displayId` first, then falls back to `w.id`; chips emit `worker.displayId` on press; `selected` state checks both `displayId` and `id`.
+- `hooks/useSchedulerHandlers.ts` — Cleared stale defaults `'W-01'` → `''` for `availabilityForm.workerId` and `shiftForm.workerId`; cleared `'morning'` → `''` for `shiftForm.templateId`. In `handleShiftSubmit`: resolves `rawWorkerId` via `displayId` → `id` lookup before all validation and DB calls.
+- `utils/schedulerValidators.ts` — `validateAvailabilitySubmission` now resolves `displayId` (e.g. "W-1") or raw UUID to the worker object first; `trimmedWorkerId` in the return value is the resolved UUID (not the raw form input).
+- `locales/en.ts` — Renamed `scheduler.pos.uploadButton` from `'Choose CSV file'` → `'Preview CSV'`; added `scheduler.pos.chooseFileButton: 'Choose CSV file'` as a separate key for the file picker button.
+- `locales/es.ts` — Added entire `scheduler.pos` block (14 keys) in Spanish: sectionTitle, sectionSubtitle, tooltip, uploadButton, chooseFileButton, pasteLabel, pastePlaceholder, previewTitle, uploadAction, uploadSuccess, uploadError, validationErrors, resetButton, noFile, csvHelp, dropHint.
+- `components/scheduler/PosUploadSection.tsx` — File picker button now uses `t('scheduler.pos.chooseFileButton')` instead of hardcoded "Choose CSV file".
+
+**Why:** User requested simpler human-readable IDs (W-1, W-2…) instead of UUIDs in the UI. Two buttons in POS section had identical label "Choose CSV file", causing UX confusion. Spanish locale was missing the entire POS section (12+ keys), causing untranslated strings.
+
+**Tests:** 213/213 passed ✓
+**Lint:** 0 errors ✓
 
 ---
 

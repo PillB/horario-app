@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Pressable, StyleSheet, TextInput } from 'react-native';
+import { forecastDemandFromPOS, DEFAULT_POS_CONFIG } from '@/utils/posForecasting';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type DemandForecast } from '@/services/demandForecast';
@@ -29,9 +30,21 @@ type TargetFormState = {
   notes: string;
 };
 
+type PosTarget = {
+  date: string;
+  role: string;
+  required: number;
+  source: string;
+  notes: string;
+  lowerBound: number;
+  upperBound: number;
+  confidence: number;
+};
+
 type Props = {
-  fallbackMode: 'homogeneous' | 'manual';
-  setFallbackMode: (mode: 'homogeneous' | 'manual') => void;
+  fallbackMode: 'homogeneous' | 'manual' | 'pos';
+  setFallbackMode: (mode: 'homogeneous' | 'manual' | 'pos') => void;
+  onBulkSave: (targets: PosTarget[]) => void;
   fallbackForm: FallbackFormState;
   updateFallbackField: (key: keyof FallbackFormState) => (value: string) => void;
   handleFallbackSubmit: () => void;
@@ -142,6 +155,36 @@ const makeLocalStyles = (colors: ThemeColors) =>
       opacity: 0.4,
       marginVertical: 8,
     },
+    // POS CSV textarea — dark/light aware
+    posTextArea: {
+      minHeight: 120,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 8,
+      fontSize: 12,
+      fontFamily: 'monospace',
+      color: colors.text,
+      marginTop: 4,
+    },
+    // POS preview row
+    posPreviewRow: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingVertical: 2,
+    },
+    posPreviewCell: {
+      fontSize: 11,
+      color: colors.text,
+      flex: 1,
+    },
+    posPreviewHeader: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      flex: 1,
+    },
   });
 
 export const DemandSection = ({
@@ -165,11 +208,115 @@ export const DemandSection = ({
   roster,
   shiftTemplates,
   forecastError,
+  onBulkSave,
 }: Props) => {
   const { t } = useT();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const local = makeLocalStyles(colors);
+
+  // ── POS local state ───────────────────────────────────────────────────────
+  const [pasteText, setPasteText] = useState('');
+  const [posState, setPosState] = useState<'idle' | 'preview' | 'generating' | 'done' | 'error'>('idle');
+  const [parsedPosRows, setParsedPosRows] = useState<{ date: string; revenue: number; covers: number | null; notes: string | null }[]>([]);
+  const [posErrors, setPosErrors] = useState<string[]>([]);
+  const [posConfig, setPosConfig] = useState({ revenuePerWorkerHour: '50', avgShiftHours: '8' });
+
+  // ── Inline CSV parsing helpers (pure, no external deps) ──────────────────
+  const splitCsvLine = useCallback((line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current); current = '';
+      } else { current += ch; }
+    }
+    result.push(current);
+    return result;
+  }, []);
+
+  const parseRevenueFn = useCallback((raw: string): number | null => {
+    const cleaned = raw.replace(/[$€£,]/g, '').trim();
+    if (cleaned === '') return null;
+    const n = parseFloat(cleaned);
+    return isFinite(n) ? n : null;
+  }, []);
+
+  const normaliseDateFn = useCallback((raw: string): string | null => {
+    const s = raw.trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(s + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : s;
+    }
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) {
+      const [, m, d, y] = mdy;
+      const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const dt = new Date(iso + 'T00:00:00');
+      return isNaN(dt.getTime()) ? null : iso;
+    }
+    return null;
+  }, []);
+
+  const parsePosPreview = useCallback((text: string): { rows: { date: string; revenue: number; covers: number | null; notes: string | null }[]; errors: string[] } => {
+    const rawLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const lines = rawLines.filter(l => l.trim() !== '');
+    if (lines.length < 2) return { rows: [], errors: ['CSV must have a header row and at least one data row.'] };
+    const headerCells = splitCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+    const dateIdx = headerCells.indexOf('date');
+    const revenueIdx = headerCells.indexOf('revenue');
+    if (dateIdx === -1) return { rows: [], errors: ['Missing required column: "date"'] };
+    if (revenueIdx === -1) return { rows: [], errors: ['Missing required column: "revenue"'] };
+    const coversIdx = headerCells.indexOf('covers');
+    const notesIdx = headerCells.indexOf('notes');
+    const dataLines = lines.slice(1);
+    const rows: { date: string; revenue: number; covers: number | null; notes: string | null }[] = [];
+    const errors: string[] = [];
+    for (let i = 0; i < dataLines.length; i++) {
+      const cells = splitCsvLine(dataLines[i]);
+      const normDate = normaliseDateFn((cells[dateIdx] ?? '').trim());
+      if (!normDate) { errors.push(`Row ${i + 1}: invalid date`); continue; }
+      const revenue = parseRevenueFn((cells[revenueIdx] ?? '').trim());
+      if (revenue === null || revenue < 0) { errors.push(`Row ${i + 1}: invalid revenue`); continue; }
+      const covers = coversIdx !== -1 ? (parseInt((cells[coversIdx] ?? '').trim(), 10) || null) : null;
+      const notes = notesIdx !== -1 ? ((cells[notesIdx] ?? '').trim() || null) : null;
+      rows.push({ date: normDate, revenue, covers, notes });
+    }
+    return { rows, errors };
+  }, [splitCsvLine, normaliseDateFn, parseRevenueFn]);
+
+  const handlePosPreview = useCallback(() => {
+    const { rows, errors } = parsePosPreview(pasteText);
+    setParsedPosRows(rows);
+    setPosErrors(errors);
+    setPosState(rows.length > 0 ? 'preview' : 'error');
+  }, [parsePosPreview, pasteText]);
+
+  const handlePosGenerate = useCallback(async () => {
+    setPosState('generating');
+    try {
+      const revPerHour = parseFloat(posConfig.revenuePerWorkerHour) || DEFAULT_POS_CONFIG.revenuePerWorkerHour;
+      const shiftHours = parseFloat(posConfig.avgShiftHours) || DEFAULT_POS_CONFIG.avgShiftHours;
+      const targets = forecastDemandFromPOS(parsedPosRows, {
+        ...DEFAULT_POS_CONFIG,
+        role: fallbackForm.role,
+        revenuePerWorkerHour: revPerHour,
+        avgShiftHours: shiftHours,
+      });
+      onBulkSave(targets);
+      setPosState('done');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPosErrors([msg]);
+      setPosState('error');
+    }
+  }, [parsedPosRows, posConfig, fallbackForm.role, onBulkSave]);
 
   return (
     <SectionCard
@@ -226,71 +373,181 @@ export const DemandSection = ({
               {t('scheduler.demand.manualCounts')}
             </ThemedText>
           </Pressable>
+          {/* POS Import chip */}
+          <Pressable
+            onPress={() => setFallbackMode('pos')}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: fallbackMode === 'pos' }}
+            style={[local.toggleChip, fallbackMode === 'pos' && local.toggleChipActive]}
+          >
+            <ThemedText style={[local.toggleChipText, fallbackMode === 'pos' && local.toggleChipTextActive]}>
+              {t('scheduler.demand.posTab')}
+            </ThemedText>
+          </Pressable>
         </View>
-        <View style={styles.inlineInputs}>
-          <InputField
-            label={t('scheduler.demand.roleLabel')}
-            value={fallbackForm.role}
-            placeholder={t('scheduler.demand.rolePlaceholder')}
-            onChangeText={updateFallbackField('role')}
-          />
-          <InputField
-            label={t('scheduler.demand.startDateLabel')}
-            value={fallbackForm.startDate}
-            placeholder={t('scheduler.demand.startDatePlaceholder')}
-            onChangeText={updateFallbackField('startDate')}
-          />
-        </View>
-        <View style={styles.inlineInputs}>
-          <InputField
-            label={t('scheduler.demand.daysLabel')}
-            value={fallbackForm.days}
-            placeholder={t('scheduler.demand.daysCoverage')}
-            keyboardType="numeric"
-            onChangeText={updateFallbackField('days')}
-          />
-          {fallbackMode === 'homogeneous' ? (
-            <InputField
-              label={t('scheduler.demand.dailyDemandLabel')}
-              value={fallbackForm.homogeneousDemand}
-              placeholder="4"
-              keyboardType="numeric"
-              onChangeText={updateFallbackField('homogeneousDemand')}
-            />
-          ) : (
+
+        {/* Role field — always visible */}
+        <InputField
+          label={t('scheduler.demand.roleLabel')}
+          value={fallbackForm.role}
+          placeholder={t('scheduler.demand.rolePlaceholder')}
+          onChangeText={updateFallbackField('role')}
+        />
+
+        {/* Homogeneous / Manual forms (unchanged, hidden in POS mode) */}
+        {fallbackMode !== 'pos' && (
+          <>
             <View style={styles.inlineInputs}>
               <InputField
-                label={t('scheduler.demand.shiftsPerDayLabel')}
-                value={fallbackForm.shiftsPerDay}
-                placeholder="2"
-                keyboardType="numeric"
-                onChangeText={updateFallbackField('shiftsPerDay')}
+                label={t('scheduler.demand.startDateLabel')}
+                value={fallbackForm.startDate}
+                placeholder={t('scheduler.demand.startDatePlaceholder')}
+                onChangeText={updateFallbackField('startDate')}
               />
               <InputField
-                label={t('scheduler.demand.workersPerShiftLabel')}
-                value={fallbackForm.workersPerShift}
-                placeholder="2"
+                label={t('scheduler.demand.daysLabel')}
+                value={fallbackForm.days}
+                placeholder={t('scheduler.demand.daysCoverage')}
                 keyboardType="numeric"
-                onChangeText={updateFallbackField('workersPerShift')}
+                onChangeText={updateFallbackField('days')}
               />
             </View>
-          )}
-        </View>
-        <InputField
-          label={t('scheduler.demand.notesLabel')}
-          value={fallbackForm.notes}
-          placeholder={t('scheduler.demand.notesPlaceholder')}
-          onChangeText={updateFallbackField('notes')}
-        />
-        {/* [1][14] secondaryButton now uses filled teal with white text — 6.88:1 ✓ AA */}
-        <Pressable
-          onPress={handleFallbackSubmit}
-          style={[local.secondaryButton, styles.tightButton]}
-        >
-          <ThemedText style={local.secondaryButtonText}>
-            {t('scheduler.demand.saveBaseline')}
-          </ThemedText>
-        </Pressable>
+            <View style={styles.inlineInputs}>
+              {fallbackMode === 'homogeneous' ? (
+                <InputField
+                  label={t('scheduler.demand.dailyDemandLabel')}
+                  value={fallbackForm.homogeneousDemand}
+                  placeholder="4"
+                  keyboardType="numeric"
+                  onChangeText={updateFallbackField('homogeneousDemand')}
+                />
+              ) : (
+                <View style={styles.inlineInputs}>
+                  <InputField
+                    label={t('scheduler.demand.shiftsPerDayLabel')}
+                    value={fallbackForm.shiftsPerDay}
+                    placeholder="2"
+                    keyboardType="numeric"
+                    onChangeText={updateFallbackField('shiftsPerDay')}
+                  />
+                  <InputField
+                    label={t('scheduler.demand.workersPerShiftLabel')}
+                    value={fallbackForm.workersPerShift}
+                    placeholder="2"
+                    keyboardType="numeric"
+                    onChangeText={updateFallbackField('workersPerShift')}
+                  />
+                </View>
+              )}
+            </View>
+            <InputField
+              label={t('scheduler.demand.notesLabel')}
+              value={fallbackForm.notes}
+              placeholder={t('scheduler.demand.notesPlaceholder')}
+              onChangeText={updateFallbackField('notes')}
+            />
+            {/* [1][14] secondaryButton now uses filled teal with white text — 6.88:1 ✓ AA */}
+            <Pressable
+              onPress={handleFallbackSubmit}
+              style={[local.secondaryButton, styles.tightButton]}
+            >
+              <ThemedText style={local.secondaryButtonText}>
+                {t('scheduler.demand.saveBaseline')}
+              </ThemedText>
+            </Pressable>
+          </>
+        )}
+
+        {/* POS Import panel */}
+        {fallbackMode === 'pos' && (
+          <>
+            <View style={styles.inlineInputs}>
+              <InputField
+                label={t('scheduler.demand.posRevenuePerHour')}
+                value={posConfig.revenuePerWorkerHour}
+                placeholder={t('scheduler.demand.posRevenuePerHourPlaceholder')}
+                keyboardType="numeric"
+                onChangeText={(v) => setPosConfig(p => ({ ...p, revenuePerWorkerHour: v }))}
+              />
+              <InputField
+                label={t('scheduler.demand.posShiftHours')}
+                value={posConfig.avgShiftHours}
+                placeholder={t('scheduler.demand.posShiftHoursPlaceholder')}
+                keyboardType="numeric"
+                onChangeText={(v) => setPosConfig(p => ({ ...p, avgShiftHours: v }))}
+              />
+            </View>
+            <TextInput
+              accessibilityLabel={t('scheduler.demand.posText')}
+              accessibilityHint="Paste CSV data with date, revenue, covers, notes columns"
+              multiline
+              value={pasteText}
+              onChangeText={(v) => { setPasteText(v); setPosState('idle'); }}
+              placeholder={t('scheduler.demand.posText')}
+              placeholderTextColor={colors.textTertiary}
+              style={local.posTextArea}
+            />
+            <Pressable
+              onPress={handlePosPreview}
+              style={[local.secondaryButton, styles.tightButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.demand.posPreviewBtn')}
+            >
+              <ThemedText style={local.secondaryButtonText}>
+                {t('scheduler.demand.posPreviewBtn')}
+              </ThemedText>
+            </Pressable>
+
+            {/* Preview table */}
+            {(posState === 'preview' || posState === 'done') && parsedPosRows.length > 0 && (
+              <View style={{ marginTop: 8 }}>
+                <View style={local.posPreviewRow}>
+                  <ThemedText style={local.posPreviewHeader}>Date</ThemedText>
+                  <ThemedText style={local.posPreviewHeader}>Revenue</ThemedText>
+                  <ThemedText style={local.posPreviewHeader}>Covers</ThemedText>
+                </View>
+                {parsedPosRows.slice(0, 5).map((row, idx) => (
+                  <View key={idx} style={local.posPreviewRow}>
+                    <ThemedText style={local.posPreviewCell}>{row.date}</ThemedText>
+                    <ThemedText style={local.posPreviewCell}>{row.revenue.toFixed(0)}</ThemedText>
+                    <ThemedText style={local.posPreviewCell}>{row.covers ?? '–'}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Validation errors */}
+            {posErrors.map((e, i) => (
+              <ThemedText key={i} style={local.errorText}>{e}</ThemedText>
+            ))}
+
+            {/* Generate button */}
+            {parsedPosRows.length > 0 && posState !== 'done' && (
+              <Pressable
+                onPress={handlePosGenerate}
+                disabled={posState === 'generating'}
+                style={[local.secondaryButton, styles.tightButton, posState === 'generating' && local.disabledButton]}
+                accessibilityRole="button"
+                accessibilityLabel={t('scheduler.demand.posGenerateBtn', { n: String(parsedPosRows.length) })}
+                accessibilityState={{ disabled: posState === 'generating' }}
+              >
+                <ThemedText style={local.secondaryButtonText}>
+                  {posState === 'generating'
+                    ? t('scheduler.demand.posGenerating')
+                    : t('scheduler.demand.posGenerateBtn', { n: String(parsedPosRows.length) })}
+                </ThemedText>
+              </Pressable>
+            )}
+
+            {/* Status messages */}
+            {posState === 'done' && (
+              <ThemedText style={local.successText}>
+                {t('scheduler.demand.posDone', { n: String(parsedPosRows.length) })}
+              </ThemedText>
+            )}
+          </>
+        )}
+
         {/* [10] errorText resolves to Colors.[scheme].error ✓ AA */}
         {fallbackError ? (
           <ThemedText style={local.errorText}>{fallbackError}</ThemedText>

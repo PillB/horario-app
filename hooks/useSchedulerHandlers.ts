@@ -119,7 +119,7 @@ export function useSchedulerHandlers() {
     end: '17:00',
     coverage: '1',
   });
-  const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual'>('homogeneous');
+  const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
     startDate: new Date().toISOString().slice(0, 10),
@@ -788,6 +788,9 @@ export function useSchedulerHandlers() {
     setFallbackError(null);
     setFallbackMessage(null);
 
+    // POS targets are generated and saved via handlePosTargetsGenerated in DemandSection
+    if (fallbackMode === 'pos') { return; }
+
     if (!trimmedRole) { setFallbackError('Role is required to create baseline demand.'); return; }
     if (!isValidDate(trimmedStart)) {
       setFallbackError('Start date must use the YYYY-MM-DD format.'); return;
@@ -1009,6 +1012,21 @@ export function useSchedulerHandlers() {
     );
   }, [addShift, autoAssignSuggestions, incrementUsage, showActionBanner]);
 
+  const handlePosTargetsGenerated = useCallback(async (targets: Array<{date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}>) => {
+    let savedCount = 0;
+    for (const target of targets) {
+      await overrideTarget({
+        date: target.date,
+        role: target.role,
+        required: target.required,
+        source: (target.source === 'model' ? 'model' : 'override') as 'model' | 'override',
+        notes: target.notes,
+      });
+      savedCount++;
+    }
+    setActionBanner({ type: 'success', message: `${savedCount} demand targets generated from POS data.` });
+  }, [overrideTarget, setActionBanner]);
+
   // ── Return all state and handlers for the screen ──────────────────────────
   return {
     // Data
@@ -1104,6 +1122,7 @@ export function useSchedulerHandlers() {
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
+    handlePosTargetsGenerated,
 
     // Auto-assign state
     autoAssignSuggestions,
