@@ -14,6 +14,7 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -154,7 +155,10 @@ export default function AnalyticsScreen() {
         accessibilityLabel={t('nav.analytics')}
       >
         <ThemedView style={styles.header}>
-          <ThemedText type="title">{t('analytics.title')}</ThemedText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ThemedText type="title">{t('analytics.title')}</ThemedText>
+            <InfoTooltip content={t('analytics.tooltip')} label={t('analytics.title')} />
+          </View>
           <ThemedText style={styles.mutedText}>
             {t('analytics.subtitle')}
           </ThemedText>

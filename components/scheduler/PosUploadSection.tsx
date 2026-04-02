@@ -463,16 +463,43 @@ export default function PosUploadSection({
   const renderInput = () => {
     if (Platform.OS === 'web') {
       return (
-        <TouchableOpacity
-          style={styles.uploadButton}
-          onPress={handleChooseFile}
-          accessibilityRole="button"
-          accessibilityLabel={t('scheduler.pos.uploadButton')}
-        >
-          <Text style={styles.uploadButtonText}>
-            {t('scheduler.pos.uploadButton')}
-          </Text>
-        </TouchableOpacity>
+        <View>
+          <Text style={styles.label}>{t('scheduler.pos.pasteLabel')}</Text>
+          <TextInput
+            style={styles.textArea}
+            multiline
+            numberOfLines={6}
+            value={pasteText}
+            onChangeText={setPasteText}
+            placeholder={t('scheduler.pos.pastePlaceholder')}
+            placeholderTextColor={C.textSecondary}
+            accessibilityLabel={t('scheduler.pos.pasteLabel')}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.uploadButton, !pasteText.trim() && styles.uploadButtonDisabled]}
+              onPress={handlePasteSubmit}
+              disabled={!pasteText.trim()}
+              accessibilityRole="button"
+            >
+              <Text style={styles.uploadButtonText}>
+                {t('scheduler.pos.uploadButton')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.uploadButton, { opacity: 0.75 }]}
+              onPress={handleChooseFile}
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.pos.chooseFileButton')}
+            >
+              <Text style={styles.uploadButtonText}>
+                {t('scheduler.pos.chooseFileButton')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       );
     }
 
@@ -671,6 +698,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 14,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 0,
   },
   previewSection: {
     marginTop: 4,

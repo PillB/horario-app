@@ -1,43 +1,55 @@
--- ─── usage_limits ────────────────────────────────────────────────────────────
+-- =============================================================================
+-- Migration: usage_limits
+-- Created:   2026-03-28
+-- Depends:   20240613120000_onboarding_progress.sql
+--
 -- Tracks per-user freemium usage (e.g. auto-assign calls).
 -- user_id is the Clerk user ID (or EXPO_PUBLIC_USER_ID in dev bypass mode).
+-- =============================================================================
 
-CREATE TABLE IF NOT EXISTS usage_limits (
-  id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id     text        NOT NULL,
-  account_id  text        NOT NULL,
-  auto_assign_count int   NOT NULL DEFAULT 0 CHECK (auto_assign_count >= 0),
-  created_at  timestamptz DEFAULT now() NOT NULL,
-  updated_at  timestamptz DEFAULT now() NOT NULL,
-  CONSTRAINT usage_limits_user_account_unique UNIQUE (user_id, account_id)
+create table if not exists public.usage_limits (
+  id                uuid         not null default gen_random_uuid() primary key,
+  user_id           text         not null,
+  account_id        text         not null,
+  auto_assign_count integer      not null default 0 check (auto_assign_count >= 0),
+  created_at        timestamptz  not null default now(),
+  updated_at        timestamptz  not null default now(),
+  constraint usage_limits_user_account_unique unique (user_id, account_id)
 );
 
-CREATE INDEX IF NOT EXISTS usage_limits_user_id_idx ON usage_limits (user_id);
+create index if not exists usage_limits_user_id_idx
+  on public.usage_limits (user_id);
 
--- Auto-update updated_at on row changes
-CREATE OR REPLACE FUNCTION set_usage_limits_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ---------------------------------------------------------------------------
+-- updated_at trigger
+-- set_updated_at() is defined in core_tables; CREATE OR REPLACE is safe to
+-- re-run here in case this file is applied before core_tables.
+-- ---------------------------------------------------------------------------
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
-DROP TRIGGER IF EXISTS trg_usage_limits_updated_at ON usage_limits;
-CREATE TRIGGER trg_usage_limits_updated_at
-  BEFORE UPDATE ON usage_limits
-  FOR EACH ROW EXECUTE FUNCTION set_usage_limits_updated_at();
+drop trigger if exists usage_limits_updated_at on public.usage_limits;
+create trigger usage_limits_updated_at
+  before update on public.usage_limits
+  for each row execute function public.set_updated_at();
 
--- ─── RLS ─────────────────────────────────────────────────────────────────────
-ALTER TABLE usage_limits ENABLE ROW LEVEL SECURITY;
+-- ---------------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------------
+alter table public.usage_limits enable row level security;
 
--- Anon key: read own record only
-CREATE POLICY "anon_select_own_usage" ON usage_limits
-  FOR SELECT TO anon
-  USING (true);
+drop policy if exists "Anon read usage limits" on public.usage_limits;
+create policy "Anon read usage limits"
+  on public.usage_limits for select
+  using (auth.role() = 'anon');
 
--- Service role: full access (used by secure proxy)
-CREATE POLICY "service_role_all_usage" ON usage_limits
-  FOR ALL TO service_role
-  USING (true)
-  WITH CHECK (true);
+drop policy if exists "Service role manages usage limits" on public.usage_limits;
+create policy "Service role manages usage limits"
+  on public.usage_limits for all
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');

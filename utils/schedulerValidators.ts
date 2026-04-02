@@ -61,6 +61,7 @@ export const validateAvailabilitySubmission = (
 ): {
   errors: string[];
   normalizedDay: string | undefined;
+  /** The resolved UUID for the worker (may differ from form input if displayId was entered). */
   trimmedWorkerId: string;
   trimmedFrom: string;
   trimmedTo: string;
@@ -77,7 +78,12 @@ export const validateAvailabilitySubmission = (
   if (!trimmedDay) errors.push('Day is required.');
   if (!trimmedFrom || !trimmedTo) errors.push('From and to times are required.');
 
-  if (trimmedWorkerId && !workers.some((w) => w.id === trimmedWorkerId))
+  // Resolve displayId (e.g. "W-1") or raw UUID to the actual worker
+  const resolvedWorker = trimmedWorkerId
+    ? (workers.find((w) => w.displayId === trimmedWorkerId) ?? workers.find((w) => w.id === trimmedWorkerId))
+    : undefined;
+
+  if (trimmedWorkerId && !resolvedWorker)
     errors.push('Worker ID must match an existing worker.');
 
   if (trimmedDay && !normalizedDay)
@@ -99,7 +105,7 @@ export const validateAvailabilitySubmission = (
   }
 
   if (!errors.length) {
-    const worker = workers.find((w) => w.id === trimmedWorkerId);
+    const worker = resolvedWorker;
     const dayKey = normalizedDay ?? trimmedDay;
 
     if (worker && normalizedDay && fromMinutes !== null && toMinutes !== null) {
@@ -129,7 +135,9 @@ export const validateAvailabilitySubmission = (
     }
   }
 
-  return { errors, normalizedDay, trimmedWorkerId, trimmedFrom, trimmedTo };
+  // Return the real UUID so callers don't need to re-resolve displayId
+  const resolvedWorkerId = resolvedWorker?.id ?? trimmedWorkerId;
+  return { errors, normalizedDay, trimmedWorkerId: resolvedWorkerId, trimmedFrom, trimmedTo };
 };
 
 // ─── validateShiftReadiness ───────────────────────────────────────────────────

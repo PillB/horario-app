@@ -1019,13 +1019,16 @@ export function useSchedulerHandlers() {
         date: target.date,
         role: target.role,
         required: target.required,
-        source: (target.source === 'model' ? 'model' : 'override') as 'model' | 'override',
+        source: 'override',
         notes: target.notes,
+        lowerBound: target.lowerBound,
+        upperBound: target.upperBound,
+        confidence: target.confidence,
       });
       savedCount++;
     }
-    setActionBanner({ type: 'success', message: `${savedCount} demand targets generated from POS data.` });
-  }, [overrideTarget, setActionBanner]);
+    showActionBanner(`${savedCount} demand target${savedCount !== 1 ? 's' : ''} generated from POS data.`, 'success');
+  }, [overrideTarget, showActionBanner]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
   return {

@@ -1,0 +1,382 @@
+- generic [ref=e13]:
+  - generic [ref=e16]:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Planificador" [level=1] [ref=e18]
+          - generic [ref=e19]:
+            - button "Start app tour" [ref=e20] [cursor=pointer]:
+              - generic [ref=e21]: "?"
+            - button "Seleccionar idioma de la aplicación" [ref=e23] [cursor=pointer]:
+              - generic [ref=e24]: 🇪🇸 ES
+            - button "Sign out" [ref=e25] [cursor=pointer]
+    - generic [ref=e29]:
+      - generic [ref=e30]: Planificador
+      - generic [ref=e31]: Coordina la cobertura entre trabajadores, plantillas de turnos y planes de personal día a día.
+      - button "Upgrade to Pro plan" [ref=e32] [cursor=pointer]:
+        - generic [ref=e33]:
+          - generic [ref=e35]: FREE
+          - generic [ref=e36]:
+            - generic [ref=e37]: 1 free auto-assign left
+            - generic [ref=e38]: Auto-assign your whole team in one tap. Try Pro free 10 days →
+            - generic [ref=e39]: $12/mo flat · no per-employee fees · cancel anytime
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: Empieza rápido
+            - generic [ref=e44]: Completa los elementos esenciales para desbloquear el pronóstico.
+          - generic [ref=e46]: 100%
+        - button "Agregar trabajadores completado" [ref=e49] [cursor=pointer]:
+          - generic [ref=e51]: ✓
+          - generic [ref=e52]:
+            - generic [ref=e53]: Agregar trabajadores
+            - generic [ref=e54]: Crea perfiles de trabajadores y establece disponibilidad. ⏱ ~2 min
+          - generic [ref=e55]: Listo
+        - button "Guardar plantillas completado" [ref=e56] [cursor=pointer]:
+          - generic [ref=e58]: ✓
+          - generic [ref=e59]:
+            - generic [ref=e60]: Guardar plantillas
+            - generic [ref=e61]: Define turnos reutilizables con rol y cobertura. ⏱ ~1 min
+          - generic [ref=e62]: Listo
+        - button "Ejecutar pronóstico completado" [ref=e63] [cursor=pointer]:
+          - generic [ref=e65]: ✓
+          - generic [ref=e66]:
+            - generic [ref=e67]: Ejecutar pronóstico
+            - generic [ref=e68]: Genera objetivos de demanda — luego asigna automáticamente con un toque. ⏱ ~1 min
+          - generic [ref=e69]: Listo
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e72]: Datos faltantes detectados
+          - button "Descartar" [ref=e73] [cursor=pointer]:
+            - generic [ref=e74]: ×
+        - link "Abrir configuración rápida" [ref=e75] [cursor=pointer]:
+          - generic [ref=e76]: Abrir configuración rápida
+        - generic [ref=e77]: No encontramos turnos históricos ni señales externas. Ingresa demanda homogénea o conteos manuales de trabajadores/turnos para desbloquear el pronóstico.
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - generic [ref=e83]: Gestión de trabajadores
+              - button "Help for Gestión de trabajadores" [ref=e85] [cursor=pointer]:
+                - generic [ref=e86]: ⓘ
+            - generic [ref=e87]: Rastrea habilidades, adecuación al rol y disponibilidad para asignar a las personas correctas en los turnos correctos.
+          - generic [ref=e331]:
+            - generic [ref=e332]:
+              - generic [ref=e333]: Carlos Rivera
+              - generic [ref=e334]: Barista
+              - generic [ref=e335]:
+                - generic [ref=e337]: cold brew
+                - generic [ref=e339]: pour over
+            - generic [ref=e341]:
+              - generic [ref=e342]: Fri
+              - generic [ref=e343]: 09:00 - 17:00
+          - generic [ref=e344]:
+            - generic [ref=e345]:
+              - generic [ref=e346]: Maria Santos
+              - generic [ref=e347]: Barista
+              - generic [ref=e348]:
+                - generic [ref=e350]: espresso
+                - generic [ref=e352]: latte art
+            - generic [ref=e354]:
+              - generic [ref=e355]: Fri
+              - generic [ref=e356]: 07:00 - 15:00
+          - generic [ref=e408]:
+            - generic [ref=e409]: Alice Chen
+            - generic [ref=e410]: Server
+            - generic [ref=e413]: barista
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - generic [ref=e95]: Agregar trabajador
+            - generic [ref=e96]: Crea un perfil de trabajador con rol y habilidades.
+          - generic [ref=e97]:
+            - generic [ref=e98]: Nombre
+            - textbox "Nombre del trabajador" [ref=e99]:
+              - /placeholder: p. ej. Alicia
+          - generic [ref=e100]:
+            - generic [ref=e101]: Rol
+            - textbox "Rol del trabajador" [ref=e102]:
+              - /placeholder: p. ej. Soporte
+          - generic [ref=e103]:
+            - generic [ref=e104]: Habilidades (separadas por comas)
+            - textbox "Habilidades del trabajador" [ref=e105]:
+              - /placeholder: p. ej. barista, cajero
+          - button "Agregar trabajador" [active] [ref=e106] [cursor=pointer]:
+            - generic [ref=e107]: Agregar trabajador
+          - generic [ref=e414]: Alice Chen added! Now set their availability to enable accurate scheduling.
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e110]:
+              - generic [ref=e111]: Registro de disponibilidad
+              - button "Help for Registro de disponibilidad" [ref=e113] [cursor=pointer]:
+                - generic [ref=e114]: ⓘ
+            - generic [ref=e115]: Captura cambios recientes antes de construir los rosters.
+          - generic [ref=e116]:
+            - generic [ref=e117]: ID del trabajador
+            - textbox "ID del trabajador" [ref=e118]:
+              - /placeholder: scheduler.workerPicker.placeholder
+              - text: b8250751-46a1-4f62-ae0c-ccffafe115b4
+            - generic [ref=e119]:
+              - generic [ref=e120]: ✓
+              - generic [ref=e415]: Alice Chen · Server
+            - generic [ref=e357]: scheduler.workerPicker.chipsLabel
+            - generic [ref=e359]:
+              - button "scheduler.workerPicker.selectWorker Carlos Rivera" [ref=e360] [cursor=pointer]:
+                - generic [ref=e361]: Carlos Rivera
+                - generic [ref=e362]: Barista
+              - button "scheduler.workerPicker.selectWorker Maria Santos" [ref=e363] [cursor=pointer]:
+                - generic [ref=e364]: Maria Santos
+                - generic [ref=e365]: Barista
+              - button "scheduler.workerPicker.selectWorker Alice Chen" [ref=e416] [cursor=pointer]:
+                - generic [ref=e417]: Alice Chen
+                - generic [ref=e418]: Server
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - generic [ref=e123]: Día
+              - textbox "Día" [ref=e124]:
+                - /placeholder: Lun
+                - text: Fri
+            - generic [ref=e125]:
+              - generic [ref=e126]: Desde
+              - textbox "Desde" [ref=e127]:
+                - /placeholder: 09:00
+                - text: 09:00
+            - generic [ref=e128]:
+              - generic [ref=e129]: Hasta
+              - textbox "Hasta" [ref=e130]:
+                - /placeholder: 17:00
+                - text: 17:00
+          - button "Agregar disponibilidad" [ref=e131] [cursor=pointer]:
+            - generic [ref=e132]: Agregar disponibilidad
+      - generic [ref=e134]:
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: Plantillas de turnos
+              - button "Help for Plantillas de turnos" [ref=e140] [cursor=pointer]:
+                - generic [ref=e141]: ⓘ
+            - generic [ref=e142]: Estandariza los horarios de inicio/fin y las expectativas de cobertura por rol.
+          - generic [ref=e366]:
+            - generic [ref=e367]:
+              - generic [ref=e368]: Morning Barista
+              - generic [ref=e369]: Barista • 07:00 - 15:00
+            - generic [ref=e370]: 2 necesario(s)
+        - generic [ref=e147]:
+          - generic [ref=e148]:
+            - generic [ref=e150]: Agregar plantilla de turno
+            - generic [ref=e151]: Define un turno reutilizable con rol, ventana horaria y cobertura mínima.
+          - generic [ref=e152]:
+            - generic [ref=e153]:
+              - generic [ref=e154]: Nombre
+              - textbox "Nombre de la plantilla" [ref=e155]:
+                - /placeholder: p. ej. Mañana
+            - generic [ref=e156]:
+              - generic [ref=e157]: Rol
+              - textbox "Rol de la plantilla" [ref=e158]:
+                - /placeholder: p. ej. Soporte
+          - generic [ref=e159]:
+            - generic [ref=e160]:
+              - generic [ref=e161]: Inicio
+              - textbox "Hora de inicio del turno" [ref=e162]:
+                - /placeholder: 09:00
+                - text: 09:00
+            - generic [ref=e163]:
+              - generic [ref=e164]: Fin
+              - textbox "Hora de fin del turno" [ref=e165]:
+                - /placeholder: 17:00
+                - text: 17:00
+            - generic [ref=e166]:
+              - generic [ref=e167]: Cobertura
+              - textbox "Cobertura requerida" [ref=e168]:
+                - /placeholder: "1"
+                - text: "1"
+          - button "Agregar plantilla" [ref=e169] [cursor=pointer]:
+            - generic [ref=e170]: Agregar plantilla
+        - generic [ref=e171]:
+          - generic [ref=e172]:
+            - generic [ref=e173]:
+              - generic [ref=e174]: Creación de turnos
+              - button "Help for Creación de turnos" [ref=e176] [cursor=pointer]:
+                - generic [ref=e177]: ⓘ
+            - generic [ref=e178]: Asigna trabajadores a plantillas para fechas específicas.
+          - generic [ref=e179]:
+            - generic [ref=e180]: Trabajador
+            - textbox "Trabajador" [ref=e181]:
+              - /placeholder: scheduler.workerPicker.placeholder
+              - text: b8250751-46a1-4f62-ae0c-ccffafe115b4
+            - generic [ref=e182]:
+              - generic [ref=e183]: ✓
+              - generic [ref=e419]: Alice Chen · Server
+            - generic [ref=e371]: scheduler.workerPicker.chipsLabel
+            - generic [ref=e373]:
+              - button "scheduler.workerPicker.selectWorker Carlos Rivera" [ref=e374] [cursor=pointer]:
+                - generic [ref=e375]: Carlos Rivera
+                - generic [ref=e376]: Barista
+              - button "scheduler.workerPicker.selectWorker Maria Santos" [ref=e377] [cursor=pointer]:
+                - generic [ref=e378]: Maria Santos
+                - generic [ref=e379]: Barista
+              - button "scheduler.workerPicker.selectWorker Alice Chen" [ref=e420] [cursor=pointer]:
+                - generic [ref=e421]: Alice Chen
+                - generic [ref=e422]: Server
+          - generic [ref=e184]:
+            - generic [ref=e185]: Plantilla
+            - textbox "Plantilla" [ref=e186]:
+              - /placeholder: scheduler.templatePicker.placeholder
+              - text: morning
+            - generic [ref=e188]: scheduler.templatePicker.notFound
+            - generic [ref=e380]: scheduler.templatePicker.chipsLabel
+            - button "scheduler.templatePicker.selectTemplate Morning Barista" [ref=e383] [cursor=pointer]:
+              - generic [ref=e384]: Morning Barista
+              - generic [ref=e385]: Barista · 07:00–15:00
+          - generic [ref=e189]:
+            - generic [ref=e190]: Fecha
+            - textbox "Fecha" [ref=e191]:
+              - /placeholder: YYYY-MM-DD
+              - text: 2026-04-04
+          - generic [ref=e192]:
+            - generic "Guardar y notificar al equipo" [ref=e193] [cursor=pointer]:
+              - generic [ref=e194]: Guardar y notificar al equipo
+            - generic "Asignar trabajadores automáticamente a todas las plantillas para esta fecha" [ref=e195] [cursor=pointer]:
+              - generic [ref=e196]: Asignación automática
+      - generic [ref=e199]:
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - generic [ref=e202]: Objetivos de demanda
+            - button "Help for Objetivos de demanda" [ref=e204] [cursor=pointer]:
+              - generic [ref=e205]: ⓘ
+          - generic [ref=e206]: Define la demanda esperada y las brechas de personal por rol.
+        - generic [ref=e207]:
+          - generic [ref=e208]:
+            - generic [ref=e209]: Configuración rápida
+            - generic [ref=e211]: Alternativa
+          - generic [ref=e212]: Ingresa demanda base cuando no haya turnos históricos ni señales externas disponibles.
+          - generic [ref=e213]:
+            - radio "Demanda homogénea" [ref=e214] [cursor=pointer]:
+              - generic [ref=e215]: Demanda homogénea
+            - radio "Conteos manuales de trabajadores/turnos" [ref=e216] [cursor=pointer]:
+              - generic [ref=e217]: Conteos manuales de trabajadores/turnos
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e220]: Rol
+              - textbox "Rol" [ref=e221]:
+                - /placeholder: Soporte
+                - text: Support
+            - generic [ref=e222]:
+              - generic [ref=e223]: Fecha de inicio
+              - textbox "Fecha de inicio" [ref=e224]:
+                - /placeholder: YYYY-MM-DD
+                - text: 2026-04-02
+          - generic [ref=e225]:
+            - generic [ref=e226]:
+              - generic [ref=e227]: Días
+              - textbox "Días" [ref=e228]:
+                - /placeholder: "7"
+                - text: "7"
+            - generic [ref=e229]:
+              - generic [ref=e230]: Demanda diaria
+              - textbox "Demanda diaria" [ref=e231]:
+                - /placeholder: "4"
+                - text: "4"
+          - generic [ref=e232]:
+            - generic [ref=e233]: Notas
+            - textbox "Notas" [ref=e234]:
+              - /placeholder: Base mientras recopilamos historial
+              - text: Baseline targets without history
+          - generic [ref=e236] [cursor=pointer]: Guardar objetivos base
+        - generic [ref=e237]:
+          - generic [ref=e238]:
+            - generic [ref=e239]: Fecha
+            - textbox "Fecha" [ref=e240]:
+              - /placeholder: YYYY-MM-DD
+              - text: 2026-04-05
+          - generic [ref=e241]:
+            - generic [ref=e242]: Rol
+            - textbox "Rol" [ref=e243]:
+              - /placeholder: Soporte
+              - text: Support
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - generic [ref=e246]: Requerido
+            - textbox "Requerido" [ref=e247]:
+              - /placeholder: "3"
+              - text: "3"
+          - generic [ref=e248]:
+            - generic [ref=e249]: Notas
+            - textbox "Notas" [ref=e250]:
+              - /placeholder: Backlog, promo, etc.
+              - text: Weekend backlog
+        - generic [ref=e252] [cursor=pointer]: Guardar objetivo
+        - generic [ref=e253]:
+          - generic "Ejecutar pronóstico con señales de hoy" [ref=e386] [cursor=pointer]:
+            - generic [ref=e254]: Ejecutar pronóstico con señales de hoy
+          - generic [ref=e255]: No historical shifts or external signals found. Use quick setup to seed demand targets.
+      - generic [ref=e257]:
+        - generic [ref=e258]:
+          - generic [ref=e259]: POS Sales Upload
+          - generic [ref=e260]: Upload CSV revenue data to enrich demand forecasting.
+        - generic [ref=e262]: "💰 Upload your Point-of-Sale sales data (CSV) to unlock smarter forecasts. The engine uses day-of-week seasonality, revenue trends, and revenue-per-worker efficiency to predict demand more accurately. Accepts: date, revenue, covers (optional), notes (optional)."
+        - button "Choose CSV file" [ref=e263] [cursor=pointer]:
+          - generic [ref=e264]: Choose CSV file
+      - generic [ref=e265]:
+        - generic [ref=e266]:
+          - generic [ref=e267]:
+            - generic [ref=e268]:
+              - generic [ref=e269]: Calendario y roster
+              - button "Help for Calendario y roster" [ref=e271] [cursor=pointer]:
+                - generic [ref=e272]: ⓘ
+            - generic [ref=e273]: Revisa lo que está publicado y dónde tienes brechas de cobertura.
+          - generic [ref=e274]:
+            - button "List" [ref=e275] [cursor=pointer]:
+              - generic [ref=e276]: List
+            - button "Calendar" [ref=e277] [cursor=pointer]:
+              - generic [ref=e278]: Calendar
+          - generic [ref=e387]:
+            - generic [ref=e388]: 2026-04-03
+            - generic [ref=e389]:
+              - generic [ref=e390]:
+                - generic [ref=e391]: Morning Barista
+                - generic [ref=e392]: Publicado
+              - generic [ref=e393]: Maria Santos • 07:00 – 15:00
+              - generic [ref=e394]:
+                - button "Publicar este turno" [disabled]:
+                  - generic [ref=e395]: Publicar
+                - button "Mover este turno de vuelta a borrador" [ref=e396] [cursor=pointer]:
+                  - generic [ref=e397]: Despublicar
+                - button "Enviar notificación para este turno" [ref=e398] [cursor=pointer]:
+                  - generic [ref=e399]: Notificar
+        - generic [ref=e283]:
+          - generic [ref=e284]:
+            - generic [ref=e286]: Próximos turnos
+            - generic [ref=e287]: Mantente adelante de la próxima ventana del roster.
+          - generic [ref=e400]:
+            - generic [ref=e401]:
+              - generic [ref=e402]: Maria Santos
+              - generic [ref=e403]: Morning Barista • 07:00 – 15:00
+            - generic [ref=e404]:
+              - generic [ref=e405]: Publicado
+              - generic [ref=e406]: 2026-04-03
+        - generic [ref=e289]:
+          - generic [ref=e290]:
+            - generic [ref=e292]: Brechas de personal
+            - generic [ref=e293]: Destaca los roles con cobertura insuficiente en el horizonte.
+          - generic [ref=e294]: La cobertura cumple con los objetivos de demanda actuales.
+  - tablist [ref=e296]:
+    - tab "  Inicio" [ref=e298] [cursor=pointer]:
+      - generic [ref=e299]:
+        - generic [ref=e301]: 
+        - generic [ref=e303]: 
+      - generic [ref=e304]: Inicio
+    - tab "  Planificador" [selected] [ref=e306] [cursor=pointer]:
+      - generic [ref=e307]:
+        - generic [ref=e310]: 
+        - generic [ref=e313]: 
+      - generic [ref=e314]: Planificador
+    - tab "  Analítica" [ref=e316] [cursor=pointer]:
+      - generic [ref=e317]:
+        - generic [ref=e319]: 
+        - generic [ref=e321]: 
+      - generic [ref=e322]: Analítica
+    - tab "⏷ ⏷ diagnostics" [ref=e324] [cursor=pointer]:
+      - generic [ref=e325]:
+        - generic [ref=e327]: ⏷
+        - generic [ref=e329]: ⏷
+      - generic [ref=e330]: diagnostics

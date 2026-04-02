@@ -21,14 +21,21 @@ export type WorkerAvailabilitySlot = {
 
 export type WorkerWithAvailability = {
   id: string;
+  /** Short human-readable identifier shown in the UI, e.g. "W-1". Derived from list position. */
+  displayId: string;
   name: string;
   role: string;
   skills: string[];
   availability: WorkerAvailabilitySlot[];
 };
 
-const dbToWorker = (dbWorker: DbWorker, availabilities: DbAvailability[]): WorkerWithAvailability => ({
+const dbToWorker = (
+  dbWorker: DbWorker,
+  availabilities: DbAvailability[],
+  index: number,
+): WorkerWithAvailability => ({
   id: dbWorker.id,
+  displayId: `W-${index + 1}`,
   name: dbWorker.name,
   role: dbWorker.role,
   skills: dbWorker.skills ?? [],
@@ -56,7 +63,7 @@ export const useWorkers = (accountId: string) => {
       listWorkers(accountId),
       listWorkerAvailability(accountId),
     ]);
-    const mapped = dbWorkers.map((w) => dbToWorker(w, dbAvailabilities));
+    const mapped = dbWorkers.map((w, i) => dbToWorker(w, dbAvailabilities, i));
     setWorkers(mapped);
     log.debug('WORKER', 'Workers loaded', { count: mapped.length });
     setLoading(false);
@@ -76,7 +83,7 @@ export const useWorkers = (accountId: string) => {
         skills,
       };
       // Optimistic update — always show the worker immediately in local state
-      setWorkers((prev) => [...prev, dbToWorker(newWorker, [])]);
+      setWorkers((prev) => [...prev, dbToWorker(newWorker, [], prev.length)]);
       const result = await upsertWorker(newWorker);
       if (!result.success) {
         // DB unavailable (e.g. pre-migration); local state already updated above

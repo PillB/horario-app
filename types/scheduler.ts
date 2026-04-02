@@ -12,6 +12,8 @@ export type Availability = {
 
 export type Worker = {
   id: string;
+  /** Short human-readable identifier shown in the UI, e.g. "W-1". Derived from list position. */
+  displayId: string;
   name: string;
   role: string;
   skills: string[];

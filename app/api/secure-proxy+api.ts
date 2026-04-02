@@ -1,5 +1,5 @@
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
-import { createPublicKey, createVerify } from 'crypto';
+import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
 
 import {
   DemandForecast,
@@ -41,7 +41,7 @@ async function verifyClerkToken(token: string): Promise<string | null> {
     const jwks = await fetchJwks();
     const jwk = (header.kid ? jwks.keys.find(k => k.kid === header.kid) : jwks.keys[0]);
     if (!jwk) return null;
-    const publicKey = createPublicKey({ key: jwk as Parameters<typeof createPublicKey>[0], format: 'jwk' });
+    const publicKey = createPublicKey({ key: jwk as unknown as CryptoJWK, format: 'jwk' });
     const verifier = createVerify('RSA-SHA256');
     verifier.update(`${parts[0]}.${parts[1]}`);
     const valid = verifier.verify(publicKey, parts[2], 'base64url');
@@ -792,6 +792,64 @@ const dbIncrementAutoAssign = async (client: SupabaseClient, userId: string, acc
   return { success: true as const, count: newCount };
 };
 
+// ─── POS sales DB helpers ─────────────────────────────────────────────────────
+
+const VALID_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const dbUploadPosSales = async (
+  client: SupabaseClient,
+  accountId: string,
+  rows: PosRow[],
+): Promise<{ success: true; inserted: number } | { success: false; error: string }> => {
+  if (!accountId) return { success: false, error: 'accountId is required' };
+  if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'rows must be a non-empty array' };
+  if (rows.length > 1000) return { success: false, error: 'Maximum 1000 rows per upload' };
+
+  const invalidRow = rows.find(
+    (r) => !VALID_DATE_RE.test(r.date) || typeof r.revenue !== 'number' || r.revenue < 0,
+  );
+  if (invalidRow) {
+    return { success: false, error: `Invalid row: date=${invalidRow.date} revenue=${invalidRow.revenue}` };
+  }
+
+  const upsertRows = rows.map((r) => ({
+    account_id: accountId,
+    date: r.date,
+    revenue: r.revenue,
+    covers: r.covers ?? null,
+    notes: r.notes ?? null,
+    source: r.source ?? 'upload',
+  }));
+
+  const { error } = await client
+    .from('pos_sales')
+    .upsert(upsertRows, { onConflict: 'account_id,date' });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, inserted: rows.length };
+};
+
+const dbListPosSales = async (
+  client: SupabaseClient,
+  accountId: string,
+  limit = 90,
+  offset = 0,
+): Promise<{ success: true; rows: unknown[]; total: number } | { success: false; error: string }> => {
+  if (!accountId) return { success: false, error: 'accountId is required' };
+  const safeLimit = Math.min(Math.max(1, limit), 365);
+  const safeOffset = Math.max(0, offset);
+
+  const { data, error, count } = await client
+    .from('pos_sales')
+    .select('id, account_id, date, revenue, covers, notes, source, created_at', { count: 'exact' })
+    .eq('account_id', accountId)
+    .order('date', { ascending: false })
+    .range(safeOffset, safeOffset + safeLimit - 1);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, rows: data ?? [], total: count ?? 0 };
+};
+
 // ─── ProxyRequest union ───────────────────────────────────────────────────────
 
 type ProxyRequest =
@@ -815,7 +873,17 @@ type ProxyRequest =
   | { action: 'markShiftNotified'; id: string }
   | { action: 'deleteRosterShift'; id: string }
   | { action: 'getUsageLimit'; userId: string; accountId: string }
-  | { action: 'incrementAutoAssign'; userId: string; accountId: string };
+  | { action: 'incrementAutoAssign'; userId: string; accountId: string }
+  | { action: 'uploadPosSales'; accountId: string; rows: PosRow[] }
+  | { action: 'listPosSales'; accountId: string; limit?: number; offset?: number };
+
+type PosRow = {
+  date: string;
+  revenue: number;
+  covers?: number | null;
+  notes?: string | null;
+  source: 'upload' | 'manual';
+};
 
 export const runtime = 'nodejs';
 
@@ -957,6 +1025,20 @@ export async function POST(request: Request) {
         const result = await dbIncrementAutoAssign(client, uid, acct);
         return result.success
           ? jsonOk({ success: true, count: result.count })
+          : buildErrorResponse(result.error, 400);
+      }
+      case 'uploadPosSales': {
+        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
+        const result = await dbUploadPosSales(client, acct, payload.rows);
+        return result.success
+          ? jsonOk({ inserted: result.inserted })
+          : buildErrorResponse(result.error, 400);
+      }
+      case 'listPosSales': {
+        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
+        const result = await dbListPosSales(client, acct, payload.limit, payload.offset);
+        return result.success
+          ? jsonOk({ rows: result.rows, total: result.total })
           : buildErrorResponse(result.error, 400);
       }
       default:

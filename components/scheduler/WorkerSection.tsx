@@ -7,6 +7,7 @@ import { type Worker } from '@/types/scheduler';
 import { AvailabilityLabel } from './AvailabilityLabel';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
+import { WorkerIdPicker } from './WorkerIdPicker';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -164,6 +165,7 @@ export const WorkerSection = ({
       <SectionCard
         title={t('scheduler.workers.addCardTitle')}
         subtitle={t('scheduler.workers.addCardSubtitle')}
+        tooltip={t('scheduler.workers.addCardTooltip')}
       >
         {/* [11] InputField placeholder colour is handled inside InputField component;
             confirm it uses Colors[scheme].textTertiary (#64748B, 4.35:1) at minimum */}
@@ -222,10 +224,10 @@ export const WorkerSection = ({
         subtitle={t('scheduler.availability.sectionSubtitle')}
         tooltip={t('scheduler.availability.tooltip')}
       >
-        <InputField
+        <WorkerIdPicker
           label={t('scheduler.availability.workerIdLabel')}
           value={availabilityForm.workerId}
-          placeholder={t('scheduler.availability.workerIdPlaceholder')}
+          workers={workers}
           onChangeText={updateAvailabilityField('workerId')}
         />
         <View style={styles.inlineInputs}>

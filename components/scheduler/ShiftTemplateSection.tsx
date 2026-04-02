@@ -7,6 +7,8 @@ import { type AssignedShift } from '@/services/shiftAssigner';
 import { type Worker } from '@/types/scheduler';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
+import { WorkerIdPicker } from './WorkerIdPicker';
+import { TemplateIdPicker } from './TemplateIdPicker';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -180,6 +182,7 @@ export const ShiftTemplateSection = ({
       <SectionCard
         title={t('scheduler.templates.addCardTitle')}
         subtitle={t('scheduler.templates.addCardSubtitle')}
+        tooltip={t('scheduler.templates.addCardTooltip')}
       >
         <View style={styles.inlineInputs}>
           <InputField
@@ -250,20 +253,18 @@ export const ShiftTemplateSection = ({
         subtitle={t('scheduler.shifts.sectionSubtitle')}
         tooltip={t('scheduler.shifts.tooltip')}
       >
-        <View style={styles.inlineInputs}>
-          <InputField
-            label={t('scheduler.shifts.workerLabel')}
-            value={shiftForm.workerId}
-            placeholder={t('scheduler.shifts.workerPlaceholder')}
-            onChangeText={updateShiftField('workerId')}
-          />
-          <InputField
-            label={t('scheduler.shifts.templateLabel')}
-            value={shiftForm.templateId}
-            placeholder={t('scheduler.shifts.templatePlaceholder')}
-            onChangeText={updateShiftField('templateId')}
-          />
-        </View>
+        <WorkerIdPicker
+          label={t('scheduler.shifts.workerLabel')}
+          value={shiftForm.workerId}
+          workers={workers}
+          onChangeText={updateShiftField('workerId')}
+        />
+        <TemplateIdPicker
+          label={t('scheduler.shifts.templateLabel')}
+          value={shiftForm.templateId}
+          templates={shiftTemplates}
+          onChangeText={updateShiftField('templateId')}
+        />
         <InputField
           label={t('scheduler.shifts.dateLabel')}
           value={shiftForm.date}
@@ -272,6 +273,7 @@ export const ShiftTemplateSection = ({
         />
         <View style={styles.inlineActions}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={t('scheduler.shifts.saveButtonA11y')}
             onPress={handleShiftSubmit}
             style={[styles.primaryButton, styles.actionButton]}
@@ -281,6 +283,7 @@ export const ShiftTemplateSection = ({
           {/* [2] Fix: secondaryButton now uses secondaryButtonText with dark/teal colour
               instead of primaryButtonText (white) which would fail on a light/outlined bg */}
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={t('scheduler.shifts.autoAssignA11y')}
             accessibilityHint={t('scheduler.shifts.autoAssignHint')}
             onPress={handleAutoAssign}

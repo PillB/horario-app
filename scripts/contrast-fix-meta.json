@@ -1,0 +1,130 @@
+{
+  "batchId": "msgbatch_017bzAdryk7GMpJzBQEdBqQp",
+  "submittedAt": "2026-03-30T17:02:58.556Z",
+  "files": [
+    {
+      "id": "STY_SCHEDULER_ST",
+      "path": "styles/scheduler.styles.ts"
+    },
+    {
+      "id": "TAB_EXPLORE",
+      "path": "app/(tabs)/explore.tsx"
+    },
+    {
+      "id": "TAB_INDEX",
+      "path": "app/(tabs)/index.tsx"
+    },
+    {
+      "id": "COMP_STREAKCOUNT",
+      "path": "components/StreakCounter.tsx"
+    },
+    {
+      "id": "COMP_UPGRADEBANN",
+      "path": "components/UpgradeBanner.tsx"
+    },
+    {
+      "id": "COMP_LANGUAGESEL",
+      "path": "components/LanguageSelector.tsx"
+    },
+    {
+      "id": "COMP_PROFILEACHI",
+      "path": "components/ProfileAchievements.tsx"
+    },
+    {
+      "id": "SCHED_WORKERSECT",
+      "path": "components/scheduler/WorkerSection.tsx"
+    },
+    {
+      "id": "SCHED_ROSTERSECT",
+      "path": "components/scheduler/RosterSection.tsx"
+    },
+    {
+      "id": "SCHED_DEMANDSECT",
+      "path": "components/scheduler/DemandSection.tsx"
+    },
+    {
+      "id": "COMP_WELLNESSPRO",
+      "path": "components/WellnessPrompt.tsx"
+    },
+    {
+      "id": "COMP_PERSONALIZE",
+      "path": "components/PersonalizedFeed.tsx"
+    },
+    {
+      "id": "COMP_TOURSPOTLIG",
+      "path": "components/TourSpotlight.tsx"
+    },
+    {
+      "id": "SCHED_SHIFTTEMPL",
+      "path": "components/scheduler/ShiftTemplateSection.tsx"
+    },
+    {
+      "id": "TAB__LAYOUT",
+      "path": "app/(tabs)/_layout.tsx"
+    },
+    {
+      "id": "COMP_THEMEDTEXT",
+      "path": "components/ThemedText.tsx"
+    },
+    {
+      "id": "COMP_INFOTOOLTIP",
+      "path": "components/InfoTooltip.tsx"
+    },
+    {
+      "id": "COMP_ERRORBOUNDA",
+      "path": "components/ErrorBoundary.tsx"
+    },
+    {
+      "id": "SCHED_LOSTREVENU",
+      "path": "components/scheduler/LostRevenueSummary.tsx"
+    },
+    {
+      "id": "SCHED_CHECKLIST",
+      "path": "components/scheduler/Checklist.tsx"
+    },
+    {
+      "id": "SCHED_INPUTFIELD",
+      "path": "components/scheduler/InputField.tsx"
+    },
+    {
+      "id": "SCHED_AVAILABILI",
+      "path": "components/scheduler/AvailabilityLabel.tsx"
+    },
+    {
+      "id": "COMP_PARALLAXSCR",
+      "path": "components/ParallaxScrollView.tsx"
+    },
+    {
+      "id": "TAB_SCHEDULER",
+      "path": "app/(tabs)/scheduler.tsx"
+    },
+    {
+      "id": "APP__LAYOUT",
+      "path": "app/_layout.tsx"
+    },
+    {
+      "id": "COMP_THEMEDVIEW",
+      "path": "components/ThemedView.tsx"
+    },
+    {
+      "id": "COMP_SKELETONCAR",
+      "path": "components/SkeletonCard.tsx"
+    },
+    {
+      "id": "COMP_HAPTICTAB",
+      "path": "components/HapticTab.tsx"
+    },
+    {
+      "id": "COMP_COLLAPSIBLE",
+      "path": "components/Collapsible.tsx"
+    },
+    {
+      "id": "COMP_EXTERNALLIN",
+      "path": "components/ExternalLink.tsx"
+    },
+    {
+      "id": "SCHED_SECTIONCAR",
+      "path": "components/scheduler/SectionCard.tsx"
+    }
+  ]
+}

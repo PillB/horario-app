@@ -2,17 +2,21 @@
  * InfoTooltip — a small ⓘ button that shows encouraging help text.
  *
  * Rendering strategy:
- *   Both web and native use React Native's Modal, which on web portals to
- *   document.body — guaranteed top layer, never occluded by parent stacking
- *   contexts or ScrollView containers.
+ *   Web: ReactDOM.createPortal renders the tooltip card directly into
+ *   document.body with position:fixed — this is critical. Using React
+ *   Native's Modal on web causes body overflow manipulation that scrolls
+ *   the page to the top (root cause of the reported hover scroll bug).
+ *   Portal + position:fixed avoids all body overflow side-effects.
+ *
+ *   Native: React Native Modal (fade animation, full-screen dismiss).
  *
  * Web UX:
  *   - Show on hover (onPointerEnter) or tap/click.
  *   - 150 ms dismiss delay so the cursor can travel from button → tooltip
  *     without flickering; cleared when pointer enters the tooltip card.
- *   - Modal backdrop is pointer-events:none so the rest of the page
+ *   - Portal backdrop is pointer-events:none so the rest of the page
  *     stays interactive while the tooltip is visible.
- *   - ESC / onRequestClose dismisses.
+ *   - ESC key closes the tooltip.
  *
  * Native UX:
  *   - Show on tap or long-press.
@@ -26,7 +30,7 @@
  *   - Horizontally clamped within an 8 px viewport gutter.
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Pressable,
@@ -39,6 +43,13 @@ import {
 import { ThemedText } from '@/components/ThemedText';
 import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+
+// Lazy-load createPortal only on web to avoid issues with native/SSR
+let createPortal: ((children: React.ReactNode, container: Element) => React.ReactPortal) | null = null;
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  createPortal = require('react-dom').createPortal;
+}
 
 type Props = {
   content: string;
@@ -98,6 +109,16 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
     setVisible(false);
   }, [clearHideTimer]);
 
+  // ESC key handler on web — dismiss tooltip without page scroll
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') hide();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [visible, hide]);
+
   /**
    * Measures button viewport position and computes tooltip coordinates.
    * On web uses getBoundingClientRect (viewport-relative, works inside ScrollViews).
@@ -149,6 +170,46 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
 
   const isWeb = Platform.OS === 'web';
 
+  // ── Web tooltip card (portal, no scroll-locking) ──────────────────────────
+  // CRITICAL FIX: we render this as a ReactDOM portal with position:fixed
+  // instead of React Native Modal. Modal on web calls body overflow:hidden
+  // which discards the page scroll position — this was the root cause of
+  // users being "sent to the top of the page" on hover.
+  const webTooltipPortal =
+    isWeb && visible && cardPos && createPortal
+      ? createPortal(
+          <View
+            style={[
+              styles.tooltipCard,
+              {
+                // @ts-ignore — web-only CSS: position:fixed keeps card viewport-
+                // relative without any body overflow side-effect
+                position: 'fixed',
+                top: cardPos.y,
+                left: cardPos.x,
+                width: tooltipW,
+                maxHeight: maxCardH,
+                // @ts-ignore
+                zIndex: 9999,
+              },
+            ]}
+            // @ts-ignore — web pointer events to keep hover alive
+            onPointerEnter={clearHideTimer}
+            // @ts-ignore
+            onPointerLeave={scheduleHide}
+          >
+            <ScrollView
+              scrollEnabled
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <ThemedText style={styles.tooltipText}>{content}</ThemedText>
+            </ScrollView>
+          </View>,
+          document.body,
+        )
+      : null;
+
   return (
     <View
       ref={buttonRef}
@@ -186,49 +247,20 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
         <ThemedText style={[styles.iconText, { color: iconColor }]}>ⓘ</ThemedText>
       </Pressable>
 
-      <Modal
-        visible={visible}
-        transparent
-        animationType={isWeb ? 'none' : 'fade'}
-        onRequestClose={hide}
-        statusBarTranslucent
-      >
-        {isWeb && cardPos ? (
-          // ── Web: positioned card, backdrop passes pointer events through ──
-          //
-          // The outer View fills the screen but uses pointerEvents="box-none"
-          // so the page behind stays interactive — only the card itself
-          // captures pointer events (to keep hover alive).
-          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-            <View
-              style={[
-                styles.tooltipCard,
-                {
-                  position: 'absolute',
-                  top: cardPos.y,
-                  left: cardPos.x,
-                  width: tooltipW,
-                  maxHeight: maxCardH,
-                },
-              ]}
-              // @ts-ignore — web pointer events
-              onPointerEnter={clearHideTimer}
-              // @ts-ignore — web pointer events
-              onPointerLeave={scheduleHide}
-            >
-              <ScrollView
-                scrollEnabled
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                <ThemedText style={styles.tooltipText}>{content}</ThemedText>
-              </ScrollView>
-            </View>
-          </View>
-        ) : (
-          // ── Native (or web fallback): centred card with dismiss controls ──
+      {/* Web: tooltip rendered via portal (no Modal = no scroll-lock side-effect) */}
+      {webTooltipPortal}
+
+      {/* Native: Modal-based tooltip with full-screen dismiss */}
+      {!isWeb ? (
+        <Modal
+          visible={visible}
+          transparent
+          animationType="fade"
+          onRequestClose={hide}
+          statusBarTranslucent
+        >
           <>
-            {/* Full-screen dismiss tap area — semi-transparent scrim separates modal layer from page content */}
+            {/* Full-screen dismiss tap area */}
             <Pressable
               style={[StyleSheet.absoluteFill, styles.backdrop]}
               onPress={hide}
@@ -262,8 +294,8 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
               </View>
             </View>
           </>
-        )}
-      </Modal>
+        </Modal>
+      ) : null}
     </View>
   );
 }

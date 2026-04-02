@@ -6,10 +6,14 @@ This guide explains how to create the Supabase tables that support the schedulin
 
 Apply migrations in filename order:
 
-| File | Purpose |
-|---|---|
-| `supabase/migrations/20240613120000_onboarding_progress.sql` | Onboarding progress tracking |
-| `supabase/migrations/20260327000001_core_tables.sql` | Core scheduling tables (workers, availability, templates, roster) |
+| # | File | Purpose |
+|---|---|---|
+| 1 | `supabase/migrations/20240101000000_forecast_tables.sql` | Forecast tables: `shifts`, `external_signals`, `demand_targets` |
+| 2 | `supabase/migrations/20240613120000_onboarding_progress.sql` | Onboarding progress tracking |
+| 3 | `supabase/migrations/20260327000001_core_tables.sql` | Core scheduling tables: `workers`, `worker_availability`, `shift_templates`, `roster` |
+| 4 | `supabase/migrations/20260328000001_usage_limits.sql` | Freemium usage counters: `usage_limits` |
+
+See `supabase/migrations/project_migrations.md` for full table reference, verification queries, and troubleshooting guide.
 
 Apply with:
 ```bash

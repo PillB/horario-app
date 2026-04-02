@@ -18,7 +18,7 @@ import { Colors, brand } from '@/constants/Colors';
 // and will crash during Vercel's Node.js / web bundle step. We therefore only
 // import it on native platforms and pass `undefined` on web — Clerk handles web
 // auth automatically via cookies when no tokenCache is provided.
-import type { TokenCache } from '@clerk/expo/token-cache';
+import type { TokenCache } from '@clerk/expo';
 
 const tokenCache: TokenCache | undefined =
   Platform.OS !== 'web'

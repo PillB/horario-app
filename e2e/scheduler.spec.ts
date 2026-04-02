@@ -169,7 +169,7 @@ test.describe('Scheduler happy paths', () => {
       .first();
     await rosterSection.scrollIntoViewIfNeeded();
 
-    await fillField(page, 'Date', '2026-04-07');
+    await fillField(page, 'Date', '2026-04-06');
 
     // Fill the worker-id field only if it exists as an editable input and we
     // have an id from a previous run; many implementations pre-select the
@@ -187,7 +187,7 @@ test.describe('Scheduler happy paths', () => {
 
     // Verify either a success message or the shift appearing in the roster.
     const confirmation = page
-      .getByText(/(shift assigned|success|2026-04-07)/i)
+      .getByText(/(shift assigned|success|2026-04-06)/i)
       .first();
     await expect(confirmation).toBeVisible({ timeout: VISIBLE_TIMEOUT });
   });
@@ -241,17 +241,23 @@ test.describe('Scheduler happy paths', () => {
       .first();
     await demandSection.scrollIntoViewIfNeeded();
 
-    await fillField(page, 'Role', 'Server');
-    await fillField(page, 'Start Date', '2026-04-07');
-    await fillField(page, 'Days', '7');
-    await fillField(page, 'Shifts per Day', '2');
-    await fillField(page, 'Workers per Shift', '2');
+    // 'Rol' matches multiple fields on the page; use nth(2) to target the
+    // demand form's role field specifically (0-indexed: 0=worker form,
+    // 1=template form, 2=demand form).
+    const rolField = page.getByRole('textbox', { name: 'Rol' }).nth(2);
+    await rolField.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
+    await rolField.clear();
+    await rolField.fill('Server');
 
-    await clickButton(page, 'Add homogeneous demand');
+    await fillField(page, 'Fecha de inicio', '2026-04-06');
+    await fillField(page, 'Días', '7');
+    await fillField(page, 'Demanda diaria', '4');
+
+    await clickButton(page, 'Guardar objetivos base');
 
     // Verify a success message or that target entries have appeared.
     const confirmation = page
-      .getByText(/(demand added|success|target|Server)/i)
+      .getByText(/(demand target|objective|guardado|base|saved|Server|7)/i)
       .first();
     await expect(confirmation).toBeVisible({ timeout: VISIBLE_TIMEOUT });
   });

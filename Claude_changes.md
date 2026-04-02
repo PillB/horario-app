@@ -15,6 +15,19 @@
 
 ---
 
+### CHG-043 — 2026-04-02 UTC
+**Type:** FIX + IMPROVEMENT (Iteration 2 — coverageByDate wired to WeekCalendar, handlePosTargetsGenerated corrected, forecasting tests)
+
+**Files changed:**
+- `components/scheduler/RosterSection.tsx` — Added `useMemo` import; compute `coverageByDate` from `staffingGaps` (aggregate scheduled/required per date across roles); pass `coverageByDate={coverageByDate}` to both WeekCalendar instances so coverage dots actually render.
+- `hooks/useSchedulerHandlers.ts` — Fixed `handlePosTargetsGenerated`: passes `lowerBound`, `upperBound`, `confidence` to `overrideTarget`; changed banner call from `setActionBanner(...)` to `showActionBanner(...)` so the banner auto-clears; fixed dependency array to `[overrideTarget, showActionBanner]`.
+- `utils/__tests__/posForecasting.test.ts` *(NEW)* — 14 unit tests for `rollingAverage` (empty, window≤1, window>length, centered average, output length) and `forecastDemandFromPOS` (empty, count, role assignment, source, min workers, required calculation, bounds, confidence, sort order).
+
+**Tests:** 227/227 passed ✓ (14 new posForecasting tests)
+**Lint:** 0 errors, 10 pre-existing warnings ✓
+
+---
+
 ### CHG-042 — 2026-04-02 UTC
 **Type:** FEATURE (POS-based demand forecasting integration + WeekCalendar coverage dots)
 
