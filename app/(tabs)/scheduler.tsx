@@ -8,7 +8,7 @@
  * Types live in types/scheduler.ts.
  */
 import React from 'react';
-import { ScrollView, View, Pressable } from 'react-native';
+import { ScrollView, View, Pressable, Modal } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemedText } from '@/components/ThemedText';
@@ -21,6 +21,8 @@ import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSectio
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
+import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
+import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
@@ -137,6 +139,13 @@ export default function SchedulerScreen() {
     usageCount,
   } = useSchedulerHandlers();
 
+  const [selectedShiftForNotes, setSelectedShiftForNotes] = React.useState<{
+    shiftId: string;
+    workerName: string;
+    templateName: string;
+    date: string;
+  } | null>(null);
+
   // [Finding 2] linkText must meet AA on warningSurface:
   //   light: brand.primaryDeep (#115E59, 5.87:1 on white/warm surface)
   //   dark:  Colors.dark.tint (#2DD4BF, 8.95:1 on dark amber surface)
@@ -149,11 +158,24 @@ export default function SchedulerScreen() {
   const bannerSuccessTextColor = colors.success;
   const bannerErrorTextColor = colors.error;
 
+  const handleSelectShiftForNotes = React.useCallback(
+    (shift: { id: string; worker?: { name: string }; workerId: string; template?: { name: string }; templateId: string; date: string }) => {
+      setSelectedShiftForNotes({
+        shiftId: shift.id,
+        workerName: shift.worker?.name ?? shift.workerId,
+        templateName: shift.template?.name ?? shift.templateId,
+        date: shift.date,
+      });
+    },
+    []
+  );
+
   return (
     <ErrorBoundary>
     <ThemedView style={styles.screenContainer}>
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
+        <TimezoneBar />
         {/* [Finding 6] pageTitle contrast confirmed AAA — no change needed */}
         <ThemedText type="title" style={styles.pageTitle}>
           {t('scheduler.title')}
@@ -323,6 +345,7 @@ export default function SchedulerScreen() {
           handleNotifyShift={handleNotifyShift}
           upcomingShifts={upcomingShifts}
           staffingGaps={staffingGaps}
+          onSelectShiftForNotes={handleSelectShiftForNotes}
         />
         </TourStep>
 
@@ -333,6 +356,22 @@ export default function SchedulerScreen() {
           onTakeBreak={acknowledgeBreak}
         />
       </ScrollView>
+      <Modal
+        visible={selectedShiftForNotes !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedShiftForNotes(null)}
+      >
+        {selectedShiftForNotes ? (
+          <ShiftNotesPanel
+            shiftId={selectedShiftForNotes.shiftId}
+            workerName={selectedShiftForNotes.workerName}
+            templateName={selectedShiftForNotes.templateName}
+            date={selectedShiftForNotes.date}
+            onClose={() => setSelectedShiftForNotes(null)}
+          />
+        ) : null}
+      </Modal>
     </ThemedView>
     </ErrorBoundary>
   );

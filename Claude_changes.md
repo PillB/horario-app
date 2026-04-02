@@ -15,6 +15,35 @@
 
 ---
 
+### CHG-046 — 2026-04-02 UTC
+**Type:** FEATURE (UX/QoL — timezone clarity, shift notes, home dashboard improvements)
+
+**Research basis:**
+- Reviewed 7shifts, Deputy, Homebase, When I Work, Sling — identified gaps and best practices
+- Top user complaints: no timezone clarity, can't add shift instructions, home screen uninformative
+- Market gap seized: no scheduling app provides (1) live scheduling timezone display or (2) per-shift task management with status tracking in one integrated UI
+
+**Files changed:**
+- `components/scheduler/TimezoneBar.tsx` — NEW: live clock + timezone bar (device tz + UTC offset + date, updates every 60s); renders at top of Scheduler screen so managers always know which timezone shift dates use
+- `components/scheduler/ShiftNotesPanel.tsx` — NEW: per-shift task manager; manager note (500 char), task checklist with status cycle (todo→done→blocked→delayed), inline comment per task, add/delete tasks; opens via "Notes" button on roster rows
+- `components/scheduler/RosterSection.tsx` — added optional `onSelectShiftForNotes` prop; added "Notes" action chip to each shift row in list view
+- `app/(tabs)/scheduler.tsx` — imports TimezoneBar + ShiftNotesPanel; adds `selectedShiftForNotes` state + `handleSelectShiftForNotes` callback; renders TimezoneBar above title; renders ShiftNotesPanel in a Modal (`pageSheet`)
+- `app/(tabs)/index.tsx` — "This week at a glance" KPI strip (shifts scheduled / roles to fill with red/green accenting); "Build your team" invite CTA card; new styles: kpiRow/kpiCell/kpiValue/kpiDivider/inviteButton
+- `locales/en.ts` — Added top-level `timezone.*` and `shiftNotes.*` keys; added `home.weekStats.*` and `home.invite.*`
+- `locales/es.ts` — Full Spanish translations for all new keys
+
+**Test results:** 244/244 passing, 0 lint errors (10 pre-existing warnings unchanged).
+
+**Key UX decisions:**
+- TimezoneBar uses left-border accent (brand.primary) for quick visual scanability without disrupting layout
+- ShiftNotesPanel status colors follow semantic conventions: green=done, red=blocked, amber=delayed, slate=todo
+- Task status cycle is a single tap (no dropdown) for speed on mobile
+- Template-literal t() avoided; explicit status map used instead for TypeScript safety
+- ShiftNotesPanel is in-memory only (no backend) — ready for DB persistence in a future phase
+- Modal uses `pageSheet` presentation for native iOS/Android sheet feel
+
+---
+
 ### CHG-045 — 2026-04-02 UTC
 **Type:** FEATURE + IMPROVEMENT (multi-role POS staffing mix — full implementation + Iteration 2 polish)
 

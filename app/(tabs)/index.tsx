@@ -68,6 +68,25 @@ export default function HomeScreen() {
       </ThemedView>
       </TourStep>
 
+      <ThemedView style={styles.card}>
+        <ThemedText type="defaultSemiBold">{t('home.weekStats.title')}</ThemedText>
+        {rosterLoading ? <SkeletonCard rows={1} /> : (
+          <View style={styles.kpiRow}>
+            <View style={styles.kpiCell}>
+              <ThemedText type="title" style={styles.kpiValue}>{String(upcomingShifts.length)}</ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.weekStats.scheduled')}</ThemedText>
+            </View>
+            <View style={styles.kpiDivider} />
+            <View style={styles.kpiCell}>
+              <ThemedText type="title" style={[styles.kpiValue, { color: staffingGaps.length > 0 ? '#DC2626' : '#15803D' }]}>
+                {String(staffingGaps.length)}
+              </ThemedText>
+              <ThemedText style={styles.mutedText}>{t('home.weekStats.gaps')}</ThemedText>
+            </View>
+          </View>
+        )}
+      </ThemedView>
+
       <TourStep target="streak-counter">
       <ThemedView style={styles.card}>
         <StreakCounter
@@ -176,6 +195,19 @@ export default function HomeScreen() {
             </Pressable>
           </Link>
         </View>
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+        <ThemedText type="defaultSemiBold">{t('home.invite.title')}</ThemedText>
+        <ThemedText style={styles.mutedText}>{t('home.invite.desc')}</ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.invite.ctaA11y')}
+          style={({ pressed }) => [styles.inviteButton, pressed && { opacity: 0.75 }]}
+          onPress={() => {/* TODO: open invite flow */}}
+        >
+          <ThemedText style={styles.inviteButtonText}>{t('home.invite.cta')}</ThemedText>
+        </Pressable>
       </ThemedView>
 
       <ThemedView style={styles.card}>
@@ -327,5 +359,38 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
       fontWeight: '600',
       // Increased to 16px for mobile readability; ensures AA at corrected colour
       fontSize: 16,
+    },
+    kpiRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 0,
+    },
+    kpiCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    kpiValue: {
+      fontSize: 28,
+      lineHeight: 36,
+      fontWeight: '700',
+    },
+    kpiDivider: {
+      width: 1,
+      height: 48,
+      backgroundColor: colors.border,
+    },
+    inviteButton: {
+      borderWidth: 1.5,
+      borderColor: brand.primary,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      alignSelf: 'flex-start',
+    },
+    inviteButtonText: {
+      color: brand.primary,   // #0D9488 — 4.52:1 on white ✓ AA
+      fontWeight: '600',
+      fontSize: 14,
     },
   });

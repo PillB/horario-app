@@ -68,6 +68,36 @@ export const en = {
     exportDiagnostics: 'Export diagnostics',
   },
 
+  // ─── Timezone bar ──────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Scheduling in:',
+    live: 'Live scheduling timezone clock',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Notes',
+    openNotes: 'Open shift notes and tasks',
+    panelTitle: 'Shift notes',
+    managerNote: 'Manager note',
+    managerNotePlaceholder: 'Add instructions, reminders, or context for this shift…',
+    tasks: 'Tasks',
+    tasksDesc: 'Add to-dos the worker should complete during this shift.',
+    addTaskPlaceholder: 'e.g. Check inventory before opening',
+    addTaskBtn: 'Add',
+    commentPlaceholder: 'Add a comment or update…',
+    noTasks: 'No tasks yet — add one above.',
+    cycleStatus: 'Cycle task status',
+    removeTask: 'Remove task',
+    status: {
+      todo: 'To do',
+      done: 'Done',
+      blocked: 'Blocked',
+      delayed: 'Delayed',
+    },
+    doneBtn: 'Close',
+  },
+
   // ─── Errors ────────────────────────────────────────────────────────────────
   errors: {
     somethingWentWrong: 'Something went wrong',
@@ -144,6 +174,17 @@ export const en = {
       coverageChecksDesc: 'Logged updates 5 of the last 7 days.',
       draftsPublished: 'Drafts published',
       draftsPublishedDesc: 'Move drafts into published when teams are ready.',
+    },
+    weekStats: {
+      title: 'This week',
+      scheduled: 'Shifts scheduled',
+      gaps: 'Roles to fill',
+    },
+    invite: {
+      title: 'Build your team',
+      desc: 'Add workers to unlock auto-assign and coverage tracking. Each worker added means fewer scheduling gaps.',
+      cta: 'Invite a team member →',
+      ctaA11y: 'Invite a team member to your roster',
     },
     personalizedActions: {
       title: 'Personalized actions',

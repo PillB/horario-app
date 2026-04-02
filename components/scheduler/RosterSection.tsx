@@ -29,6 +29,7 @@ type Props = {
   handlePublishShift: (shiftId: string) => void;
   handleUnpublishShift: (shiftId: string) => void;
   handleNotifyShift: (shiftId: string) => void;
+  onSelectShiftForNotes?: (shift: RosterShift) => void;
   upcomingShifts: RosterShift[];
   staffingGaps: StaffingGap[];
 };
@@ -225,6 +226,7 @@ export const RosterSection = ({
   handlePublishShift,
   handleUnpublishShift,
   handleNotifyShift,
+  onSelectShiftForNotes,
   upcomingShifts,
   staffingGaps,
 }: Props) => {
@@ -506,6 +508,20 @@ export const RosterSection = ({
                           {shift.notified
                             ? t('common.notified')
                             : t('common.notify')}
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => onSelectShiftForNotes?.(shift)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('shiftNotes.openNotes')}
+                        style={({ pressed }) => [
+                          styles.actionChip,
+                          { backgroundColor: colors.surfaceRaised },
+                          pressed && { opacity: 0.75 },
+                        ]}
+                      >
+                        <ThemedText style={[local.mutedText, { color: colors.text }]}>
+                          {t('shiftNotes.notesBtn')}
                         </ThemedText>
                       </Pressable>
                     </View>
