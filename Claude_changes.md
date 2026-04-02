@@ -1234,3 +1234,24 @@ reload — see project_migrations.md):
 - 164/164 tests pass. No TypeScript errors in new files.
 
 ---
+
+### CHG-050 — 2026-04-02 UTC
+**Type:** FIX (Home screen buttons invisible in React Native Web)
+
+**Root cause:** `Link asChild` + function-style Pressable is a known React Native Web bug. expo-router wraps the child in an `<a>` element that does NOT inherit the Pressable's computed styles (`backgroundColor`, `padding`, `borderRadius`, etc.). Diagnosed via Playwright `getComputedStyle()` showing `background: rgba(0,0,0,0)` on the `<A>` element at x:1044, y:370, w:124, h:26 — completely invisible to users.
+
+**Fix:** Removed `Link` import; added `useRouter` import; replaced all 4 `Link asChild + Pressable` wrappers with plain `Pressable` + `onPress={() => router.push('/(tabs)/scheduler')}`.
+
+**Fixed locations (5 buttons):**
+1. Hero "Open Scheduler" primary button (teal, AAA contrast)
+2. Empty-state "Build your first schedule →" CTA
+3. Quick-action "Add availability" button
+4. Quick-action "Build shifts" button
+5. Quick-action "Publish roster" button
+
+**Files changed:**
+- `app/(tabs)/index.tsx` — remove `Link` import; add `useRouter`; replace all `Link asChild` wrappers
+
+**Tests:** 244/244 passing. Lint: exit 0.
+
+---

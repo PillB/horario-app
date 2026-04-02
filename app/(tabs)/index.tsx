@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -23,6 +23,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function HomeScreen() {
   const { t } = useT();
+  const router = useRouter();
   const { accountId: ACCOUNT_ID } = useIdentity();
   const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
@@ -60,15 +61,14 @@ export default function HomeScreen() {
             {t('home.hero.tagline2')}
           </ThemedText>
         </View>
-        <Link href="/(tabs)/scheduler" asChild>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('home.openSchedulerA11y')}
-            accessibilityHint={t('home.openSchedulerHint')}
-            style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.75 }]}>
-            <ThemedText style={styles.primaryButtonText}>{t('home.openScheduler')}</ThemedText>
-          </Pressable>
-        </Link>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.openSchedulerA11y')}
+          accessibilityHint={t('home.openSchedulerHint')}
+          onPress={() => router.push('/(tabs)/scheduler')}
+          style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.75 }]}>
+          <ThemedText style={styles.primaryButtonText}>{t('home.openScheduler')}</ThemedText>
+        </Pressable>
       </ThemedView>
       </TourStep>
 
@@ -114,14 +114,13 @@ export default function HomeScreen() {
           ) : upcomingShifts.length === 0 ? (
             <>
               <ThemedText style={styles.mutedText}>{t('home.upcomingShifts.empty')}</ThemedText>
-              <Link href="/(tabs)/scheduler" asChild>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('home.upcomingShifts.buildFirstA11y')}
-                  style={styles.emptyStateCta}>
-                  <ThemedText style={styles.emptyStateCtaText}>{t('home.upcomingShifts.buildFirst')}</ThemedText>
-                </Pressable>
-              </Link>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('home.upcomingShifts.buildFirstA11y')}
+                onPress={() => router.push('/(tabs)/scheduler')}
+                style={styles.emptyStateCta}>
+                <ThemedText style={styles.emptyStateCtaText}>{t('home.upcomingShifts.buildFirst')}</ThemedText>
+              </Pressable>
             </>
           ) : (
             upcomingShifts.map((shift) => (
@@ -168,36 +167,33 @@ export default function HomeScreen() {
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">{t('home.quickActions.title')}</ThemedText>
         <View style={styles.actions}>
-          <Link href="/(tabs)/scheduler" asChild>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('home.quickActions.addAvailabilityA11y')}
-              accessibilityHint={t('home.quickActions.addAvailabilityHint')}
-              style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-              <ThemedText type="defaultSemiBold">{t('home.quickActions.addAvailability')}</ThemedText>
-              <ThemedText style={styles.mutedText}>{t('home.quickActions.addAvailabilityDesc')}</ThemedText>
-            </Pressable>
-          </Link>
-          <Link href="/(tabs)/scheduler" asChild>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('home.quickActions.buildShiftsA11y')}
-              accessibilityHint={t('home.quickActions.buildShiftsHint')}
-              style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-              <ThemedText type="defaultSemiBold">{t('home.quickActions.buildShifts')}</ThemedText>
-              <ThemedText style={styles.mutedText}>{t('home.quickActions.buildShiftsDesc')}</ThemedText>
-            </Pressable>
-          </Link>
-          <Link href="/(tabs)/scheduler" asChild>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('home.quickActions.publishRosterA11y')}
-              accessibilityHint={t('home.quickActions.publishRosterHint')}
-              style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-              <ThemedText type="defaultSemiBold">{t('home.quickActions.publishRoster')}</ThemedText>
-              <ThemedText style={styles.mutedText}>{t('home.quickActions.publishRosterDesc')}</ThemedText>
-            </Pressable>
-          </Link>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.quickActions.addAvailabilityA11y')}
+            accessibilityHint={t('home.quickActions.addAvailabilityHint')}
+            onPress={() => router.push('/(tabs)/scheduler')}
+            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
+            <ThemedText type="defaultSemiBold">{t('home.quickActions.addAvailability')}</ThemedText>
+            <ThemedText style={styles.mutedText}>{t('home.quickActions.addAvailabilityDesc')}</ThemedText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.quickActions.buildShiftsA11y')}
+            accessibilityHint={t('home.quickActions.buildShiftsHint')}
+            onPress={() => router.push('/(tabs)/scheduler')}
+            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
+            <ThemedText type="defaultSemiBold">{t('home.quickActions.buildShifts')}</ThemedText>
+            <ThemedText style={styles.mutedText}>{t('home.quickActions.buildShiftsDesc')}</ThemedText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.quickActions.publishRosterA11y')}
+            accessibilityHint={t('home.quickActions.publishRosterHint')}
+            onPress={() => router.push('/(tabs)/scheduler')}
+            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
+            <ThemedText type="defaultSemiBold">{t('home.quickActions.publishRoster')}</ThemedText>
+            <ThemedText style={styles.mutedText}>{t('home.quickActions.publishRosterDesc')}</ThemedText>
+          </Pressable>
         </View>
       </ThemedView>
 
