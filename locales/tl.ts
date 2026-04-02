@@ -346,6 +346,7 @@ export const tl = {
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: 'Lin', mon: 'Lun', tue: 'Mar', wed: 'Miy', thu: 'Huw', fri: 'Biy', sat: 'Sab' },
   weekCalendar: {
     prevWeek: 'Nakaraang linggo',
     nextWeek: 'Susunod na linggo',
@@ -358,6 +359,9 @@ export const tl = {
     legendPublished: 'Nailathala',
     coverageMet: '{s}/{r} naabot',
     coverageShort: '{s}/{r} kulang',
+    monthView: 'Buwan',
+    weekView: 'Linggo',
+    monthLabel: '{month} {year}',
   },
 
   analytics: {

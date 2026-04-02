@@ -77,6 +77,31 @@
 
 ---
 
+### CHG-049 — 2026-04-02 UTC
+**Type:** FIX (locale keys — weekday abbreviations + calendar toggle labels missing from all locale files)
+
+**Problem solved:**
+- Playwright Iteration 2 visual QA found two sets of missing locale keys in `WeekCalendar.tsx`:
+  1. `weekday.sun/mon/tue/wed/thu/fri/sat` — used for day column headers in both week and month view. Missing from all locale files; rendered as raw keys `WEEKDAY.SUN`, `WEEKDAY.MON` etc.
+  2. `weekCalendar.monthView`, `weekCalendar.weekView`, `weekCalendar.monthLabel` — used for the month/week toggle button labels and the month calendar title. Missing from all locale files; toggle rendered as `📅 weekCalendar.monthView`.
+
+**Files changed:**
+- `locales/en.ts` — Added `weekday:` section (sun–sat abbreviations) + `monthView`, `weekView`, `monthLabel` keys inside `weekCalendar:`
+- `locales/es.ts` — Added `weekday:` inline object + `monthView/weekView/monthLabel` to `weekCalendar:` one-liner
+- `locales/de.ts` — Added `weekday:` (So–Sa) + calendar keys
+- `locales/fr.ts` — Added `weekday:` (Dim–Sam) + calendar keys
+- `locales/it.ts` — Added `weekday:` (Dom–Sab) + calendar keys
+- `locales/zh.ts` — Added `weekday:` (日–六) + calendar keys (`月`, `周`, `{year}年{month}`)
+- `locales/hi.ts` — Added `weekday:` (रवि–शनि) + calendar keys
+- `locales/sw.ts` — Added `weekday:` (Jum–Jmm) + calendar keys
+- `locales/tl.ts` — Added `weekday:` (Lin–Sab) + calendar keys
+
+**Test results:** 244/244 passing, 0 lint errors.
+
+**Key decision:** `monthLabel` for zh uses `{year}年{month}` (year-first, e.g. "2026年March") following CJK date conventions.
+
+---
+
 ### [SUMMARY] — 2026-04-02 UTC
 **Last CHG completed:** CHG-039
 **Current state:** App has 6 implemented happy paths (add worker, set availability, create template, assign shift, POS CSV upload, demand forecast). Playwright spec exists at `e2e/scheduler.spec.ts`. Dev server must be running on :8081 for tests. 213/213 unit tests passing, 0 lint errors, 3 pre-existing TSC errors.

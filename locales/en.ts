@@ -462,6 +462,17 @@ export const en = {
     },
   },
 
+  // ─── Weekday abbreviations ─────────────────────────────────────────────────
+  weekday: {
+    sun: 'Sun',
+    mon: 'Mon',
+    tue: 'Tue',
+    wed: 'Wed',
+    thu: 'Thu',
+    fri: 'Fri',
+    sat: 'Sat',
+  },
+
   // ─── Week Calendar ─────────────────────────────────────────────────────────
   weekCalendar: {
     prevWeek: 'Previous week',
@@ -475,6 +486,9 @@ export const en = {
     legendPublished: 'Published',
     coverageMet: '{s}/{r} covered',
     coverageShort: '{s}/{r} short',
+    monthView: 'Month',
+    weekView: 'Week',
+    monthLabel: '{month} {year}',
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────

@@ -66,6 +66,7 @@ export const de = {
     roster: { sectionTitle: 'Kalender & Dienstplan', sectionSubtitle: 'Überprüfen Sie, was veröffentlicht ist und wo Sie Abdeckungslücken haben.', secured: 'Nächste 7 Tage gesichert.', emptyTitle: 'Weisen Sie Schichten zu, um Ihren Dienstplan hier zu sehen ↑', emptyDesc: 'Erstellen Sie oben unter „Schichterstellung" eine Schicht — sie erscheint sofort hier.', publishA11y: 'Diese Schicht veröffentlichen', unpublishA11y: 'Diese Schicht zurück in den Entwurf verschieben', notifyA11y: 'Benachrichtigung für diese Schicht senden', upcoming: { title: 'Bevorstehende Schichten', subtitle: 'Dem nächsten Dienstplanfenster voraus sein.', empty: 'Noch keine veröffentlichten Schichten — veröffentlichen Sie oben eine Schicht, um sie hier zu sehen.' }, gaps: { title: 'Personallücken', subtitle: 'Unterbesetzte Rollen im gesamten Planungshorizont hervorheben.', allCovered: 'Die Abdeckung erfüllt die aktuellen Bedarfsziele.', scheduled: '{n} eingeplant', shortfall: 'Fehlstellen: {n}' }, tooltip: '🗓 Ihr Live-Dienstplankalender. Schichten erscheinen, sobald Sie sie speichern. Klicken Sie auf „Veröffentlichen", um eine Schicht festzuschreiben, dann auf „Benachrichtigen", um den Mitarbeiter zu informieren. Veröffentlichte Schichten versorgen den Analyse-Tab mit Stunden- und Abdeckungsdaten.' },
   },
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: 'So', mon: 'Mo', tue: 'Di', wed: 'Mi', thu: 'Do', fri: 'Fr', sat: 'Sa' },
   weekCalendar: {
     prevWeek: 'Vorherige Woche',
     nextWeek: 'Nächste Woche',
@@ -78,6 +79,9 @@ export const de = {
     legendPublished: 'Veröffentlicht',
     coverageMet: '{s}/{r} abgedeckt',
     coverageShort: '{s}/{r} fehlend',
+    monthView: 'Monat',
+    weekView: 'Woche',
+    monthLabel: '{month} {year}',
   },
 
   analytics: { title: 'Analyse', subtitle: 'Planungsleistung auf einen Blick.', tooltip: '📊 Echtzeit-Planungsmetriken. Die Abdeckungsrate zeigt, wie viel Nachfrage Sie decken. Gefährdeter Umsatz schätzt, was unbesetzte Slots kosten. Mitarbeiterstunden verfolgt die Fairness in Ihrem Team. Überprüfen Sie diesen Tab nach dem Veröffentlichen von Schichten.', coverageLabel: 'Abdeckung', coverageSub: 'der Nachfrage gedeckt', draftsPending: 'Entwürfe ausstehend', draftsAwaiting: 'warten auf Genehmigung', revenueAtRisk: 'Umsatz gefährdet', revenueDesc: 'Geschätzte Gefährdung durch unbedeckte Bedarfsziele ({n} veröffentlichte Schichten über alle Termine).', workerHours: 'Mitarbeiterstunden', workerHoursSub: 'Nur veröffentlichte Schichten · gesamte Zeit', noPublishedShifts: 'Noch keine veröffentlichten Schichten.', fairness: 'Planungsgerechtigkeit', fairnessSub: 'Standardabweichung der Stunden pro Mitarbeiter — niedriger ist fairer.', fairnessExcellent: 'Ausgezeichnet', fairnessGood: 'Gut', fairnessNeedsAttention: 'Aufmerksamkeit erforderlich', fairnessStdDev: '{n}h Standardabw.', quickActions: 'Schnellaktionen', openScheduler: 'Dienstplan öffnen', openSchedulerDesc: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', openSchedulerHint: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', retryA11y: 'Analyse erneut laden', retryA11yHint: 'Versucht, die Planungsdaten neu zu laden', errorPrefix: '' },

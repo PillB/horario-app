@@ -346,6 +346,7 @@ export const zh = {
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: '日', mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六' },
   weekCalendar: {
     prevWeek: '上一周',
     nextWeek: '下一周',
@@ -358,6 +359,9 @@ export const zh = {
     legendPublished: '已发布',
     coverageMet: '{s}/{r} 已覆盖',
     coverageShort: '{s}/{r} 人手不足',
+    monthView: '月',
+    weekView: '周',
+    monthLabel: '{year}年{month}',
   },
 
   analytics: {

@@ -346,6 +346,7 @@ export const hi = {
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: 'रवि', mon: 'सोम', tue: 'मंगल', wed: 'बुध', thu: 'गुरु', fri: 'शुक्र', sat: 'शनि' },
   weekCalendar: {
     prevWeek: 'पिछला सप्ताह',
     nextWeek: 'अगला सप्ताह',
@@ -358,6 +359,9 @@ export const hi = {
     legendPublished: 'प्रकाशित',
     coverageMet: '{s}/{r} कवर्ड',
     coverageShort: '{s}/{r} कम',
+    monthView: 'माह',
+    weekView: 'सप्ताह',
+    monthLabel: '{month} {year}',
   },
 
   analytics: {

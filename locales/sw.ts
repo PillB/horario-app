@@ -346,6 +346,7 @@ export const sw = {
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: 'Jum', mon: 'Jtn', tue: 'Jnn', wed: 'Jtn', thu: 'Alh', fri: 'Iju', sat: 'Jmm' },
   weekCalendar: {
     prevWeek: 'Wiki iliyopita',
     nextWeek: 'Wiki ijayo',
@@ -358,6 +359,9 @@ export const sw = {
     legendPublished: 'Imechapishwa',
     coverageMet: '{s}/{r} zimefunikwa',
     coverageShort: '{s}/{r} hazitoshi',
+    monthView: 'Mwezi',
+    weekView: 'Wiki',
+    monthLabel: '{month} {year}',
   },
 
   analytics: {

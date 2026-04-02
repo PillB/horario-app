@@ -358,6 +358,7 @@ export const fr = {
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
   // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekday: { sun: 'Dim', mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam' },
   weekCalendar: {
     prevWeek: 'Semaine précédente',
     nextWeek: 'Semaine suivante',
@@ -370,6 +371,9 @@ export const fr = {
     legendPublished: 'Publié',
     coverageMet: '{s}/{r} couverts',
     coverageShort: '{s}/{r} manquants',
+    monthView: 'Mois',
+    weekView: 'Semaine',
+    monthLabel: '{month} {year}',
   },
 
   analytics: {
