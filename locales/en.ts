@@ -62,6 +62,10 @@ export const en = {
     shortfall: 'Shortfall: {n}',
     scheduled: '{n} scheduled',
     applying: 'Applying…',
+    copyToClipboard: 'Copy to clipboard',
+    copied: 'Copied!',
+    auditLogEmpty: 'No log entries yet.',
+    exportDiagnostics: 'Export diagnostics',
   },
 
   // ─── Errors ────────────────────────────────────────────────────────────────
@@ -324,6 +328,35 @@ export const en = {
         shortfall: 'Shortfall: {n}',
       },
       tooltip: '🗓 Your live roster calendar. Shifts appear as soon as you save them. Click "Publish" to lock a shift in, then "Notify" to alert the worker. Published shifts feed the Analytics tab with hours and coverage data.',
+      // Calendar view
+      calendarView: 'Calendar',
+      listView: 'List',
+      noShiftsThisWeek: 'No shifts this week.',
+      maximize: 'Fullscreen calendar',
+      closeFullscreen: 'Close fullscreen',
+      weekOf: 'Week of {date}',
+      prevWeek: 'Previous week',
+      nextWeek: 'Next week',
+      today: 'Today',
+    },
+
+    // ─── POS Sales Upload ───────────────────────────────────────────────────
+    pos: {
+      sectionTitle: 'POS Sales Upload',
+      sectionSubtitle: 'Upload CSV revenue data to enrich demand forecasting.',
+      tooltip: '💰 Upload your Point-of-Sale sales data (CSV) to unlock smarter forecasts. The engine uses day-of-week seasonality, revenue trends, and revenue-per-worker efficiency to predict demand more accurately. Accepts: date, revenue, covers (optional), notes (optional).',
+      uploadButton: 'Choose CSV file',
+      pasteLabel: 'Paste CSV content',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Preview ({n} rows)',
+      uploadAction: 'Upload {n} rows',
+      uploadSuccess: '{n} rows saved successfully',
+      uploadError: 'Upload failed: {msg}',
+      validationErrors: '{n} validation error(s) found',
+      resetButton: 'Clear',
+      noFile: 'No file selected',
+      csvHelp: 'Accepted format: date (YYYY-MM-DD), revenue (number), covers (optional integer), notes (optional text). Up to 1,000 rows per upload.',
+      dropHint: 'Drag & drop a .csv file here, or tap to browse',
     },
   },
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { log } from '@/services/logger';
 import {
   listShiftTemplates,
   upsertShiftTemplate,
@@ -33,7 +34,9 @@ export const useShiftTemplates = (accountId: string) => {
     setLoading(true);
     setError(null);
     const templates = await listShiftTemplates(accountId);
-    setShiftTemplates(templates.map(dbToTemplate));
+    const mapped = templates.map(dbToTemplate);
+    setShiftTemplates(mapped);
+    log.debug('TEMPLATE', 'Templates loaded', { count: mapped.length });
     setLoading(false);
   }, [accountId]);
 
@@ -63,8 +66,13 @@ export const useShiftTemplates = (accountId: string) => {
       const result = await upsertShiftTemplate(newTemplate);
       if (!result.success) {
         // DB unavailable (e.g. pre-migration); local state already updated above
+        log.warn('TEMPLATE', 'Template upsert DB unavailable, optimistic only', {
+          templateId: newTemplate.id,
+          reason: 'db-unavailable',
+        });
         return { success: true, template: newTemplate };
       }
+      log.info('TEMPLATE', 'Template added successfully', { templateId: newTemplate.id });
       return result;
     },
     [accountId]

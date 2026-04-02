@@ -20,6 +20,7 @@ import { WorkerSection } from '@/components/scheduler/WorkerSection';
 import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSection';
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
+import PosUploadSection from '@/components/scheduler/PosUploadSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
@@ -311,6 +312,10 @@ export default function SchedulerScreen() {
           />
           </TourStep>
         </View>
+
+        <PosUploadSection
+          accountId={process.env.EXPO_PUBLIC_ACCOUNT_ID ?? ''}
+        />
 
         <TourStep target="roster-section">
         <RosterSection

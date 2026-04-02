@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { log } from '@/services/logger';
 import {
   listWorkers,
   listWorkerAvailability,
@@ -55,7 +56,9 @@ export const useWorkers = (accountId: string) => {
       listWorkers(accountId),
       listWorkerAvailability(accountId),
     ]);
-    setWorkers(dbWorkers.map((w) => dbToWorker(w, dbAvailabilities)));
+    const mapped = dbWorkers.map((w) => dbToWorker(w, dbAvailabilities));
+    setWorkers(mapped);
+    log.debug('WORKER', 'Workers loaded', { count: mapped.length });
     setLoading(false);
   }, [accountId]);
 
@@ -77,8 +80,17 @@ export const useWorkers = (accountId: string) => {
       const result = await upsertWorker(newWorker);
       if (!result.success) {
         // DB unavailable (e.g. pre-migration); local state already updated above
+        log.warn('WORKER', 'Worker upsert DB unavailable, optimistic only', {
+          workerId: newWorker.id,
+          reason: 'db-unavailable',
+        });
         return { success: true, worker: newWorker };
       }
+      log.info('WORKER', 'Worker added successfully', {
+        workerId: newWorker.id,
+        accountId,
+        skillCount: skills.length,
+      });
       return result;
     },
     [accountId]
@@ -110,8 +122,13 @@ export const useWorkers = (accountId: string) => {
       const result = await upsertAvailability(newAvailability);
       if (!result.success) {
         // DB unavailable; local state already updated above
+        log.warn('WORKER', 'Availability upsert DB unavailable, optimistic only', {
+          workerId,
+          reason: 'db-unavailable',
+        });
         return { success: true, availability: newAvailability };
       }
+      log.info('WORKER', 'Availability added successfully', { workerId, day });
       return result;
     },
     [accountId]

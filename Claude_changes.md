@@ -6,6 +6,52 @@
 
 ---
 
+### CHG-039 — 2026-04-02 UTC
+**Type:** FEATURE (Phase 1–3: Demand prediction, POS upload, logging, diagnostics — Batch API)
+
+**Files changed:**
+- `services/forecastEngine.ts` *(NEW)* — Pure statistical forecast engine: day-of-week seasonality (ratio-based), OLS linear trend (R², slope, direction), 7-day weighted moving average, multi-step enhancement pipeline (seasonality → trend → efficiency → capacity gap). All functions pure, no external deps.
+- `services/logger.ts` *(NEW)* — Structured logger with ring buffer (100 entries), PII scrubbing (BLOCKED_KEYS set, recursive sanitise()), level gate (WARN+ in prod web, DEBUG+ elsewhere), console routing (debug/info/warn/error), export() JSON dump.
+- `hooks/useAuditLog.ts` *(NEW)* — React hook surfacing the ring buffer: entries snapshot, copyToClipboard(), clear(), refresh(), lastRefreshedAt.
+- `components/scheduler/PosUploadSection.tsx` *(NEW)* — POS sales CSV upload component: web file picker + native paste, quoted-CSV parser, date normalisation (ISO/MM-DD-YYYY/DD-MM-YYYY), revenue/covers/notes validation, preview table (first 5 rows), proxy upload action 'uploadPosSales', error/success states.
+- `supabase/migrations/20260401000001_pos_sales.sql` *(NEW)* — pos_sales table: id, account_id, date (unique per account), revenue (≥0), covers, notes (≤500), source. RLS: anon SELECT, service_role ALL.
+- `hooks/usePosData.ts` *(NEW)* — Hook fetching pos_sales via 'listPosSales' proxy action; returns PosSalesRow[], loading, error, refresh.
+- `components/scheduler/ForecastEnhancementsCard.tsx` *(NEW)* — Display component: takes baseForecast + sales + roster + templates → calls applyForecastEnhancements → shows adjusted headcount, confidence, first 2 reasons per item (max 5 items).
+- `components/DiagnosticsPanel.tsx` *(NEW)* — Support diagnostics UI: FlatList of log entries (newest first), level badges (color-coded), Refresh/Copy/Clear controls, privacy note.
+- `app/(tabs)/diagnostics.tsx` *(NEW)* — Diagnostics screen hosting DiagnosticsPanel with hero header and prominent "Copy all logs" CTA.
+- `locales/en.ts` — Added `scheduler.pos` subsection (12 keys): sectionTitle, sectionSubtitle, tooltip, uploadButton, pasteLabel, pastePlaceholder, previewTitle{n}, validationErrors{n}, resetButton, uploadAction{n}, uploadSuccess{n}, uploadError{msg}, noFile, csvHelp, dropHint.
+- `app/(tabs)/scheduler.tsx` — Imported PosUploadSection; renders it between DemandSection and RosterSection with accountId from EXPO_PUBLIC_ACCOUNT_ID.
+- `hooks/useWorkers.ts` — Added log.debug (load count), log.info (addWorker/addAvailability success + workerId/day), log.warn (DB unavailable).
+- `hooks/useRoster.ts` — Added log.debug (load count), log.info (addShift/setShiftStatus/notifyShift), log.warn (DB unavailable).
+- `hooks/useShiftTemplates.ts` — Added log.debug (load count), log.info (addShiftTemplate), log.warn (DB unavailable).
+- `services/__tests__/forecastEngine.test.ts` *(NEW)* — 49 Jest unit tests covering computeSeasonality (5), computeTrend (8), computeWMA (5), applyForecastEnhancements (12+).
+- `e2e/scheduler.spec.ts` *(NEW)* — Playwright e2e tests for 6 happy paths: add worker, set availability, create template, create shift, POS CSV upload, demand forecast.
+- `playwright.config.ts` *(NEW)* — Playwright config: baseURL http://localhost:8081, webServer for dev server, chromium.
+- `package.json` — Added `testPathIgnorePatterns: ["e2e/"]` to exclude Playwright specs from Jest.
+- `scripts/phases2-batch.mjs` *(NEW)* — 6-request Batch API script (claude-sonnet-4-6, 50% off) that generated all the above.
+
+**Batch results:** 6/6 requests succeeded. Post-batch manual fixes: scheduler.tsx truncation → git restore + surgical edits; 5 TS errors in generated files (invalid accessibilityRole values, missing ThemeColors import, ShiftTemplate.start/end vs startTime/endTime, non-existent color token).
+
+**Tests:** 213/213 passed ✓ (49 new forecastEngine tests)
+**TSC:** 3 pre-existing errors only (app/_layout.tsx TokenCache, secure-proxy JWK cast) — 0 new errors ✓
+**Lint:** 0 errors, 10 pre-existing warnings ✓
+
+---
+
+### CHG-038 — 2026-04-01 UTC
+**Type:** FIX (TypeScript compilation errors in batch-generated files)
+
+**Files changed:**
+- `components/scheduler/WeekCalendar.tsx` — Fixed 6 TS errors: replaced non-existent tokens (`colors.card` → `colors.surface`, `colors.inputBackground` → `colors.border`); removed redundant `?? fallback` chains that caused `never` narrowing; changed invalid `accessibilityRole="scrollview"` → `"none"` and `"columnheader"` → `"header"`; typed `makeStyles` and `statusColor` params as `ThemeColors` instead of `(typeof Colors)['light']`; imported `ThemeColors` from constants
+- `components/scheduler/RosterSection.tsx` — Fixed implicit `any` on `require('react-dom')` by casting to `any` instead of `typeof import('react-dom')`
+
+**Why:** All 6 TypeScript errors came from the batch-generated `WeekCalendar.tsx` using token names that don't exist in the design system (`card`, `inputBackground`), invalid React Native `AccessibilityRole` values, and overly narrow type annotations. The `??` fallback issue was a TypeScript narrowing edge case: literal string types are never null/undefined, so the RHS of `??` became `never`.
+
+**Tests:** `npm test` — 164/164 passed ✓
+**TSC:** `npx tsc --noEmit` — no errors in WeekCalendar or RosterSection ✓
+
+---
+
 ### CHG-037 — 2026-03-30 UTC
 **Type:** FIX + PREEMPT (Vercel deployment hardening — CORS, env vars, Node version, proxy URL fallback)
 **Files changed:**
@@ -910,5 +956,33 @@ reload — see project_migrations.md):
 - `app/(tabs)/index.tsx` — use useIdentity()
 - `app/(tabs)/explore.tsx` — use useIdentity()
 - `Claude_changes.md` — this entry
+
+---
+
+### CHG-034 — 2026-04-01 UTC
+**Type:** FEATURE + FIX (Worker ID & Template ID UX; InfoTooltip scroll-to-top bug; POS sales migration)
+
+**Context:** Three improvements from a single user session:
+
+1. **InfoTooltip scroll-to-top bug (FIX)** — `react-native-web` ~0.20.x `<Modal>` calls `body overflow:hidden` on open which discards `window.scrollY`, sending the user back to the top on every ⓘ hover. Fixed by skipping `<Modal>` entirely on web and using `ReactDOM.createPortal` to render the tooltip card into `document.body` with `position: fixed` (CSS). Hover delay (150 ms) keeps card alive while cursor travels from button → card. ESC key closes via `document.addEventListener`. Native path unchanged.
+
+2. **POS sales migration (FEATURE)** — New `pos_sales` table for uploading Point-of-Sale revenue records. Used by forecast engine for day-of-week seasonality, linear trend, revenue-per-worker efficiency, and capacity gap alerts.
+
+3. **Worker ID / Template ID UX (FEATURE)** — Users were confused by raw UUID text inputs in the Availability intake form and Shift Creation form. Replaced with name-aware picker components.
+
+**Files changed:**
+- `components/InfoTooltip.tsx` — Rewrote web tooltip path: `ReactDOM.createPortal` + `position:fixed` into `document.body`; removed `<Modal>` on web. Added hover delay timers, ESC key handler.
+- `supabase/migrations/20260401000001_pos_sales.sql` — NEW. Idempotent table: `id uuid PK`, `account_id text`, `date date`, `revenue numeric(12,2)`, `covers integer`, `notes text`, `source text` (upload/manual). Unique constraint `(account_id, date)`. RLS: anon read, service role full access.
+- `supabase/migrations/project_migrations.md` — Updated execution order (5 migrations), added Migration 5 table reference, CSV upload format docs, verification queries, troubleshooting rows, setup checklist.
+- `components/scheduler/WorkerIdPicker.tsx` — NEW. Replaces raw UUID InputField for worker selection. Scrollable name+role chips (tap to auto-fill UUID). Shows resolved name below input (green ✓). Red border + warning text if ID entered but no match found.
+- `components/scheduler/TemplateIdPicker.tsx` — NEW. Same pattern for template selection. Shows name + role + time window when resolved.
+- `components/scheduler/WorkerSection.tsx` — Import and use `WorkerIdPicker` for availability form `workerId` field.
+- `components/scheduler/ShiftTemplateSection.tsx` — Import and use `WorkerIdPicker` + `TemplateIdPicker` for shift creation `workerId` + `templateId` fields.
+- `locales/en.ts` — Added `scheduler.workerPicker` and `scheduler.templatePicker` key groups (placeholder, hint, chipsLabel, selectWorker/selectTemplate, notFound). Other locales fall back to English via deep-merge.
+
+**Notes:**
+- Playwright confirmed: all 6 ⓘ buttons at scroll depths 541–3281px now show `scrollPreserved: true`, `scrollDelta: 0`.
+- ESC key dismiss via Playwright `page.keyboard.press('Escape')` did not fire the `useEffect` handler — suspected focus/event-system issue in React 19 on web; not yet resolved.
+- 164/164 tests pass. No TypeScript errors in new files.
 
 ---

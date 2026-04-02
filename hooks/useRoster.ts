@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { log } from '@/services/logger';
 import {
   listRoster,
   upsertRosterShift,
@@ -46,7 +47,9 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     setLoading(true);
     setError(null);
     const shifts = await listRoster(accountId, filtersRef.current);
-    setRoster(shifts.map(dbToShift));
+    const mapped = shifts.map(dbToShift);
+    setRoster(mapped);
+    log.debug('ROSTER', 'Roster loaded', { count: mapped.length });
     setLoading(false);
   // filtersRef is a stable ref; filtersKey triggers the effect when the logical
   // filter values change.
@@ -74,8 +77,17 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const result = await upsertRosterShift(dbShift);
       if (!result.success) {
         // DB unavailable (e.g. pre-migration); local state already updated above
+        log.warn('ROSTER', 'Shift upsert DB unavailable, optimistic only', {
+          shiftId: dbShift.id,
+          reason: 'db-unavailable',
+        });
         return { success: true, shift: dbShift };
       }
+      log.info('ROSTER', 'Shift added successfully', {
+        shiftId: dbShift.id,
+        date: dbShift.date,
+        status: dbShift.status,
+      });
       return result;
     },
     [accountId]
@@ -90,8 +102,13 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const result = await updateShiftStatus(id, status);
       if (!result.success) {
         // DB unavailable; local state already updated above
+        log.warn('ROSTER', 'Shift status update DB unavailable, optimistic only', {
+          shiftId: id,
+          reason: 'db-unavailable',
+        });
         return { success: true };
       }
+      log.info('ROSTER', 'Shift status changed', { shiftId: id, status });
       return result;
     },
     []
@@ -105,8 +122,13 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     const result = await markShiftNotified(id);
     if (!result.success) {
       // DB unavailable; local state already updated above
+      log.warn('ROSTER', 'Shift notify DB unavailable, optimistic only', {
+        shiftId: id,
+        reason: 'db-unavailable',
+      });
       return { success: true };
     }
+    log.info('ROSTER', 'Shift marked notified', { shiftId: id });
     return result;
   }, []);
 
@@ -116,6 +138,10 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     const result = await deleteRosterShift(id);
     if (!result.success) {
       // DB unavailable; local state already updated above
+      log.warn('ROSTER', 'Shift delete DB unavailable, optimistic only', {
+        shiftId: id,
+        reason: 'db-unavailable',
+      });
       return { success: true };
     }
     return result;

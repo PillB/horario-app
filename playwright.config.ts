@@ -1,21 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
-/**
- * Playwright configuration for Horario App E2E tests.
- * Targets the Expo web build (expo start --web).
- *
- * Start the dev server before running:
- *   npx expo start --web --port 8081
- *
- * Run tests:
- *   npx playwright test --reporter=line
- */
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '**/*.spec.ts',
-  timeout: 30_000,
-  retries: 1,
-  reporter: [['line'], ['html', { open: 'never' }]],
+  fullyParallel: false,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: 1,
+  reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: 'http://localhost:8081',
     trace: 'on-first-retry',
@@ -28,6 +19,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // webServer is intentionally NOT configured here — start expo manually
-  // to avoid Playwright spawning a second server on CI.
+  // The dev server is expected to already be running when tests execute.
+  // Uncomment the block below to have Playwright start it automatically.
+  // webServer: {
+  //   command: 'npx expo start --web --port 8081',
+  //   url: 'http://localhost:8081',
+  //   reuseExistingServer: true,
+  //   timeout: 120_000,
+  // },
 });
