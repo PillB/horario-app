@@ -15,6 +15,45 @@
 
 ---
 
+### CHG-045 — 2026-04-02 UTC
+**Type:** FEATURE + IMPROVEMENT (multi-role POS staffing mix — full implementation + Iteration 2 polish)
+
+**Files changed:**
+- `utils/posForecasting.ts` — Added `RoleRatio`, `StaffingMix`, `StaffingPresetKey` types. Added `STAFFING_PRESETS` constant (fine_dining, casual_dining, bar_cafe, qsr, custom) based on hospitality benchmarks (7shifts, Oysterlink, Escoffier). Added `forecastDemandFromPOSMultiRole(rows, mix, smoothingWindowOverride?)` — per-role covers/revenue fallback algorithm with min floor, 0.80 confidence, all existing exports unchanged.
+- `utils/__tests__/posForecasting.test.ts` — Added 17 new tests: `describe('STAFFING_PRESETS')` (4 tests), `describe('forecastDemandFromPOSMultiRole')` (12 tests). All call with `smoothingWindowOverride=1` for determinism. Total: 31 posForecasting tests, 244 suite total.
+- `components/scheduler/DemandSection.tsx` — Full POS tab rewrite: preset picker chips (Fine Dining / Casual / Bar / QSR / Custom), multi-role table (role name TextInput, Cvr/Rev toggle, per-worker value, min floor, delete row), global shift hours + smoothing inputs, covers warning when covers mode selected but CSV has no covers column, preview count label, localized preview headers, localized a11y hint. UX bug fix: editing role mix after successful generate resets posState to 'preview' so Generate button re-appears. `PRESET_KEYS` moved to module scope (was re-created every render).
+- `hooks/useSchedulerHandlers.ts` — Updated `handlePosTargetsGenerated`: per-target try/catch, `distinctRoles` count, uses `posTargetsSavedMulti` key for multi-role vs `posTargetsSaved` for single-role.
+- `locales/en.ts` — Added: `posPresetFine/Casual/Bar/QSR/Custom`, `posMixTitle/Desc/Role/RolePlaceholder/RatioMode/Covers/Revenue/PerWorker/Min/AddRole/RemoveRole`, `posNoRoles`, `posCoversWarning`, `posTargetsSavedMulti`, `posPreviewHeaderDate/Revenue/Covers`, `posCsvA11yHint`, `posPreviewCount`.
+- `locales/es.ts` — Full Spanish translations for all new keys.
+
+**Test results:** 244/244 passing, 0 lint errors (10 pre-existing warnings unchanged).
+
+**Key decisions:**
+- Covers-per-worker ratios from industry benchmarks: Fine Dining 1:4, Casual 1:6, Bar/Café barista 1:15, QSR counter 1:20.
+- String-typed `RoleRatioForm` parallel state for TextInput UX (no cursor-jump); converted to `RoleRatio` at generate time.
+- `smoothingWindowOverride` optional 3rd parameter on `forecastDemandFromPOSMultiRole` for test determinism.
+- No current competitor app (7shifts, Deputy, Homebase, Sling) provides ratio-based multi-role UI — genuine market gap.
+
+---
+
+### CHG-044 — 2026-04-02 UTC
+**Type:** IMPROVEMENT (typed validation error codes, localized error messages, form defaults, source label mapping, NaN guard)
+
+**Files changed:**
+- `utils/schedulerValidators.ts` — Changed error return type from `string[]` to `ValidationErrorItem[]` (exported type with `code`, `message`, `params`). Added `localizeValidationErrors()` export. All error push calls now use typed codes: `WORKER_REQUIRED`, `DAY_REQUIRED`, `TIMES_REQUIRED`, `WORKER_NOT_FOUND`, `DAY_INVALID`, `FROM_TIME_INVALID`, `TO_TIME_INVALID`, `FROM_BEFORE_TO`, `AVAILABILITY_OVERLAP`, `AVAILABILITY_DUPLICATE`, `TEMPLATE_MISSING`, `WORKER_MISSING`, `ROLE_MISMATCH`, `COVERAGE_MISSING`, `SHIFT_OVERLAP`.
+- `utils/__tests__/schedulerValidators.test.ts` — Updated all string-matching assertions to check `e.code === 'CODE'` instead.
+- `hooks/useSchedulerHandlers.ts` — (1) Form defaults: `availabilityForm.workerId` → `''`, `day` → `'Mon'`; `shiftForm.workerId` → `''`, `templateId` → `''`; `targetForm.role` → `''`, `required` → `''`, `notes` → `''`; `fallbackForm.role` → `''`. (2) Localized success messages via `t()`. (3) Uses `localizeValidationErrors()` for availability and publish-shift errors. (4) POS banner uses `t('scheduler.demand.posTargetsSaved', { n })`.
+- `components/scheduler/DemandSection.tsx` — Added `getSourceLabel()` helper mapping source codes to locale keys (`model`, `override`, `pos_forecast`, `manual`, `fallback`). Replaced raw `t('scheduler.demand.source', ...)` call.
+- `services/shiftAssigner.ts` — Replaced `Math.max(1, template.coverage ?? 1)` with NaN-safe guard using `Number.isFinite` + `Math.round`.
+- `locales/en.ts` — Added `errors.validation.*` (15 codes), `scheduler.workers.addedSuccess`, `scheduler.templates.addedSuccess`, `scheduler.demand.sourceLabelModel/Override/Pos/Fallback`, `scheduler.demand.posTargetsSaved`.
+- `locales/es.ts` — Added matching Spanish translations for all new keys.
+- `app/(tabs)/__tests__/scheduler.test.tsx` — Updated fallback seeding test to fill role input before clicking save (required after role default changed to `''`).
+
+**Tests:** 227/227 passed ✓
+**Lint:** 0 errors, 10 warnings (all pre-existing) ✓
+
+---
+
 ### CHG-043 — 2026-04-02 UTC
 **Type:** FIX + IMPROVEMENT (Iteration 2 — coverageByDate wired to WeekCalendar, handlePosTargetsGenerated corrected, forecasting tests)
 

@@ -1015,20 +1015,29 @@ export function useSchedulerHandlers() {
   const handlePosTargetsGenerated = useCallback(async (targets: Array<{date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}>) => {
     let savedCount = 0;
     for (const target of targets) {
-      await overrideTarget({
-        date: target.date,
-        role: target.role,
-        required: target.required,
-        source: 'override',
-        notes: target.notes,
-        lowerBound: target.lowerBound,
-        upperBound: target.upperBound,
-        confidence: target.confidence,
-      });
-      savedCount++;
+      try {
+        await overrideTarget({
+          date: target.date,
+          role: target.role,
+          required: target.required,
+          source: 'override',
+          notes: target.notes,
+          lowerBound: target.lowerBound,
+          upperBound: target.upperBound,
+          confidence: target.confidence,
+        });
+        savedCount++;
+      } catch {
+        // Skip individual failures silently; report saved count at end.
+      }
     }
-    showActionBanner(`${savedCount} demand target${savedCount !== 1 ? 's' : ''} generated from POS data.`, 'success');
-  }, [overrideTarget, showActionBanner]);
+    const distinctRoles = new Set(targets.map((tgt) => tgt.role)).size;
+    const msg =
+      distinctRoles > 1
+        ? t('scheduler.demand.posTargetsSavedMulti', { n: String(savedCount), roles: String(distinctRoles) })
+        : t('scheduler.demand.posTargetsSaved', { n: String(savedCount) });
+    showActionBanner(msg, 'success');
+  }, [overrideTarget, showActionBanner, t]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
   return {

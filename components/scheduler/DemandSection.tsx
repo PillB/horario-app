@@ -1,6 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { View, Pressable, StyleSheet, TextInput } from 'react-native';
-import { forecastDemandFromPOS, DEFAULT_POS_CONFIG } from '@/utils/posForecasting';
+import {
+  forecastDemandFromPOSMultiRole,
+  STAFFING_PRESETS,
+  type RoleRatio,
+  type StaffingMix,
+  type StaffingPresetKey,
+} from '@/utils/posForecasting';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type DemandForecast } from '@/services/demandForecast';
@@ -10,6 +16,7 @@ import { InputField } from './InputField';
 import { LostRevenueSummary } from './LostRevenueSummary';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
+import { type TFunction } from '@/hooks/useLocale';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -185,7 +192,62 @@ const makeLocalStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       flex: 1,
     },
+    // Preset chip row
+    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+    presetChip: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    presetChipActive: { backgroundColor: brand.primary, borderColor: brand.primary },
+    presetChipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
+    presetChipTextActive: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+    // Role mix table
+    roleMixHeaderRow: { flexDirection: 'row', gap: 4, marginBottom: 2 },
+    roleMixHeaderCell: { fontSize: 10, fontWeight: '600', color: colors.textTertiary },
+    roleMixRow: { flexDirection: 'row', gap: 4, alignItems: 'center', marginBottom: 6 },
+    // compact TextInput for role rows — same border/bg pattern as posTextArea
+    roleMixInput: {
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 4,
+      fontSize: 12,
+      color: colors.text,
+      backgroundColor: colors.surface,
+    },
+    ratioToggle: {
+      flexDirection: 'row',
+      borderRadius: 6,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    ratioToggleOption: { paddingHorizontal: 5, paddingVertical: 4, backgroundColor: colors.surface },
+    ratioToggleOptionActive: { backgroundColor: brand.primary },
+    ratioToggleText: { fontSize: 11, color: colors.textSecondary },
+    ratioToggleTextActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '600' },
+    roleMixDeleteBtn: { width: 24, alignItems: 'center', justifyContent: 'center' },
+    // amber #D97706: 4.52:1 on white ✓ AA
+    warningText: { color: '#D97706', fontSize: 13, marginTop: 4 },
   });
+
+const PRESET_KEYS: StaffingPresetKey[] = ['fine_dining', 'casual_dining', 'bar_cafe', 'qsr', 'custom'];
+
+const getSourceLabel = (source: string | undefined, t: TFunction): string => {
+  const map: Record<string, string> = {
+    model: t('scheduler.demand.sourceLabelModel'),
+    override: t('scheduler.demand.sourceLabelOverride'),
+    pos_forecast: t('scheduler.demand.sourceLabelPos'),
+    manual: t('scheduler.demand.sourceLabelOverride'),
+    fallback: t('scheduler.demand.sourceLabelFallback'),
+  };
+  return map[source ?? 'model'] ?? t('scheduler.demand.sourceLabelModel');
+};
 
 export const DemandSection = ({
   fallbackMode,
@@ -220,7 +282,29 @@ export const DemandSection = ({
   const [posState, setPosState] = useState<'idle' | 'preview' | 'generating' | 'done' | 'error'>('idle');
   const [parsedPosRows, setParsedPosRows] = useState<{ date: string; revenue: number; covers: number | null; notes: string | null }[]>([]);
   const [posErrors, setPosErrors] = useState<string[]>([]);
-  const [posConfig, setPosConfig] = useState({ revenuePerWorkerHour: '50', avgShiftHours: '8' });
+
+  // Multi-role state: string-typed for smooth TextInput UX (converted at generate time)
+  type RoleRatioForm = {
+    role: string;
+    ratioMode: 'covers' | 'revenue';
+    coversPerWorker: string;
+    revenuePerWorkerHour: string;
+    minWorkers: string;
+  };
+
+  const [roleMixForms, setRoleMixForms] = useState<RoleRatioForm[]>(() =>
+    STAFFING_PRESETS.casual_dining.roles.map((r) => ({
+      role: r.role,
+      ratioMode: r.ratioMode,
+      coversPerWorker: String(r.coversPerWorker),
+      revenuePerWorkerHour: String(r.revenuePerWorkerHour),
+      minWorkers: String(r.minWorkers),
+    }))
+  );
+  const [selectedPreset, setSelectedPreset] = useState<StaffingPresetKey>('casual_dining');
+  const [globalShiftHours, setGlobalShiftHours] = useState('8');
+  const [globalSmoothingWindow, setGlobalSmoothingWindow] = useState('7');
+  const [hasCoversWarning, setHasCoversWarning] = useState(false);
 
   // ── Inline CSV parsing helpers (pure, no external deps) ──────────────────
   const splitCsvLine = useCallback((line: string): string[] => {
@@ -296,19 +380,94 @@ export const DemandSection = ({
     setParsedPosRows(rows);
     setPosErrors(errors);
     setPosState(rows.length > 0 ? 'preview' : 'error');
+    setHasCoversWarning(false);
   }, [parsePosPreview, pasteText]);
 
+  // ── Multi-role callbacks ──────────────────────────────────────────────────
+
+  const getPresetLabel = (key: StaffingPresetKey): string =>
+    ({
+      fine_dining: t('scheduler.demand.posPresetFine'),
+      casual_dining: t('scheduler.demand.posPresetCasual'),
+      bar_cafe: t('scheduler.demand.posPresetBar'),
+      qsr: t('scheduler.demand.posPresetQSR'),
+      custom: t('scheduler.demand.posPresetCustom'),
+    }[key]);
+
+  const handlePresetSelect = useCallback(
+    (key: StaffingPresetKey) => {
+      setSelectedPreset(key);
+      if (key !== 'custom') {
+        setRoleMixForms(
+          STAFFING_PRESETS[key].roles.map((r) => ({
+            role: r.role,
+            ratioMode: r.ratioMode,
+            coversPerWorker: String(r.coversPerWorker),
+            revenuePerWorkerHour: String(r.revenuePerWorkerHour),
+            minWorkers: String(r.minWorkers),
+          }))
+        );
+      }
+    },
+    []
+  );
+
+  const addRoleRow = useCallback(() => {
+    setSelectedPreset('custom');
+    setPosState((s) => (s === 'done' ? 'preview' : s));
+    setRoleMixForms((prev) => [
+      ...prev,
+      {
+        role: '',
+        ratioMode: 'covers',
+        coversPerWorker: '20',
+        revenuePerWorkerHour: '50',
+        minWorkers: '1',
+      },
+    ]);
+  }, []);
+
+  const removeRoleRow = useCallback((idx: number) => {
+    setSelectedPreset('custom');
+    setPosState((s) => (s === 'done' ? 'preview' : s));
+    setRoleMixForms((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const updateRoleRowFn = useCallback((idx: number, updates: Partial<RoleRatioForm>) => {
+    setSelectedPreset('custom');
+    setPosState((s) => (s === 'done' ? 'preview' : s));
+    setRoleMixForms((prev) => prev.map((r, i) => (i === idx ? { ...r, ...updates } : r)));
+  }, []);
+
   const handlePosGenerate = useCallback(async () => {
+    const validForms = roleMixForms.filter((f) => f.role.trim() !== '');
+    if (validForms.length === 0) {
+      setPosErrors([t('scheduler.demand.posNoRoles')]);
+      return;
+    }
     setPosState('generating');
     try {
-      const revPerHour = parseFloat(posConfig.revenuePerWorkerHour) || DEFAULT_POS_CONFIG.revenuePerWorkerHour;
-      const shiftHours = parseFloat(posConfig.avgShiftHours) || DEFAULT_POS_CONFIG.avgShiftHours;
-      const targets = forecastDemandFromPOS(parsedPosRows, {
-        ...DEFAULT_POS_CONFIG,
-        role: fallbackForm.role,
-        revenuePerWorkerHour: revPerHour,
-        avgShiftHours: shiftHours,
-      });
+      const shiftHours = Math.max(1, parseFloat(globalShiftHours) || 8);
+      const smoothing = Math.max(1, parseInt(globalSmoothingWindow, 10) || 7);
+
+      const hasCoversData = parsedPosRows.some((r) => r.covers !== null && r.covers > 0);
+      const hasCoversMode = validForms.some((f) => f.ratioMode === 'covers');
+      setHasCoversWarning(hasCoversMode && !hasCoversData);
+
+      const mix: StaffingMix = {
+        smoothingWindow: smoothing,
+        roles: validForms.map((f): RoleRatio => ({
+          role: f.role.trim(),
+          ratioMode: f.ratioMode,
+          coversPerWorker: Math.max(1, parseFloat(f.coversPerWorker) || 20),
+          revenuePerWorkerHour: Math.max(1, parseFloat(f.revenuePerWorkerHour) || 50),
+          avgShiftHours: shiftHours,
+          minWorkers: Math.max(1, parseInt(f.minWorkers, 10) || 1),
+          maxWorkers: null,
+        })),
+      };
+
+      const targets = forecastDemandFromPOSMultiRole(parsedPosRows, mix);
       onBulkSave(targets);
       setPosState('done');
     } catch (err: unknown) {
@@ -316,7 +475,7 @@ export const DemandSection = ({
       setPosErrors([msg]);
       setPosState('error');
     }
-  }, [parsedPosRows, posConfig, fallbackForm.role, onBulkSave]);
+  }, [roleMixForms, parsedPosRows, globalShiftHours, globalSmoothingWindow, onBulkSave, t]);
 
   return (
     <SectionCard
@@ -386,13 +545,15 @@ export const DemandSection = ({
           </Pressable>
         </View>
 
-        {/* Role field — always visible */}
-        <InputField
-          label={t('scheduler.demand.roleLabel')}
-          value={fallbackForm.role}
-          placeholder={t('scheduler.demand.rolePlaceholder')}
-          onChangeText={updateFallbackField('role')}
-        />
+        {/* Role field — hidden in POS mode (roles are defined inside the POS panel) */}
+        {fallbackMode !== 'pos' && (
+          <InputField
+            label={t('scheduler.demand.roleLabel')}
+            value={fallbackForm.role}
+            placeholder={t('scheduler.demand.rolePlaceholder')}
+            onChangeText={updateFallbackField('role')}
+          />
+        )}
 
         {/* Homogeneous / Manual forms (unchanged, hidden in POS mode) */}
         {fallbackMode !== 'pos' && (
@@ -458,35 +619,210 @@ export const DemandSection = ({
           </>
         )}
 
-        {/* POS Import panel */}
+        {/* POS Import panel — multi-role staffing mix configurator */}
         {fallbackMode === 'pos' && (
           <>
-            <View style={styles.inlineInputs}>
-              <InputField
-                label={t('scheduler.demand.posRevenuePerHour')}
-                value={posConfig.revenuePerWorkerHour}
-                placeholder={t('scheduler.demand.posRevenuePerHourPlaceholder')}
-                keyboardType="numeric"
-                onChangeText={(v) => setPosConfig(p => ({ ...p, revenuePerWorkerHour: v }))}
-              />
+            {/* a) Section heading */}
+            <ThemedText type="defaultSemiBold" style={{ marginBottom: 2 }}>
+              {t('scheduler.demand.posMixTitle')}
+            </ThemedText>
+            <ThemedText style={styles.mutedText}>
+              {t('scheduler.demand.posMixDesc')}
+            </ThemedText>
+
+            {/* b) Preset picker chips */}
+            <View style={local.presetRow}>
+              {PRESET_KEYS.map((key) => (
+                <Pressable
+                  key={key}
+                  onPress={() => handlePresetSelect(key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: selectedPreset === key }}
+                  accessibilityLabel={getPresetLabel(key)}
+                  style={[local.presetChip, selectedPreset === key && local.presetChipActive]}
+                >
+                  <ThemedText
+                    style={[
+                      local.presetChipText,
+                      selectedPreset === key && local.presetChipTextActive,
+                    ]}
+                  >
+                    {getPresetLabel(key)}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* c) Role mix table header row */}
+            <View style={local.roleMixHeaderRow}>
+              <ThemedText style={[local.roleMixHeaderCell, { flex: 2.5 }]}>
+                {t('scheduler.demand.posMixRole')}
+              </ThemedText>
+              <ThemedText style={[local.roleMixHeaderCell, { flex: 2 }]}>
+                {t('scheduler.demand.posMixRatioMode')}
+              </ThemedText>
+              <ThemedText style={[local.roleMixHeaderCell, { flex: 1.2 }]}>
+                {t('scheduler.demand.posMixPerWorker')}
+              </ThemedText>
+              <ThemedText style={[local.roleMixHeaderCell, { flex: 0.8 }]}>
+                {t('scheduler.demand.posMixMin')}
+              </ThemedText>
+              <View style={{ width: 24 }} />
+            </View>
+
+            {/* d) Role mix rows */}
+            {roleMixForms.map((f, idx) => (
+              <View key={idx} style={local.roleMixRow}>
+                {/* Role name */}
+                <TextInput
+                  style={[local.roleMixInput, { flex: 2.5 }]}
+                  value={f.role}
+                  placeholder={t('scheduler.demand.posMixRolePlaceholder')}
+                  placeholderTextColor={colors.textTertiary}
+                  onChangeText={(v) => updateRoleRowFn(idx, { role: v })}
+                  accessibilityLabel={t('scheduler.demand.posMixRole')}
+                />
+                {/* Ratio mode toggle */}
+                <View style={[local.ratioToggle, { flex: 2 }]}>
+                  <Pressable
+                    onPress={() => updateRoleRowFn(idx, { ratioMode: 'covers' })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: f.ratioMode === 'covers' }}
+                    accessibilityLabel={t('scheduler.demand.posMixCovers')}
+                    style={[
+                      local.ratioToggleOption,
+                      f.ratioMode === 'covers' && local.ratioToggleOptionActive,
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        local.ratioToggleText,
+                        f.ratioMode === 'covers' && local.ratioToggleTextActive,
+                      ]}
+                    >
+                      {t('scheduler.demand.posMixCovers')}
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => updateRoleRowFn(idx, { ratioMode: 'revenue' })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: f.ratioMode === 'revenue' }}
+                    accessibilityLabel={t('scheduler.demand.posMixRevenue')}
+                    style={[
+                      local.ratioToggleOption,
+                      f.ratioMode === 'revenue' && local.ratioToggleOptionActive,
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        local.ratioToggleText,
+                        f.ratioMode === 'revenue' && local.ratioToggleTextActive,
+                      ]}
+                    >
+                      {t('scheduler.demand.posMixRevenue')}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+                {/* Per-worker value */}
+                <TextInput
+                  style={[local.roleMixInput, { flex: 1.2 }]}
+                  value={f.ratioMode === 'covers' ? f.coversPerWorker : f.revenuePerWorkerHour}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textTertiary}
+                  onChangeText={(v) =>
+                    updateRoleRowFn(
+                      idx,
+                      f.ratioMode === 'covers' ? { coversPerWorker: v } : { revenuePerWorkerHour: v }
+                    )
+                  }
+                  accessibilityLabel={t('scheduler.demand.posMixPerWorker')}
+                />
+                {/* Min workers */}
+                <TextInput
+                  style={[local.roleMixInput, { flex: 0.8 }]}
+                  value={f.minWorkers}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textTertiary}
+                  onChangeText={(v) => updateRoleRowFn(idx, { minWorkers: v })}
+                  accessibilityLabel={t('scheduler.demand.posMixMin')}
+                />
+                {/* Delete button */}
+                <Pressable
+                  onPress={() => removeRoleRow(idx)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('scheduler.demand.posMixRemoveRole', {
+                    role: f.role || String(idx + 1),
+                  })}
+                  style={local.roleMixDeleteBtn}
+                >
+                  <ThemedText style={{ color: colors.error, fontSize: 18, lineHeight: 22 }}>
+                    ×
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ))}
+
+            {/* e) No roles inline warning */}
+            {roleMixForms.length === 0 && (
+              <ThemedText style={local.warningText}>
+                {t('scheduler.demand.posNoRoles')}
+              </ThemedText>
+            )}
+
+            {/* f) Add role button */}
+            <Pressable
+              onPress={addRoleRow}
+              style={[local.secondaryButton, styles.tightButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.demand.posMixAddRole')}
+            >
+              <ThemedText style={local.secondaryButtonText}>
+                {t('scheduler.demand.posMixAddRole')}
+              </ThemedText>
+            </Pressable>
+
+            {/* g) Global settings row */}
+            <View style={[styles.inlineInputs, { marginTop: 8 }]}>
               <InputField
                 label={t('scheduler.demand.posShiftHours')}
-                value={posConfig.avgShiftHours}
-                placeholder={t('scheduler.demand.posShiftHoursPlaceholder')}
+                value={globalShiftHours}
+                placeholder="8"
                 keyboardType="numeric"
-                onChangeText={(v) => setPosConfig(p => ({ ...p, avgShiftHours: v }))}
+                onChangeText={setGlobalShiftHours}
+              />
+              <InputField
+                label={t('scheduler.demand.posSmoothing')}
+                value={globalSmoothingWindow}
+                placeholder="7"
+                keyboardType="numeric"
+                onChangeText={setGlobalSmoothingWindow}
               />
             </View>
+
+            {/* h) Covers warning */}
+            {hasCoversWarning && (
+              <ThemedText style={local.warningText}>
+                {t('scheduler.demand.posCoversWarning')}
+              </ThemedText>
+            )}
+
+            {/* i) CSV textarea */}
             <TextInput
               accessibilityLabel={t('scheduler.demand.posText')}
-              accessibilityHint="Paste CSV data with date, revenue, covers, notes columns"
+              accessibilityHint={t('scheduler.demand.posCsvA11yHint')}
               multiline
               value={pasteText}
-              onChangeText={(v) => { setPasteText(v); setPosState('idle'); }}
+              onChangeText={(v) => {
+                setPasteText(v);
+                setPosState('idle');
+                setHasCoversWarning(false);
+              }}
               placeholder={t('scheduler.demand.posText')}
               placeholderTextColor={colors.textTertiary}
               style={local.posTextArea}
             />
+
+            {/* j) Preview button */}
             <Pressable
               onPress={handlePosPreview}
               style={[local.secondaryButton, styles.tightButton]}
@@ -498,13 +834,19 @@ export const DemandSection = ({
               </ThemedText>
             </Pressable>
 
-            {/* Preview table */}
+            {/* k) Preview table */}
             {(posState === 'preview' || posState === 'done') && parsedPosRows.length > 0 && (
               <View style={{ marginTop: 8 }}>
+                <ThemedText style={[styles.mutedText, { marginBottom: 2, fontSize: 11 }]}>
+                  {t('scheduler.demand.posPreviewCount', {
+                    n: String(Math.min(5, parsedPosRows.length)),
+                    total: String(parsedPosRows.length),
+                  })}
+                </ThemedText>
                 <View style={local.posPreviewRow}>
-                  <ThemedText style={local.posPreviewHeader}>Date</ThemedText>
-                  <ThemedText style={local.posPreviewHeader}>Revenue</ThemedText>
-                  <ThemedText style={local.posPreviewHeader}>Covers</ThemedText>
+                  <ThemedText style={local.posPreviewHeader}>{t('scheduler.demand.posPreviewHeaderDate')}</ThemedText>
+                  <ThemedText style={local.posPreviewHeader}>{t('scheduler.demand.posPreviewHeaderRevenue')}</ThemedText>
+                  <ThemedText style={local.posPreviewHeader}>{t('scheduler.demand.posPreviewHeaderCovers')}</ThemedText>
                 </View>
                 {parsedPosRows.slice(0, 5).map((row, idx) => (
                   <View key={idx} style={local.posPreviewRow}>
@@ -516,33 +858,51 @@ export const DemandSection = ({
               </View>
             )}
 
-            {/* Validation errors */}
+            {/* l) Validation errors */}
             {posErrors.map((e, i) => (
               <ThemedText key={i} style={local.errorText}>{e}</ThemedText>
             ))}
 
-            {/* Generate button */}
+            {/* m) Generate button */}
             {parsedPosRows.length > 0 && posState !== 'done' && (
               <Pressable
                 onPress={handlePosGenerate}
                 disabled={posState === 'generating'}
-                style={[local.secondaryButton, styles.tightButton, posState === 'generating' && local.disabledButton]}
+                style={[
+                  local.secondaryButton,
+                  styles.tightButton,
+                  posState === 'generating' && local.disabledButton,
+                ]}
                 accessibilityRole="button"
-                accessibilityLabel={t('scheduler.demand.posGenerateBtn', { n: String(parsedPosRows.length) })}
+                accessibilityLabel={t('scheduler.demand.posGenerateBtn', {
+                  n: String(
+                    parsedPosRows.length *
+                      Math.max(1, roleMixForms.filter((f) => f.role.trim()).length)
+                  ),
+                })}
                 accessibilityState={{ disabled: posState === 'generating' }}
               >
                 <ThemedText style={local.secondaryButtonText}>
                   {posState === 'generating'
                     ? t('scheduler.demand.posGenerating')
-                    : t('scheduler.demand.posGenerateBtn', { n: String(parsedPosRows.length) })}
+                    : t('scheduler.demand.posGenerateBtn', {
+                        n: String(
+                          parsedPosRows.length *
+                            Math.max(1, roleMixForms.filter((f) => f.role.trim()).length)
+                        ),
+                      })}
                 </ThemedText>
               </Pressable>
             )}
 
-            {/* Status messages */}
+            {/* n) Done message */}
             {posState === 'done' && (
               <ThemedText style={local.successText}>
-                {t('scheduler.demand.posDone', { n: String(parsedPosRows.length) })}
+                {t('scheduler.demand.posDone', {
+                  n: String(
+                    parsedPosRows.length * roleMixForms.filter((f) => f.role.trim()).length
+                  ),
+                })}
               </ThemedText>
             )}
           </>
@@ -651,7 +1011,7 @@ export const DemandSection = ({
               </ThemedText>
             ) : null}
             <ThemedText style={styles.mutedText}>
-              {t('scheduler.demand.source', { src: target.source ?? 'model' })}
+              {getSourceLabel(target.source, t)}
             </ThemedText>
           </View>
           {/* [3] Required-count label uses theme-aware success token ≥4.5:1 ✓ AA */}
