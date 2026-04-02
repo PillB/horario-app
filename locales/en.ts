@@ -622,6 +622,7 @@ export const en = {
     whyMatters: 'Why this matters',
     hide: 'Hide',
     actionPrompt: 'Complete the step above to continue ↑',
+    goToScheduler: 'Go to Scheduler →',
     startManager: 'Start Manager Tour',
     startWorker: 'Start Team Member Tour',
   },

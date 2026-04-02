@@ -53,6 +53,36 @@ export const tl = {
     applying: 'Inilalapat…',
   },
 
+  // ─── Timezone ──────────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Nag-iiskedyul sa:',
+    live: 'Live na orasan ng timezone ng iskedyul',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Mga Tala',
+    openNotes: 'Buksan ang mga tala at gawain ng shift',
+    panelTitle: 'Mga tala ng shift',
+    managerNote: 'Tala ng manager',
+    managerNotePlaceholder: 'Magdagdag ng mga tagubilin, paalala, o konteksto para sa shift na ito…',
+    tasks: 'Mga Gawain',
+    tasksDesc: 'Magdagdag ng mga gawaing dapat tapusin ng manggagawa sa panahon ng shift na ito.',
+    addTaskPlaceholder: 'hal. Suriin ang imbentaryo bago magbukas',
+    addTaskBtn: 'Idagdag',
+    commentPlaceholder: 'Magdagdag ng komento o update…',
+    noTasks: 'Wala pang mga gawain — magdagdag ng isa sa itaas.',
+    cycleStatus: 'I-cycle ang status ng gawain',
+    removeTask: 'Alisin ang gawain',
+    status: {
+      todo: 'Gagawin',
+      done: 'Tapos na',
+      blocked: 'Naharang',
+      delayed: 'Naantala',
+    },
+    doneBtn: 'Isara',
+  },
+
   errors: {
     somethingWentWrong: 'May nagkamali',
     retryHint: 'Subukang i-reload ang seksyong nabigo',
@@ -111,7 +141,18 @@ export const tl = {
       draftsPublished: 'Mga draft na nai-publish',
       draftsPublishedDesc: 'Ilipat ang mga draft sa nai-publish kapag handa na ang mga team.',
     },
-    personalizedActions: {
+    weekStats: {
+      title: 'Ngayong linggo',
+      scheduled: 'Mga naka-iskedyul na shift',
+      gaps: 'Mga papel na dapat punan',
+    },
+    invite: {
+      title: 'Buuin ang iyong koponan',
+      desc: 'Magdagdag ng mga manggagawa upang i-unlock ang auto-assign at pagsubaybay sa coverage. Ang bawat manggagawang idinagdag ay nangangahulugang mas kaunting mga puwang sa iskedyul.',
+      cta: 'Mag-imbita ng miyembro ng koponan →',
+      ctaA11y: 'Mag-imbita ng miyembro ng koponan sa iyong roster',
+    },
+        personalizedActions: {
       title: 'Mga personalisadong aksyon',
     },
   },
@@ -304,6 +345,21 @@ export const tl = {
     },
   },
 
+  // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Nakaraang linggo',
+    nextWeek: 'Susunod na linggo',
+    today: 'Ngayon',
+    maximize: 'Fullscreen na kalendaryo',
+    closeFullscreen: 'Isara ang fullscreen',
+    noShifts: 'Walang mga shift ngayong linggo.',
+    legend: 'Alamat:',
+    legendDraft: 'Draft',
+    legendPublished: 'Nailathala',
+    coverageMet: '{s}/{r} naabot',
+    coverageShort: '{s}/{r} kulang',
+  },
+
   analytics: {
     title: 'Pagsusuri',
     subtitle: 'Pagganap ng scheduling sa isang tingin.',
@@ -424,4 +480,108 @@ export const tl = {
     tooltip: '🌐 Pumili ng iyong gustong wika. Awtomatikong sine-save ang iyong pinili. Unang nilo-load ng app ang Ingles at seamless na nagpapalit — kung may teksto na kulang ang pagsasalin, maayos itong babalik sa Ingles.',
     changeSuccess: 'Nabago ang wika sa {lang}',
   },
+
+  // ─── Interactive onboarding tour ────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Sino ka?',
+    desc: 'Sabihin sa amin ang iyong papel upang maipasadya namin ang iyong tour at mapakita agad ang mga tampok na pinakamahalaga sa iyo.',
+    managerTitle: '👔 Manager / May-ari',
+    managerDesc: 'Bumuo ng mga iskedyul, pamahalaan ang iyong koponan, hulaan ang demand, at panatilihing kontrolado ang mga gastos sa paggawa.',
+    workerTitle: '👷 Miyembro ng Koponan',
+    workerDesc: 'Tingnan ang iyong mga shift, itakda ang iyong availability, at manatiling naka-sync sa iyong koponan — lahat sa isang lugar.',
+  },
+  nav: {
+    stepOf: 'Hakbang {current} ng {total}',
+    next: 'Susunod →',
+    back: '← Bumalik',
+    skip: 'Laktawan ang tour',
+    done: 'Tapos na ✓',
+    whyMatters: 'Bakit ito mahalaga',
+    hide: 'Itago',
+    actionPrompt: 'Kumpletuhin ang hakbang sa itaas upang magpatuloy ↑',
+    goToScheduler: 'Pumunta sa Scheduler →',
+    startManager: 'Simulan ang Tour para sa Manager',
+    startWorker: 'Simulan ang Tour para sa Miyembro ng Koponan',
+  },
+  manager: {
+    step1: {
+      title: 'Maligayang Pagdating sa Iyong Command Centre',
+      desc: 'Ito ang iyong Home dashboard — isang live na snapshot ng coverage ngayon, mga nakabinbing pag-apruba, at aktibidad ng koponan sa sandaling mag-log in ka.',
+      why: 'Ang mga manager na nagsusuri ng kanilang dashboard araw-araw ay nakakakita ng mga puwang sa coverage bago pa man ito maging magastos na call-out. Ang pagsisimula dito ay nagpapanatiling nakikita ang iyong buong operasyon sa isang tingin.',
+    },
+    step2: {
+      title: 'Buuin ang Iyong Scheduling Streak',
+      desc: 'Sinusubaybayan ng iyong streak kung gaano ka-consistent ang iyong pag-publish ng mga iskedyul sa tamang oras, na nagbibigay sa iyong koponan ng sapat na abiso upang maplano ang kanilang buhay.',
+      why: 'Ipinapakita ng pananaliksik mula sa 7shifts na ang mga koponang binibigyan ng mga iskedyul nang hindi bababa sa isang linggo nang maaga ay nakakaranas ng hanggang 40% na mas kaunting mga no-show — ginagawa ng iyong streak na manatili ang ugaling iyon.',
+    },
+    step3: {
+      title: 'Makilala ang Scheduler',
+      desc: 'Ang tab na Scheduler ay kung saan ka nagtatayo, nag-e-edit, at nag-po-publish ng mga lingguhang roster gamit ang isang visual na timeline na may drag-and-drop para sa bawat papel at lokasyon.',
+      why: 'Ang isang sentralisadong visual na scheduler ay nag-aalis ng mga double-booking at nagbabawas ng mga pabalik-balik na email na nagnanakaw ng mga oras mula sa iyong linggo.',
+    },
+    step4: {
+      title: 'Idagdag ang Iyong Unang Miyembro ng Koponan',
+      desc: 'Mag-imbita ng manggagawa sa pamamagitan ng paglalagay ng kanilang pangalan at mga detalye ng pakikipag-ugnayan upang matugma sila ng Horario sa mga shift at makapagpadala ng mga awtomatikong abiso.',
+      why: 'Ang paglalagay ng iyong roster sa sistema ay nag-a-unlock ng auto-scheduling, pagtuklas ng salungatan, at mga real-time na alerto sa coverage na nakakatipid sa mga manager ng average na 5 oras bawat linggo.',
+      action: 'Idagdag ang iyong unang manggagawa sa itaas ↑',
+    },
+    step5: {
+      title: 'Kumuha ng Availability ng Koponan',
+      desc: 'Itakda o suriin ang mga window ng availability para sa iyong mga miyembro ng koponan upang mag-alok lamang ang scheduler ng mga shift na talagang kaya nilang gawin.',
+      why: 'Ang pag-iiskedyul batay sa nakumpirmang availability ay ang pinakamahalagang salik sa mga rate ng pagtanggap ng shift — ang mga koponang gumagamit ng Horario ay nakakakita ng hanggang 35% na mas kaunting mga kahilingan sa pagpapalitan kapag nakatakda ang availability nang maaga.',
+      action: 'Itakda ang availability para sa isang miyembro ng koponan sa itaas ↑',
+    },
+    step6: {
+      title: 'Lumikha ng Template ng Shift',
+      desc: 'I-save ang isang muling magagamit na template ng shift — pangalan, papel, oras ng pagsisimula, at tagal — upang makalagay ka ng mga pare-parehong shift sa kalendaryo sa loob ng ilang segundo.',
+      why: 'Binabawasan ng mga template ang oras ng pagbuo ng iskedyul ng hanggang 60% sa pamamagitan ng pag-aalis ng paulit-ulit na pagpasok ng data, na nagpapahintulot sa iyo na tumutok sa pag-optimize ng coverage sa halip na muling i-type ang parehong mga shift bawat linggo.',
+      action: 'Lumikha ng iyong unang template ng shift sa itaas ↑',
+    },
+    step7: {
+      title: 'I-assign ang Iyong Unang Shift',
+      desc: 'I-drag ang iyong bagong template sa timeline o i-tap ang isang cell upang mag-assign ng shift sa isang miyembro ng koponan para sa isang paparating na araw.',
+      why: 'Ang pag-publish kahit isang na-assign na shift ay ina-activate ang notification pipeline ng Horario, kaya agad na nararamdaman ng iyong koponan ang pagiging maaasahan na nagdudulot ng mas mataas na pakikipag-ugnayan at pagpapanatili.',
+      action: 'Mag-assign ng shift sa isang miyembro ng koponan sa itaas ↑',
+    },
+    step8: {
+      title: 'Hulaan ang Demand Tulad ng Isang Propesyonal',
+      desc: 'Sinusuri ng Horario ang makasaysayang data ng trapiko, benta, at bilang ng mga tao upang magrekomenda ng mga pinakamainam na antas ng staffing bago mo pa man buksan ang scheduler.',
+      why: 'Ang demand-informed na pag-iiskedyul ay tumutulong sa mga operator na bawasan ang labis na gastos sa paggawa ng average na 15% habang pinapanatili ang kalidad ng serbisyo — mayroon ka na ngayong lahat ng kailangan mo upang mag-iskedyul nang mas matalino mula sa unang araw.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Maligayang Pagdating sa Iyong Schedule Hub',
+      desc: 'Ito ang iyong Home screen — tingnan ang iyong susunod na shift, anumang bukas na mensahe mula sa iyong manager, at ang live na roster ng iyong koponan sa sandaling buksan mo ang app.',
+      why: 'Ang pagkakaroon ng iyong iskedyul at komunikasyon sa isang lugar ay nangangahulugang hindi na mawawala ang mga shift dahil sa mga nawalang thread ng text o mga nakalimutang naka-print na papel.',
+    },
+    step2: {
+      title: 'Palakasin ang Iyong Reliability Streak',
+      desc: 'Ipinapakita ng iyong streak kung gaano ka-consistent ang pag-update mo ng iyong availability, na tumutulong sa iyong manager na i-iskedyul ka para sa mga shift na talagang angkop sa iyong buhay.',
+      why: 'Ang mga manggagawang may kumpletong at napapanahong profile ng availability ay nakakatanggap ng mas maraming gustong shift at unang nasa pila kapag may mga karagdagang oras na magagamit.',
+    },
+    step3: {
+      title: 'Tingnan ang Buong Iskedyul ng Koponan',
+      desc: 'Ipinapakita ng tab na Scheduler ang nailathala na roster para sa iyong lokasyon upang palagi kang nakakaalam kung sino ang kasama mo sa trabaho at makapag-plano sa paligid ng mga shift ng iyong mga katrabaho.',
+      why: 'Ang visibility sa buong iskedyul ng koponan ay nagpapabilis ng mga pagpapalitan ng shift at nagbabawas ng pagkalito na nagdudulot ng mga araw na kulang sa tauhan at mga nakaka-stress na sorpresa.',
+    },
+    step4: {
+      title: 'Itakda ang Iyong Availability Ngayon',
+      desc: 'Sabihin sa iyong manager kung kailan ka eksaktong available para magtrabaho upang ang bawat shift na inaalok sa iyo ay isang shift na talagang matatanggap mo.',
+      why: 'Iniuulat ng mga koponang gumagamit ng Horario na 35% na mas kaunting mga last-minute na salungatan kapag itinakda ng lahat ng miyembro ang kanilang availability nang maaga — ang iyong input ay direktang nagpapabuti ng kalidad ng iskedyul ng buong koponan.',
+      action: 'Itakda ang iyong lingguhang availability sa itaas ↑',
+    },
+    step5: {
+      title: 'Handa Ka Na',
+      desc: 'Naexplore mo na ang iyong dashboard, natutunan mo ang tungkol sa mga streak, nakita mo ang iskedyul ng koponan, at naitalaga ang iyong availability — nagsisimula nang malakas ang iyong karanasan sa pag-iiskedyul mula rito.',
+      why: 'Ang mga manggagawang nakumpleto ang onboarding ay mas kumpiyansa sa pamamahala ng mga pagbabago ng shift, paghiling ng pahinga, at pakikipag-ugnayan sa kanilang koponan nang ganap sa loob ng Horario.',
+    },
+  },
+  completed: {
+    title: '🎉 Handa ka na!',
+    desc: 'Nakumpleto mo na ang tour at mayroon ka nang lahat ng kailangan mo upang bumuo ng mas matalinong mga iskedyul, bawasan ang mga no-show, at panatilihing naka-sync ang iyong koponan. Nagsisimula na ngayon ang iyong unang mahusay na linggo.',
+  },
+},
+
 } as const;

@@ -2,6 +2,36 @@ export const de = {
   meta: { langCode: 'de', langName: 'German', langNameNative: 'Deutsch', flag: '🇩🇪' },
   nav: { home: 'Startseite', scheduler: 'Dienstplan', analytics: 'Analyse', signOut: 'Abmelden', signOutA11y: 'Von Ihrem Konto abmelden', languageSelector: 'Sprache' },
   common: { save: 'Speichern', cancel: 'Abbrechen', dismiss: 'Schließen', retry: 'Erneut versuchen', add: 'Hinzufügen', done: 'Fertig', loading: 'Lädt…', tryAgain: 'Erneut versuchen', publish: 'Veröffentlichen', unpublish: 'Veröffentlichung aufheben', notify: 'Benachrichtigen', notified: 'Benachrichtigt', draft: 'Entwurf', published: 'Veröffentlicht', open: 'Öffnen', close: 'Schließen', apply: 'Anwenden', run: 'Ausführen', name: 'Name', role: 'Rolle', date: 'Datum', notes: 'Notizen', days: 'Tage', start: 'Beginn', end: 'Ende', from: 'Von', to: 'Bis', required: 'Erforderlich', coverage: 'Abdeckung', worker: 'Mitarbeiter', template: 'Vorlage', needed: '{n} benötigt', shortfall: 'Fehlstellen: {n}', scheduled: '{n} eingeplant', applying: 'Wird angewendet…' },
+  // ─── Timezone ──────────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Planung in:',
+    live: 'Live-Planungszeitzone Uhr',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Notizen',
+    openNotes: 'Schichtnotizen und Aufgaben öffnen',
+    panelTitle: 'Schichtnotizen',
+    managerNote: 'Hinweis der Führungskraft',
+    managerNotePlaceholder: 'Anweisungen, Erinnerungen oder Kontext für diese Schicht hinzufügen…',
+    tasks: 'Aufgaben',
+    tasksDesc: 'Fügen Sie To-dos hinzu, die der Mitarbeiter während dieser Schicht erledigen soll.',
+    addTaskPlaceholder: 'z. B. Bestand vor der Öffnung prüfen',
+    addTaskBtn: 'Hinzufügen',
+    commentPlaceholder: 'Kommentar oder Aktualisierung hinzufügen…',
+    noTasks: 'Noch keine Aufgaben — fügen Sie oben eine hinzu.',
+    cycleStatus: 'Aufgabenstatus wechseln',
+    removeTask: 'Aufgabe entfernen',
+    status: {
+      todo: 'Zu erledigen',
+      done: 'Erledigt',
+      blocked: 'Blockiert',
+      delayed: 'Verzögert',
+    },
+    doneBtn: 'Schließen',
+  },
+
   errors: { somethingWentWrong: 'Etwas ist schiefgelaufen', retryHint: 'Versuchen Sie, den fehlgeschlagenen Abschnitt neu zu laden', networkError: 'Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.', loadFailed: 'Laden fehlgeschlagen. Tippen Sie zum Wiederholen.' },
   home: {
     hero: { tagline1: 'Reduzieren Sie Fehlzeiten, indem Sie Verfügbarkeit in Sekunden der Nachfrage zuordnen.', tagline2: 'Halten Sie Mitarbeiterverfügbarkeit, Vorlagen und Dienstplanstatus synchron.' },
@@ -11,7 +41,18 @@ export const de = {
     staffingGaps: { title: 'Personallücken', allStaffed: 'Alle Schichten sind vollständig besetzt.', noTargets: 'Noch keine Bedarfsziele — führen Sie im Dienstplan eine Prognose aus.', open: '{n} offen', requiredCount: '{n} erforderlich' },
     quickActions: { title: 'Schnellaktionen', addAvailability: 'Verfügbarkeit hinzufügen', addAvailabilityA11y: 'Verfügbarkeitsaktualisierung hinzufügen', addAvailabilityHint: 'Neue Verfügbarkeitsdetails im Dienstplan erfassen', addAvailabilityDesc: 'Änderungen vom Betrieb erfassen', buildShifts: 'Schichten erstellen', buildShiftsA11y: 'Schichten aus Vorlagen erstellen', buildShiftsHint: 'Öffnet den Dienstplan, um Schichten anhand von Vorlagen zu generieren', buildShiftsDesc: 'Mit Vorlagen beginnen', publishRoster: 'Dienstplan veröffentlichen', publishRosterA11y: 'Dienstplan veröffentlichen', publishRosterHint: 'Ziele überprüfen und Dienstplan für Ihr Team veröffentlichen', publishRosterDesc: 'Ziele vs. Abdeckung prüfen' },
     achievements: { title: 'Erfolge', coverageChecks: 'Konsistente Abdeckungsprüfungen', coverageChecksDesc: '5 der letzten 7 Tage Aktualisierungen protokolliert.', draftsPublished: 'Entwürfe veröffentlicht', draftsPublishedDesc: 'Verschieben Sie Entwürfe zur Veröffentlichung, wenn Teams bereit sind.' },
-    personalizedActions: { title: 'Personalisierte Aktionen' },
+    weekStats: {
+      title: 'Diese Woche',
+      scheduled: 'Geplante Schichten',
+      gaps: 'Zu besetzende Rollen',
+    },
+    invite: {
+      title: 'Ihr Team aufbauen',
+      desc: 'Fügen Sie Mitarbeiter hinzu, um die automatische Zuweisung und die Abdeckungsverfolgung zu aktivieren. Jeder hinzugefügte Mitarbeiter bedeutet weniger Planungslücken.',
+      cta: 'Teammitglied einladen →',
+      ctaA11y: 'Ein Teammitglied zu Ihrem Dienstplan einladen',
+    },
+        personalizedActions: { title: 'Personalisierte Aktionen' },
   },
   scheduler: {
     title: 'Dienstplan', subtitle: 'Koordinieren Sie die Abdeckung über Mitarbeiter, Schichtvorlagen und tagesaktuelle Personalpläne.', tooltip: 'Ihr Planungszentrum. Fügen Sie Mitarbeiter hinzu, legen Sie deren Verfügbarkeit fest, erstellen Sie Schichtvorlagen und weisen Sie dann Dienstpläne zu oder füllen Sie diese automatisch mit einem Tippen aus. Beginnen Sie mit Schritt 1 — einen Mitarbeiter hinzufügen.',
@@ -24,9 +65,128 @@ export const de = {
     demand: { sectionTitle: 'Bedarfsziele', sectionSubtitle: 'Definieren Sie den erwarteten Bedarf und Personallücken nach Rolle.', quickSetupTab: 'Schnelleinrichtung', fallbackTab: 'Fallback', quickSetupDesc: 'Grundbedarf eingeben, wenn keine historischen Schichten oder externe Signale verfügbar sind.', homogeneous: 'Homogener Bedarf', manualCounts: 'Manuelle Mitarbeiter-/Schichtzahlen', roleLabel: 'Rolle', rolePlaceholder: 'Support', startDateLabel: 'Startdatum', startDatePlaceholder: 'YYYY-MM-DD', daysLabel: 'Tage', daysCoverage: '7', dailyDemandLabel: 'Täglicher Bedarf', shiftsPerDayLabel: 'Schichten pro Tag', workersPerShiftLabel: 'Mitarbeiter pro Schicht', notesLabel: 'Notizen', notesPlaceholder: 'Basiswert während wir Verlaufsdaten sammeln', saveBaseline: 'Basisziele speichern', dateLabel: 'Datum', datePlaceholder: 'YYYY-MM-DD', targetNotesPlaceholder: 'Rückstand, Aktion, usw.', saveTarget: 'Ziel speichern', runForecast: 'Prognose mit heutigen Signalen ausführen', runForecastA11y: 'Prognose mit heutigen Signalen ausführen', noForecastData: 'Keine historischen Schichten oder externe Signale gefunden. Verwenden Sie die Schnelleinrichtung, um Bedarfsziele zu hinterlegen.', lostRevenue: 'Gefährdeter Umsatz', lostRevenueDesc: 'Geschätzter Umsatz, der durch unbesetzte Rollen vor und nach der Prognose gefährdet ist.', uncovered: 'Unbesetzt: {n}', ci: 'KI: {low} – {high}', confidence: '{pct}% Konfidenz', source: 'Quelle: {src}', requiredLabel: '{n} benötigt', tooltip: '📈 Bedarfsziele teilen dem Dienstplan mit, wie viele Mitarbeiter Sie pro Rolle und Tag benötigen. Beginnen Sie mit der "Schnelleinrichtung", um eine Woche Grundbedarf einzugeben, und führen Sie dann eine Prognose aus, um KI-gestützte Ziele basierend auf Ihren historischen Schichten und externen Signalen zu erhalten.' },
     roster: { sectionTitle: 'Kalender & Dienstplan', sectionSubtitle: 'Überprüfen Sie, was veröffentlicht ist und wo Sie Abdeckungslücken haben.', secured: 'Nächste 7 Tage gesichert.', emptyTitle: 'Weisen Sie Schichten zu, um Ihren Dienstplan hier zu sehen ↑', emptyDesc: 'Erstellen Sie oben unter „Schichterstellung" eine Schicht — sie erscheint sofort hier.', publishA11y: 'Diese Schicht veröffentlichen', unpublishA11y: 'Diese Schicht zurück in den Entwurf verschieben', notifyA11y: 'Benachrichtigung für diese Schicht senden', upcoming: { title: 'Bevorstehende Schichten', subtitle: 'Dem nächsten Dienstplanfenster voraus sein.', empty: 'Noch keine veröffentlichten Schichten — veröffentlichen Sie oben eine Schicht, um sie hier zu sehen.' }, gaps: { title: 'Personallücken', subtitle: 'Unterbesetzte Rollen im gesamten Planungshorizont hervorheben.', allCovered: 'Die Abdeckung erfüllt die aktuellen Bedarfsziele.', scheduled: '{n} eingeplant', shortfall: 'Fehlstellen: {n}' }, tooltip: '🗓 Ihr Live-Dienstplankalender. Schichten erscheinen, sobald Sie sie speichern. Klicken Sie auf „Veröffentlichen", um eine Schicht festzuschreiben, dann auf „Benachrichtigen", um den Mitarbeiter zu informieren. Veröffentlichte Schichten versorgen den Analyse-Tab mit Stunden- und Abdeckungsdaten.' },
   },
+  // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Vorherige Woche',
+    nextWeek: 'Nächste Woche',
+    today: 'Heute',
+    maximize: 'Kalender im Vollbild',
+    closeFullscreen: 'Vollbild schließen',
+    noShifts: 'Keine Schichten diese Woche.',
+    legend: 'Legende:',
+    legendDraft: 'Entwurf',
+    legendPublished: 'Veröffentlicht',
+    coverageMet: '{s}/{r} abgedeckt',
+    coverageShort: '{s}/{r} fehlend',
+  },
+
   analytics: { title: 'Analyse', subtitle: 'Planungsleistung auf einen Blick.', tooltip: '📊 Echtzeit-Planungsmetriken. Die Abdeckungsrate zeigt, wie viel Nachfrage Sie decken. Gefährdeter Umsatz schätzt, was unbesetzte Slots kosten. Mitarbeiterstunden verfolgt die Fairness in Ihrem Team. Überprüfen Sie diesen Tab nach dem Veröffentlichen von Schichten.', coverageLabel: 'Abdeckung', coverageSub: 'der Nachfrage gedeckt', draftsPending: 'Entwürfe ausstehend', draftsAwaiting: 'warten auf Genehmigung', revenueAtRisk: 'Umsatz gefährdet', revenueDesc: 'Geschätzte Gefährdung durch unbedeckte Bedarfsziele ({n} veröffentlichte Schichten über alle Termine).', workerHours: 'Mitarbeiterstunden', workerHoursSub: 'Nur veröffentlichte Schichten · gesamte Zeit', noPublishedShifts: 'Noch keine veröffentlichten Schichten.', fairness: 'Planungsgerechtigkeit', fairnessSub: 'Standardabweichung der Stunden pro Mitarbeiter — niedriger ist fairer.', fairnessExcellent: 'Ausgezeichnet', fairnessGood: 'Gut', fairnessNeedsAttention: 'Aufmerksamkeit erforderlich', fairnessStdDev: '{n}h Standardabw.', quickActions: 'Schnellaktionen', openScheduler: 'Dienstplan öffnen', openSchedulerDesc: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', openSchedulerHint: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', retryA11y: 'Analyse erneut laden', retryA11yHint: 'Versucht, die Planungsdaten neu zu laden', errorPrefix: '' },
   auth: { appName: 'Horario', tagline: 'Intelligente Planung, vereinfacht.', signIn: { title: 'Willkommen zurück', subtitle: 'Melden Sie sich an, um fortzufahren', emailLabel: 'E-Mail-Adresse', emailPlaceholder: 'sie@beispiel.de', emailA11y: 'E-Mail-Adresse', passwordLabel: 'Passwort', passwordPlaceholder: '••••••••', passwordA11y: 'Passwort', button: 'Anmelden', buttonA11y: 'Anmelden', noAccount: 'Noch kein Konto?', createLink: 'Jetzt kostenlos erstellen', createLinkA11y: 'Konto erstellen', trustText: 'Kostenlos starten · Keine Kreditkarte · Jederzeit kündbar', errDefault: 'Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.', errToken: 'Anmelde-Token ungültig oder abgelaufen.', errCredentials: 'Anmeldung fehlgeschlagen. Überprüfen Sie Ihre Anmeldedaten.' }, signUp: { promo: '✦ Ihr erster optimierter Dienstplan ist kostenlos — keine Karte erforderlich', title: 'Konto erstellen', subtitle: 'Schließen Sie sich über 1.200 Teammanagern an. Reduzieren Sie Fehlzeiten um 40 %.', emailLabel: 'Geschäftliche E-Mail', emailPlaceholder: 'sie@unternehmen.de', emailA11y: 'E-Mail-Adresse', passwordLabel: 'Passwort', passwordPlaceholder: 'Mindestens 8 Zeichen', passwordA11y: 'Passwort', button: 'Kostenloses Konto erstellen →', buttonA11y: 'Konto erstellen', terms: 'Mit der Registrierung stimmen Sie unseren Nutzungsbedingungen und der Datenschutzrichtlinie zu.', pricing: 'Für 1 Team dauerhaft kostenlos · Pro ab $12/mo pauschal — keine Gebühren pro Mitarbeiter', hasAccount: 'Bereits ein Konto?', signInLink: 'Anmelden', signInLinkA11y: 'Anmelden', trustText: 'Kostenlos starten · Keine Kreditkarte · Jederzeit kündbar', verify: { title: 'Überprüfen Sie Ihre E-Mail', emoji: '📬', sentTo: 'Wir haben einen 6-stelligen Code gesendet an', codeLabel: 'Bestätigungscode', codePlaceholder: '123456', codeA11y: 'Bestätigungscode', verifyButton: 'E-Mail bestätigen', verifyButtonA11y: 'E-Mail bestätigen', backButton: '← Zurück zur Registrierung', backButtonA11y: 'Zurück', errDefault: 'Bestätigung unvollständig. Bitte versuchen Sie es erneut.' } } },
   wellness: { a11yRole: 'Erinnerung an achtsame Pause', heading: 'Zeit für eine achtsame Pause', body: 'Sie sind seit {minutes} Minute{plural} konzentriert. Nehmen Sie sich einen Moment zum Dehnen, Trinken oder Überprüfen des Plans, bevor Sie weitermachen.', notNow: 'Nicht jetzt', notNowA11y: 'Pausenerinnerung schließen', takeBreak: '3-minütige Pause einlegen', takeBreakA11y: 'Kurze Pause einlegen' },
   upgrade: { trial: { badge: 'TEST', title: 'Pro-Test aktiv — unbegrenzte automatische Zuweisungen aktiviert.', subtitle: '$12/mo pauschal nach dem Test. Keine Gebühren pro Mitarbeiter.' }, free: { badge: 'KOSTENLOS', limitReached: 'Hören Sie auf, Dienstpläne manuell zu erstellen — Sie haben das kostenlose Limit erreicht.', autoAssignsLeft: '{n} kostenlose automatische Zuweisung{plural} verbleibend', cta: 'Weisen Sie Ihr gesamtes Team mit einem Tippen automatisch zu. Pro 10 Tage kostenlos testen →', ctaUnlimited: 'Unbegrenzte automatische Zuweisungen freischalten — keine Gebühren pro Mitarbeiter →', pricing: '$12/mo pauschal · keine Gebühren pro Mitarbeiter · jederzeit kündbar' }, buttonA11y: 'Auf Pro-Plan upgraden', buttonHint: 'Öffnet die Abrechnungsseite, um Ihren kostenlosen Pro-Test zu starten', limitReachedBanner: 'Kostenloses Limit erreicht. Upgraden Sie auf Pro für unbegrenzte automatische Zuweisung.' },
   language: { selectorLabel: 'Sprache', selectorA11y: 'App-Sprache auswählen', selectorHint: 'Ändert die Sprache für alle Texte in der App', tooltip: '🌐 Wählen Sie Ihre bevorzugte Sprache. Ihre Auswahl wird automatisch gespeichert. Die App lädt zuerst auf Englisch und wechselt nahtlos — falls eine Übersetzung fehlt, wird automatisch auf Englisch zurückgegriffen.', changeSuccess: 'Sprache geändert zu {lang}' },
+
+  // ─── Interactive onboarding tour ────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Wer sind Sie?',
+    desc: 'Teilen Sie uns Ihre Rolle mit, damit wir Ihre Tour personalisieren und Ihnen sofort die relevantesten Funktionen anzeigen können.',
+    managerTitle: '👔 Manager / Inhaber',
+    managerDesc: 'Dienstpläne erstellen, Ihr Team verwalten, den Bedarf prognostizieren und die Personalkosten im Griff behalten.',
+    workerTitle: '👷 Teammitglied',
+    workerDesc: 'Ihre Schichten einsehen, Ihre Verfügbarkeit festlegen und stets mit Ihrem Team synchron bleiben — alles an einem Ort.',
+  },
+  nav: {
+    stepOf: 'Schritt {current} von {total}',
+    next: 'Weiter →',
+    back: '← Zurück',
+    skip: 'Tour überspringen',
+    done: 'Fertig ✓',
+    whyMatters: 'Warum das wichtig ist',
+    hide: 'Ausblenden',
+    actionPrompt: 'Schließen Sie den obigen Schritt ab, um fortzufahren ↑',
+    goToScheduler: 'Zum Planer →',
+    startManager: 'Manager-Tour starten',
+    startWorker: 'Teammitglied-Tour starten',
+  },
+  manager: {
+    step1: {
+      title: 'Willkommen in Ihrer Kommandozentrale',
+      desc: 'Dies ist Ihr Startdashboard — eine Live-Übersicht der heutigen Abdeckung, ausstehender Genehmigungen und Teamaktivitäten, sobald Sie sich anmelden.',
+      why: 'Manager, die ihr Dashboard täglich überprüfen, erkennen Abdeckungslücken, bevor diese zu kostspieligen Ausfällen werden. Von hier aus behalten Sie Ihren gesamten Betrieb im Blick.',
+    },
+    step2: {
+      title: 'Bauen Sie Ihre Planungsserie auf',
+      desc: 'Ihre Serie verfolgt, wie konsequent Sie Dienstpläne rechtzeitig veröffentlichen, und gibt Ihrem Team den Vorlauf, den es zur Lebensplanung benötigt.',
+      why: 'Untersuchungen von 7shifts zeigen, dass Teams, die Dienstpläne mindestens eine Woche im Voraus erhalten, bis zu 40% weniger unentschuldigte Fehlzeiten verzeichnen — Ihre Serie festigt diese Gewohnheit.',
+    },
+    step3: {
+      title: 'Lernen Sie den Planer kennen',
+      desc: 'Im Tab „Planer" erstellen, bearbeiten und veröffentlichen Sie wöchentliche Dienstpläne mithilfe einer visuellen Drag-and-Drop-Zeitleiste für jede Rolle und jeden Standort.',
+      why: 'Ein zentraler visueller Planer verhindert Doppelbuchungen und reduziert den E-Mail-Austausch, der wertvolle Stunden Ihrer Woche kostet.',
+    },
+    step4: {
+      title: 'Erstes Teammitglied hinzufügen',
+      desc: 'Laden Sie einen Mitarbeiter ein, indem Sie seinen Namen und seine Kontaktdaten eingeben, damit Horario ihn Schichten zuweisen und automatische Benachrichtigungen senden kann.',
+      why: 'Wenn Sie Ihren Dienstplan im System erfassen, werden automatische Planung, Konflikterkennung und Echtzeit-Abdeckungswarnungen freigeschaltet, die Managern durchschnittlich 5 Stunden pro Woche einsparen.',
+      action: 'Fügen Sie oben Ihren ersten Mitarbeiter hinzu ↑',
+    },
+    step5: {
+      title: 'Teamverfügbarkeit erfassen',
+      desc: 'Legen Sie Verfügbarkeitsfenster für Ihre Teammitglieder fest oder überprüfen Sie diese, damit der Planer nur Schichten anbietet, die die Mitarbeiter tatsächlich arbeiten können.',
+      why: 'Das Planen auf Basis bestätigter Verfügbarkeit ist der entscheidendste Faktor für die Schichtannahmequote — Teams, die Horario nutzen, verzeichnen bis zu 35% weniger Tauschgesuche, wenn die Verfügbarkeit vorab festgelegt wird.',
+      action: 'Legen Sie oben die Verfügbarkeit eines Teammitglieds fest ↑',
+    },
+    step6: {
+      title: 'Eine Schichtvorlage erstellen',
+      desc: 'Speichern Sie eine wiederverwendbare Schichtvorlage — Name, Rolle, Startzeit und Dauer —, damit Sie konsistente Schichten in Sekundenschnelle in den Kalender eintragen können.',
+      why: 'Vorlagen reduzieren die Planungserstellungszeit um bis zu 60%, indem sie repetitive Dateneingaben vermeiden und es Ihnen ermöglichen, sich auf die Optimierung der Abdeckung zu konzentrieren, anstatt jede Woche dieselben Schichten neu einzutippen.',
+      action: 'Erstellen Sie oben Ihre erste Schichtvorlage ↑',
+    },
+    step7: {
+      title: 'Erste Schicht zuweisen',
+      desc: 'Ziehen Sie Ihre neue Vorlage auf die Zeitleiste oder tippen Sie auf eine Zelle, um einem Teammitglied für einen bevorstehenden Tag eine Schicht zuzuweisen.',
+      why: 'Das Veröffentlichen auch nur einer zugewiesenen Schicht aktiviert die Benachrichtigungspipeline von Horario, sodass Ihr Team sofort die Zuverlässigkeit erlebt, die zu höherem Engagement und besserer Mitarbeiterbindung führt.',
+      action: 'Weisen Sie oben einem Teammitglied eine Schicht zu ↑',
+    },
+    step8: {
+      title: 'Bedarf wie ein Profi prognostizieren',
+      desc: 'Horario analysiert historische Besucherzahlen, Umsatz- und Personalbestandsdaten, um optimale Personalstärken zu empfehlen, noch bevor Sie den Planer öffnen.',
+      why: 'Bedarfsorientierte Planung hilft Betreibern, überschüssige Personalkosten um durchschnittlich 15% zu senken und gleichzeitig die Servicequalität aufrechtzuerhalten — Sie verfügen nun über alles, was Sie brauchen, um vom ersten Tag an intelligenter zu planen.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Willkommen in Ihrem Planungs-Hub',
+      desc: 'Dies ist Ihr Startbildschirm — sehen Sie Ihre nächste Schicht, offene Nachrichten Ihrer Führungskraft und den Live-Dienstplan Ihres Teams, sobald Sie die App öffnen.',
+      why: 'Wenn Dienstplan und Kommunikation an einem Ort zusammengeführt sind, gibt es keine verpassten Schichten mehr durch verlorene Nachrichtenverläufe oder vergessene Ausdrucke.',
+    },
+    step2: {
+      title: 'Steigern Sie Ihre Zuverlässigkeitsserie',
+      desc: 'Ihre Serie zeigt, wie konsequent Sie Ihre Verfügbarkeit aktuell halten, und hilft Ihrer Führungskraft, Ihnen Schichten zuzuweisen, die wirklich zu Ihrem Leben passen.',
+      why: 'Mitarbeiter mit vollständigen und aktuellen Verfügbarkeitsprofilen erhalten bevorzugte Schichten und stehen als Erste in der Reihe, wenn zusätzliche Stunden verfügbar werden.',
+    },
+    step3: {
+      title: 'Den gesamten Teamdienstplan einsehen',
+      desc: 'Der Tab „Planer" zeigt den veröffentlichten Dienstplan für Ihren Standort, sodass Sie immer wissen, mit wem Sie arbeiten, und Ihre Planung auf die Schichten Ihrer Kollegen abstimmen können.',
+      why: 'Der Überblick über den gesamten Teamdienstplan beschleunigt Schichttausche und reduziert Unklarheiten, die zu unterbesetzten Tagen und stressigen Überraschungen führen.',
+    },
+    step4: {
+      title: 'Jetzt Ihre Verfügbarkeit festlegen',
+      desc: 'Teilen Sie Ihrer Führungskraft genau mit, wann Sie für die Arbeit verfügbar sind, damit jede Schicht, die Ihnen angeboten wird, eine ist, die Sie wirklich annehmen können.',
+      why: 'Teams, die Horario nutzen, berichten von 35% weniger kurzfristigen Konflikten, wenn alle Mitglieder ihre Verfügbarkeit vorab festlegen — Ihr Beitrag verbessert direkt die Planungsqualität des gesamten Teams.',
+      action: 'Legen Sie oben Ihre wöchentliche Verfügbarkeit fest ↑',
+    },
+    step5: {
+      title: 'Sie sind startklar',
+      desc: 'Sie haben Ihr Dashboard erkundet, mehr über Serien erfahren, den Teamdienstplan eingesehen und Ihre Verfügbarkeit festgelegt — Ihr Planungserlebnis beginnt von hier an stark.',
+      why: 'Mitarbeiter, die das Onboarding abschließen, fühlen sich beim Verwalten von Schichtwechseln, beim Beantragen von Urlaub und bei der Kommunikation mit ihrem Team vollständig innerhalb von Horario deutlich sicherer.',
+    },
+  },
+  completed: {
+    title: '🎉 Alles bereit!',
+    desc: 'Sie haben die Tour abgeschlossen und verfügen über alles, was Sie benötigen, um intelligentere Dienstpläne zu erstellen, unentschuldigte Fehlzeiten zu reduzieren und Ihr Team synchron zu halten. Ihre erste großartige Woche beginnt jetzt.',
+  },
+},
+
 } as const;

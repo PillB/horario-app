@@ -6,11 +6,21 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter, usePathname } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, type ThemeColors } from '@/constants/Colors';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
+
+/** Tour step targets that live on the Scheduler screen. */
+const SCHEDULER_TARGETS = new Set([
+  'workers-section',
+  'availability-section',
+  'shift-templates-section',
+  'roster-section',
+  'demand-section',
+]);
 
 const SPOTLIGHT_PADDING = 8;
 const SPOTLIGHT_RADIUS = 12;
@@ -113,6 +123,8 @@ export function TourSpotlight() {
   } = useWelcomeTour();
 
   const { t } = useT();
+  const router = useRouter();
+  const pathname = usePathname();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
@@ -175,6 +187,19 @@ export function TourSpotlight() {
 
   const requiresActionAndBlocked =
     currentStep?.requiresAction === true && !canAdvance;
+
+  /**
+   * True when the current step targets a Scheduler-screen section but the
+   * user is on a different screen (layout not registered). In this case the
+   * Modal blocks tab-bar navigation, so we show a CTA button instead of the
+   * misleading "Complete the step above ↑" prompt.
+   */
+  const isOnWrongScreen =
+    requiresActionAndBlocked &&
+    currentStep !== null &&
+    SCHEDULER_TARGETS.has(currentStep.target) &&
+    rawLayout === null &&
+    !pathname.includes('scheduler');
 
   if (!isActive) return null;
 
@@ -355,7 +380,22 @@ export function TourSpotlight() {
             )}
           </View>
 
-          {requiresActionAndBlocked ? (
+          {isOnWrongScreen ? (
+            <Pressable
+              onPress={() => router.push('/(tabs)/scheduler')}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.nav.goToScheduler')}
+              accessibilityHint="Opens the Scheduler tab to complete this tour step"
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.primaryButtonPressed,
+              ]}
+            >
+              <ThemedText style={styles.primaryButtonLabel}>
+                {t('tour.nav.goToScheduler')}
+              </ThemedText>
+            </Pressable>
+          ) : requiresActionAndBlocked ? (
             <View style={styles.actionPromptContainer}>
               <ThemedText style={styles.actionPromptLabel}>
                 {t('tour.nav.actionPrompt')}
@@ -477,7 +517,7 @@ const makeStyles = (colors: ThemeColors) =>
       width: '100%',
       height: 6,
       borderRadius: 3,
-      backgroundColor: colors.border,
+      backgroundColor: 'rgba(0,0,0,0.10)',
       marginBottom: 12,
       overflow: 'hidden',
     },

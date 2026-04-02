@@ -61,6 +61,36 @@ export const fr = {
     applying: 'Application…',
   },
 
+  // ─── Timezone ──────────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Planification en :',
+    live: 'Horloge de fuseau horaire de planification en direct',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Notes',
+    openNotes: 'Ouvrir les notes et tâches du quart',
+    panelTitle: 'Notes du quart',
+    managerNote: 'Note du responsable',
+    managerNotePlaceholder: 'Ajoutez des instructions, des rappels ou du contexte pour ce quart…',
+    tasks: 'Tâches',
+    tasksDesc: 'Ajoutez des tâches que le travailleur doit accomplir durant ce quart.',
+    addTaskPlaceholder: 'Ex. : Vérifier l\'inventaire avant l\'ouverture',
+    addTaskBtn: 'Ajouter',
+    commentPlaceholder: 'Ajouter un commentaire ou une mise à jour…',
+    noTasks: 'Aucune tâche pour l\'instant — ajoutez-en une ci-dessus.',
+    cycleStatus: 'Faire défiler le statut de la tâche',
+    removeTask: 'Supprimer la tâche',
+    status: {
+      todo: 'À faire',
+      done: 'Terminé',
+      blocked: 'Bloqué',
+      delayed: 'Retardé',
+    },
+    doneBtn: 'Fermer',
+  },
+
   // ─── Errors ────────────────────────────────────────────────────────────────
   errors: {
     somethingWentWrong: 'Une erreur est survenue',
@@ -121,7 +151,18 @@ export const fr = {
       draftsPublished: 'Brouillons publiés',
       draftsPublishedDesc: 'Publiez les brouillons lorsque les équipes sont prêtes.',
     },
-    personalizedActions: {
+    weekStats: {
+      title: 'Cette semaine',
+      scheduled: 'Quarts planifiés',
+      gaps: 'Rôles à pourvoir',
+    },
+    invite: {
+      title: 'Constituez votre équipe',
+      desc: 'Ajoutez des travailleurs pour activer l\'attribution automatique et le suivi de la couverture. Chaque travailleur ajouté signifie moins de lacunes dans la planification.',
+      cta: 'Inviter un membre de l\'équipe →',
+      ctaA11y: 'Inviter un membre de l\'équipe à rejoindre votre effectif',
+    },
+        personalizedActions: {
       title: 'Actions personnalisées',
     },
   },
@@ -316,6 +357,21 @@ export const fr = {
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
+  // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Semaine précédente',
+    nextWeek: 'Semaine suivante',
+    today: 'Aujourd\'hui',
+    maximize: 'Calendrier en plein écran',
+    closeFullscreen: 'Quitter le plein écran',
+    noShifts: 'Aucun quart cette semaine.',
+    legend: 'Légende :',
+    legendDraft: 'Brouillon',
+    legendPublished: 'Publié',
+    coverageMet: '{s}/{r} couverts',
+    coverageShort: '{s}/{r} manquants',
+  },
+
   analytics: {
     title: 'Analyses',
     subtitle: "Performances de planification en un coup d'œil.",
@@ -440,4 +496,108 @@ export const fr = {
     tooltip: "🌐 Choisissez votre langue préférée. Votre choix est enregistré automatiquement. L'application charge l'anglais en premier et bascule en douceur — si une traduction est manquante, elle revient gracieusement à l'anglais.",
     changeSuccess: 'Langue changée en {lang}',
   },
+
+  // ─── Interactive onboarding tour ────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Qui êtes-vous ?',
+    desc: 'Indiquez-nous votre rôle afin que nous puissions personnaliser votre visite guidée et mettre immédiatement en avant les fonctionnalités les plus pertinentes pour vous.',
+    managerTitle: '👔 Responsable / Propriétaire',
+    managerDesc: 'Créez des plannings, gérez votre équipe, anticipez la demande et maîtrisez les coûts de main-d\'œuvre.',
+    workerTitle: '👷 Membre de l\'équipe',
+    workerDesc: 'Consultez vos quarts, définissez vos disponibilités et restez synchronisé avec votre équipe — le tout en un seul endroit.',
+  },
+  nav: {
+    stepOf: 'Étape {current} sur {total}',
+    next: 'Suivant →',
+    back: '← Retour',
+    skip: 'Passer la visite',
+    done: 'Terminer ✓',
+    whyMatters: 'Pourquoi c\'est important',
+    hide: 'Masquer',
+    actionPrompt: 'Complétez l\'étape ci-dessus pour continuer ↑',
+    goToScheduler: 'Aller au Planificateur →',
+    startManager: 'Démarrer la visite Responsable',
+    startWorker: 'Démarrer la visite Membre de l\'équipe',
+  },
+  manager: {
+    step1: {
+      title: 'Bienvenue dans votre centre de commande',
+      desc: 'Voici votre tableau de bord Accueil — un aperçu en temps réel de la couverture du jour, des approbations en attente et de l\'activité de l\'équipe dès votre connexion.',
+      why: 'Les responsables qui consultent leur tableau de bord quotidiennement détectent les lacunes de couverture avant qu\'elles ne se transforment en absences coûteuses. Commencer ici vous offre une visibilité complète sur l\'ensemble de vos opérations en un coup d\'œil.',
+    },
+    step2: {
+      title: 'Construisez votre série de planifications',
+      desc: 'Votre série suit la régularité avec laquelle vous publiez vos plannings dans les délais, offrant à votre équipe le préavis nécessaire pour organiser leur vie.',
+      why: 'Des recherches menées par 7shifts montrent que les équipes dont les plannings sont communiqués au moins une semaine à l\'avance connaissent jusqu\'à 40% moins d\'absences imprévues — votre série ancre cette bonne habitude.',
+    },
+    step3: {
+      title: 'Découvrez le planificateur',
+      desc: 'L\'onglet Planificateur vous permet de créer, modifier et publier des plannings hebdomadaires grâce à une chronologie visuelle par glisser-déposer pour chaque rôle et chaque site.',
+      why: 'Un planificateur visuel centralisé élimine les doubles réservations et réduit les échanges d\'e-mails qui vous font perdre des heures chaque semaine.',
+    },
+    step4: {
+      title: 'Ajoutez votre premier membre d\'équipe',
+      desc: 'Invitez un travailleur en saisissant son nom et ses coordonnées afin que Horario puisse l\'associer à des quarts et lui envoyer des notifications automatiques.',
+      why: 'L\'intégration de votre effectif dans le système active la planification automatique, la détection des conflits et les alertes de couverture en temps réel, permettant aux responsables d\'économiser en moyenne 5 heures par semaine.',
+      action: 'Ajoutez votre premier travailleur ci-dessus ↑',
+    },
+    step5: {
+      title: 'Enregistrez les disponibilités de l\'équipe',
+      desc: 'Définissez ou consultez les plages de disponibilité de vos membres d\'équipe afin que le planificateur ne propose que des quarts qu\'ils peuvent réellement effectuer.',
+      why: 'Planifier en tenant compte des disponibilités confirmées est le principal facteur d\'amélioration du taux d\'acceptation des quarts — les équipes utilisant Horario constatent jusqu\'à 35% moins de demandes d\'échange lorsque les disponibilités sont renseignées dès le départ.',
+      action: 'Définissez les disponibilités d\'un membre de l\'équipe ci-dessus ↑',
+    },
+    step6: {
+      title: 'Créez un modèle de quart',
+      desc: 'Enregistrez un modèle de quart réutilisable — nom, rôle, heure de début et durée — pour ajouter des quarts cohérents au calendrier en quelques secondes.',
+      why: 'Les modèles réduisent le temps de construction des plannings jusqu\'à 60% en supprimant les saisies répétitives, vous permettant de vous concentrer sur l\'optimisation de la couverture plutôt que de ressaisir les mêmes quarts chaque semaine.',
+      action: 'Créez votre premier modèle de quart ci-dessus ↑',
+    },
+    step7: {
+      title: 'Attribuez votre premier quart',
+      desc: 'Faites glisser votre nouveau modèle sur la chronologie ou appuyez sur une cellule pour attribuer un quart à un membre de l\'équipe pour un jour à venir.',
+      why: 'La publication d\'un seul quart attribué active le pipeline de notifications de Horario, afin que votre équipe bénéficie immédiatement de la fiabilité qui favorise un engagement et une fidélisation accrus.',
+      action: 'Attribuez un quart à un membre de l\'équipe ci-dessus ↑',
+    },
+    step8: {
+      title: 'Anticipez la demande comme un expert',
+      desc: 'Horario analyse les données historiques de fréquentation, de ventes et d\'effectifs pour recommander des niveaux d\'effectif optimaux avant même que vous n\'ouvriez le planificateur.',
+      why: 'Une planification basée sur la demande aide les opérateurs à réduire les coûts de main-d\'œuvre excédentaires de 15% en moyenne tout en maintenant la qualité de service — vous disposez désormais de tout ce qu\'il vous faut pour planifier plus intelligemment dès le premier jour.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Bienvenue dans votre centre de planification',
+      desc: 'Voici votre écran Accueil — consultez votre prochain quart, les messages de votre responsable et le planning en temps réel de votre équipe dès l\'ouverture de l\'application.',
+      why: 'Avoir votre planning et vos communications au même endroit signifie plus aucun quart manqué à cause de fils de messages perdus ou d\'impressions papier oubliées.',
+    },
+    step2: {
+      title: 'Développez votre série de fiabilité',
+      desc: 'Votre série reflète la régularité avec laquelle vous maintenez vos disponibilités à jour, aidant votre responsable à vous planifier des quarts qui correspondent vraiment à votre vie.',
+      why: 'Les travailleurs disposant de profils de disponibilité complets et à jour reçoivent davantage de quarts préférés et sont les premiers servis lorsque des heures supplémentaires se libèrent.',
+    },
+    step3: {
+      title: 'Consultez le planning complet de l\'équipe',
+      desc: 'L\'onglet Planificateur affiche le planning publié pour votre site afin que vous sachiez toujours avec qui vous travaillez et puissiez vous organiser en fonction des quarts de vos collègues.',
+      why: 'La visibilité sur le planning complet de l\'équipe facilite les échanges de quarts et réduit la confusion qui mène à des journées sous-staffées et à des imprévus stressants.',
+    },
+    step4: {
+      title: 'Définissez vos disponibilités maintenant',
+      desc: 'Indiquez à votre responsable exactement quand vous êtes disponible pour travailler afin que chaque quart qui vous est proposé soit un quart que vous pouvez véritablement accepter.',
+      why: 'Les équipes utilisant Horario signalent 35% moins de conflits de dernière minute lorsque tous les membres renseignent leurs disponibilités dès le départ — votre contribution améliore directement la qualité du planning pour toute l\'équipe.',
+      action: 'Définissez vos disponibilités hebdomadaires ci-dessus ↑',
+    },
+    step5: {
+      title: 'Vous êtes prêt à commencer',
+      desc: 'Vous avez exploré votre tableau de bord, découvert les séries, consulté le planning de l\'équipe et confirmé vos disponibilités — votre expérience de planification démarre sur de bonnes bases.',
+      why: 'Les travailleurs qui complètent l\'intégration sont nettement plus à l\'aise pour gérer les changements de quart, demander des congés et communiquer avec leur équipe entièrement dans Horario.',
+    },
+  },
+  completed: {
+    title: '🎉 Vous êtes prêt !',
+    desc: 'Vous avez terminé la visite guidée et disposez de tout ce qu\'il vous faut pour créer des plannings plus intelligents, réduire les absences imprévues et maintenir votre équipe synchronisée. Votre première grande semaine commence maintenant.',
+  },
+},
+
 } as const;

@@ -41,6 +41,42 @@
 
 ---
 
+### CHG-048 — 2026-04-02 UTC
+**Type:** FIX + POLISH (tour UX — cross-screen navigation, progress bar visibility, 7-language locale completion)
+
+**Problem solved:**
+- Playwright visual QA (Iteration 1) identified two critical tour UX bugs:
+  1. Steps 4-8 target Scheduler-screen sections (`workers-section`, etc.) but the React Native Modal blocks all tab-bar pointer events — user on Home screen sees "Complete the step above ↑" with no way to reach the Scheduler. Fix: detect cross-screen case and show "Go to Scheduler →" CTA button instead.
+  2. Progress bar track uses `colors.border` which is nearly invisible at 0% fill on white card. Fix: use `rgba(0,0,0,0.10)` for a consistently visible track at all fill levels.
+- CHG-047 Batch API generated `tour:` section in 7 languages but de/fr/it/zh/hi/sw/tl were missing the `timezone:`, `shiftNotes:`, `weekCalendar:` sections. Applied via `scripts/chg048-batch.mjs`.
+
+**Files changed:**
+- `components/TourSpotlight.tsx`:
+  - Added `useRouter`, `usePathname` imports from `expo-router`
+  - Added `SCHEDULER_TARGETS` Set constant (module-level) listing all scheduler-screen step targets
+  - Added `isOnWrongScreen` derived boolean: true when `requiresActionAndBlocked && SCHEDULER_TARGETS.has(target) && rawLayout === null && !pathname.includes('scheduler')`
+  - Render: three-way branch — `isOnWrongScreen` → primary "Go to Scheduler →" button (calls `router.push('/(tabs)/scheduler')`), `requiresActionAndBlocked` → action prompt text, default → Next/Done button
+  - Progress bar track: `colors.border` → `rgba(0,0,0,0.10)`
+- `locales/en.ts` — Added `tour.nav.goToScheduler: 'Go to Scheduler →'`
+- `locales/es.ts` — Added `goToScheduler: 'Ir al Planificador →'`; full tour section rewritten as faithful Spanish translations (CHG-047 batch had generated creative content instead of translation)
+- `locales/de.ts` — Added `goToScheduler: 'Zum Planer →'` + timezone/shiftNotes/weekCalendar/tour sections
+- `locales/fr.ts` — Added `goToScheduler: 'Aller au Planificateur →'` + all 4 new sections
+- `locales/it.ts` — Added `goToScheduler: 'Vai al Pianificatore →'` + all 4 new sections
+- `locales/zh.ts` — Added `goToScheduler: '前往排班 →'` + all 4 new sections
+- `locales/hi.ts` — Added `goToScheduler: 'शेड्यूलर पर जाएं →'` + all 4 new sections
+- `locales/sw.ts` — Added `goToScheduler: 'Nenda kwa Msimamizi →'` + all 4 new sections
+- `locales/tl.ts` — Added `goToScheduler: 'Pumunta sa Scheduler →'` + all 4 new sections
+- `e2e/tour-and-home.spec.ts` — NEW: 14 Playwright E2E tests (TT-1 through TT-14) covering tour auto-start, role selection, manager/worker happy paths, navigation forward/backward, skip, progress bar, home screen week stats + invite modal, scheduler month/week calendar toggle
+
+**Test results:** 244/244 passing, 0 lint errors (10 pre-existing warnings unchanged).
+
+**Key decisions:**
+- `isOnWrongScreen` depends on `rawLayout === null` (not on `pathname` alone) — if the Scheduler section is somehow pre-registered, we still show the action prompt rather than force-navigating
+- Progress bar track `rgba(0,0,0,0.10)` works in both light and dark mode (dark mode card background is #1E293B so 10% black still shows as subtle contrast)
+- E2E spec uses multilingual regex patterns (`/who are you|quién eres|wer bist du/i`) for locale-agnostic tests
+
+---
+
 ### [SUMMARY] — 2026-04-02 UTC
 **Last CHG completed:** CHG-039
 **Current state:** App has 6 implemented happy paths (add worker, set availability, create template, assign shift, POS CSV upload, demand forecast). Playwright spec exists at `e2e/scheduler.spec.ts`. Dev server must be running on :8081 for tests. 213/213 unit tests passing, 0 lint errors, 3 pre-existing TSC errors.

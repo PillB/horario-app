@@ -61,6 +61,36 @@ export const it = {
     applying: 'Applicazione…',
   },
 
+  // ─── Timezone ──────────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Pianificazione in:',
+    live: 'Orologio del fuso orario di pianificazione in tempo reale',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Note',
+    openNotes: 'Apri note e attività del turno',
+    panelTitle: 'Note del turno',
+    managerNote: 'Nota del responsabile',
+    managerNotePlaceholder: 'Aggiunga istruzioni, promemoria o contesto per questo turno…',
+    tasks: 'Attività',
+    tasksDesc: 'Aggiunga le attività che il lavoratore deve completare durante questo turno.',
+    addTaskPlaceholder: 'es. Controllare l\'inventario prima dell\'apertura',
+    addTaskBtn: 'Aggiungi',
+    commentPlaceholder: 'Aggiunga un commento o un aggiornamento…',
+    noTasks: 'Nessuna attività ancora — ne aggiunga una sopra.',
+    cycleStatus: 'Cambia stato attività',
+    removeTask: 'Rimuovi attività',
+    status: {
+      todo: 'Da fare',
+      done: 'Completata',
+      blocked: 'Bloccata',
+      delayed: 'In ritardo',
+    },
+    doneBtn: 'Chiudi',
+  },
+
   // ─── Errors ────────────────────────────────────────────────────────────────
   errors: {
     somethingWentWrong: 'Si è verificato un errore',
@@ -121,7 +151,18 @@ export const it = {
       draftsPublished: 'Bozze pubblicate',
       draftsPublishedDesc: 'Sposta le bozze in pubblicato quando i team sono pronti.',
     },
-    personalizedActions: {
+    weekStats: {
+      title: 'Questa settimana',
+      scheduled: 'Turni pianificati',
+      gaps: 'Ruoli da coprire',
+    },
+    invite: {
+      title: 'Crei il suo team',
+      desc: 'Aggiunga lavoratori per sbloccare l\'assegnazione automatica e il monitoraggio della copertura. Ogni lavoratore aggiunto significa meno lacune nella pianificazione.',
+      cta: 'Invita un membro del team →',
+      ctaA11y: 'Inviti un membro del team nel suo registro',
+    },
+        personalizedActions: {
       title: 'Azioni personalizzate',
     },
   },
@@ -316,6 +357,21 @@ export const it = {
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
+  // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Settimana precedente',
+    nextWeek: 'Settimana successiva',
+    today: 'Oggi',
+    maximize: 'Calendario a schermo intero',
+    closeFullscreen: 'Chiudi schermo intero',
+    noShifts: 'Nessun turno questa settimana.',
+    legend: 'Legenda:',
+    legendDraft: 'Bozza',
+    legendPublished: 'Pubblicato',
+    coverageMet: '{s}/{r} coperti',
+    coverageShort: '{s}/{r} scoperti',
+  },
+
   analytics: {
     title: 'Analisi',
     subtitle: 'Prestazioni di pianificazione a colpo d\'occhio.',
@@ -440,4 +496,108 @@ export const it = {
     tooltip: '🌐 Scegli la tua lingua preferita. La tua scelta viene salvata automaticamente. L\'app carica prima l\'inglese e cambia fluidamente — se manca una traduzione, torna automaticamente all\'inglese.',
     changeSuccess: 'Lingua cambiata in {lang}',
   },
+
+  // ─── Interactive onboarding tour ────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Chi è Lei?',
+    desc: 'Ci indichi il suo ruolo così possiamo personalizzare il tour e mostrarle immediatamente le funzionalità più rilevanti per Lei.',
+    managerTitle: '👔 Responsabile / Titolare',
+    managerDesc: 'Crei i turni, gestisca il suo team, preveda la domanda e mantenga i costi del personale sotto controllo.',
+    workerTitle: '👷 Membro del team',
+    workerDesc: 'Visualizzi i suoi turni, imposti la sua disponibilità e rimanga sincronizzato con il suo team — tutto in un unico posto.',
+  },
+  nav: {
+    stepOf: 'Passo {current} di {total}',
+    next: 'Avanti →',
+    back: '← Indietro',
+    skip: 'Salta il tour',
+    done: 'Fine ✓',
+    whyMatters: 'Perché è importante',
+    hide: 'Nascondi',
+    actionPrompt: 'Completi il passaggio precedente per continuare ↑',
+    goToScheduler: 'Vai al Pianificatore →',
+    startManager: 'Avvia il tour per responsabili',
+    startWorker: 'Avvia il tour per membri del team',
+  },
+  manager: {
+    step1: {
+      title: 'Benvenuto nel suo centro di controllo',
+      desc: 'Questa è la sua dashboard Home — una panoramica in tempo reale della copertura odierna, delle approvazioni in sospeso e dell\'attività del team non appena effettua l\'accesso.',
+      why: 'I responsabili che controllano la dashboard quotidianamente individuano le lacune di copertura prima che diventino assenze costose. Partire da qui mantiene l\'intera operazione sotto controllo a colpo d\'occhio.',
+    },
+    step2: {
+      title: 'Costruisca la sua serie di pianificazioni',
+      desc: 'La sua serie tiene traccia della costanza con cui pubblica i turni in tempo, dando al suo team il preavviso necessario per organizzare la propria vita.',
+      why: 'Le ricerche di 7shifts mostrano che i team che ricevono i turni con almeno una settimana di anticipo registrano fino al 40% in meno di assenze improvvise — la sua serie consolida questa abitudine.',
+    },
+    step3: {
+      title: 'Scopra il pianificatore',
+      desc: 'La scheda Pianificatore è dove crea, modifica e pubblica i turni settimanali utilizzando una sequenza temporale visiva con trascinamento per ogni ruolo e sede.',
+      why: 'Un pianificatore visivo centralizzato elimina le doppie prenotazioni e riduce le email di andirivieni che le sottraggono ore preziose ogni settimana.',
+    },
+    step4: {
+      title: 'Aggiunga il suo primo membro del team',
+      desc: 'Inviti un lavoratore inserendo il suo nome e i recapiti, così Horario potrà abbinarlo ai turni e inviare notifiche automatiche.',
+      why: 'Inserire il registro nel sistema sblocca la pianificazione automatica, il rilevamento dei conflitti e gli avvisi di copertura in tempo reale, che fanno risparmiare ai responsabili una media di 5 ore a settimana.',
+      action: 'Aggiunga il suo primo lavoratore sopra ↑',
+    },
+    step5: {
+      title: 'Raccolga la disponibilità del team',
+      desc: 'Imposti o verifichi le finestre di disponibilità dei suoi membri del team affinché il pianificatore proponga solo i turni che possono effettivamente svolgere.',
+      why: 'Pianificare in base alla disponibilità confermata è il principale fattore che determina i tassi di accettazione dei turni — i team che usano Horario registrano fino al 35% in meno di richieste di scambio quando la disponibilità viene impostata in anticipo.',
+      action: 'Imposti la disponibilità per un membro del team sopra ↑',
+    },
+    step6: {
+      title: 'Crei un modello di turno',
+      desc: 'Salvi un modello di turno riutilizzabile — nome, ruolo, orario di inizio e durata — per poter inserire turni coerenti nel calendario in pochi secondi.',
+      why: 'I modelli riducono il tempo di creazione del piano fino al 60% eliminando l\'inserimento ripetitivo dei dati, permettendole di concentrarsi sull\'ottimizzazione della copertura invece di digitare ogni volta gli stessi turni.',
+      action: 'Crei il suo primo modello di turno sopra ↑',
+    },
+    step7: {
+      title: 'Assegni il suo primo turno',
+      desc: 'Trascini il nuovo modello sulla sequenza temporale o tocchi una cella per assegnare un turno a un membro del team per un giorno futuro.',
+      why: 'Pubblicare anche un solo turno assegnato attiva il sistema di notifiche di Horario, così il suo team sperimenta immediatamente l\'affidabilità che favorisce un maggiore coinvolgimento e fidelizzazione.',
+      action: 'Assegni un turno a un membro del team sopra ↑',
+    },
+    step8: {
+      title: 'Preveda la domanda come un professionista',
+      desc: 'Horario analizza i dati storici di traffico, vendite e organico per raccomandare i livelli ottimali di personale ancora prima che apra il pianificatore.',
+      why: 'Una pianificazione basata sulla domanda aiuta gli operatori a ridurre i costi eccessivi del personale di una media del 15% mantenendo la qualità del servizio — ora ha tutto il necessario per pianificare in modo più intelligente fin dal primo giorno.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Benvenuto nel suo hub dei turni',
+      desc: 'Questa è la sua schermata Home — visualizzi il prossimo turno, eventuali messaggi dal responsabile e il registro in tempo reale del team non appena apre l\'app.',
+      why: 'Avere turni e comunicazioni in un unico posto significa non perdere più turni a causa di conversazioni via messaggio smarrite o promemoria cartacei dimenticati.',
+    },
+    step2: {
+      title: 'Aumenti la sua serie di affidabilità',
+      desc: 'La sua serie riflette la costanza con cui mantiene aggiornata la sua disponibilità, aiutando il responsabile ad assegnarle turni che si adattano realmente alla sua vita.',
+      why: 'I lavoratori con profili di disponibilità completi e aggiornati ricevono più turni preferiti e sono i primi in lista quando si rendono disponibili ore extra.',
+    },
+    step3: {
+      title: 'Visualizzi il piano completo del team',
+      desc: 'La scheda Pianificatore mostra il registro pubblicato per la sua sede, così sa sempre con chi lavora e può organizzarsi in base ai turni dei suoi colleghi.',
+      why: 'La visibilità sul piano completo del team velocizza gli scambi di turno e riduce la confusione che porta a giornate con personale insufficiente e sorprese stressanti.',
+    },
+    step4: {
+      title: 'Imposti subito la sua disponibilità',
+      desc: 'Comunichi al responsabile esattamente quando è disponibile a lavorare, così ogni turno che le viene offerto è uno che può genuinamente accettare.',
+      why: 'I team che usano Horario registrano il 35% in meno di conflitti dell\'ultimo minuto quando tutti i membri impostano la disponibilità in anticipo — il suo contributo migliora direttamente la qualità del piano dell\'intero team.',
+      action: 'Imposti la sua disponibilità settimanale sopra ↑',
+    },
+    step5: {
+      title: 'È pronto a partire',
+      desc: 'Ha esplorato la sua dashboard, appreso le serie, visualizzato il piano del team e confermato la sua disponibilità — la sua esperienza di pianificazione inizia nel migliore dei modi.',
+      why: 'I lavoratori che completano l\'inserimento si sentono significativamente più sicuri nel gestire i cambi di turno, richiedere permessi e comunicare con il proprio team interamente all\'interno di Horario.',
+    },
+  },
+  completed: {
+    title: '🎉 È tutto pronto!',
+    desc: 'Ha completato il tour e ha tutto il necessario per creare pianificazioni più intelligenti, ridurre le assenze improvvise e mantenere il team sincronizzato. La sua prima grande settimana inizia adesso.',
+  },
+},
+
 } as const;

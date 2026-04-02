@@ -53,6 +53,36 @@ export const sw = {
     applying: 'Inatekeleza…',
   },
 
+  // ─── Timezone ──────────────────────────────────────────────────────────────
+  timezone: {
+    schedulingIn: 'Inapanga ratiba katika:',
+    live: 'Saa ya sasa ya muda wa kupanga ratiba',
+  },
+
+  // ─── Shift notes panel ─────────────────────────────────────────────────────
+  shiftNotes: {
+    notesBtn: 'Maelezo',
+    openNotes: 'Fungua maelezo na kazi za zamu',
+    panelTitle: 'Maelezo ya zamu',
+    managerNote: 'Kumbuka ya msimamizi',
+    managerNotePlaceholder: 'Ongeza maagizo, vikumbusho, au muktadha kwa zamu hii…',
+    tasks: 'Kazi',
+    tasksDesc: 'Ongeza mambo ya kukamilisha ambayo mfanyakazi anapaswa kuyafanya wakati wa zamu hii.',
+    addTaskPlaceholder: 'mf. Angalia hesabu ya bidhaa kabla ya kufungua',
+    addTaskBtn: 'Ongeza',
+    commentPlaceholder: 'Ongeza maoni au sasisho…',
+    noTasks: 'Hakuna kazi bado — ongeza moja hapo juu.',
+    cycleStatus: 'Badilisha hali ya kazi',
+    removeTask: 'Ondoa kazi',
+    status: {
+      todo: 'Ifanywe',
+      done: 'Imekamilika',
+      blocked: 'Imezuiwa',
+      delayed: 'Imechelewa',
+    },
+    doneBtn: 'Funga',
+  },
+
   errors: {
     somethingWentWrong: 'Kuna tatizo limetokea',
     retryHint: 'Jaribu kupakia upya sehemu iliyoshindwa',
@@ -111,7 +141,18 @@ export const sw = {
       draftsPublished: 'Rasimu zimechapishwa',
       draftsPublishedDesc: 'Hamisha rasimu hadi zilizochapishwa timu zinapokuwa tayari.',
     },
-    personalizedActions: {
+    weekStats: {
+      title: 'Wiki hii',
+      scheduled: 'Zamu zilizopangwa',
+      gaps: 'Majukumu ya kujaza',
+    },
+    invite: {
+      title: 'Jenga timu yako',
+      desc: 'Ongeza wafanyakazi ili uweze kutumia ugawaji wa kiotomatiki na ufuatiliaji wa mahudhurio. Kila mfanyakazi anayeongezwa humaanisha pengo chache zaidi kwenye ratiba.',
+      cta: 'Alika mwanachama wa timu →',
+      ctaA11y: 'Alika mwanachama wa timu kwenye orodha yako',
+    },
+        personalizedActions: {
       title: 'Vitendo vilivyobinafsishwa',
     },
   },
@@ -304,6 +345,21 @@ export const sw = {
     },
   },
 
+  // ─── Week calendar ─────────────────────────────────────────────────────────
+  weekCalendar: {
+    prevWeek: 'Wiki iliyopita',
+    nextWeek: 'Wiki ijayo',
+    today: 'Leo',
+    maximize: 'Kalenda ya skrini nzima',
+    closeFullscreen: 'Funga skrini nzima',
+    noShifts: 'Hakuna zamu wiki hii.',
+    legend: 'Ufafanuzi:',
+    legendDraft: 'Rasimu',
+    legendPublished: 'Imechapishwa',
+    coverageMet: '{s}/{r} zimefunikwa',
+    coverageShort: '{s}/{r} hazitoshi',
+  },
+
   analytics: {
     title: 'Uchambuzi',
     subtitle: 'Utendaji wa ratiba kwa mtazamo mmoja.',
@@ -424,4 +480,108 @@ export const sw = {
     tooltip: '🌐 Chagua lugha unayopendelea. Chaguo lako linahifadhiwa otomatiki. Programu hupakia Kiingereza kwanza na kubadilika bila mshono — ikiwa maandishi yoyote hayana tafsiri, yatarudi kwenye Kiingereza kwa utulivu.',
     changeSuccess: 'Lugha imebadilishwa hadi {lang}',
   },
+
+  // ─── Interactive onboarding tour ────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Wewe ni nani?',
+    desc: 'Tuambie jukumu lako ili tuweze kubinafsisha ziara yako na kukuonyesha vipengele vinavyokufaa zaidi mara moja.',
+    managerTitle: '👔 Msimamizi / Mmiliki',
+    managerDesc: 'Jenga ratiba, simamia timu yako, tabiri mahitaji, na udhibiti gharama za kazi.',
+    workerTitle: '👷 Mwanachama wa Timu',
+    workerDesc: 'Angalia zamu zako, weka upatikanaji wako, na endelea kuwa katika usawa na timu yako — yote mahali pamoja.',
+  },
+  nav: {
+    stepOf: 'Hatua {current} kati ya {total}',
+    next: 'Inayofuata →',
+    back: '← Rudi',
+    skip: 'Ruka ziara',
+    done: 'Imekamilika ✓',
+    whyMatters: 'Kwa nini hii ni muhimu',
+    hide: 'Ficha',
+    actionPrompt: 'Kamilisha hatua iliyo juu ili uendelee ↑',
+    goToScheduler: 'Nenda kwa Msimamizi →',
+    startManager: 'Anza Ziara ya Msimamizi',
+    startWorker: 'Anza Ziara ya Mwanachama wa Timu',
+  },
+  manager: {
+    step1: {
+      title: 'Karibu kwenye Kituo Chako cha Udhibiti',
+      desc: 'Hii ni dashibodi yako ya Nyumbani — picha ya moja kwa moja ya mahudhurio ya leo, idhini zinazosubiri, na shughuli za timu mara tu unapoingia.',
+      why: 'Wasimamizi wanaokagua dashibodi yao kila siku hugundua mipango mibaya ya mahudhurio kabla haijawa sababu ya kutokuhudhuria kwa gharama kubwa. Kuanza hapa hukuweka operesheni yako yote wazi kwa mtazamo mmoja.',
+    },
+    step2: {
+      title: 'Jenga Mfululizo Wako wa Kupanga Ratiba',
+      desc: 'Mfululizo wako hufuatilia jinsi unavyochapisha ratiba kwa wakati mara kwa mara, ukiwapa timu yako taarifa za mapema wanazohitaji ili kupanga maisha yao.',
+      why: 'Utafiti kutoka 7shifts unaonyesha kwamba timu zinazopewa ratiba angalau wiki moja mapema hupata hadi 40% chini ya kutokuhudhuria — mfululizo wako unafanya tabia hiyo iendelee.',
+    },
+    step3: {
+      title: 'Fahamu Kipanga Ratiba',
+      desc: 'Kichupo cha Kipanga Ratiba ndicho mahali unapobuni, kuhariri, na kuchapisha ratiba za kila wiki ukitumia mstari wa muda wa kuburuta na kudondosha kwa kila jukumu na eneo.',
+      why: 'Kipanga ratiba cha kuona kinachofaa kinaondoa miadi mara mbili na kupunguza barua pepe za kurudi na kurudi ambazo zinaiba masaa kutoka wiki yako.',
+    },
+    step4: {
+      title: 'Ongeza Mwanachama Wako wa Kwanza wa Timu',
+      desc: 'Alika mfanyakazi kwa kuingiza jina lake na maelezo ya mawasiliano ili Horario iweze kumwoanisha na zamu na kutuma arifa za kiotomatiki.',
+      why: 'Kupata orodha yako kwenye mfumo kunafungua upangaji ratiba wa kiotomatiki, ugunduzi wa migogoro, na arifa za mahudhurio za wakati halisi ambazo zinawaokoa wasimamizi wastani wa masaa 5 kwa wiki.',
+      action: 'Ongeza mfanyakazi wako wa kwanza hapo juu ↑',
+    },
+    step5: {
+      title: 'Rekodi Upatikanaji wa Timu',
+      desc: 'Weka au kagua nyakati za upatikanaji kwa wanachama wa timu yako ili kipanga ratiba kitoe tu zamu wanazoweza kweli kweli kufanya kazi.',
+      why: 'Kupanga ratiba kulingana na upatikanaji ulioidhinishwa ndio kiendeshaji kikubwa zaidi cha viwango vya ukubaliaji wa zamu — timu zinazotumia Horario zinaona hadi 35% chini ya maombi ya kubadilishana wakati upatikanaji umewekwa mapema.',
+      action: 'Weka upatikanaji kwa mwanachama wa timu hapo juu ↑',
+    },
+    step6: {
+      title: 'Unda Kiolezo cha Zamu',
+      desc: 'Hifadhi kiolezo cha zamu kinachoweza kutumika tena — jina, jukumu, wakati wa kuanza, na muda — ili uweze kuweka zamu thabiti kwenye kalenda kwa sekunde chache.',
+      why: 'Violezo hupunguza muda wa kujenga ratiba kwa hadi 60% kwa kuondoa uingizaji wa data unaojirudia, kukuruhusu kuzingatia kuboresha mahudhurio badala ya kuandika upya zamu zile zile kila wiki.',
+      action: 'Unda kiolezo chako cha kwanza cha zamu hapo juu ↑',
+    },
+    step7: {
+      title: 'Gawanya Zamu Yako ya Kwanza',
+      desc: 'Buruta kiolezo chako kipya kwenye mstari wa muda au gusa seli ili ugawanye zamu kwa mwanachama wa timu kwa siku inayokuja.',
+      why: 'Kuchapisha hata zamu moja iliyogawiwa kunawasha mfumo wa arifa wa Horario, hivyo timu yako hupata uzoefu wa uaminifu unaosababisha ushiriki na uhifadhi wa juu zaidi mara moja.',
+      action: 'Gawanya zamu kwa mwanachama wa timu hapo juu ↑',
+    },
+    step8: {
+      title: 'Tabiri Mahitaji kama Mtaalamu',
+      desc: 'Horario inachambua data ya kihistoria ya msongamano, mauzo, na idadi ya wafanyakazi ili kupendekeza viwango bora vya uajiri kabla hata ya kufungua kipanga ratiba.',
+      why: 'Upangaji ratiba unaozingatia mahitaji husaidia waendeshaji kupunguza gharama za ziada za kazi kwa wastani wa 15% huku wakidumisha ubora wa huduma — sasa una kila kitu unachohitaji kupanga ratiba kwa busara zaidi kuanzia siku ya kwanza.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Karibu kwenye Kitovu Chako cha Ratiba',
+      desc: 'Hii ni skrini yako ya Nyumbani — ona zamu yako inayofuata, ujumbe wowote uliowazi kutoka kwa msimamizi wako, na orodha ya timu yako ya wakati halisi mara tu unapofungua programu.',
+      why: 'Kuwa na ratiba yako na mawasiliano mahali pamoja kunamaanisha hakuna zamu zilizokosekana tena kutokana na nyuzi za maandishi zilizopotea au machapisho ya karatasi yaliyosahauliwa.',
+    },
+    step2: {
+      title: 'Kukuza Mfululizo Wako wa Uaminifu',
+      desc: 'Mfululizo wako unaonyesha jinsi unavyoweka upatikanaji wako ukiwa wa kisasa mara kwa mara, ukisaidia msimamizi wako kukupanga ratiba kwa zamu zinazokufaa kweli kweli maishani mwako.',
+      why: 'Wafanyakazi wenye wasifu wa upatikanaji kamili na wa sasa wanapata zamu wanazozipenda zaidi na wako wa kwanza kwenye foleni wakati masaa ya ziada yanapatikana.',
+    },
+    step3: {
+      title: 'Ona Ratiba Kamili ya Timu',
+      desc: 'Kichupo cha Kipanga Ratiba kinaonyesha orodha iliyochapishwa ya eneo lako ili uweze kujua daima unafanya kazi na nani na kupanga kulingana na zamu za wenzako.',
+      why: 'Uwezo wa kuona ratiba kamili ya timu hufanya ubadilishaji wa zamu kuwa wa haraka zaidi na kupunguza mkanganyiko unaosababisha siku zenye wafanyakazi wachache na mshangao wenye msongo.',
+    },
+    step4: {
+      title: 'Weka Upatikanaji Wako Sasa',
+      desc: 'Mwambie msimamizi wako wakati hasa unapopatikana kufanya kazi ili kila zamu unayopendekezwa iwe moja unayoweza kukubali kweli kweli.',
+      why: 'Timu zinazotumia Horario zinaripoti 35% chini ya migogoro ya mwisho wa dakika wakati wanachama wote wanaweka upatikanaji wao mapema — mchango wako unaboresha moja kwa moja ubora wa ratiba ya timu nzima.',
+      action: 'Weka upatikanaji wako wa kila wiki hapo juu ↑',
+    },
+    step5: {
+      title: 'Uko Tayari Kuanza',
+      desc: 'Umechunguza dashibodi yako, umejifunza kuhusu mifululizo, umeona ratiba ya timu, na umeweka upatikanaji wako — uzoefu wako wa kupanga ratiba unaanza kwa nguvu kuanzia hapa.',
+      why: 'Wafanyakazi wanaokamilisha usajili wana ujasiri mkubwa zaidi katika kusimamia mabadiliko ya zamu, kuomba likizo, na kuwasiliana na timu yao ndani ya Horario peke yake.',
+    },
+  },
+  completed: {
+    title: '🎉 Umekamilisha kila kitu!',
+    desc: 'Umekamilisha ziara na una kila kitu unachohitaji kujenga ratiba bora zaidi, kupunguza kutokuhudhuria, na kuweka timu yako katika usawa. Wiki yako nzuri ya kwanza inaanza sasa.',
+  },
+},
+
 } as const;
