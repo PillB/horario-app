@@ -34,4 +34,107 @@ export const es = {
   wellness: { a11yRole: 'Recordatorio de pausa consciente', heading: 'Es hora de una pausa consciente', body: 'Llevas {minutes} minuto{plural} concentrado. Tómate un momento para estirarte, hidratarte o revisar el plan antes de continuar.', notNow: 'Ahora no', notNowA11y: 'Descartar recordatorio de pausa', takeBreak: 'Tomar un descanso de 3 minutos', takeBreakA11y: 'Tomar un descanso breve' },
   upgrade: { trial: { badge: 'PRUEBA', title: 'Prueba Pro activa — asignaciones automáticas ilimitadas habilitadas.', subtitle: '$12/mo fijo después de la prueba. Sin tarifas por empleado.' }, free: { badge: 'GRATIS', limitReached: 'Deja de construir rosters a mano — alcanzaste el límite gratuito.', autoAssignsLeft: '{n} asignación{plural} automática{plural} gratis restante{plural}', cta: 'Asigna a todo tu equipo automáticamente con un toque. Prueba Pro 10 días gratis →', ctaUnlimited: 'Desbloquea asignaciones automáticas ilimitadas — sin tarifas por empleado →', pricing: '$12/mo fijo · sin tarifas por empleado · cancela cuando quieras' }, buttonA11y: 'Actualizar al plan Pro', buttonHint: 'Abre la página de facturación para iniciar tu prueba Pro gratuita', limitReachedBanner: 'Límite gratuito alcanzado. Actualiza a Pro para asignación automática ilimitada.' },
   language: { selectorLabel: 'Idioma', selectorA11y: 'Seleccionar idioma de la aplicación', selectorHint: 'Cambia el idioma de todo el texto en la aplicación', tooltip: '🌐 Elige tu idioma preferido. Tu elección se guarda automáticamente. La aplicación carga primero en inglés y cambia sin problemas — si falta alguna traducción, regresa al inglés sin errores.', changeSuccess: 'Idioma cambiado a {lang}' },
+
+  // ─── Tour ────────────────────────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: '¿Quién eres?',
+    desc: 'Cuéntanos tu rol para mostrarte lo que más te interesa.',
+    managerTitle: '👔 Gerente / Propietario',
+    managerDesc: 'Crea horarios, gestiona tu equipo y cubre turnos con facilidad.',
+    workerTitle: '👷 Miembro del equipo',
+    workerDesc: 'Consulta tus turnos, indica tu disponibilidad y mantente al día.',
+  },
+  nav: {
+    stepOf: 'Paso {current} de {total}',
+    next: 'Siguiente →',
+    back: '← Atrás',
+    skip: 'Saltar tour',
+    done: 'Listo ✓',
+    whyMatters: 'Por qué importa esto',
+    hide: 'Ocultar',
+    actionPrompt: 'Completa el paso de arriba para continuar ↑',
+    startManager: 'Empezar como gerente',
+    startWorker: 'Empezar como miembro',
+  },
+  manager: {
+    step1: {
+      title: 'Bienvenido a tu panel de control',
+      desc: 'Desde aquí gestionas todo: horarios, equipo y turnos, en un solo lugar.',
+      why: 'Tener todo centralizado te ahorra tiempo y evita confusiones con tu equipo.',
+    },
+    step2: {
+      title: 'Crea tu primera ubicación',
+      desc: 'Las ubicaciones te permiten organizar a tu equipo por local, departamento o área de trabajo.',
+      why: 'Si gestionas varios lugares o equipos, las ubicaciones mantienen todo ordenado y separado.',
+    },
+    step3: {
+      title: 'Configura los turnos',
+      desc: 'Define los turnos que necesitas cubrir: mañana, tarde, noche o los que se adapten a tu negocio.',
+      why: 'Unos turnos bien definidos hacen que la planificación sea mucho más rápida y consistente.',
+    },
+    step4: {
+      title: 'Añade a tu primer trabajador',
+      desc: 'Agrega a los miembros de tu equipo para poder asignarles turnos y gestionar su disponibilidad.',
+      why: 'Con tu equipo en la plataforma, coordinar horarios se vuelve automático y sin fricciones.',
+      action: 'Añade un trabajador arriba para continuar ↑',
+    },
+    step5: {
+      title: 'Asigna turnos al equipo',
+      desc: 'Arrastra y asigna turnos a cada persona según su disponibilidad y las necesidades del negocio.',
+      why: 'Una asignación clara evita malentendidos y asegura que siempre haya cobertura suficiente.',
+      action: 'Asigna un turno arriba para continuar ↑',
+    },
+    step6: {
+      title: 'Publica el horario',
+      desc: 'Cuando el horario esté listo, publícalo para que tu equipo lo vea al instante en su app.',
+      why: 'Publicar el horario con antelación reduce las ausencias y da tranquilidad a todo el equipo.',
+      action: 'Publica el horario arriba para continuar ↑',
+    },
+    step7: {
+      title: 'Gestiona los cambios de turno',
+      desc: 'Aprueba o rechaza solicitudes de cambio de turno directamente desde aquí, sin líos por mensajes.',
+      why: 'Centralizar los cambios te da control total y mantiene el historial siempre actualizado.',
+      action: 'Revisa las solicitudes arriba para continuar ↑',
+    },
+    step8: {
+      title: 'Todo listo para gestionar',
+      desc: 'Ya conoces lo esencial. Explora el resto a tu ritmo: hay mucho más por descubrir.',
+      why: 'Cuanto más uses la plataforma, más tiempo libre tendrás para centrarte en tu negocio.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Bienvenido a tu horario',
+      desc: 'Aquí encontrarás todos tus turnos, notificaciones y novedades del equipo en un vistazo.',
+      why: 'Tener tu horario siempre a mano significa menos sorpresas y más control sobre tu tiempo.',
+    },
+    step2: {
+      title: 'Consulta tus próximos turnos',
+      desc: 'Ve con antelación qué días trabajas, en qué horario y en qué ubicación.',
+      why: 'Conocer tu semana con tiempo te permite organizar mejor tu vida fuera del trabajo.',
+    },
+    step3: {
+      title: 'Indica tu disponibilidad',
+      desc: 'Dile a tu gerente cuándo puedes trabajar para que el horario se adapte a ti en lo posible.',
+      why: 'Compartir tu disponibilidad reduce conflictos y ayuda a que te asignen los turnos que mejor te vienen.',
+    },
+    step4: {
+      title: 'Solicita un cambio de turno',
+      desc: 'Si necesitas cambiar un turno, envía una solicitud directamente desde la app sin tener que llamar a nadie.',
+      why: 'Las solicitudes quedan registradas y tu gerente puede aprobarlas rápido, sin malentendidos.',
+      action: 'Indica tu disponibilidad arriba ↑',
+    },
+    step5: {
+      title: 'Mantente siempre al día',
+      desc: 'Recibe notificaciones cuando haya cambios en tu horario o novedades importantes del equipo.',
+      why: 'Estar informado a tiempo evita ausencias involuntarias y te mantiene conectado con tu equipo.',
+    },
+  },
+  completed: {
+    title: '🎉 ¡Todo listo!',
+    desc: 'Ya conoces lo más importante. Empieza a usar la app y descubre lo fácil que es gestionar tu tiempo.',
+  },
+},
+
 } as const;

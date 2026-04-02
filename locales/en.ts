@@ -602,6 +602,109 @@ export const en = {
     tooltip: '🌐 Choose your preferred language. Your choice is saved automatically. The app loads English first and seamlessly switches — if any text is missing a translation, it gracefully falls back to English.',
     changeSuccess: 'Language changed to {lang}',
   },
+
+  // ─── Tour ────────────────────────────────────────────────────────────────
+  tour: {
+  roleSelect: {
+    title: 'Who are you?',
+    desc: 'Tell us your role so we can personalise your tour and surface the features that matter most to you right away.',
+    managerTitle: '👔 Manager / Owner',
+    managerDesc: 'Build schedules, manage your team, forecast demand, and keep labour costs under control.',
+    workerTitle: '👷 Team Member',
+    workerDesc: 'View your shifts, set your availability, and stay in sync with your team — all in one place.',
+  },
+  nav: {
+    stepOf: 'Step {current} of {total}',
+    next: 'Next →',
+    back: '← Back',
+    skip: 'Skip tour',
+    done: 'Done ✓',
+    whyMatters: 'Why this matters',
+    hide: 'Hide',
+    actionPrompt: 'Complete the step above to continue ↑',
+    startManager: 'Start Manager Tour',
+    startWorker: 'Start Team Member Tour',
+  },
+  manager: {
+    step1: {
+      title: 'Welcome to Your Command Centre',
+      desc: 'This is your Home dashboard — a live snapshot of today\'s coverage, pending approvals, and team activity the moment you log in.',
+      why: 'Managers who review their dashboard daily catch coverage gaps before they become costly call-outs. Starting here keeps your entire operation visible at a glance.',
+    },
+    step2: {
+      title: 'Build Your Scheduling Streak',
+      desc: 'Your streak tracks how consistently you publish schedules on time, giving your team the advance notice they need to plan their lives.',
+      why: 'Research from 7shifts shows that teams given schedules at least one week in advance experience up to 40% fewer no-shows — your streak makes that habit stick.',
+    },
+    step3: {
+      title: 'Meet the Scheduler',
+      desc: 'The Scheduler tab is where you build, edit, and publish weekly rosters using a drag-and-drop visual timeline for every role and location.',
+      why: 'A centralised visual scheduler eliminates double-bookings and reduces the back-and-forth emails that steal hours from your week.',
+    },
+    step4: {
+      title: 'Add Your First Team Member',
+      desc: 'Invite a worker by entering their name and contact details so Horario can match them to shifts and send automatic notifications.',
+      why: 'Getting your roster into the system unlocks auto-scheduling, conflict detection, and real-time coverage alerts that save managers an average of 5 hours per week.',
+      action: 'Add your first worker above ↑',
+    },
+    step5: {
+      title: 'Capture Team Availability',
+      desc: 'Set or review availability windows for your team members so the scheduler only offers shifts they can actually work.',
+      why: 'Scheduling against confirmed availability is the single biggest driver of shift acceptance rates — teams using Horario see up to 35% fewer swap requests when availability is set upfront.',
+      action: 'Set availability for a team member above ↑',
+    },
+    step6: {
+      title: 'Create a Shift Template',
+      desc: 'Save a reusable shift template — name, role, start time, and duration — so you can drop consistent shifts onto the calendar in seconds.',
+      why: 'Templates reduce schedule-build time by up to 60% by removing repetitive data entry, letting you focus on optimising coverage rather than re-typing the same shifts every week.',
+      action: 'Create your first shift template above ↑',
+    },
+    step7: {
+      title: 'Assign Your First Shift',
+      desc: 'Drag your new template onto the timeline or tap a cell to assign a shift to a team member for an upcoming day.',
+      why: 'Publishing even one assigned shift activates Horario\'s notification pipeline, so your team immediately experiences the reliability that drives higher engagement and retention.',
+      action: 'Assign a shift to a team member above ↑',
+    },
+    step8: {
+      title: 'Forecast Demand Like a Pro',
+      desc: 'Horario analyses historical traffic, sales, and headcount data to recommend optimal staffing levels before you even open the scheduler.',
+      why: 'Demand-informed scheduling helps operators cut excess labour costs by an average of 15% while maintaining service quality — you now have everything you need to schedule smarter from day one.',
+    },
+  },
+  worker: {
+    step1: {
+      title: 'Welcome to Your Schedule Hub',
+      desc: 'This is your Home screen — see your next shift, any open messages from your manager, and your team\'s live roster the moment you open the app.',
+      why: 'Having your schedule and communications in one place means no more missed shifts from lost text threads or forgotten paper printouts.',
+    },
+    step2: {
+      title: 'Grow Your Reliability Streak',
+      desc: 'Your streak reflects how consistently you keep your availability up to date, helping your manager schedule you for shifts that actually fit your life.',
+      why: 'Workers with complete, current availability profiles receive more preferred shifts and are first in line when extra hours become available.',
+    },
+    step3: {
+      title: 'See the Full Team Schedule',
+      desc: 'The Scheduler tab shows the published roster for your location so you always know who you\'re working with and can plan around your colleagues\' shifts.',
+      why: 'Visibility into the full team schedule makes shift swaps faster and reduces the confusion that leads to understaffed days and stressful surprises.',
+    },
+    step4: {
+      title: 'Set Your Availability Now',
+      desc: 'Tell your manager exactly when you\'re available to work so every shift you\'re offered is one you can genuinely accept.',
+      why: 'Teams using Horario report 35% fewer last-minute conflicts when all members set their availability upfront — your input directly improves the whole team\'s schedule quality.',
+      action: 'Set your weekly availability above ↑',
+    },
+    step5: {
+      title: 'You\'re Ready to Roll',
+      desc: 'You\'ve explored your dashboard, learned about streaks, seen the team schedule, and locked in your availability — your scheduling experience starts strong from here.',
+      why: 'Workers who complete onboarding are significantly more confident managing shift changes, requesting time off, and communicating with their team entirely inside Horario.',
+    },
+  },
+  completed: {
+    title: '🎉 You\'re all set!',
+    desc: 'You\'ve completed the tour and have everything you need to build smarter schedules, reduce no-shows, and keep your team in sync. Your first great week starts now.',
+  },
+},
+
 } as const;
 
 export type Translations = typeof en;

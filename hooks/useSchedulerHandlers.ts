@@ -28,6 +28,7 @@ import {
   validateAvailabilitySubmission,
   validateShiftReadiness,
 } from '@/utils/schedulerValidators';
+import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import {
   fetchOnboardingProgress,
   type OnboardingProgress,
@@ -53,6 +54,7 @@ export function useSchedulerHandlers() {
   const router = useRouter();
   const { t } = useT();
   const { accountId, userId } = useIdentity();
+  const { recordTourAction } = useWelcomeTour();
 
   // ── DB-backed data hooks ──────────────────────────────────────────────────
   const {
@@ -594,6 +596,7 @@ export function useSchedulerHandlers() {
       setShiftForm((prev) => ({ ...prev, workerId: result.worker.id }));
       const isFirst = workers.length === 0;
       void trackEvent('worker_added', { isFirst });
+      recordTourAction('workers-section');
       if (workerSuccessTimerRef.current) clearTimeout(workerSuccessTimerRef.current);
       setWorkerSuccessMessage(
         `${trimmedName} added! Now set their availability to enable accurate scheduling.`
@@ -605,7 +608,7 @@ export function useSchedulerHandlers() {
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, workerForm, workers.length]);
+  }, [addWorker, recordTourAction, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -625,6 +628,7 @@ export function useSchedulerHandlers() {
       // Auto-populate shift form with the new template's ID
       setShiftForm((prev) => ({ ...prev, templateId: result.template.id }));
       void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
+      recordTourAction('shift-templates-section');
       if (templateSuccessTimerRef.current) clearTimeout(templateSuccessTimerRef.current);
       setTemplateSuccessMessage(
         `"${trimmedName}" template saved! You can now auto-assign workers to this shift.`
@@ -636,7 +640,7 @@ export function useSchedulerHandlers() {
     } else {
       setTemplateError(result.error ?? 'Failed to add template. Please try again.');
     }
-  }, [addShiftTemplate, shiftTemplates.length, templateForm]);
+  }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
 
   const handleAvailabilitySubmit = useCallback(async () => {
     const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
@@ -658,10 +662,11 @@ export function useSchedulerHandlers() {
     if (result.success) {
       setAvailabilitySuccessPromptVisible(true);
       setAvailabilityForm((prev) => ({ ...prev, day: '', from: '', to: '' }));
+      recordTourAction('availability-section');
     } else {
       setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
     }
-  }, [addAvailability, availabilityForm, workers]);
+  }, [addAvailability, availabilityForm, recordTourAction, workers]);
 
   const handleShiftSubmit = useCallback(async () => {
     const trimmedWorkerId = shiftForm.workerId.trim();
@@ -733,12 +738,14 @@ export function useSchedulerHandlers() {
     if (result.success) {
       setShiftForm((prev) => ({ ...prev, date: '' }));
       void trackEvent('shift_assigned');
+      recordTourAction('roster-section');
     } else {
       setShiftError(result.error ?? 'Failed to save shift. Please try again.');
     }
   }, [
     addShift,
     businessTimezoneOffsetMinutes,
+    recordTourAction,
     roster,
     rosterLookup,
     shiftForm,

@@ -1,18 +1,4 @@
-/**
- * TourSpotlight — full-screen Modal overlay that highlights the current
- * welcome-tour step with a transparent "spotlight" cutout in the backdrop.
- *
- * Reads all state from useWelcomeTour(). Renders nothing when the tour
- * is not active. The spotlight hole is implemented as four opaque rectangles
- * surrounding the measured target rect — no SVG or Canvas required.
- *
- * Callout card positioning:
- *   - Below the spotlight when ≥ 200 px of space remains beneath it.
- *   - Above the spotlight otherwise.
- *   - Centered vertically when no layout has been registered for the step.
- */
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -22,8 +8,9 @@ import {
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, type ThemeColors } from '@/constants/Colors';
-import { useWelcomeTour, TOUR_STEPS } from '@/contexts/WelcomeTourContext';
+import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useT } from '@/contexts/LocaleContext';
 
 const SPOTLIGHT_PADDING = 8;
 const SPOTLIGHT_RADIUS = 12;
@@ -31,40 +18,108 @@ const CARD_MARGIN_H = 24;
 const CARD_BELOW_GAP = 16;
 const CARD_ABOVE_GAP = 16;
 const MIN_SPACE_BELOW = 200;
-const TOTAL_STEPS = TOUR_STEPS.length;
 
 /** Sub-component so prevStep is called at the hook call-site, not in a callback. */
 function BackButton({ colors }: { colors: ThemeColors }) {
   const { prevStep } = useWelcomeTour();
+  const { t } = useT();
   const styles = makeStyles(colors);
   return (
     <Pressable
       onPress={prevStep}
       accessibilityRole="button"
-      accessibilityLabel="Go back"
+      accessibilityLabel={t('tour.nav.back')}
       accessibilityHint="Returns to the previous tour step"
       style={({ pressed }) => [styles.textButton, pressed && { opacity: 0.5 }]}
     >
-      <ThemedText style={styles.textButtonLabel}>← Back</ThemedText>
+      <ThemedText style={styles.textButtonLabel}>{t('tour.nav.back')}</ThemedText>
     </Pressable>
+  );
+}
+
+/** Role selection card shown before the tour starts */
+function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
+  const { setUserRole } = useWelcomeTour();
+  const { t } = useT();
+  const styles = makeStyles(colors);
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+    >
+      <View style={styles.roleBackdrop}>
+        <View style={styles.roleCard}>
+          <ThemedText style={styles.roleTitle}>
+            {t('tour.roleSelect.title')}
+          </ThemedText>
+          <ThemedText style={styles.roleDesc}>
+            {t('tour.roleSelect.desc')}
+          </ThemedText>
+
+          <Pressable
+            onPress={() => setUserRole('manager')}
+            accessibilityRole="button"
+            accessibilityLabel={t('tour.roleSelect.managerTitle')}
+            style={({ pressed }) => [
+              styles.roleOptionButton,
+              pressed && styles.roleOptionButtonPressed,
+            ]}
+          >
+            <ThemedText style={styles.roleOptionTitle}>
+              {t('tour.roleSelect.managerTitle')}
+            </ThemedText>
+            <ThemedText style={styles.roleOptionDesc}>
+              {t('tour.roleSelect.managerDesc')}
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setUserRole('worker')}
+            accessibilityRole="button"
+            accessibilityLabel={t('tour.roleSelect.workerTitle')}
+            style={({ pressed }) => [
+              styles.roleOptionButton,
+              pressed && styles.roleOptionButtonPressed,
+            ]}
+          >
+            <ThemedText style={styles.roleOptionTitle}>
+              {t('tour.roleSelect.workerTitle')}
+            </ThemedText>
+            <ThemedText style={styles.roleOptionDesc}>
+              {t('tour.roleSelect.workerDesc')}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 export function TourSpotlight() {
   const {
     isActive,
+    userRole,
     currentStep,
     currentStepIndex,
+    totalSteps,
     stepLayouts,
+    canAdvance,
+    progressPercent,
     nextStep,
     skipTour,
   } = useWelcomeTour();
 
+  const { t } = useT();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
 
   const { width: screenW, height: screenH } = useWindowDimensions();
+
+  const [whyExpanded, setWhyExpanded] = useState(false);
 
   const rawLayout = useMemo(() => {
     if (!currentStep) return null;
@@ -101,10 +156,34 @@ export function TourSpotlight() {
     return { bottom: screenH - spotlightRect.y + CARD_ABOVE_GAP };
   }, [spotlightRect, screenH]);
 
-  const isLastStep = currentStepIndex === TOTAL_STEPS - 1;
+  const isLastStep = currentStepIndex === totalSteps - 1;
   const isFirstStep = currentStepIndex === 0;
 
-  if (!isActive || !currentStep) return null;
+  const roleKey = userRole === 'worker' ? 'worker' : 'manager';
+  const stepId = currentStep?.id ?? '';
+
+  const stepTitle = currentStep ? t(`tour.${roleKey}.step${stepId}.title`) : '';
+  const stepDesc = currentStep ? t(`tour.${roleKey}.step${stepId}.desc`) : '';
+  const stepWhy = currentStep ? t(`tour.${roleKey}.step${stepId}.why`) : '';
+
+  const roleBadgeText =
+    userRole === 'manager'
+      ? '👔 Manager'
+      : userRole === 'worker'
+      ? '👷 Team Member'
+      : null;
+
+  const requiresActionAndBlocked =
+    currentStep?.requiresAction === true && !canAdvance;
+
+  if (!isActive) return null;
+
+  // Show role selection if no role chosen yet
+  if (userRole === null) {
+    return <RoleSelectionModal colors={colors} />;
+  }
+
+  if (!currentStep) return null;
 
   return (
     <Modal
@@ -119,7 +198,10 @@ export function TourSpotlight() {
         <>
           {/* Top */}
           <View
-            style={[styles.backdropSlice, { top: 0, left: 0, width: screenW, height: spotlightRect.y }]}
+            style={[
+              styles.backdropSlice,
+              { top: 0, left: 0, width: screenW, height: spotlightRect.y },
+            ]}
             pointerEvents="none"
           />
           {/* Bottom */}
@@ -139,7 +221,12 @@ export function TourSpotlight() {
           <View
             style={[
               styles.backdropSlice,
-              { top: spotlightRect.y, left: 0, width: spotlightRect.x, height: spotlightRect.height },
+              {
+                top: spotlightRect.y,
+                left: 0,
+                width: spotlightRect.x,
+                height: spotlightRect.height,
+              },
             ]}
             pointerEvents="none"
           />
@@ -177,18 +264,76 @@ export function TourSpotlight() {
 
       {/* ── Callout card ── */}
       <View
-        style={[styles.card, { position: 'absolute', left: CARD_MARGIN_H, right: CARD_MARGIN_H }, cardVerticalStyle]}
+        style={[
+          styles.card,
+          { position: 'absolute', left: CARD_MARGIN_H, right: CARD_MARGIN_H },
+          cardVerticalStyle,
+        ]}
         accessibilityRole="alert"
-        accessibilityLabel={`Tour step ${currentStepIndex + 1} of ${TOTAL_STEPS}: ${currentStep.title}`}
+        accessibilityLabel={`Tour step ${currentStepIndex + 1} of ${totalSteps}: ${stepTitle}`}
       >
-        <ThemedText style={styles.stepCounter}>
-          {`Step ${currentStepIndex + 1} of ${TOTAL_STEPS}`}
-        </ThemedText>
+        {/* Progress bar */}
+        <View style={styles.progressBarTrack}>
+          <View
+            style={[
+              styles.progressBarFill,
+              { width: `${progressPercent}%` },
+            ]}
+          />
+        </View>
 
-        <ThemedText style={styles.title}>{currentStep.title}</ThemedText>
+        {/* Step counter row with role badge */}
+        <View style={styles.headerRow}>
+          <ThemedText style={styles.stepCounter}>
+            {t('tour.nav.stepOf', {
+              current: String(currentStepIndex + 1),
+              total: String(totalSteps),
+            })}
+          </ThemedText>
+          {roleBadgeText !== null && (
+            <View style={styles.roleBadge}>
+              <ThemedText style={styles.roleBadgeText}>
+                {roleBadgeText}
+              </ThemedText>
+            </View>
+          )}
+        </View>
 
-        <ThemedText style={styles.description}>{currentStep.description}</ThemedText>
+        <ThemedText style={styles.title}>{stepTitle}</ThemedText>
 
+        <ThemedText style={styles.description}>{stepDesc}</ThemedText>
+
+        {/* Why this matters expandable section */}
+        {stepWhy !== '' && (
+          <View style={styles.whySection}>
+            <Pressable
+              onPress={() => setWhyExpanded((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                whyExpanded
+                  ? t('tour.nav.hide')
+                  : t('tour.nav.whyMatters')
+              }
+              style={({ pressed }) => [
+                styles.whyToggleButton,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <ThemedText style={styles.whyToggleLabel}>
+                {whyExpanded
+                  ? `▲  ${t('tour.nav.hide')}`
+                  : `▼  ${t('tour.nav.whyMatters')}`}
+              </ThemedText>
+            </Pressable>
+            {whyExpanded && (
+              <View style={styles.whyContent}>
+                <ThemedText style={styles.whyText}>{stepWhy}</ThemedText>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Button row */}
         <View style={styles.buttonRow}>
           <View style={styles.leftButtons}>
             {!isFirstStep && <BackButton colors={colors} />}
@@ -196,31 +341,48 @@ export function TourSpotlight() {
               <Pressable
                 onPress={skipTour}
                 accessibilityRole="button"
-                accessibilityLabel="Skip tour"
+                accessibilityLabel={t('tour.nav.skip')}
                 accessibilityHint="Closes the welcome tour immediately"
-                style={({ pressed }) => [styles.textButton, pressed && { opacity: 0.5 }]}
+                style={({ pressed }) => [
+                  styles.textButton,
+                  pressed && { opacity: 0.5 },
+                ]}
               >
-                <ThemedText style={styles.textButtonLabel}>Skip tour</ThemedText>
+                <ThemedText style={styles.textButtonLabel}>
+                  {t('tour.nav.skip')}
+                </ThemedText>
               </Pressable>
             )}
           </View>
 
-          <Pressable
-            onPress={nextStep}
-            accessibilityRole="button"
-            accessibilityLabel={isLastStep ? 'Done' : 'Next step'}
-            accessibilityHint={
-              isLastStep ? 'Finishes the welcome tour' : 'Advances to the next tour step'
-            }
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.primaryButtonPressed,
-            ]}
-          >
-            <ThemedText style={styles.primaryButtonLabel}>
-              {isLastStep ? 'Done ✓' : 'Next →'}
-            </ThemedText>
-          </Pressable>
+          {requiresActionAndBlocked ? (
+            <View style={styles.actionPromptContainer}>
+              <ThemedText style={styles.actionPromptLabel}>
+                {t('tour.nav.actionPrompt')}
+              </ThemedText>
+            </View>
+          ) : (
+            <Pressable
+              onPress={nextStep}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isLastStep ? t('tour.nav.done') : t('tour.nav.next')
+              }
+              accessibilityHint={
+                isLastStep
+                  ? 'Finishes the welcome tour'
+                  : 'Advances to the next tour step'
+              }
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.primaryButtonPressed,
+              ]}
+            >
+              <ThemedText style={styles.primaryButtonLabel}>
+                {isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
       </View>
     </Modal>
@@ -240,45 +402,158 @@ const makeStyles = (colors: ThemeColors) =>
     spotlightRing: {
       position: 'absolute',
       borderWidth: 2,
-      // Increased from 0.35 to 0.75 to meet 3:1 non-text contrast requirement
       borderColor: 'rgba(255,255,255,0.75)',
       backgroundColor: 'transparent',
     },
-    card: {
+
+    // Role selection
+    roleBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.65)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+    },
+    roleCard: {
       backgroundColor: colors.surface,
       borderRadius: 16,
-      padding: 20,
-      // Resolved dynamically; in dark mode rely on surfaceRaised elevation cues
+      padding: 24,
+      width: '100%',
       shadowColor: colors.border,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.18,
       shadowRadius: 12,
       elevation: 8,
     },
-    stepCounter: {
-      // Increased from 12px to 14px for ambient-light readability
+    roleTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: brand.primaryDeep,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    roleDesc: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    roleOptionButton: {
+      borderWidth: 2,
+      borderColor: brand.primary,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    roleOptionButtonPressed: {
+      backgroundColor: brand.primary + '18',
+      opacity: 0.85,
+    },
+    roleOptionTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: brand.primaryDeep,
+      marginBottom: 4,
+    },
+    roleOptionDesc: {
       fontSize: 14,
       color: colors.textSecondary,
+    },
+
+    // Callout card
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      shadowColor: colors.border,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+
+    // Progress bar
+    progressBarTrack: {
+      width: '100%',
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+      marginBottom: 12,
+      overflow: 'hidden',
+    },
+    progressBarFill: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: brand.primary,
+    },
+
+    // Header row
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       marginBottom: 6,
     },
+    stepCounter: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    roleBadge: {
+      backgroundColor: brand.primary + '22',
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+    },
+    roleBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: brand.primaryDeep,
+    },
+
     title: {
       fontSize: 18,
       fontWeight: '700',
-      // brand.primaryDeep (#115E59) achieves 5.87:1 on white — passes AA
       color: brand.primaryDeep,
       marginBottom: 8,
     },
     description: {
-      // Increased from 14px to 16px for ambient-light mobile readability
       fontSize: 16,
       lineHeight: 24,
       color: colors.textSecondary,
-      marginBottom: 20,
+      marginBottom: 12,
     },
+
+    // Why this matters
+    whySection: {
+      marginBottom: 16,
+    },
+    whyToggleButton: {
+      paddingVertical: 6,
+    },
+    whyToggleLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: brand.primary,
+    },
+    whyContent: {
+      marginTop: 8,
+      borderLeftWidth: 3,
+      borderLeftColor: brand.primary,
+      paddingLeft: 10,
+    },
+    whyText: {
+      fontSize: 14,
+      fontStyle: 'italic',
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+
+    // Buttons
     buttonRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      marginTop: 4,
     },
     leftButtons: {
       flexDirection: 'row',
@@ -286,7 +561,6 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 12,
     },
     textButton: {
-      // Increased from paddingVertical:6 to paddingVertical:14 to achieve ≥44px touch target
       paddingVertical: 14,
       paddingHorizontal: 12,
     },
@@ -301,7 +575,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 10,
     },
     primaryButtonPressed: {
-      // brand.primaryDeep (#115E59) increases color delta significantly vs primaryDark
       backgroundColor: brand.primaryDeep,
       opacity: 0.85,
       transform: [{ scale: 0.97 }],
@@ -309,7 +582,18 @@ const makeStyles = (colors: ThemeColors) =>
     primaryButtonLabel: {
       fontSize: 14,
       fontWeight: '600',
-      // Use colors.surface token instead of hardcoded '#FFFFFF'
       color: colors.surface,
+    },
+    actionPromptContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+    },
+    actionPromptLabel: {
+      fontSize: 13,
+      fontStyle: 'italic',
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
   });

@@ -326,7 +326,8 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
   const unassigned: UnassignedTemplate[] = [];
 
   for (const template of templates) {
-    const slotsNeeded = Math.max(1, template.coverage ?? 1);
+    const rawCoverage = template.coverage;
+    const slotsNeeded = (Number.isFinite(rawCoverage) && rawCoverage >= 1) ? Math.round(rawCoverage) : 1;
     const { startMinutes, endMinutes } = getTemplateWindow(template);
     const hours =
       endMinutes > startMinutes

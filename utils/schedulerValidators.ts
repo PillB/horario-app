@@ -14,6 +14,25 @@ import {
   windowsOverlap,
 } from './schedulerUtils';
 
+// ─── ValidationErrorItem ─────────────────────────────────────────────────────
+
+export type ValidationErrorItem = {
+  code: string;
+  message: string;
+  params?: Record<string, string>;
+};
+
+export function localizeValidationErrors(
+  errors: ValidationErrorItem[],
+  t: (key: string, params?: Record<string, string>) => string
+): string[] {
+  return errors.map((e) => {
+    const localized = t(`errors.validation.${e.code}`, e.params);
+    // If key not found, t() returns the key path itself — fall back to English
+    return localized.includes('errors.validation.') ? e.message : localized;
+  });
+}
+
 // ─── findCoveringAvailability ─────────────────────────────────────────────────
 
 /** Returns the availability slot (if any) that fully covers the template window,
@@ -59,7 +78,7 @@ export const validateAvailabilitySubmission = (
   form: AvailabilityFormInput,
   workers: Worker[]
 ): {
-  errors: string[];
+  errors: ValidationErrorItem[];
   normalizedDay: string | undefined;
   /** The resolved UUID for the worker (may differ from form input if displayId was entered). */
   trimmedWorkerId: string;
@@ -71,12 +90,12 @@ export const validateAvailabilitySubmission = (
   const trimmedFrom = form.from.trim();
   const trimmedTo = form.to.trim();
 
-  const errors: string[] = [];
+  const errors: ValidationErrorItem[] = [];
   const normalizedDay = normalizeDay(trimmedDay);
 
-  if (!trimmedWorkerId) errors.push('Worker is required.');
-  if (!trimmedDay) errors.push('Day is required.');
-  if (!trimmedFrom || !trimmedTo) errors.push('From and to times are required.');
+  if (!trimmedWorkerId) errors.push({ code: 'WORKER_REQUIRED', message: 'Worker is required.' });
+  if (!trimmedDay) errors.push({ code: 'DAY_REQUIRED', message: 'Day is required.' });
+  if (!trimmedFrom || !trimmedTo) errors.push({ code: 'TIMES_REQUIRED', message: 'From and to times are required.' });
 
   // Resolve displayId (e.g. "W-1") or raw UUID to the actual worker
   const resolvedWorker = trimmedWorkerId
@@ -84,16 +103,16 @@ export const validateAvailabilitySubmission = (
     : undefined;
 
   if (trimmedWorkerId && !resolvedWorker)
-    errors.push('Worker ID must match an existing worker.');
+    errors.push({ code: 'WORKER_NOT_FOUND', message: 'Worker ID must match an existing worker.' });
 
   if (trimmedDay && !normalizedDay)
-    errors.push('Day must be one of Mon, Tue, Wed, Thu, Fri, Sat, or Sun.');
+    errors.push({ code: 'DAY_INVALID', message: 'Day must be one of Mon, Tue, Wed, Thu, Fri, Sat, or Sun.' });
 
   if (trimmedFrom && !isValidTime(trimmedFrom))
-    errors.push('From time must use the 24-hour HH:MM format.');
+    errors.push({ code: 'FROM_TIME_INVALID', message: 'From time must use the 24-hour HH:MM format.' });
 
   if (trimmedTo && !isValidTime(trimmedTo))
-    errors.push('To time must use the 24-hour HH:MM format.');
+    errors.push({ code: 'TO_TIME_INVALID', message: 'To time must use the 24-hour HH:MM format.' });
 
   let fromMinutes: number | null = null;
   let toMinutes: number | null = null;
@@ -101,7 +120,7 @@ export const validateAvailabilitySubmission = (
   if (trimmedFrom && trimmedTo && isValidTime(trimmedFrom) && isValidTime(trimmedTo)) {
     fromMinutes = parseTimeToMinutes(trimmedFrom);
     toMinutes = parseTimeToMinutes(trimmedTo);
-    if (fromMinutes >= toMinutes) errors.push('From time must be earlier than to time.');
+    if (fromMinutes >= toMinutes) errors.push({ code: 'FROM_BEFORE_TO', message: 'From time must be earlier than to time.' });
   }
 
   if (!errors.length) {
@@ -119,9 +138,11 @@ export const validateAvailabilitySubmission = (
       });
 
       if (overlappingSlot) {
-        errors.push(
-          `Availability overlaps with an existing interval on ${normalizedDay} from ${overlappingSlot.from} to ${overlappingSlot.to}.`
-        );
+        errors.push({
+          code: 'AVAILABILITY_OVERLAP',
+          message: `Availability overlaps with an existing interval on ${normalizedDay} from ${overlappingSlot.from} to ${overlappingSlot.to}.`,
+          params: { day: normalizedDay, from: overlappingSlot.from, to: overlappingSlot.to },
+        });
       }
     }
 
@@ -131,7 +152,7 @@ export const validateAvailabilitySubmission = (
         (slot) => slot.day === dayKey && slot.from === trimmedFrom && slot.to === trimmedTo
       )
     ) {
-      errors.push('This availability interval already exists for the worker.');
+      errors.push({ code: 'AVAILABILITY_DUPLICATE', message: 'This availability interval already exists for the worker.' });
     }
   }
 
@@ -143,31 +164,37 @@ export const validateAvailabilitySubmission = (
 // ─── validateShiftReadiness ───────────────────────────────────────────────────
 
 /** Validates that a roster shift is ready to publish.
- *  Returns a list of human-readable errors (empty = valid). */
+ *  Returns a list of typed error items (empty = valid). */
 export const validateShiftReadiness = (
   shift: Shift,
   roster: Shift[],
   shiftTemplates: ShiftTemplate[],
   workers: Worker[],
   timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
-): { errors: string[] } => {
-  const errors: string[] = [];
+): { errors: ValidationErrorItem[] } => {
+  const errors: ValidationErrorItem[] = [];
   const template = shiftTemplates.find((t) => t.id === shift.templateId);
   const worker = workers.find((w) => w.id === shift.workerId);
   const weekdayLabel = getWeekdayFromDate(shift.date, timezoneOffsetMinutes);
 
-  if (!template) errors.push('Template is no longer available for this shift.');
-  if (!worker) errors.push('Worker is no longer available for this shift.');
+  if (!template) errors.push({ code: 'TEMPLATE_MISSING', message: 'Template is no longer available for this shift.' });
+  if (!worker) errors.push({ code: 'WORKER_MISSING', message: 'Worker is no longer available for this shift.' });
 
   if (template && worker && worker.role !== template.role)
-    errors.push(`Worker role (${worker.role}) must match template role (${template.role}).`);
+    errors.push({
+      code: 'ROLE_MISMATCH',
+      message: `Worker role (${worker.role}) must match template role (${template.role}).`,
+      params: { workerRole: worker.role, templateRole: template.role },
+    });
 
   if (template && worker && weekdayLabel) {
     const { coveringSlot } = findCoveringAvailability(worker, template, shift.date, timezoneOffsetMinutes);
     if (!coveringSlot)
-      errors.push(
-        `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
-      );
+      errors.push({
+        code: 'COVERAGE_MISSING',
+        message: `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`,
+        params: { weekday: weekdayLabel, start: template.start, end: template.end },
+      });
   }
 
   if (template && weekdayLabel) {
@@ -182,9 +209,15 @@ export const validateShiftReadiness = (
 
     if (overlappingShift) {
       const conflictingTemplate = shiftTemplates.find((t) => t.id === overlappingShift.templateId);
-      errors.push(
-        `Worker already has a shift on ${shift.date} from ${conflictingTemplate?.start ?? '??'} to ${conflictingTemplate?.end ?? '??'}. Adjust the time window to avoid overlaps.`
-      );
+      errors.push({
+        code: 'SHIFT_OVERLAP',
+        message: `Worker already has a shift on ${shift.date} from ${conflictingTemplate?.start ?? '??'} to ${conflictingTemplate?.end ?? '??'}. Adjust the time window to avoid overlaps.`,
+        params: {
+          date: shift.date,
+          start: conflictingTemplate?.start ?? '??',
+          end: conflictingTemplate?.end ?? '??',
+        },
+      });
     }
   }
 

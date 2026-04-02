@@ -7,12 +7,14 @@ import { ProfileAchievements } from '@/components/ProfileAchievements';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { StreakCounter } from '@/components/StreakCounter';
+import { TeamInviteModal } from '@/components/TeamInviteModal';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
+import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { TourStep } from '@/components/TourStep';
@@ -30,10 +32,12 @@ export default function HomeScreen() {
   const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
   const { tier } = useEthicalReward(streakCount);
   const { upcomingShifts, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
+  const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
 
   const styles = makeStyles(colors, colorScheme ?? 'light');
 
   return (
+    <>
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#0F766E', dark: '#134E4A' }}
       headerImage={
@@ -204,7 +208,7 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('home.invite.ctaA11y')}
           style={({ pressed }) => [styles.inviteButton, pressed && { opacity: 0.75 }]}
-          onPress={() => {/* TODO: open invite flow */}}
+          onPress={openInviteAsManager}
         >
           <ThemedText style={styles.inviteButtonText}>{t('home.invite.cta')}</ThemedText>
         </Pressable>
@@ -242,6 +246,12 @@ export default function HomeScreen() {
         />
       </ThemedView>
     </ParallaxScrollView>
+    <TeamInviteModal
+      visible={inviteModalVisible}
+      mode={inviteMode}
+      onClose={closeInvite}
+    />
+    </>
   );
 }
 

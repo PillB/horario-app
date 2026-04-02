@@ -6,6 +6,41 @@
 
 ---
 
+### CHG-047 — 2026-04-02 UTC
+**Type:** FEATURE (interactive onboarding tour, month calendar view, team invite modal)
+
+**Research basis:**
+- Reviewed When I Work, Deputy, 7shifts, Homebase, Shiftboard onboarding patterns — key gap: no competitor lets users configure the real app during the tour; they use fake demo data
+- Hormozi product review: identified 3 conversion killers (no role-specific onboarding, no team invite handshake, no visual schedule overview)
+- 9-language support (en, es, de, fr, it, zh, hi, sw, tl) generated via Batch API
+
+**Implementation approach:**
+- Used Anthropic Batch API (claude-sonnet-4-6) for 7 parallel file generations (165s total, 50% cost reduction)
+- `stripFences()` utility strips markdown code fences from generated output before writing files
+- All 7 batch requests succeeded; manual fixes applied for truncated output and API usage errors
+
+**Files changed:**
+- `contexts/WelcomeTourContext.tsx` — REWRITTEN: `TourStepMeta` type (`{id, target, requiresAction?}`), `MANAGER_STEPS` (8 steps) + `WORKER_STEPS` (5 steps) exported; state additions: `userRole`, `completedActions`; context additions: `currentSteps`, `currentStep`, `totalSteps`, `canAdvance`, `progressPercent`, `setUserRole()`, `recordTourAction()` (auto-advances 600ms after action); auto-start on first launch via `horario.tourSeen` AsyncStorage key; `TOUR_STEPS = MANAGER_STEPS` for backward compat
+- `components/TourSpotlight.tsx` — ENHANCED: `RoleSelectionModal` for role bifurcation (manager vs worker path); progress bar (`progressPercent`); expandable "Why this matters" section per step (`t('tour.ROLE.stepN.why')`); action prompt shown instead of Next when `requiresAction && !canAdvance`; role badge pill in card header; fixed `const {t} = useT()` (not `const t = useT()`); fixed number→string for `t()` interpolation
+- `locales/en.ts` — APPENDED `tour:` section: `tour.roleSelect.*`, `tour.nav.*` (next/back/skip/done/whyMatters/hide/actionPrompt/startManager/startWorker/stepOf), `tour.manager.step1–8.*` (title/desc/why/action), `tour.worker.step1–5.*`, `tour.completed.*`
+- `locales/es.ts` — APPENDED full Spanish translation of `tour:` section
+- `components/scheduler/WeekCalendar.tsx` — ENHANCED: `viewMode: 'week' | 'month'` toggle; month view is 5-6 week grid with 7 columns, coverage dots (green/amber/red) per day, prev/next month navigation; tapping a month day switches to week view for that week; fixed truncated output (missing `makeStyles` month view entries appended manually)
+- `components/TeamInviteModal.tsx` — NEW: manager mode generates 6-char uppercase invite code (stored in `horario.inviteCode`), share button; worker mode validates entered code against stored code, saves `horario.teamCode` on success; fixed unescaped JSX apostrophes + removed unused imports
+- `hooks/useTeamInvite.ts` — NEW: returns `inviteModalVisible`, `inviteMode`, `openInviteAsManager()`, `openInviteAsWorker()`, `closeInvite()`, `inviteCode`, `hasJoinedTeam`, `refreshInviteState()`
+- `hooks/useSchedulerHandlers.ts` — Added `useWelcomeTour` import + `recordTourAction` destructure; wired `recordTourAction('workers-section')` in `handleAddWorker` success path; `recordTourAction('shift-templates-section')` in `handleAddTemplate`; `recordTourAction('availability-section')` in `handleAvailabilitySubmit`; `recordTourAction('roster-section')` in `handleShiftSubmit`; all added to respective `useCallback` dependency arrays
+- `app/(tabs)/index.tsx` — Added `TeamInviteModal` + `useTeamInvite` imports; wired invite button `onPress` to `openInviteAsManager()`; renders `<TeamInviteModal>` alongside `<ParallaxScrollView>` in a Fragment
+
+**Test results:** 244/244 passing, 0 lint errors (10 pre-existing warnings unchanged).
+
+**Key decisions:**
+- Tour text lives entirely in locale files (no strings in context constants) — supports all 9 languages without code changes
+- `requiresAction` steps auto-advance 600ms after `recordTourAction` fires — keeps tour momentum without extra taps
+- Month view calendar uses same `coverageByDate` prop as week view — zero extra data wiring needed
+- TeamInviteModal uses AsyncStorage as the invite handshake channel (in-memory only, no server) — ready for Supabase persistence in a later phase
+- `TOUR_STEPS = MANAGER_STEPS` backward-compat alias prevents any existing import from breaking
+
+---
+
 ### [SUMMARY] — 2026-04-02 UTC
 **Last CHG completed:** CHG-039
 **Current state:** App has 6 implemented happy paths (add worker, set availability, create template, assign shift, POS CSV upload, demand forecast). Playwright spec exists at `e2e/scheduler.spec.ts`. Dev server must be running on :8081 for tests. 213/213 unit tests passing, 0 lint errors, 3 pre-existing TSC errors.

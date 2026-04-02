@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { Pressable } from 'react-native';
+import { Pressable, TextInput } from 'react-native';
 
 import SchedulerScreen, { findCoveringAvailability, getWeekdayFromDate, ShiftTemplate, Worker } from '../scheduler';
 import { getSupabaseClient } from '@/services/supabaseClient';
@@ -172,6 +172,16 @@ describe('scheduler fallback quick setup', () => {
 
     if (!saveButton) {
       throw new Error('Save baseline button not found');
+    }
+
+    // Fill in the role field so form validation passes and seedBaselineTargets is called
+    const roleInput = tree.root
+      .findAllByType(TextInput)
+      .find((node) => node.props?.placeholder === 'Support');
+    if (roleInput) {
+      await act(async () => {
+        roleInput.props.onChangeText('Support');
+      });
     }
 
     await act(async () => {

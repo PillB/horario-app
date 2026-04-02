@@ -1,0 +1,99 @@
+SECTION 1: New top-level key `timezone`
+
+ENGLISH — add after the `common` key:
+
+timezone: {
+  schedulingIn: 'Scheduling in:',
+  live: 'Live scheduling timezone clock',
+},
+
+SPANISH — add after the `common` key:
+
+timezone: {
+  schedulingIn: 'Programando en:',
+  live: 'Reloj de zona horaria activo',
+},
+
+---
+
+SECTION 2: New `shiftNotes` key inside `scheduler` object
+
+ENGLISH — add inside the `scheduler` object:
+
+shiftNotes: {
+  notesBtn: 'Notes',
+  openNotes: 'Open shift notes and tasks',
+  panelTitle: 'Shift notes',
+  managerNote: 'Manager note',
+  managerNotePlaceholder: 'Add instructions, reminders, or context for this shift…',
+  tasks: 'Tasks',
+  tasksDesc: 'Add to-dos the worker should complete during this shift.',
+  addTaskPlaceholder: 'e.g. Check inventory before opening',
+  addTaskBtn: 'Add',
+  commentPlaceholder: 'Add a comment or update…',
+  noTasks: 'No tasks yet — add one above.',
+  cycleStatus: 'Cycle task status',
+  status: {
+    todo: 'To do',
+    done: 'Done',
+    blocked: 'Blocked',
+    delayed: 'Delayed',
+  },
+  doneBtn: 'Close',
+},
+
+SPANISH — add inside the `scheduler` object:
+
+shiftNotes: {
+  notesBtn: 'Notas',
+  openNotes: 'Abrir notas y tareas del turno',
+  panelTitle: 'Notas del turno',
+  managerNote: 'Nota del gerente',
+  managerNotePlaceholder: 'Agrega instrucciones, recordatorios o contexto para este turno…',
+  tasks: 'Tareas',
+  tasksDesc: 'Agrega pendientes que el trabajador debe completar en este turno.',
+  addTaskPlaceholder: 'ej. Revisar inventario antes de abrir',
+  addTaskBtn: 'Agregar',
+  commentPlaceholder: 'Agrega un comentario o actualización…',
+  noTasks: 'Sin tareas aún — agrega una arriba.',
+  cycleStatus: 'Cambiar estado de tarea',
+  status: {
+    todo: 'Pendiente',
+    done: 'Hecho',
+    blocked: 'Bloqueado',
+    delayed: 'Retrasado',
+  },
+  doneBtn: 'Cerrar',
+},
+
+---
+
+SECTION 3: New keys inside `home` object
+
+ENGLISH — add inside the `home` object:
+
+weekStats: {
+  title: 'This week',
+  scheduled: 'Shifts scheduled',
+  gaps: 'Roles to fill',
+},
+invite: {
+  title: 'Build your team',
+  desc: 'Add workers to unlock auto-assign and coverage tracking. Each worker added means fewer scheduling gaps.',
+  cta: 'Invite a team member →',
+  ctaA11y: 'Invite a team member to your roster',
+},
+
+SPANISH — add inside the `home` object:
+
+weekStats: {
+  title: 'Esta semana',
+  scheduled: 'Turnos programados',
+  gaps: 'Roles por cubrir',
+},
+invite: {
+  title: 'Construye tu equipo',
+  desc: 'Agrega trabajadores para desbloquear la asignación automática y el seguimiento de cobertura.',
+  cta: 'Invitar a un miembro del equipo →',
+  ctaA11y: 'Invitar a un miembro del equipo a tu roster',
+},

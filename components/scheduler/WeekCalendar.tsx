@@ -3,6 +3,7 @@
  *
  * A visual weekly calendar for the Roster screen.
  * Displays shift chips in 7 day columns (Sun–Sat) for the current week.
+ * Also supports a month view with mini calendar grid.
  *
  * Props:
  *   rosterByDate    – Record<dateString, RosterShift[]>
@@ -40,6 +41,14 @@ interface WeekCalendarProps {
   onMaximize?: () => void;
 }
 
+type ViewMode = 'week' | 'month';
+
+interface MonthCell {
+  date: Date;
+  inMonth: boolean;
+  key: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -75,10 +84,30 @@ function addDays(date: Date, days: number): Date {
 }
 
 /**
+ * Adds `months` months to `date` and returns a new Date (1st of resulting month).
+ */
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Returns the first day (Date) of the month containing `date`.
+ */
+function getMonthStart(date: Date): Date {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
  * Formats a Date as short day label "Mon 1" etc.
  */
 function formatDayLabel(date: Date, t: (key: string) => string): string {
-  // We'll build "Mon 1" style ourselves to avoid date-fns dependency.
   const dayNames = [
     t('weekday.sun'),
     t('weekday.mon'),
@@ -89,6 +118,21 @@ function formatDayLabel(date: Date, t: (key: string) => string): string {
     t('weekday.sat'),
   ];
   return `${dayNames[date.getDay()]} ${date.getDate()}`;
+}
+
+/**
+ * Returns short weekday abbreviations for month column headers.
+ */
+function getWeekdayAbbreviations(t: (key: string) => string): string[] {
+  return [
+    t('weekday.sun'),
+    t('weekday.mon'),
+    t('weekday.tue'),
+    t('weekday.wed'),
+    t('weekday.thu'),
+    t('weekday.fri'),
+    t('weekday.sat'),
+  ];
 }
 
 /**
@@ -114,22 +158,20 @@ function statusColor(
 ): string {
   switch (status) {
     case 'Published':
-      return colors.tint; // teal
+      return colors.tint;
     case 'Draft':
     default:
-      return brand.accentDark; // amber
+      return brand.accentDark;
   }
 }
 
 /**
  * Returns a contrasting text colour (black or white) for a background.
- * Simple luminance check.
  */
 function contrastTextColor(hexBg: string): string {
   const r = parseInt(hexBg.slice(1, 3), 16);
   const g = parseInt(hexBg.slice(3, 5), 16);
   const b = parseInt(hexBg.slice(5, 7), 16);
-  // Relative luminance (simplified)
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.55 ? '#111827' : '#FFFFFF';
 }
@@ -141,6 +183,64 @@ function coverageColor(scheduled: number, required: number): string {
   if (scheduled >= required) return '#16A34A'; // green
   if (scheduled > 0) return '#D97706';          // amber
   return '#DC2626';                              // red
+}
+
+/**
+ * Returns the dot color for a day cell in month view.
+ */
+function monthDotColor(
+  shiftCount: number,
+  cov: { scheduled: number; required: number } | undefined
+): string {
+  if (shiftCount === 0) {
+    if (cov !== undefined && cov.required > 0) {
+      return '#DC2626'; // red — demand but no shifts
+    }
+    return 'transparent'; // no dot
+  }
+  if (cov !== undefined && cov.required > 0) {
+    if (cov.scheduled >= cov.required) return '#16A34A'; // green
+    if (cov.scheduled > 0) return '#D97706';              // amber
+    return '#DC2626';                                     // red
+  }
+  return '#6B7280'; // grey — shifts exist, no demand target
+}
+
+/**
+ * Builds the grid cells for a month view: 5 or 6 rows × 7 columns.
+ * Includes blank cells for days from the previous/next month.
+ */
+function buildMonthGrid(monthStart: Date): MonthCell[] {
+  const firstDayOfMonth = new Date(monthStart);
+  firstDayOfMonth.setDate(1);
+  firstDayOfMonth.setHours(0, 0, 0, 0);
+
+  const lastDayOfMonth = new Date(
+    firstDayOfMonth.getFullYear(),
+    firstDayOfMonth.getMonth() + 1,
+    0
+  );
+
+  // Day of week the month starts on (0 = Sun)
+  const startPadding = firstDayOfMonth.getDay();
+  // Total cells = padding + days in month, rounded up to multiple of 7
+  const daysInMonth = lastDayOfMonth.getDate();
+  const totalCells = Math.ceil((startPadding + daysInMonth) / 7) * 7;
+
+  const cells: MonthCell[] = [];
+  for (let i = 0; i < totalCells; i++) {
+    const offset = i - startPadding;
+    const date = new Date(firstDayOfMonth);
+    date.setDate(firstDayOfMonth.getDate() + offset);
+    date.setHours(0, 0, 0, 0);
+    const inMonth = date.getMonth() === firstDayOfMonth.getMonth();
+    cells.push({
+      date,
+      inMonth,
+      key: toLocalDateString(date),
+    });
+  }
+  return cells;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,9 +255,7 @@ interface ShiftChipProps {
 
 function ShiftChip({ shift, chipBg, chipText }: ShiftChipProps) {
   const templateName = shift.template?.name ?? '–';
-  const workerName = shift.worker
-    ? `${shift.worker.name}`
-    : '–';
+  const workerName = shift.worker ? `${shift.worker.name}` : '–';
   const statusLabel = shift.status === 'Published' ? 'Published' : 'Draft';
   const hasTimeRange = !!(shift.template?.start && shift.template?.end);
   const timeRange = hasTimeRange
@@ -221,11 +319,20 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
 
+  // ---- View mode -----------------------------------------------------------
+  const [viewMode, setViewMode] = React.useState<ViewMode>('week');
+
   // ---- Week state ----------------------------------------------------------
   const [weekStart, setWeekStart] = React.useState<Date>(() =>
     getSundayOfWeek(new Date())
   );
 
+  // ---- Month state ---------------------------------------------------------
+  const [monthStart, setMonthStart] = React.useState<Date>(() =>
+    getMonthStart(new Date())
+  );
+
+  // ---- Week derived ---------------------------------------------------------
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
 
   const weekDays = useMemo<Date[]>(() => {
@@ -237,6 +344,23 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
     [weekStart, weekEnd]
   );
 
+  // ---- Month derived --------------------------------------------------------
+  const monthGrid = useMemo<MonthCell[]>(
+    () => buildMonthGrid(monthStart),
+    [monthStart]
+  );
+
+  const monthLabel = useMemo(() => {
+    const month = monthStart.toLocaleDateString(undefined, { month: 'long' });
+    const year = monthStart.getFullYear();
+    return t('weekCalendar.monthLabel', { month, year: String(year) });
+  }, [monthStart, t]);
+
+  const weekdayAbbreviations = useMemo(
+    () => getWeekdayAbbreviations(t),
+    [t]
+  );
+
   // ---- Navigation ----------------------------------------------------------
   const goToPrevWeek = useCallback(() => {
     setWeekStart((prev) => addDays(prev, -7));
@@ -246,11 +370,40 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
     setWeekStart((prev) => addDays(prev, 7));
   }, []);
 
-  const goToToday = useCallback(() => {
-    setWeekStart(getSundayOfWeek(new Date()));
+  const goToPrevMonth = useCallback(() => {
+    setMonthStart((prev) => addMonths(prev, -1));
   }, []);
 
-  // ---- Derived data --------------------------------------------------------
+  const goToNextMonth = useCallback(() => {
+    setMonthStart((prev) => addMonths(prev, 1));
+  }, []);
+
+  const goToToday = useCallback(() => {
+    const today = new Date();
+    setWeekStart(getSundayOfWeek(today));
+    setMonthStart(getMonthStart(today));
+  }, []);
+
+  // ---- View mode toggle ----------------------------------------------------
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      if (prev === 'week') {
+        // When switching to month view, sync monthStart to the week's month
+        setMonthStart(getMonthStart(weekStart));
+        return 'month';
+      } else {
+        return 'week';
+      }
+    });
+  }, [weekStart]);
+
+  // ---- Tap day in month view -----------------------------------------------
+  const handleMonthDayPress = useCallback((date: Date) => {
+    setWeekStart(getSundayOfWeek(date));
+    setViewMode('week');
+  }, []);
+
+  // ---- Derived data (week view) --------------------------------------------
   const shiftsThisWeek = useMemo(() => {
     const result: Record<string, RosterShift[]> = {};
     weekDays.forEach((day) => {
@@ -269,16 +422,234 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
   const todayKey = toLocalDateString(new Date());
 
   // -------------------------------------------------------------------------
+  // Render helpers
+  // -------------------------------------------------------------------------
+
+  const renderWeekView = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator
+      contentContainerStyle={styles.gridScrollContent}
+      accessibilityRole="none"
+    >
+      <View style={styles.grid}>
+        {/* Day column headers */}
+        <View style={styles.columnHeaderRow}>
+          {weekDays.map((day) => {
+            const key = toLocalDateString(day);
+            const isToday = key === todayKey;
+            const cov = coverageByDate?.[key];
+            const showCoverage = cov !== undefined && cov.required > 0;
+            const dotColor = showCoverage
+              ? coverageColor(cov!.scheduled, cov!.required)
+              : undefined;
+
+            return (
+              <View
+                key={key}
+                style={[styles.columnHeader, isToday && styles.columnHeaderToday]}
+                accessibilityRole="header"
+              >
+                <Text
+                  style={[
+                    styles.columnHeaderText,
+                    isToday && styles.columnHeaderTextToday,
+                  ]}
+                >
+                  {formatDayLabel(day, t)}
+                </Text>
+                {showCoverage ? (
+                  <View style={styles.coverageRow}>
+                    <View
+                      style={[
+                        styles.coverageDot,
+                        { backgroundColor: dotColor },
+                      ]}
+                    />
+                    <Text style={[styles.coverageText, { color: dotColor }]}>
+                      {`${cov!.scheduled}/${cov!.required}`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Legend row — only when there are shifts */}
+        {hasAnyShifts ? (
+          <View
+            style={styles.legendRow}
+            accessibilityRole="text"
+            accessibilityLabel={t('weekCalendar.legend')}
+          >
+            <View style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: brand.accentDark }]}
+              />
+              <Text style={styles.legendText}>
+                {t('weekCalendar.legendDraft')}
+              </Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: colors.tint }]}
+              />
+              <Text style={styles.legendText}>
+                {t('weekCalendar.legendPublished')}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Shift columns */}
+        {hasAnyShifts ? (
+          <View style={styles.columnsRow}>
+            {weekDays.map((day) => {
+              const key = toLocalDateString(day);
+              const shifts = shiftsThisWeek[key] ?? [];
+              const isToday = key === todayKey;
+
+              return (
+                <View
+                  key={key}
+                  style={[
+                    styles.dayColumn,
+                    isToday && styles.dayColumnToday,
+                  ]}
+                >
+                  {shifts.length === 0 ? (
+                    <View style={styles.emptyDayCell} />
+                  ) : (
+                    shifts.map((shift) => {
+                      const bg = statusColor(shift.status, colors);
+                      const textCol = contrastTextColor(bg);
+                      return (
+                        <ShiftChip
+                          key={shift.id}
+                          shift={shift}
+                          chipBg={bg}
+                          chipText={textCol}
+                        />
+                      );
+                    })
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyStateRow}>
+            <Text style={styles.emptyStateText}>
+              {t('weekCalendar.noShifts')}
+            </Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+
+  const renderMonthView = () => {
+    const rows: MonthCell[][] = [];
+    for (let i = 0; i < monthGrid.length; i += 7) {
+      rows.push(monthGrid.slice(i, i + 7));
+    }
+
+    return (
+      <View style={styles.monthContainer}>
+        {/* Weekday header row */}
+        <View style={styles.monthWeekdayHeaderRow}>
+          {weekdayAbbreviations.map((abbr) => (
+            <View key={abbr} style={styles.monthWeekdayHeaderCell}>
+              <Text style={styles.monthWeekdayHeaderText}>{abbr}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Date rows */}
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.monthRow}>
+            {row.map((cell) => {
+              const isToday = cell.key === todayKey;
+              const shifts = rosterByDate[cell.key] ?? [];
+              const shiftCount = shifts.length;
+              const cov = coverageByDate?.[cell.key];
+              const dotColor = monthDotColor(shiftCount, cov);
+              const showDot = dotColor !== 'transparent';
+              const showBadge = shiftCount > 1;
+
+              return (
+                <Pressable
+                  key={cell.key}
+                  style={styles.monthDayCell}
+                  onPress={() => handleMonthDayPress(cell.date)}
+                  accessibilityRole="button"
+                  accessibilityLabel={cell.date.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                >
+                  {/* Date number */}
+                  <View
+                    style={[
+                      styles.monthDayNumberContainer,
+                      isToday && styles.monthDayNumberContainerToday,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.monthDayNumber,
+                        !cell.inMonth && styles.monthDayNumberOutOfMonth,
+                        isToday && styles.monthDayNumberToday,
+                      ]}
+                    >
+                      {cell.date.getDate()}
+                    </Text>
+                  </View>
+
+                  {/* Dot + badge row */}
+                  <View style={styles.monthDayIndicatorRow}>
+                    {showDot ? (
+                      <View
+                        style={[
+                          styles.monthDot,
+                          { backgroundColor: dotColor },
+                        ]}
+                      />
+                    ) : null}
+                    {showBadge ? (
+                      <View style={styles.monthBadge}>
+                        <Text style={styles.monthBadgeText}>
+                          {shiftCount}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  // -------------------------------------------------------------------------
   return (
     <View style={styles.container}>
       {/* ---- Header row -------------------------------------------------- */}
       <View style={styles.header}>
         <View style={styles.navRow}>
           <Pressable
-            onPress={goToPrevWeek}
+            onPress={viewMode === 'week' ? goToPrevWeek : goToPrevMonth}
             style={styles.navButton}
             accessibilityRole="button"
-            accessibilityLabel={t('weekCalendar.prevWeek')}
+            accessibilityLabel={
+              viewMode === 'week'
+                ? t('weekCalendar.prevWeek')
+                : t('weekCalendar.prevWeek') // reuse or add prevMonth key
+            }
           >
             <Text style={styles.navButtonText}>‹</Text>
           </Pressable>
@@ -293,156 +664,59 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
           </Pressable>
 
           <Pressable
-            onPress={goToNextWeek}
+            onPress={viewMode === 'week' ? goToNextWeek : goToNextMonth}
             style={styles.navButton}
             accessibilityRole="button"
-            accessibilityLabel={t('weekCalendar.nextWeek')}
+            accessibilityLabel={
+              viewMode === 'week'
+                ? t('weekCalendar.nextWeek')
+                : t('weekCalendar.nextWeek') // reuse or add nextMonth key
+            }
           >
             <Text style={styles.navButtonText}>›</Text>
           </Pressable>
         </View>
 
         <Text style={styles.weekRangeLabel} accessibilityRole="text">
-          {weekRangeLabel}
+          {viewMode === 'week' ? weekRangeLabel : monthLabel}
         </Text>
 
-        {onMaximize ? (
+        <View style={styles.headerRightRow}>
+          {/* View mode toggle */}
           <Pressable
-            onPress={onMaximize}
-            style={styles.maximizeButton}
+            onPress={toggleViewMode}
+            style={styles.viewToggleButton}
             accessibilityRole="button"
-            accessibilityLabel={t('weekCalendar.maximize')}
+            accessibilityLabel={
+              viewMode === 'week'
+                ? t('weekCalendar.monthView')
+                : t('weekCalendar.weekView')
+            }
           >
-            <Text style={styles.maximizeIcon}>⤢</Text>
+            <Text style={styles.viewToggleText}>
+              {viewMode === 'week'
+                ? `📅 ${t('weekCalendar.monthView')}`
+                : `📆 ${t('weekCalendar.weekView')}`}
+            </Text>
           </Pressable>
-        ) : null}
+
+          {/* Maximize button */}
+          {onMaximize ? (
+            <Pressable
+              onPress={onMaximize}
+              style={styles.maximizeButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('weekCalendar.maximize')}
+            >
+              <Text style={styles.maximizeIcon}>⤢</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {/* ---- Calendar grid ----------------------------------------------- */}
       {/* @print-region */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator
-        contentContainerStyle={styles.gridScrollContent}
-        accessibilityRole="none"
-      >
-        <View style={styles.grid}>
-          {/* Day column headers */}
-          <View style={styles.columnHeaderRow}>
-            {weekDays.map((day) => {
-              const key = toLocalDateString(day);
-              const isToday = key === todayKey;
-              const cov = coverageByDate?.[key];
-              const showCoverage = cov !== undefined && cov.required > 0;
-              const dotColor = showCoverage
-                ? coverageColor(cov!.scheduled, cov!.required)
-                : undefined;
-
-              return (
-                <View
-                  key={key}
-                  style={[styles.columnHeader, isToday && styles.columnHeaderToday]}
-                  accessibilityRole="header"
-                >
-                  <Text
-                    style={[
-                      styles.columnHeaderText,
-                      isToday && styles.columnHeaderTextToday,
-                    ]}
-                  >
-                    {formatDayLabel(day, t)}
-                  </Text>
-                  {showCoverage ? (
-                    <View style={styles.coverageRow}>
-                      <View
-                        style={[
-                          styles.coverageDot,
-                          { backgroundColor: dotColor },
-                        ]}
-                      />
-                      <Text
-                        style={[styles.coverageText, { color: dotColor }]}
-                      >
-                        {`${cov!.scheduled}/${cov!.required}`}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-
-          {/* Legend row — only when there are shifts */}
-          {hasAnyShifts ? (
-            <View
-              style={styles.legendRow}
-              accessibilityRole="text"
-              accessibilityLabel={t('weekCalendar.legend')}
-            >
-              <View style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: brand.accentDark }]}
-                />
-                <Text style={styles.legendText}>
-                  {t('weekCalendar.legendDraft')}
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: colors.tint }]}
-                />
-                <Text style={styles.legendText}>
-                  {t('weekCalendar.legendPublished')}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {/* Shift columns */}
-          {hasAnyShifts ? (
-            <View style={styles.columnsRow}>
-              {weekDays.map((day) => {
-                const key = toLocalDateString(day);
-                const shifts = shiftsThisWeek[key] ?? [];
-                const isToday = key === todayKey;
-
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      styles.dayColumn,
-                      isToday && styles.dayColumnToday,
-                    ]}
-                  >
-                    {shifts.length === 0 ? (
-                      <View style={styles.emptyDayCell} />
-                    ) : (
-                      shifts.map((shift) => {
-                        const bg = statusColor(shift.status, colors);
-                        const textCol = contrastTextColor(bg);
-                        return (
-                          <ShiftChip
-                            key={shift.id}
-                            shift={shift}
-                            chipBg={bg}
-                            chipText={textCol}
-                          />
-                        );
-                      })
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyStateRow}>
-              <Text style={styles.emptyStateText}>
-                {t('weekCalendar.noShifts')}
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+      {viewMode === 'week' ? renderWeekView() : renderMonthView()}
       {/* @print-region */}
     </View>
   );
@@ -512,6 +786,26 @@ function makeStyles(colors: ThemeColors) {
       color: colors.text,
       flexShrink: 1,
     },
+
+    // ---- Header right group ----
+    headerRightRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    viewToggleButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    viewToggleText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
     maximizeButton: {
       width: 32,
       height: 32,
@@ -525,7 +819,7 @@ function makeStyles(colors: ThemeColors) {
       color: colors.text,
     },
 
-    // ---- Grid scroll container ----
+    // ---- Grid scroll container (week view) ----
     gridScrollContent: {
       flexGrow: 1,
     },
@@ -534,7 +828,7 @@ function makeStyles(colors: ThemeColors) {
       minWidth: COLUMN_WIDTH * 7,
     },
 
-    // ---- Column headers ----
+    // ---- Column headers (week view) ----
     columnHeaderRow: {
       flexDirection: 'row',
       borderBottomWidth: 1,
@@ -548,7 +842,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
     },
     columnHeaderToday: {
-      backgroundColor: colors.tint + '22', // teal tint at 13% opacity
+      backgroundColor: colors.tint + '22',
     },
     columnHeaderText: {
       fontSize: 12,
@@ -559,7 +853,7 @@ function makeStyles(colors: ThemeColors) {
       color: colors.tint,
     },
 
-    // ---- Coverage indicator ----
+    // ---- Coverage indicator (week view) ----
     coverageRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -575,7 +869,7 @@ function makeStyles(colors: ThemeColors) {
       fontSize: 9,
     },
 
-    // ---- Legend row ----
+    // ---- Legend row (week view) ----
     legendRow: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -600,7 +894,7 @@ function makeStyles(colors: ThemeColors) {
       marginLeft: 4,
     },
 
-    // ---- Day columns ----
+    // ---- Day columns (week view) ----
     columnsRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -613,13 +907,13 @@ function makeStyles(colors: ThemeColors) {
       borderRightColor: colors.border,
     },
     dayColumnToday: {
-      backgroundColor: colors.tint + '11', // subtle teal wash
+      backgroundColor: colors.tint + '11',
     },
     emptyDayCell: {
       minHeight: 40,
     },
 
-    // ---- Empty state ----
+    // ---- Empty state (week view) ----
     emptyStateRow: {
       paddingVertical: 32,
       alignItems: 'center',
@@ -629,6 +923,94 @@ function makeStyles(colors: ThemeColors) {
     emptyStateText: {
       fontSize: 14,
       color: colors.textSecondary,
+    },
+
+    // ---- Month view container ----
+    monthContainer: {
+      flexDirection: 'column',
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      backgroundColor: colors.background,
+    },
+
+    // ---- Month weekday header row ----
+    monthWeekdayHeaderRow: {
+      flexDirection: 'row',
+      marginBottom: 4,
+    },
+    monthWeekdayHeaderCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 4,
+    },
+    monthWeekdayHeaderText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+
+    // ---- Month grid rows ----
+    monthRow: {
+      flexDirection: 'row',
+      marginBottom: 2,
+    },
+    monthDayCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 4,
+      minHeight: 52,
+    },
+    monthDayCellOutOfMonth: {
+      opacity: 0.35,
+    },
+    monthDayNumberContainer: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    monthDayNumberContainerToday: {
+      backgroundColor: colors.tint,
+    },
+    monthDayNumber: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    monthDayNumberOutOfMonth: {
+      color: colors.textSecondary,
+      fontWeight: '400',
+    },
+    monthDayNumberToday: {
+      color: '#FFFFFF',
+    },
+    monthDayIndicatorRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      marginTop: 2,
+      minHeight: 10,
+    },
+    monthDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    monthBadge: {
+      minWidth: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.tint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 2,
+    },
+    monthBadgeText: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
   });
 }

@@ -21,12 +21,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TourStep = {
+/** Lightweight step descriptor — title/description live in i18n or component layer. */
+export type TourStepMeta = {
   id: number;
-  title: string;
-  description: string;
   target: string;
+  requiresAction?: boolean;
 };
+
+/** @deprecated Use TourStepMeta. Kept for backward compatibility. */
+export type TourStep = TourStepMeta;
 
 type StepLayout = {
   x: number;
@@ -40,6 +43,8 @@ type TourState = {
   currentStepIndex: number;
   hasCompleted: boolean;
   stepLayouts: Record<string, StepLayout>;
+  userRole: 'manager' | 'worker' | null;
+  completedActions: string[];
 };
 
 type TourAction =
@@ -50,10 +55,24 @@ type TourAction =
   | { type: 'SKIP_TOUR' }
   | { type: 'RESET_TOUR' }
   | { type: 'SET_HAS_COMPLETED'; payload: boolean }
-  | { type: 'REGISTER_LAYOUT'; target: string; layout: StepLayout };
+  | { type: 'REGISTER_LAYOUT'; target: string; layout: StepLayout }
+  | { type: 'SET_USER_ROLE'; payload: 'manager' | 'worker' }
+  | { type: 'RECORD_TOUR_ACTION'; payload: string };
 
 type WelcomeTourContextValue = TourState & {
-  currentStep: TourStep;
+  /** The active step list derived from userRole (MANAGER_STEPS, WORKER_STEPS, or empty). */
+  currentSteps: readonly TourStepMeta[];
+  /** The currently active step, or null when role is not yet chosen. */
+  currentStep: TourStepMeta | null;
+  /** Total number of steps in the active step list. */
+  totalSteps: number;
+  /**
+   * True when the user is allowed to advance:
+   * the step has no requiresAction requirement, OR the action has already been recorded.
+   */
+  canAdvance: boolean;
+  /** Completion percentage: (currentStepIndex / Math.max(totalSteps - 1, 1)) * 100 */
+  progressPercent: number;
   startTour: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -61,64 +80,57 @@ type WelcomeTourContextValue = TourState & {
   completeTour: () => void;
   resetTour: () => void;
   registerLayout: (target: string, layout: StepLayout) => void;
+  /** Persists role to AsyncStorage and updates state. */
+  setUserRole: (role: 'manager' | 'worker') => void;
+  /**
+   * Marks a target as actioned. If the current step matches, schedules an
+   * auto-advance after 600 ms and dispatches NEXT_STEP at that point.
+   */
+  recordTourAction: (target: string) => void;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const TOUR_STEPS: readonly TourStep[] = [
-  {
-    id: 1,
-    title: 'Welcome to Horario!',
-    description:
-      "Your all-in-one scheduling hub. Let's take a 30-second tour so you get the most out of the app.",
-    target: 'home-header',
-  },
-  {
-    id: 2,
-    title: 'Your Daily Streak',
-    description:
-      'Build a scheduling habit. Your streak grows every day you open the scheduler and make an update.',
-    target: 'streak-counter',
-  },
-  {
-    id: 3,
-    title: 'Scheduler Tab',
-    description:
-      'Add workers, define shift templates, build your roster, and set demand targets — all from here.',
-    target: 'scheduler-tab',
-  },
-  {
-    id: 4,
-    title: 'Workers',
-    description:
-      'Add your team members with their roles and availability windows so the scheduler knows who is free.',
-    target: 'workers-section',
-  },
-  {
-    id: 5,
-    title: 'Shift Templates',
-    description:
-      'Define reusable shift blueprints — role, start time, end time, and minimum coverage required.',
-    target: 'shift-templates-section',
-  },
-  {
-    id: 6,
-    title: 'Roster',
-    description:
-      'Assign workers to templates for specific dates. The app validates availability and role matches.',
-    target: 'roster-section',
-  },
-  {
-    id: 7,
-    title: 'Demand Forecasting',
-    description:
-      'Set staffing targets per role per day. The AI model can generate forecasts from your historical data.',
-    target: 'demand-section',
-  },
+export const MANAGER_STEPS: readonly TourStepMeta[] = [
+  { id: 1, target: 'home-header' },
+  { id: 2, target: 'streak-counter' },
+  { id: 3, target: 'scheduler-tab' },
+  { id: 4, target: 'workers-section', requiresAction: true },
+  { id: 5, target: 'availability-section', requiresAction: true },
+  { id: 6, target: 'shift-templates-section', requiresAction: true },
+  { id: 7, target: 'roster-section', requiresAction: true },
+  { id: 8, target: 'demand-section' },
 ] as const;
 
+export const WORKER_STEPS: readonly TourStepMeta[] = [
+  { id: 1, target: 'home-header' },
+  { id: 2, target: 'streak-counter' },
+  { id: 3, target: 'scheduler-tab' },
+  { id: 4, target: 'workers-section', requiresAction: true },
+  { id: 5, target: 'demand-section' },
+] as const;
+
+/**
+ * Backward-compat alias — existing consumers that imported TOUR_STEPS continue
+ * to compile; they receive the manager step list.
+ */
+export const TOUR_STEPS: readonly TourStepMeta[] = MANAGER_STEPS;
+
 const STORAGE_KEY = 'horario.tour';
-const LAST_STEP_INDEX = TOUR_STEPS.length - 1;
+const ROLE_KEY = 'horario.userRole';
+const SEEN_KEY = 'horario.tourSeen';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function stepsForRole(role: 'manager' | 'worker' | null): readonly TourStepMeta[] {
+  if (role === 'worker') return WORKER_STEPS;
+  if (role === 'manager') return MANAGER_STEPS;
+  return MANAGER_STEPS; // default so totalSteps is never 0 before role is set
+}
+
+function lastStepIndex(role: 'manager' | 'worker' | null): number {
+  return stepsForRole(role).length - 1;
+}
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +139,8 @@ const initialState: TourState = {
   currentStepIndex: 0,
   hasCompleted: false,
   stepLayouts: {},
+  userRole: null,
+  completedActions: [],
 };
 
 function tourReducer(state: TourState, action: TourAction): TourState {
@@ -135,16 +149,14 @@ function tourReducer(state: TourState, action: TourAction): TourState {
       return { ...state, isActive: true, currentStepIndex: 0 };
 
     case 'NEXT_STEP': {
-      // Caller is responsible for detecting last step and calling COMPLETE_TOUR instead,
-      // but guard here too so state never exceeds bounds.
-      if (state.currentStepIndex >= LAST_STEP_INDEX) {
+      const last = lastStepIndex(state.userRole);
+      if (state.currentStepIndex >= last) {
         return { ...state, isActive: false, hasCompleted: true };
       }
       return { ...state, currentStepIndex: state.currentStepIndex + 1 };
     }
 
     case 'PREV_STEP':
-      // No-op at the first step.
       if (state.currentStepIndex === 0) return state;
       return { ...state, currentStepIndex: state.currentStepIndex - 1 };
 
@@ -155,7 +167,13 @@ function tourReducer(state: TourState, action: TourAction): TourState {
       return { ...state, isActive: false, hasCompleted: true };
 
     case 'RESET_TOUR':
-      return { ...state, hasCompleted: false, currentStepIndex: 0, isActive: false };
+      return {
+        ...state,
+        hasCompleted: false,
+        currentStepIndex: 0,
+        isActive: false,
+        completedActions: [],
+      };
 
     case 'SET_HAS_COMPLETED':
       return { ...state, hasCompleted: action.payload };
@@ -165,6 +183,17 @@ function tourReducer(state: TourState, action: TourAction): TourState {
         ...state,
         stepLayouts: { ...state.stepLayouts, [action.target]: action.layout },
       };
+
+    case 'SET_USER_ROLE':
+      return { ...state, userRole: action.payload, currentStepIndex: 0 };
+
+    case 'RECORD_TOUR_ACTION': {
+      if (state.completedActions.includes(action.payload)) return state;
+      return {
+        ...state,
+        completedActions: [...state.completedActions, action.payload],
+      };
+    }
 
     default:
       return state;
@@ -180,41 +209,96 @@ const WelcomeTourContext = createContext<WelcomeTourContextValue | null>(null);
 export function WelcomeTourProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(tourReducer, initialState);
 
-  // Load persisted completion state on mount.
+  // ── Derived step list & helpers ──────────────────────────────────────────
+
+  const currentSteps = useMemo(() => stepsForRole(state.userRole), [state.userRole]);
+
+  const totalSteps = currentSteps.length;
+
+  const currentStep: TourStepMeta | null = useMemo(() => {
+    if (state.userRole === null) return null;
+    return currentSteps[state.currentStepIndex] ?? null;
+  }, [state.userRole, state.currentStepIndex, currentSteps]);
+
+  const canAdvance = useMemo(() => {
+    if (!currentStep) return false;
+    if (!currentStep.requiresAction) return true;
+    return state.completedActions.includes(currentStep.target);
+  }, [currentStep, state.completedActions]);
+
+  const progressPercent = useMemo(
+    () => (state.currentStepIndex / Math.max(totalSteps - 1, 1)) * 100,
+    [state.currentStepIndex, totalSteps],
+  );
+
+  // ── AsyncStorage bootstrap ───────────────────────────────────────────────
+
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw !== null) {
-          const parsed = JSON.parse(raw) as { hasCompleted: boolean };
-          if (typeof parsed.hasCompleted === 'boolean') {
-            dispatch({ type: 'SET_HAS_COMPLETED', payload: parsed.hasCompleted });
+    (async () => {
+      try {
+        const [tourRaw, roleRaw, seenRaw] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(ROLE_KEY),
+          AsyncStorage.getItem(SEEN_KEY),
+        ]);
+
+        // Restore completion flag.
+        let hasCompleted = false;
+        if (tourRaw !== null) {
+          try {
+            const parsed = JSON.parse(tourRaw) as { hasCompleted: boolean };
+            if (typeof parsed.hasCompleted === 'boolean') {
+              hasCompleted = parsed.hasCompleted;
+              dispatch({ type: 'SET_HAS_COMPLETED', payload: parsed.hasCompleted });
+            }
+          } catch {
+            // Malformed JSON — treat as not completed.
           }
         }
-      })
-      .catch(() => {
-        // Storage read failure is non-fatal; tour defaults to not completed.
-      });
+
+        // Restore role.
+        if (roleRaw === 'manager' || roleRaw === 'worker') {
+          dispatch({ type: 'SET_USER_ROLE', payload: roleRaw });
+        }
+
+        // Auto-start on first launch: not completed and never seen before.
+        if (!hasCompleted && seenRaw === null) {
+          dispatch({ type: 'START_TOUR' });
+          AsyncStorage.setItem(SEEN_KEY, '1').catch(() => undefined);
+        }
+      } catch {
+        // Storage read failure is non-fatal; tour defaults to not started.
+      }
+    })();
   }, []);
 
-  const persist = useCallback((hasCompleted: boolean) => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ hasCompleted })).catch(() => {
-      // Persistence failure is non-fatal.
-    });
+  // ── Persistence helpers ──────────────────────────────────────────────────
+
+  const persistCompletion = useCallback((hasCompleted: boolean) => {
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ hasCompleted })).catch(
+      () => undefined,
+    );
   }, []);
+
+  const persistRole = useCallback((role: 'manager' | 'worker') => {
+    AsyncStorage.setItem(ROLE_KEY, role).catch(() => undefined);
+  }, []);
+
+  // ── Actions ──────────────────────────────────────────────────────────────
 
   const startTour = useCallback(() => {
     dispatch({ type: 'START_TOUR' });
   }, []);
 
   const nextStep = useCallback(() => {
-    // Dispatch COMPLETE_TOUR (with persist) when advancing past the last step.
-    if (state.currentStepIndex >= LAST_STEP_INDEX) {
+    const last = lastStepIndex(state.userRole);
+    if (state.currentStepIndex >= last) {
       dispatch({ type: 'COMPLETE_TOUR' });
-      persist(true);
+      persistCompletion(true);
     } else {
       dispatch({ type: 'NEXT_STEP' });
     }
-  }, [state.currentStepIndex, persist]);
+  }, [state.currentStepIndex, state.userRole, persistCompletion]);
 
   const prevStep = useCallback(() => {
     dispatch({ type: 'PREV_STEP' });
@@ -222,33 +306,64 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
 
   const skipTour = useCallback(() => {
     dispatch({ type: 'SKIP_TOUR' });
-    persist(true);
-  }, [persist]);
+    persistCompletion(true);
+  }, [persistCompletion]);
 
   const completeTour = useCallback(() => {
     dispatch({ type: 'COMPLETE_TOUR' });
-    persist(true);
-  }, [persist]);
+    persistCompletion(true);
+  }, [persistCompletion]);
 
   const resetTour = useCallback(() => {
     dispatch({ type: 'RESET_TOUR' });
-    persist(false);
-  }, [persist]);
+    persistCompletion(false);
+  }, [persistCompletion]);
 
   const registerLayout = useCallback((target: string, layout: StepLayout) => {
     dispatch({ type: 'REGISTER_LAYOUT', target, layout });
   }, []);
 
-  // Stable computed currentStep — changes only when currentStepIndex changes.
-  const currentStep = useMemo(
-    () => TOUR_STEPS[state.currentStepIndex] as TourStep,
-    [state.currentStepIndex],
+  const setUserRole = useCallback(
+    (role: 'manager' | 'worker') => {
+      dispatch({ type: 'SET_USER_ROLE', payload: role });
+      persistRole(role);
+    },
+    [persistRole],
   );
+
+  const recordTourAction = useCallback(
+    (target: string) => {
+      dispatch({ type: 'RECORD_TOUR_ACTION', payload: target });
+
+      // If the recorded action matches the current step, schedule auto-advance.
+      if (currentStep && currentStep.target === target) {
+        const stepIndex = state.currentStepIndex;
+        const role = state.userRole;
+        const last = lastStepIndex(role);
+
+        setTimeout(() => {
+          if (stepIndex >= last) {
+            dispatch({ type: 'COMPLETE_TOUR' });
+            persistCompletion(true);
+          } else {
+            dispatch({ type: 'NEXT_STEP' });
+          }
+        }, 600);
+      }
+    },
+    [currentStep, state.currentStepIndex, state.userRole, persistCompletion],
+  );
+
+  // ── Context value ────────────────────────────────────────────────────────
 
   const value = useMemo<WelcomeTourContextValue>(
     () => ({
       ...state,
+      currentSteps,
       currentStep,
+      totalSteps,
+      canAdvance,
+      progressPercent,
       startTour,
       nextStep,
       prevStep,
@@ -256,10 +371,16 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       completeTour,
       resetTour,
       registerLayout,
+      setUserRole,
+      recordTourAction,
     }),
     [
       state,
+      currentSteps,
       currentStep,
+      totalSteps,
+      canAdvance,
+      progressPercent,
       startTour,
       nextStep,
       prevStep,
@@ -267,6 +388,8 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       completeTour,
       resetTour,
       registerLayout,
+      setUserRole,
+      recordTourAction,
     ],
   );
 

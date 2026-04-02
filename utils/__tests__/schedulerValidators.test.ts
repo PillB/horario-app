@@ -79,7 +79,7 @@ describe('validateAvailabilitySubmission', () => {
       { workerId: 'W-99', day: 'Mon', from: '09:00', to: '17:00' },
       workers
     );
-    expect(errors.some((e) => e.includes('Worker ID'))).toBe(true);
+    expect(errors.some((e) => e.code === 'WORKER_NOT_FOUND')).toBe(true);
   });
 
   it('rejects an invalid day name', () => {
@@ -87,7 +87,7 @@ describe('validateAvailabilitySubmission', () => {
       { workerId: 'W-01', day: 'Holiday', from: '09:00', to: '17:00' },
       workers
     );
-    expect(errors.some((e) => e.includes('Day must be'))).toBe(true);
+    expect(errors.some((e) => e.code === 'DAY_INVALID')).toBe(true);
   });
 
   it('rejects inverted time window', () => {
@@ -95,7 +95,7 @@ describe('validateAvailabilitySubmission', () => {
       { workerId: 'W-01', day: 'Tue', from: '17:00', to: '09:00' },
       workers
     );
-    expect(errors.some((e) => e.includes('earlier'))).toBe(true);
+    expect(errors.some((e) => e.code === 'FROM_BEFORE_TO')).toBe(true);
   });
 
   it('rejects overlapping availability on same day', () => {
@@ -107,7 +107,7 @@ describe('validateAvailabilitySubmission', () => {
       { workerId: 'W-01', day: 'Mon', from: '10:00', to: '14:00' },
       [workerWithSlot]
     );
-    expect(errors.some((e) => e.includes('overlaps'))).toBe(true);
+    expect(errors.some((e) => e.code === 'AVAILABILITY_OVERLAP')).toBe(true);
   });
 
   it('reports an overlap error for an identical slot (identical slots are a superset of overlaps)', () => {
@@ -123,7 +123,7 @@ describe('validateAvailabilitySubmission', () => {
       { workerId: 'W-01', day: 'Tue', from: '09:00', to: '17:00' },
       [workerWithSlot]
     );
-    expect(errors.some((e) => e.includes('overlaps') || e.includes('already exists'))).toBe(true);
+    expect(errors.some((e) => e.code === 'AVAILABILITY_OVERLAP' || e.code === 'AVAILABILITY_DUPLICATE')).toBe(true);
   });
 });
 
@@ -146,18 +146,18 @@ describe('validateShiftReadiness', () => {
 
   it('reports missing template', () => {
     const { errors } = validateShiftReadiness(shift, [shift], [], [worker], 0);
-    expect(errors.some((e) => e.includes('Template'))).toBe(true);
+    expect(errors.some((e) => e.code === 'TEMPLATE_MISSING')).toBe(true);
   });
 
   it('reports missing worker', () => {
     const { errors } = validateShiftReadiness(shift, [shift], [template], [], 0);
-    expect(errors.some((e) => e.includes('Worker'))).toBe(true);
+    expect(errors.some((e) => e.code === 'WORKER_MISSING')).toBe(true);
   });
 
   it('reports role mismatch', () => {
     const wrongRoleWorker: Worker = { ...worker, role: 'Cashier' };
     const { errors } = validateShiftReadiness(shift, [shift], [template], [wrongRoleWorker], 0);
-    expect(errors.some((e) => e.includes('role'))).toBe(true);
+    expect(errors.some((e) => e.code === 'ROLE_MISMATCH')).toBe(true);
   });
 
   it('reports inadequate availability coverage', () => {
@@ -166,12 +166,12 @@ describe('validateShiftReadiness', () => {
       availability: [{ day: 'Mon', from: '10:00', to: '16:00' }], // starts after template 08:00
     };
     const { errors } = validateShiftReadiness(shift, [shift], [template], [lateWorker], 0);
-    expect(errors.some((e) => e.includes('availability'))).toBe(true);
+    expect(errors.some((e) => e.code === 'COVERAGE_MISSING')).toBe(true);
   });
 
   it('reports time-window overlap with existing shift', () => {
     const overlap: Shift = { ...shift, id: 's2' };
     const { errors } = validateShiftReadiness(shift, [shift, overlap], [template], [worker], 0);
-    expect(errors.some((e) => e.includes('already has a shift'))).toBe(true);
+    expect(errors.some((e) => e.code === 'SHIFT_OVERLAP')).toBe(true);
   });
 });
