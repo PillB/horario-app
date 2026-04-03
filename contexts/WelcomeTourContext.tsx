@@ -26,10 +26,16 @@ export type TourStepMeta = {
   id: number;
   target: string;
   requiresAction?: boolean;
+  /** Which tab this step lives on — used for cross-tab navigation prompts */
+  tab?: 'home' | 'scheduler' | 'analytics';
+  /** Shown as a 💡 chip in the callout card to guide interactive field filling */
+  interactiveHint?: string;
 };
 
 /** @deprecated Use TourStepMeta. Kept for backward compatibility. */
 export type TourStep = TourStepMeta;
+
+export type TourMode = 'overview' | 'manager' | 'worker' | 'home' | 'scheduler' | 'analytics';
 
 type StepLayout = {
   x: number;
@@ -45,10 +51,12 @@ type TourState = {
   stepLayouts: Record<string, StepLayout>;
   userRole: 'manager' | 'worker' | null;
   completedActions: string[];
+  tourMode: TourMode | null;
 };
 
 type TourAction =
   | { type: 'START_TOUR' }
+  | { type: 'START_TOUR_MODE'; payload: TourMode }
   | { type: 'NEXT_STEP' }
   | { type: 'PREV_STEP' }
   | { type: 'COMPLETE_TOUR' }
@@ -60,9 +68,9 @@ type TourAction =
   | { type: 'RECORD_TOUR_ACTION'; payload: string };
 
 type WelcomeTourContextValue = TourState & {
-  /** The active step list derived from userRole (MANAGER_STEPS, WORKER_STEPS, or empty). */
+  /** The active step list derived from tourMode / userRole. */
   currentSteps: readonly TourStepMeta[];
-  /** The currently active step, or null when role is not yet chosen. */
+  /** The currently active step, or null when the tour is not active. */
   currentStep: TourStepMeta | null;
   /** Total number of steps in the active step list. */
   totalSteps: number;
@@ -73,7 +81,11 @@ type WelcomeTourContextValue = TourState & {
   canAdvance: boolean;
   /** Completion percentage: (currentStepIndex / Math.max(totalSteps - 1, 1)) * 100 */
   progressPercent: number;
+  /** The currently active tour mode, or null when using legacy role-based flow. */
+  tourMode: TourMode | null;
   startTour: () => void;
+  /** Start a specific named guide flow. */
+  startTourMode: (mode: TourMode) => void;
   nextStep: () => void;
   prevStep: () => void;
   skipTour: () => void;
@@ -110,6 +122,71 @@ export const WORKER_STEPS: readonly TourStepMeta[] = [
   { id: 5, target: 'demand-section' },
 ] as const;
 
+/** 5-step overview: one highlight per app section, no required actions */
+export const OVERVIEW_STEPS: readonly TourStepMeta[] = [
+  { id: 1, target: 'home-header', tab: 'home' },
+  { id: 2, target: 'streak-counter', tab: 'home' },
+  { id: 3, target: 'workers-section', tab: 'scheduler' },
+  { id: 4, target: 'demand-section', tab: 'scheduler' },
+  { id: 5, target: 'analytics-kpis', tab: 'analytics' },
+] as const;
+
+/** 6-step Home tab detail tour */
+export const HOME_DETAIL_STEPS: readonly TourStepMeta[] = [
+  { id: 1, target: 'home-header', tab: 'home' },
+  { id: 2, target: 'week-stats', tab: 'home' },
+  { id: 3, target: 'streak-counter', tab: 'home' },
+  { id: 4, target: 'upcoming-shifts', tab: 'home' },
+  { id: 5, target: 'staffing-gaps', tab: 'home' },
+  { id: 6, target: 'quick-actions', tab: 'home' },
+] as const;
+
+/** 5-step Scheduler tab detail tour with interactive hints */
+export const SCHEDULER_DETAIL_STEPS: readonly TourStepMeta[] = [
+  {
+    id: 1,
+    target: 'workers-section',
+    tab: 'scheduler',
+    requiresAction: true,
+    interactiveHint: 'Enter a worker name, role, and skills — then tap "Add worker" to continue',
+  },
+  {
+    id: 2,
+    target: 'availability-section',
+    tab: 'scheduler',
+    requiresAction: true,
+    interactiveHint: 'Select a day (e.g. Mon), enter From: 09:00, To: 17:00 — then tap "Add availability"',
+  },
+  {
+    id: 3,
+    target: 'shift-templates-section',
+    tab: 'scheduler',
+    requiresAction: true,
+    interactiveHint: 'Enter a template name, role, start/end times, and coverage count — then tap "Add template"',
+  },
+  {
+    id: 4,
+    target: 'roster-section',
+    tab: 'scheduler',
+    requiresAction: true,
+    interactiveHint: 'Pick a worker, pick a template, enter a date (YYYY-MM-DD) — then tap "Save and notify team"',
+  },
+  {
+    id: 5,
+    target: 'demand-section',
+    tab: 'scheduler',
+    interactiveHint: 'Try entering a role, start date, and daily demand — then tap "Save baseline targets"',
+  },
+] as const;
+
+/** 4-step Analytics tab detail tour */
+export const ANALYTICS_DETAIL_STEPS: readonly TourStepMeta[] = [
+  { id: 1, target: 'analytics-kpis', tab: 'analytics' },
+  { id: 2, target: 'analytics-revenue', tab: 'analytics' },
+  { id: 3, target: 'analytics-hours', tab: 'analytics' },
+  { id: 4, target: 'analytics-fairness', tab: 'analytics' },
+] as const;
+
 /**
  * Backward-compat alias — existing consumers that imported TOUR_STEPS continue
  * to compile; they receive the manager step list.
@@ -122,14 +199,32 @@ const SEEN_KEY = 'horario.tourSeen';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function stepsForRole(role: 'manager' | 'worker' | null): readonly TourStepMeta[] {
-  if (role === 'worker') return WORKER_STEPS;
-  if (role === 'manager') return MANAGER_STEPS;
-  return MANAGER_STEPS; // default so totalSteps is never 0 before role is set
+function stepsForMode(
+  mode: TourMode | null,
+  role: 'manager' | 'worker' | null,
+): readonly TourStepMeta[] {
+  switch (mode) {
+    case 'overview':
+      return OVERVIEW_STEPS;
+    case 'home':
+      return HOME_DETAIL_STEPS;
+    case 'scheduler':
+      return SCHEDULER_DETAIL_STEPS;
+    case 'analytics':
+      return ANALYTICS_DETAIL_STEPS;
+    case 'manager':
+      return MANAGER_STEPS;
+    case 'worker':
+      return WORKER_STEPS;
+    default:
+      // Legacy fallback when mode is null but role is set
+      if (role === 'worker') return WORKER_STEPS;
+      return MANAGER_STEPS;
+  }
 }
 
-function lastStepIndex(role: 'manager' | 'worker' | null): number {
-  return stepsForRole(role).length - 1;
+function lastStepIndex(mode: TourMode | null, role: 'manager' | 'worker' | null): number {
+  return stepsForMode(mode, role).length - 1;
 }
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -141,6 +236,7 @@ const initialState: TourState = {
   stepLayouts: {},
   userRole: null,
   completedActions: [],
+  tourMode: null,
 };
 
 function tourReducer(state: TourState, action: TourAction): TourState {
@@ -148,8 +244,18 @@ function tourReducer(state: TourState, action: TourAction): TourState {
     case 'START_TOUR':
       return { ...state, isActive: true, currentStepIndex: 0 };
 
+    case 'START_TOUR_MODE':
+      return {
+        ...state,
+        isActive: true,
+        currentStepIndex: 0,
+        tourMode: action.payload,
+        completedActions: [],
+        // Keep userRole unchanged — it may already be set
+      };
+
     case 'NEXT_STEP': {
-      const last = lastStepIndex(state.userRole);
+      const last = lastStepIndex(state.tourMode, state.userRole);
       if (state.currentStepIndex >= last) {
         return { ...state, isActive: false, hasCompleted: true };
       }
@@ -211,14 +317,18 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
 
   // ── Derived step list & helpers ──────────────────────────────────────────
 
-  const currentSteps = useMemo(() => stepsForRole(state.userRole), [state.userRole]);
+  const currentSteps = useMemo(
+    () => stepsForMode(state.tourMode, state.userRole),
+    [state.tourMode, state.userRole],
+  );
 
   const totalSteps = currentSteps.length;
 
   const currentStep: TourStepMeta | null = useMemo(() => {
-    if (state.userRole === null) return null;
+    // Allow steps without a role for mode-based tours
+    if (!state.isActive) return null;
     return currentSteps[state.currentStepIndex] ?? null;
-  }, [state.userRole, state.currentStepIndex, currentSteps]);
+  }, [state.isActive, state.currentStepIndex, currentSteps]);
 
   const canAdvance = useMemo(() => {
     if (!currentStep) return false;
@@ -274,10 +384,8 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
 
   // ── Persistence helpers ──────────────────────────────────────────────────
 
-  const persistCompletion = useCallback((hasCompleted: boolean) => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ hasCompleted })).catch(
-      () => undefined,
-    );
+  const persistCompletion = useCallback((completed: boolean) => {
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ hasCompleted: completed })).catch(() => undefined);
   }, []);
 
   const persistRole = useCallback((role: 'manager' | 'worker') => {
@@ -290,15 +398,24 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
     dispatch({ type: 'START_TOUR' });
   }, []);
 
+  const startTourMode = useCallback(
+    (mode: TourMode) => {
+      dispatch({ type: 'START_TOUR_MODE', payload: mode });
+      if (mode === 'manager') persistRole('manager');
+      if (mode === 'worker') persistRole('worker');
+    },
+    [persistRole],
+  );
+
   const nextStep = useCallback(() => {
-    const last = lastStepIndex(state.userRole);
+    const last = lastStepIndex(state.tourMode, state.userRole);
     if (state.currentStepIndex >= last) {
       dispatch({ type: 'COMPLETE_TOUR' });
       persistCompletion(true);
     } else {
       dispatch({ type: 'NEXT_STEP' });
     }
-  }, [state.currentStepIndex, state.userRole, persistCompletion]);
+  }, [state.currentStepIndex, state.tourMode, state.userRole, persistCompletion]);
 
   const prevStep = useCallback(() => {
     dispatch({ type: 'PREV_STEP' });
@@ -334,13 +451,9 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
   const recordTourAction = useCallback(
     (target: string) => {
       dispatch({ type: 'RECORD_TOUR_ACTION', payload: target });
-
-      // If the recorded action matches the current step, schedule auto-advance.
       if (currentStep && currentStep.target === target) {
         const stepIndex = state.currentStepIndex;
-        const role = state.userRole;
-        const last = lastStepIndex(role);
-
+        const last = lastStepIndex(state.tourMode, state.userRole);
         setTimeout(() => {
           if (stepIndex >= last) {
             dispatch({ type: 'COMPLETE_TOUR' });
@@ -351,7 +464,7 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
         }, 600);
       }
     },
-    [currentStep, state.currentStepIndex, state.userRole, persistCompletion],
+    [currentStep, state.currentStepIndex, state.tourMode, state.userRole, persistCompletion],
   );
 
   // ── Context value ────────────────────────────────────────────────────────
@@ -365,6 +478,7 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       canAdvance,
       progressPercent,
       startTour,
+      startTourMode,
       nextStep,
       prevStep,
       skipTour,
@@ -382,6 +496,7 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       canAdvance,
       progressPercent,
       startTour,
+      startTourMode,
       nextStep,
       prevStep,
       skipTour,

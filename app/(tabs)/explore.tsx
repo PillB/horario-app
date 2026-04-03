@@ -18,6 +18,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { TourStep } from '@/components/TourStep';
 import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
@@ -186,78 +187,86 @@ export default function AnalyticsScreen() {
         ) : (
           <>
             {/* ── KPI row ────────────────────────────────────────────────── */}
-            <View style={styles.kpiRow}>
-              <MetricCard
-                label={t('analytics.coverageLabel')}
-                value={`${coverageRate}%`}
-                sub={t('analytics.coverageSub')}
-                accent={
-                  // Text-safe AA colors (left-border accent + metric value color):
-                  //   Green 700 #15803D 5.44:1 · Amber 700 #B45309 4.82:1 · Red 600 #DC2626 4.64:1
-                  coverageRate >= 80
-                    ? '#15803D'
-                    : coverageRate >= 50
-                      ? '#B45309'
-                      : '#DC2626'
-                }
-                testID="analytics-coverage-rate"
-              />
-              <MetricCard
-                label={t('analytics.draftsPending')}
-                value={String(draftShifts)}
-                sub={t('analytics.draftsAwaiting')}
-                accent={draftShifts > 0 ? '#B45309' : '#15803D'}
-                testID="analytics-draft-shifts"
-              />
-            </View>
+            <TourStep target="analytics-kpis">
+              <View style={styles.kpiRow}>
+                <MetricCard
+                  label={t('analytics.coverageLabel')}
+                  value={`${coverageRate}%`}
+                  sub={t('analytics.coverageSub')}
+                  accent={
+                    // Text-safe AA colors (left-border accent + metric value color):
+                    //   Green 700 #15803D 5.44:1 · Amber 700 #B45309 4.82:1 · Red 600 #DC2626 4.64:1
+                    coverageRate >= 80
+                      ? '#15803D'
+                      : coverageRate >= 50
+                        ? '#B45309'
+                        : '#DC2626'
+                  }
+                  testID="analytics-coverage-rate"
+                />
+                <MetricCard
+                  label={t('analytics.draftsPending')}
+                  value={String(draftShifts)}
+                  sub={t('analytics.draftsAwaiting')}
+                  accent={draftShifts > 0 ? '#B45309' : '#15803D'}
+                  testID="analytics-draft-shifts"
+                />
+              </View>
+            </TourStep>
 
             {/* ── Revenue at risk ───────────────────────────────────────── */}
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{t('analytics.revenueAtRisk')}</ThemedText>
-              <ThemedText
-                type="title"
-                testID="analytics-uncovered-revenue"
-                style={[
-                  styles.revenueValue,
-                  { color: uncoveredRevenue > 0 ? '#DC2626' : '#15803D' },
-                ]}
-              >
-                {formatCurrency(uncoveredRevenue)}
-              </ThemedText>
-              <ThemedText style={styles.mutedText}>
-                {t('analytics.revenueDesc', { n: String(publishedShifts) })}
-              </ThemedText>
-            </ThemedView>
+            <TourStep target="analytics-revenue">
+              <ThemedView style={styles.card}>
+                <ThemedText type="subtitle">{t('analytics.revenueAtRisk')}</ThemedText>
+                <ThemedText
+                  type="title"
+                  testID="analytics-uncovered-revenue"
+                  style={[
+                    styles.revenueValue,
+                    { color: uncoveredRevenue > 0 ? '#DC2626' : '#15803D' },
+                  ]}
+                >
+                  {formatCurrency(uncoveredRevenue)}
+                </ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {t('analytics.revenueDesc', { n: String(publishedShifts) })}
+                </ThemedText>
+              </ThemedView>
+            </TourStep>
 
             {/* ── Worker hours distribution ─────────────────────────────── */}
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{t('analytics.workerHours')}</ThemedText>
-              <ThemedText style={styles.mutedText}>
-                {t('analytics.workerHoursSub')}
-              </ThemedText>
-              {workerHours.length === 0 ? (
-                <ThemedText style={styles.mutedText}>{t('analytics.noPublishedShifts')}</ThemedText>
-              ) : (
-                (workerHours as WorkerHoursEntry[]).map((entry) => (
-                  <HoursBar
-                    key={entry.workerId}
-                    name={entry.workerName}
-                    hours={entry.hours}
-                    maxHours={maxHours}
-                    testID={`hours-bar-${entry.workerId}`}
-                  />
-                ))
-              )}
-            </ThemedView>
+            <TourStep target="analytics-hours">
+              <ThemedView style={styles.card}>
+                <ThemedText type="subtitle">{t('analytics.workerHours')}</ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {t('analytics.workerHoursSub')}
+                </ThemedText>
+                {workerHours.length === 0 ? (
+                  <ThemedText style={styles.mutedText}>{t('analytics.noPublishedShifts')}</ThemedText>
+                ) : (
+                  (workerHours as WorkerHoursEntry[]).map((entry) => (
+                    <HoursBar
+                      key={entry.workerId}
+                      name={entry.workerName}
+                      hours={entry.hours}
+                      maxHours={maxHours}
+                      testID={`hours-bar-${entry.workerId}`}
+                    />
+                  ))
+                )}
+              </ThemedView>
+            </TourStep>
 
             {/* ── Fairness score ────────────────────────────────────────── */}
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{t('analytics.fairness')}</ThemedText>
-              <ThemedText style={styles.mutedText}>
-                {t('analytics.fairnessSub')}
-              </ThemedText>
-              <FairnessGauge score={fairnessScore} />
-            </ThemedView>
+            <TourStep target="analytics-fairness">
+              <ThemedView style={styles.card}>
+                <ThemedText type="subtitle">{t('analytics.fairness')}</ThemedText>
+                <ThemedText style={styles.mutedText}>
+                  {t('analytics.fairnessSub')}
+                </ThemedText>
+                <FairnessGauge score={fairnessScore} />
+              </ThemedView>
+            </TourStep>
 
             {/* ── Quick actions ─────────────────────────────────────────── */}
             <ThemedView style={styles.card}>
@@ -356,30 +365,6 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
       borderRadius: 5,
       backgroundColor: brand.primaryDark, // #0F766E — ≥3:1 against Colors.light.border ✓
     },
-    barValue: {
-      width: 40,
-      textAlign: 'right',
-      fontSize: 13,
-    },
-    // Fairness gauge
-    fairnessRow: {
-      gap: 8,
-    },
-    fairnessBarTrack: {
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: colors.border, // light: #E2E8F0 · dark: #334155
-      overflow: 'hidden',
-    },
-    fairnessBarFill: {
-      height: 10,
-      borderRadius: 5,
-    },
-    fairnessLabel: {
-      fontWeight: '700',
-      fontSize: 15,
-    },
-    // Error / retry
     errorText: {
       color: colors.error, // light: #DC2626 4.64:1 ✓ AA · dark: #F87171 ✓ AA
       textAlign: 'center',
@@ -408,5 +393,28 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
     primaryButtonText: {
       color: '#FFFFFF',
       fontWeight: '700',
+    },
+    barValue: {
+      width: 40,
+      textAlign: 'right',
+      fontSize: 13,
+    },
+    // Fairness gauge
+    fairnessRow: {
+      gap: 8,
+    },
+    fairnessBarTrack: {
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.border, // light: #E2E8F0 · dark: #334155
+      overflow: 'hidden',
+    },
+    fairnessBarFill: {
+      height: 10,
+      borderRadius: 5,
+    },
+    fairnessLabel: {
+      fontWeight: '700',
+      fontSize: 15,
     },
   });

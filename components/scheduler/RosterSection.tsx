@@ -74,6 +74,26 @@ const makeLocalStyles = (colors: ThemeColors, isDark: boolean) =>
     statusPillText: {
       color: colors.text,
     },
+    shiftRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      paddingVertical: 8,
+      minHeight: 44,
+    },
+    shiftRowLeft: {
+      flex: 1,
+      gap: 2,
+    },
+    shiftWorkerName: {
+      fontSize: 14,
+      fontWeight: '600' as const,
+      color: colors.text,
+    },
+    shiftTime: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
     ghostNameBar: {
       backgroundColor: isDark ? Colors.dark.border : Colors.light.border,
     },
@@ -172,7 +192,9 @@ const WebFullscreenPortal: React.FC<WebPortalProps> = ({ children }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
+    // Guard: must be web platform AND document must exist (SSR safety)
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
     const div = document.createElement('div');
     div.style.position = 'fixed';
     div.style.top = '0';
@@ -183,26 +205,38 @@ const WebFullscreenPortal: React.FC<WebPortalProps> = ({ children }) => {
     document.body.appendChild(div);
     containerRef.current = div;
     setMounted(true);
+
     return () => {
       if (div.parentNode) {
         div.parentNode.removeChild(div);
       }
+      containerRef.current = null;
     };
   }, []);
 
+  // SSR / non-web: never render portal
+  if (Platform.OS !== 'web') return null;
+
+  // Not yet mounted or document unavailable (SSR)
   if (!mounted || !containerRef.current) return null;
 
-  // Use ReactDOM.createPortal — import ReactDOM from 'react-dom' only on web path
-  // We conditionally require it to avoid native bundle issues
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-  const ReactDOM = require('react-dom') as any;
-  return ReactDOM.createPortal(children, containerRef.current);
+  // Guard: document must be available before requiring react-dom
+  if (typeof document === 'undefined') return null;
+
+  try {
+    const ReactDOM = require('react-dom') as typeof import('react-dom');
+    return ReactDOM.createPortal(children, containerRef.current);
+  } catch {
+    return null;
+  }
 };
 
 // Print style injector (web only)
 const usePrintStyles = (enabled: boolean) => {
   useEffect(() => {
-    if (!enabled || Platform.OS !== 'web') return;
+    // Guard: must be web platform AND document must exist (SSR safety)
+    if (!enabled || Platform.OS !== 'web' || typeof document === 'undefined') return;
+
     const styleEl = document.createElement('style');
     styleEl.setAttribute('data-horario-print', 'roster');
     styleEl.textContent = `
@@ -212,6 +246,7 @@ const usePrintStyles = (enabled: boolean) => {
       }
     `;
     document.head.appendChild(styleEl);
+
     return () => {
       if (styleEl.parentNode) {
         styleEl.parentNode.removeChild(styleEl);
@@ -275,325 +310,116 @@ export const RosterSection = ({
           onPress={handleCloseMaximize}
           style={local.closeBtn}
           accessibilityRole="button"
-          accessibilityLabel={t('scheduler.roster.closeFullscreen')}
+          accessibilityLabel={t('common.close')}
         >
-          <ThemedText style={local.closeBtnText}>
-            {t('scheduler.roster.closeFullscreen')}
-          </ThemedText>
+          <ThemedText style={local.closeBtnText}>{t('common.close')}</ThemedText>
         </Pressable>
       </View>
       <View style={local.modalBody}>
-        <WeekCalendar rosterByDate={rosterByDate} coverageByDate={coverageByDate} onMaximize={handleMaximize} />
+        {calendarContent}
       </View>
     </>
   );
 
   return (
-    <>
-      <SectionCard
-        title={t('scheduler.roster.sectionTitle')}
-        subtitle={t('scheduler.roster.sectionSubtitle')}
-        tooltip={t('scheduler.roster.tooltip')}
-      >
-        {/* View toggle: List | Calendar */}
-        <View style={local.toggleRow}>
-          <Pressable
-            onPress={() => setViewMode('list')}
-            style={[local.toggleBtn, viewMode === 'list' && local.toggleBtnActive]}
-            accessibilityRole="button"
-            accessibilityLabel={t('scheduler.roster.listView')}
-            accessibilityState={{ selected: viewMode === 'list' }}
+    <SectionCard title={t('scheduler.roster.sectionTitle')}>
+      {/* View mode toggle */}
+      <View style={local.toggleRow}>
+        <Pressable
+          style={[local.toggleBtn, viewMode === 'list' && local.toggleBtnActive]}
+          onPress={() => setViewMode('list')}
+          accessibilityRole="button"
+          accessibilityState={{ selected: viewMode === 'list' }}
+        >
+          <ThemedText
+            style={[local.toggleBtnText, viewMode === 'list' && local.toggleBtnTextActive]}
           >
-            <ThemedText
-              style={[
-                local.toggleBtnText,
-                viewMode === 'list' && local.toggleBtnTextActive,
-              ]}
-            >
-              {t('scheduler.roster.listView')}
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => setViewMode('calendar')}
-            style={[local.toggleBtn, viewMode === 'calendar' && local.toggleBtnActive]}
-            accessibilityRole="button"
-            accessibilityLabel={t('scheduler.roster.calendarView')}
-            accessibilityState={{ selected: viewMode === 'calendar' }}
-          >
-            <ThemedText
-              style={[
-                local.toggleBtnText,
-                viewMode === 'calendar' && local.toggleBtnTextActive,
-              ]}
-            >
-              {t('scheduler.roster.calendarView')}
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        {/* ── CALENDAR VIEW ── */}
-        {viewMode === 'calendar' ? (
-          <>
-            {calendarContent}
-
-            {/* Fullscreen modal — native */}
-            {Platform.OS !== 'web' && (
-              <Modal
-                visible={isMaximized}
-                animationType="slide"
-                presentationStyle="fullScreen"
-                onRequestClose={handleCloseMaximize}
-              >
-                <SafeAreaView style={local.modalOverlay}>
-                  {fullscreenContent}
-                </SafeAreaView>
-              </Modal>
-            )}
-
-            {/* Fullscreen portal — web */}
-            {Platform.OS === 'web' && isMaximized && (
-              <WebFullscreenPortal>
-                <View style={local.modalOverlay}>{fullscreenContent}</View>
-              </WebFullscreenPortal>
-            )}
-          </>
-        ) : null}
-
-        {/* ── LIST VIEW ── */}
-        {viewMode === 'list' ? (
-          <>
-            {publishCelebration.badgeVisible ? (
-              <View style={[styles.badge, local.positiveBadge, styles.securedBadge]}>
-                <View style={[styles.securedDot, local.securedDot]} />
-                <ThemedText style={local.badgeText}>
-                  {t('scheduler.roster.secured')}
-                </ThemedText>
-              </View>
-            ) : null}
-            {Object.entries(rosterByDate).length === 0 ? (
-              <View>
-                <View style={styles.ghostContainer} accessibilityElementsHidden>
-                  {[0, 1].map((i) => (
-                    <View key={i} style={styles.ghostRow}>
-                      <View style={styles.ghostBlock}>
-                        <View style={[styles.ghostNameBar, local.ghostNameBar]} />
-                        <View style={[styles.ghostTimeBar, local.ghostTimeBar]} />
-                      </View>
-                      <View style={[styles.ghostBadgeBar, { width: 52 }]} />
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.ghostEmptyCta}>
-                  <ThemedText style={styles.ghostEmptyCtaText}>
-                    {t('scheduler.roster.emptyTitle')}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.ghostEmptyNote}>
-                  {t('scheduler.roster.emptyDesc')}
-                </ThemedText>
-              </View>
-            ) : null}
-            {Object.entries(rosterByDate).map(([date, shifts]) => (
-              <View key={date} style={styles.rosterDay}>
-                <ThemedText type="defaultSemiBold">{date}</ThemedText>
-                {shifts.map((shift) => (
-                  <View key={shift.id} style={styles.rosterRow}>
-                    <View style={styles.rowBetween}>
-                      <ThemedText style={local.badgeText}>
-                        {shift.template?.name ?? shift.templateId}
-                      </ThemedText>
-                      <ThemedText
-                        style={[
-                          styles.status,
-                          shift.status === 'Draft'
-                            ? local.draftStatus
-                            : local.publishedStatus,
-                        ]}
-                      >
-                        {shift.status === 'Draft'
-                          ? t('common.draft')
-                          : t('common.published')}
-                      </ThemedText>
-                    </View>
-                    <ThemedText>
-                      {shift.worker?.name ?? shift.workerId} •{' '}
-                      {shift.template?.start} – {shift.template?.end}
-                    </ThemedText>
-                    <View style={styles.rosterActions}>
-                      <Pressable
-                        onPress={() => handlePublishShift(shift.id)}
-                        disabled={shift.status === 'Published'}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('scheduler.roster.publishA11y')}
-                        accessibilityState={{ disabled: shift.status === 'Published' }}
-                        style={({ pressed }) => [
-                          styles.actionChip,
-                          shift.status === 'Published'
-                            ? styles.disabledButton
-                            : styles.actionChipPrimary,
-                          !shift.status ||
-                          (shift.status !== 'Published' && pressed)
-                            ? {
-                                opacity: 0.75,
-                                backgroundColor: brand.primaryDark,
-                              }
-                            : undefined,
-                        ]}
-                      >
-                        <ThemedText
-                          style={
-                            shift.status === 'Published'
-                              ? local.disabledChipText
-                              : local.actionChipText
-                          }
-                        >
-                          {t('common.publish')}
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleUnpublishShift(shift.id)}
-                        disabled={shift.status === 'Draft'}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('scheduler.roster.unpublishA11y')}
-                        accessibilityState={{ disabled: shift.status === 'Draft' }}
-                        style={({ pressed }) => [
-                          styles.actionChip,
-                          shift.status === 'Draft'
-                            ? styles.disabledButton
-                            : styles.actionChipPrimary,
-                          shift.status !== 'Draft' && pressed
-                            ? {
-                                opacity: 0.75,
-                                backgroundColor: brand.primaryDark,
-                              }
-                            : undefined,
-                        ]}
-                      >
-                        <ThemedText
-                          style={
-                            shift.status === 'Draft'
-                              ? local.disabledChipText
-                              : local.actionChipText
-                          }
-                        >
-                          {t('common.unpublish')}
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleNotifyShift(shift.id)}
-                        disabled={shift.notified}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('scheduler.roster.notifyA11y')}
-                        accessibilityState={{ disabled: !!shift.notified }}
-                        style={({ pressed }) => [
-                          styles.actionChip,
-                          shift.notified
-                            ? styles.disabledButton
-                            : styles.actionChipPrimary,
-                          !shift.notified && pressed
-                            ? {
-                                opacity: 0.75,
-                                backgroundColor: brand.primaryDark,
-                              }
-                            : undefined,
-                        ]}
-                      >
-                        <ThemedText
-                          style={
-                            shift.notified
-                              ? local.disabledChipText
-                              : local.actionChipText
-                          }
-                        >
-                          {shift.notified
-                            ? t('common.notified')
-                            : t('common.notify')}
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => onSelectShiftForNotes?.(shift)}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('shiftNotes.openNotes')}
-                        style={({ pressed }) => [
-                          styles.actionChip,
-                          { backgroundColor: colors.surfaceRaised },
-                          pressed && { opacity: 0.75 },
-                        ]}
-                      >
-                        <ThemedText style={[local.mutedText, { color: colors.text }]}>
-                          {t('shiftNotes.notesBtn')}
-                        </ThemedText>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ))}
-          </>
-        ) : null}
-      </SectionCard>
-
-      <SectionCard
-        title={t('scheduler.roster.upcoming.title')}
-        subtitle={t('scheduler.roster.upcoming.subtitle')}
-      >
-        {upcomingShifts.length === 0 ? (
-          <ThemedText style={local.mutedText}>
-            {t('scheduler.roster.upcoming.empty')}
+            {t('scheduler.roster.viewList')}
           </ThemedText>
-        ) : null}
-        {upcomingShifts.map((shift) => (
-          <View key={shift.id} style={styles.rowBetween}>
-            <View>
-              <ThemedText type="defaultSemiBold">
-                {shift.worker?.name ?? shift.workerId}
-              </ThemedText>
-              <ThemedText style={local.mutedText}>
-                {shift.template?.name ?? shift.templateId} •{' '}
-                {shift.template?.start} – {shift.template?.end}
-              </ThemedText>
-            </View>
-            <View style={local.statusPill}>
-              <ThemedText style={local.statusPillText}>
-                {shift.status === 'Draft'
-                  ? t('common.draft')
-                  : t('common.published')}
-              </ThemedText>
-              <ThemedText style={local.mutedText}>{shift.date}</ThemedText>
-            </View>
-          </View>
-        ))}
-      </SectionCard>
+        </Pressable>
+        <Pressable
+          style={[local.toggleBtn, viewMode === 'calendar' && local.toggleBtnActive]}
+          onPress={() => setViewMode('calendar')}
+          accessibilityRole="button"
+          accessibilityState={{ selected: viewMode === 'calendar' }}
+        >
+          <ThemedText
+            style={[local.toggleBtnText, viewMode === 'calendar' && local.toggleBtnTextActive]}
+          >
+            {t('scheduler.roster.viewCalendar')}
+          </ThemedText>
+        </Pressable>
+      </View>
 
-      <SectionCard
-        title={t('scheduler.roster.gaps.title')}
-        subtitle={t('scheduler.roster.gaps.subtitle')}
-      >
-        {staffingGaps.length === 0 ? (
-          <ThemedText>{t('scheduler.roster.gaps.allCovered')}</ThemedText>
-        ) : (
-          staffingGaps.map((gap) => (
-            <View key={`${gap.date}-${gap.role}`} style={styles.rowBetween}>
-              <View>
-                <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
-                <ThemedText style={local.mutedText}>{gap.date}</ThemedText>
+      {viewMode === 'calendar' ? (
+        <>
+          {calendarContent}
+
+          {/* Maximized / fullscreen overlay */}
+          {isMaximized && Platform.OS === 'web' ? (
+            <WebFullscreenPortal>
+              <View style={local.webOverlay}>
+                <View style={local.webOverlayHeader}>
+                  <Pressable
+                    onPress={handleCloseMaximize}
+                    style={local.closeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.close')}
+                  >
+                    <ThemedText style={local.closeBtnText}>{t('common.close')}</ThemedText>
+                  </Pressable>
+                </View>
+                <View style={local.webOverlayBody}>
+                  {calendarContent}
+                </View>
+              </View>
+            </WebFullscreenPortal>
+          ) : isMaximized ? (
+            <Modal
+              visible={isMaximized}
+              animationType="slide"
+              onRequestClose={handleCloseMaximize}
+              statusBarTranslucent
+            >
+              <SafeAreaView style={local.modalOverlay}>
+                {fullscreenContent}
+              </SafeAreaView>
+            </Modal>
+          ) : null}
+        </>
+      ) : (
+        /* List view — render upcomingShifts */
+        upcomingShifts.map((shift) => (
+          <Pressable
+            key={shift.id}
+            onPress={() => onSelectShiftForNotes?.(shift)}
+            accessibilityRole="button"
+          >
+            <View style={local.shiftRow}>
+              <View style={local.shiftRowLeft}>
+                <ThemedText style={local.shiftWorkerName}>
+                  {shift.worker?.name ?? t('scheduler.roster.unassigned')}
+                </ThemedText>
+                <ThemedText style={[local.shiftTime, local.mutedText]}>
+                  {shift.template?.name ?? shift.date}
+                </ThemedText>
               </View>
               <View style={local.statusPill}>
-                <ThemedText style={local.statusPillText}>
-                  {t('scheduler.roster.gaps.scheduled', {
-                    n: String(gap.scheduled),
-                  })}
-                </ThemedText>
-                <ThemedText style={local.mutedText}>
-                  {t('scheduler.roster.gaps.shortfall', {
-                    n: String(gap.gap),
-                  })}
+                <ThemedText
+                  style={[
+                    local.statusPillText,
+                    shift.status === 'Draft' ? local.draftStatus : local.publishedStatus,
+                  ]}
+                >
+                  {shift.status === 'Draft'
+                    ? t('scheduler.roster.draft')
+                    : t('scheduler.roster.published')}
                 </ThemedText>
               </View>
             </View>
-          ))
-        )}
-      </SectionCard>
-    </>
+          </Pressable>
+        ))
+      )}
+    </SectionCard>
   );
 };

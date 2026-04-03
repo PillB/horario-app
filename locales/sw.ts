@@ -618,6 +618,7 @@ export const sw = {
     goToScheduler: 'Nenda kwa Msimamizi →',
     startManager: 'Anza Ziara ya Msimamizi',
     startWorker: 'Anza Ziara ya Mwanachama wa Timu',
+    goToTab: 'Nenda kwa {tab} →',
   },
   manager: {
     step1: {
@@ -693,6 +694,134 @@ export const sw = {
       why: 'Wafanyakazi wanaokamilisha usajili wana ujasiri mkubwa zaidi katika kusimamia mabadiliko ya zamu, kuomba likizo, na kuwasiliana na timu yao ndani ya Horario peke yake.',
     },
   },
+  mode: {
+    pickTitle: 'Chagua mwongozo wako',
+    pickDesc: 'Chagua ziara ili kuchunguza sehemu tofauti za programu.',
+    overview: 'Muhtasari wa Haraka',
+    overviewDesc: 'Utangulizi wa hatua 5 kwa vichupo vyote',
+    manager: 'Ziara ya Msimamizi',
+    managerDesc: 'Jenga ratiba yako ya kwanza',
+    worker: 'Ziara ya Mwanachama wa Timu',
+    workerDesc: 'Anza kama mwanachama wa timu',
+    home: 'Mwongozo wa Kichupo cha Nyumbani',
+    homeDesc: 'Dashibodi, mfululizo & mapengo',
+    scheduler: 'Mwongozo wa Msimamizi',
+    schedulerDesc: 'Wafanyakazi, violezo & orodha',
+    analytics: 'Mwongozo wa Uchambuzi',
+    analyticsDesc: 'KPI, masaa & usawa',
+  },
+  overview: {
+    step1: {
+      title: 'Karibu Horario',
+      desc: 'Hii ni dashibodi yako ya Nyumbani — angalia hali yako ya ratiba, zamu zinazokuja, na mapengo ya wafanyakazi kwa mtazamo mmoja.',
+      why: 'Ukaguzi wa kila siku wa dashibodi hukuweka mbele ya mapengo kabla hayajawa kutokuhudhuria.',
+    },
+    step2: {
+      title: 'Mfululizo Wako wa Ratiba',
+      desc: 'Mfululizo wako unafuatilia jinsi unavyoweka ratiba ya timu yako kuwa ya kisasa. Mfululizo wa juu zaidi, orodha yako inakuwa ya kuaminika zaidi.',
+      why: 'Timu zenye ratiba thabiti zinaona hadi asilimia 40 chini ya ubadilishaji wa zamu wa dakika ya mwisho.',
+    },
+    step3: {
+      title: 'Kichupo cha Msimamizi',
+      desc: 'Msimamizi ndipo unapojenga timu yako, kuweka upatikanaji, kuunda violezo vya zamu, na kuchapisha orodha.',
+      why: 'Ratiba iliyokusanyikwa inaondoa uhifadhi mara mbili na kutoa timu yako nzima chanzo kimoja cha ukweli.',
+    },
+    step4: {
+      title: 'Utabiri wa Mahitaji',
+      desc: 'Tumia data ya kihistoria na uagizaji wa POS kutabiri wafanyakazi wangapi unahitaji siku yoyote.',
+      why: 'Ratiba inayojua mahitaji inapunguza gharama za kazi nyingi huku ikidumisha ubora wa huduma.',
+    },
+    step5: {
+      title: 'Dashibodi ya Uchambuzi',
+      desc: 'Fuatilia kiwango cha ufunikaji, mapato yanayohatariana, ugawaji wa masaa, na alama ya usawa — yote kwa wakati halisi.',
+      why: 'Kinachopimwa kinaboreshwa. Waendeshaji wanaofuatilia KPI hizi wapunguza zamu zisizofunikwa kwa asilimia 30 ndani ya mwezi.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Kituo Chako cha Amri',
+      desc: 'Kichupo cha Nyumbani hukupa ukaguzi wa haraka wa afya: zamu zilizopangwa wiki hii, mapengo wazi, na mfululizo wako wa kuaminika wa orodha.',
+      why: 'Wasimamizi wanaokagua dashibodi hii kila siku hugundua mapengo kabla hayajawa mgawanyiko.',
+    },
+    step2: {
+      title: 'Wiki kwa Mtazamo',
+      desc: 'Kadi ya takwimu za wiki inaonyesha ni zamu ngapi zimepangwa na ni majukumu mangapi bado yanahitaji kujazwa.',
+      why: 'Nambari moja kwa mapengo dhidi ya zamu zilizopangwa ni rahisi kutenda kuliko kutetemeka kupitia orodha nzima.',
+    },
+    step3: {
+      title: 'Mfululizo wa Uaminifu',
+      desc: 'Mfululizo wako unahesabu siku za mfululizo ambazo umeweka ratiba kuwa ya kisasa. Gonga "Rekodi maendeleo ya leo" kuendelea.',
+      why: 'Timu zenye mfululizo wa siku 7 zinaona asilimia 40 chini ya kutokuhudhuria shukrani kwa mwonekano wa mapema.',
+    },
+    step4: {
+      title: 'Zamu Zinazokuja',
+      desc: 'Angalia kila zamu iliyopangwa kwa siku zijazo — jina la mfanyakazi, kiolezo, na wakati — kwa mtazamo mmoja.',
+      why: 'Kujua kinachokuja kukuruhusu kugundua ufunikaji mwembamba kabla zamu hazijaanza.',
+    },
+    step5: {
+      title: 'Mapengo ya Wafanyakazi',
+      desc: 'Jukumu lolote lenye wafanyakazi wachache waliowekwa kuliko wanaohitajika linaonekana hapa kama pengo wazi.',
+      why: 'Kila pengo lisilofunikwa ni mapato yanayopotea. Kuyafunga mapema kunabaki huduma inayoendelea vizuri.',
+    },
+    step6: {
+      title: 'Vitendo vya Haraka',
+      desc: 'Ruka moja kwa moja kwenda Ongeza Upatikanaji, Jenga Zamu, au Chapisha Orodha — kazi tatu za kawaida za ratiba.',
+      why: 'Gonga moja kwenye skrini sahihi huokoa muda wa kusogea na kuteleza, na kufanya ratiba ya kila siku iwe haraka kwa asilimia 30.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Ongeza Mwanachama wa Timu',
+      desc: 'Ingiza jina la mfanyakazi, jukumu (mfano Barista, Mhudumu), na ujuzi uliotenganishwa kwa koma.',
+      why: 'Kila mtu kwenye orodha yako anahitaji wasifu ili injini ya mgawanyo wa kiotomatiki iweze kumfananya na zamu sahihi.',
+      action: 'Jaza fomu ya mfanyakazi hapo juu na gonga "Ongeza mfanyakazi" kuendelea ↑',
+    },
+    step2: {
+      title: 'Weka Upatikanaji',
+      desc: 'Mwambie Horario wanachama wako wa timu wanapatikana lini — siku ya wiki, wakati wa kuanza, na wakati wa kumaliza.',
+      why: 'Ratiba dhidi ya upatikanaji uliothibitishwa ni kiendeshaji kikubwa zaidi cha ukubaliaji wa zamu — timu zinaona maombi ya kubadilishana machache kwa asilimia 35.',
+      action: 'Ongeza dirisha la upatikanaji hapo juu na gonga "Ongeza upatikanaji" kuendelea ↑',
+    },
+    step3: {
+      title: 'Unda Kiolezo cha Zamu',
+      desc: 'Kiolezo ni ufafanuzi wa zamu unaoweza kutumika tena — jina, jukumu, wakati wa kuanza, wakati wa kumaliza, na idadi ya chini ya wafanyakazi wanaohitajika.',
+      why: 'Violezo hupunguza muda wa ujenzi wa ratiba kwa asilimia 60 kwa kuondoa uingizaji wa data wa kurudia kila wiki.',
+      action: 'Jaza fomu ya kiolezo hapo juu na gonga "Ongeza kiolezo" kuendelea ↑',
+    },
+    step4: {
+      title: 'Gawanya Zamu Yako ya Kwanza',
+      desc: 'Chagua mfanyakazi, chagua kiolezo, ingiza tarehe, na uchapisha. Horario hukagua upatikanaji na ulinganifu wa jukumu kiotomatiki.',
+      why: 'Kuchapisha hata zamu moja iliyowekwa kunasha njia ya arifa, ili timu yako ipate uaminifu kuanzia siku ya kwanza.',
+      action: 'Gawanya zamu hapo juu na gonga "Hifadhi na arifa timu" kuendelea ↑',
+    },
+    step5: {
+      title: 'Tabiri Mahitaji',
+      desc: 'Weka wafanyakazi wangapi unahitaji kwa kila jukumu kwa kila siku. Tumia hali ya Homogeneous kwa wiki za sawa, Mwongozo kwa tarehe mahususi, au uagizaji wa POS CSV kwa utabiri unaotegemea data.',
+      why: 'Ratiba inayojua mahitaji husaidia waendeshaji kupunguza gharama nyingi za kazi kwa wastani wa asilimia 15 huku wakidumisha ubora wa huduma.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'KPI za Ufunikaji',
+      desc: 'Kiwango cha Ufunikaji kinaonyesha asilimia ya zamu zinazohitajika ambazo zimejazwa. Zamu za rasimu zinasubiri kuchapishwa.',
+      why: 'Kudumisha ufunikaji zaidi ya asilimia 80 ni kizingiti ambapo ubora wa huduma unadumishwa kwa uaminifu.',
+    },
+    step2: {
+      title: 'Mapato Yanayohatariana',
+      desc: 'Kila pengo lisilofunikwa lina gharama. Takwimu hii inakadiri mapato yanayopotea kutoka kwa zamu zenye wafanyakazi wachache.',
+      why: 'Waendeshaji wanaofuatilia mapato yanayohatariana hufunga mapengo mara 2 haraka kuliko wasio nayo.',
+    },
+    step3: {
+      title: 'Ugawaji wa Masaa',
+      desc: 'Angalia jinsi masaa ya jumla ya ratiba yanavyosambazwa kwenye timu yako. Mipako isiyo sawa inaonyesha mfanyakazi mmoja anabeba mzigo zaidi.',
+      why: 'Masaa ya usawa huboresha ari ya timu na kupunguza uchovu — viendeshaji vikubwa viwili vya kutokuhudhuria bila matarajio.',
+    },
+    step4: {
+      title: 'Alama ya Usawa',
+      desc: 'Kipimo cha usawa kinapima jinsi masaa yanavyosambazwa kwa usawa. Alama ya chini (ya kijani zaidi) inamaanisha ratiba ya haki zaidi.',
+      why: 'Timu zenye alama ya usawa chini ya 4 zinaripoti viwango vya ukubaliaji wa zamu vya juu kwa asilimia 25.',
+    },
+  },
   completed: {
     title: '🎉 Umekamilisha kila kitu!',
     seedConfirmation: '✅ Data ya mfano imeongezwa — chunguza timu yako ya kwanza, violezo, na zamu!',
@@ -725,6 +854,64 @@ export const sw = {
     emailInputA11y: 'Ingizo la anwani ya barua pepe ya mfanyakazi',
     errorRegenerate: 'Imeshindwa kuzalisha upya nambari. Tafadhali jaribu tena.',
     errorShare: 'Imeshindwa kushiriki nambari. Tafadhali inakili mwenyewe.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Kipengele',
+      free: 'Bure',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Wafanyakazi wasio na kikomo',
+    shiftTemplates: 'Violezo vya zamu',
+    availabilityTracking: 'Ufuatiliaji wa upatikanaji',
+    rosterAssignment: 'Ugawaji wa zamu',
+    demandTargets: 'Malengo ya mahitaji',
+    posCsvImport: 'Uingizaji wa CSV ya POS',
+    autoAssign: 'Ugawaji otomatiki',
+    advancedAnalytics: 'Uchambuzi wa hali ya juu',
+    multiLocation: 'Maeneo mengi',
+    messaging: 'Ujumbe na mawasiliano',
+    prioritySupport: 'Msaada wa kipaumbele',
+    upgrade: {
+      title: 'Fungua vipengele vya Pro',
+      body: 'Ondoa vikwazo na ufikie zana za hali ya juu.',
+      cta: 'Panda daraja hadi Pro',
+      ctaHint: 'Inafungua ukurasa wa malipo kuanza usajili wako wa Pro',
+      price: 'Mipango inaanza $12/mwezi · Ghairi wakati wowote',
+    },
+  },
+  advancedControls: {
+    title: 'Vidhibiti vya hali ya juu',
+    constraints: {
+      title: 'Vikwazo vya zamu',
+      minRest: 'Saa za mapumziko ya chini kati ya zamu',
+      maxWeekly: 'Saa za juu kwa wiki',
+      minShift: 'Urefu wa chini wa zamu (saa)',
+    },
+    presets: {
+      title: 'Violezo vya sekta',
+      restaurant: 'Mkahawa',
+      retail: 'Rejareja',
+      cafe: 'Café',
+      hotel: 'Hoteli',
+    },
+    multiLocation: {
+      title: 'Maeneo mengi',
+      toggle: 'Wezesha upangaji kwa eneo',
+      locations: 'Majina ya maeneo (yaliyotenganishwa na koma)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Miongozo & Ziara',
+      sectionSubtitle: 'Rudia mwongozo wowote kuchunguza vipengele vya programu',
+      overview: 'Muhtasari wa Haraka',
+      manager: 'Ziara ya Msimamizi',
+      scheduler: 'Mwongozo wa Msimamizi',
+      analytics: 'Mwongozo wa Uchambuzi',
+    },
   },
 
 } as const;

@@ -678,6 +678,7 @@ export const en = {
     goToScheduler: 'Go to Scheduler →',
     startManager: 'Start Manager Tour',
     startWorker: 'Start Team Member Tour',
+    goToTab: 'Go to {tab} →',
   },
   manager: {
     step1: {
@@ -753,12 +754,198 @@ export const en = {
       why: 'Workers who complete onboarding are significantly more confident managing shift changes, requesting time off, and communicating with their team entirely inside Horario.',
     },
   },
+  mode: {
+    pickTitle: 'Choose your guide',
+    pickDesc: 'Select a tour to explore different parts of the app.',
+    overview: 'Quick Overview',
+    overviewDesc: '5-step intro to all tabs',
+    manager: 'Manager Tour',
+    managerDesc: 'Build your first schedule',
+    worker: 'Team Member Tour',
+    workerDesc: 'Get started as team member',
+    home: 'Home Tab Guide',
+    homeDesc: 'Dashboard, streak & gaps',
+    scheduler: 'Scheduler Guide',
+    schedulerDesc: 'Workers, templates & roster',
+    analytics: 'Analytics Guide',
+    analyticsDesc: 'KPIs, hours & fairness',
+  },
+  overview: {
+    step1: {
+      title: 'Welcome to Horario',
+      desc: 'This is your Home dashboard — see your scheduling health, upcoming shifts, and staffing gaps at a glance.',
+      why: 'A daily dashboard check keeps you ahead of gaps before they become no-shows.',
+    },
+    step2: {
+      title: 'Your Scheduling Streak',
+      desc: 'Your streak tracks how consistently you keep your team schedule up to date. The higher your streak, the more reliable your roster becomes.',
+      why: 'Teams with consistent scheduling see up to 40% fewer last-minute shift swaps.',
+    },
+    step3: {
+      title: 'The Scheduler Tab',
+      desc: 'The Scheduler is where you build your team, set availability, create shift templates, and publish the roster.',
+      why: 'Centralised scheduling eliminates double-bookings and gives your whole team a single source of truth.',
+    },
+    step4: {
+      title: 'Demand Forecasting',
+      desc: 'Use historical data and POS imports to predict how many staff you need on any given day.',
+      why: 'Demand-aware scheduling cuts excess labour costs while keeping service quality high.',
+    },
+    step5: {
+      title: 'Analytics Dashboard',
+      desc: 'Track coverage rate, revenue at risk, hours distribution, and fairness score — all in real time.',
+      why: 'What gets measured gets improved. Operators who track these KPIs reduce uncovered shifts by 30% within a month.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Your Command Centre',
+      desc: 'The Home tab gives you an instant health check: shifts scheduled this week, open gaps, and your roster reliability streak.',
+      why: 'Managers who review this dashboard daily catch gaps before they become a crisis.',
+    },
+    step2: {
+      title: 'Week at a Glance',
+      desc: 'The week stats card shows how many shifts are scheduled and how many roles still need to be filled.',
+      why: 'A single number for gaps vs scheduled shifts is faster to act on than scrolling through a full roster.',
+    },
+    step3: {
+      title: 'Reliability Streak',
+      desc: 'Your streak counts consecutive days you\'ve kept the schedule up to date. Tap "Log today\'s progress" to advance it.',
+      why: 'Teams with a 7-day streak see 40% fewer no-shows thanks to advance visibility.',
+    },
+    step4: {
+      title: 'Upcoming Shifts',
+      desc: 'See every shift scheduled for the coming days — worker name, template, and time — at a glance.',
+      why: 'Knowing what\'s ahead lets you spot thin coverage before the shift starts.',
+    },
+    step5: {
+      title: 'Staffing Gaps',
+      desc: 'Any role that has fewer assigned workers than required shows up here as an open gap.',
+      why: 'Every uncovered gap is potential lost revenue. Closing them early keeps service running smoothly.',
+    },
+    step6: {
+      title: 'Quick Actions',
+      desc: 'Jump directly to Add Availability, Build Shifts, or Publish Roster — the three most common scheduling tasks.',
+      why: 'One tap to the right screen saves the time it takes to navigate and scroll, making daily scheduling 30% faster.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Add a Team Member',
+      desc: 'Enter the worker\'s name, role (e.g. Barista, Server), and skills separated by commas.',
+      why: 'Every person on your roster needs a profile so the auto-assign engine can match them to the right shifts.',
+      action: 'Fill in the worker form above and tap "Add worker" to continue ↑',
+    },
+    step2: {
+      title: 'Set Availability',
+      desc: 'Tell Horario when your team members are available — day of week, start time, and end time.',
+      why: 'Scheduling against confirmed availability is the single biggest driver of shift acceptance — teams see 35% fewer swap requests.',
+      action: 'Add an availability window above and tap "Add availability" to continue ↑',
+    },
+    step3: {
+      title: 'Create a Shift Template',
+      desc: 'A template is a reusable shift definition — name, role, start time, end time, and minimum workers required.',
+      why: 'Templates cut schedule-build time by 60% by removing repetitive data entry every week.',
+      action: 'Fill in the template form above and tap "Add template" to continue ↑',
+    },
+    step4: {
+      title: 'Assign Your First Shift',
+      desc: 'Pick a worker, pick a template, enter a date, and publish. Horario validates availability and role match automatically.',
+      why: 'Publishing even one assigned shift activates the notification pipeline, so your team experiences reliability from day one.',
+      action: 'Assign a shift above and tap "Save and notify team" to continue ↑',
+    },
+    step5: {
+      title: 'Forecast Demand',
+      desc: 'Set how many staff you need per role per day. Use Homogeneous mode for uniform weeks, Manual for specific dates, or POS CSV import for data-driven forecasts.',
+      why: 'Demand-informed scheduling helps operators cut excess labour costs by an average of 15% while maintaining service quality.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'Coverage KPIs',
+      desc: 'Coverage Rate shows the percentage of required shifts that are filled. Draft shifts are waiting to be published.',
+      why: 'Keeping coverage above 80% is the threshold where service quality is reliably maintained.',
+    },
+    step2: {
+      title: 'Revenue at Risk',
+      desc: 'Every uncovered gap has a cost. This figure estimates potential revenue lost from understaffed shifts.',
+      why: 'Operators who track revenue at risk close gaps 2x faster than those who don\'t.',
+    },
+    step3: {
+      title: 'Hours Distribution',
+      desc: 'See how total scheduled hours are spread across your team. Uneven bars indicate one worker is carrying more load.',
+      why: 'Balanced hours improve team morale and reduce burnout — the two biggest drivers of unexpected absences.',
+    },
+    step4: {
+      title: 'Fairness Score',
+      desc: 'The fairness gauge measures how evenly hours are distributed. A lower score (greener) means a fairer schedule.',
+      why: 'Teams with a fairness score below 4 report 25% higher shift acceptance rates.',
+    },
+  },
   completed: {
     title: '🎉 You\'re all set!',
     desc: 'You\'ve completed the tour and have everything you need to build smarter schedules, reduce no-shows, and keep your team in sync. Your first great week starts now.',
     seedConfirmation: '✅ Sample data added — explore your first team, templates, and shifts!',
   },
 },
+
+  capability: {
+    header: {
+      feature: 'Feature',
+      free: 'Free',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Unlimited workers',
+    shiftTemplates: 'Shift templates',
+    availabilityTracking: 'Availability tracking',
+    rosterAssignment: 'Roster assignment',
+    demandTargets: 'Demand targets',
+    posCsvImport: 'POS CSV import',
+    autoAssign: 'Auto-assign',
+    advancedAnalytics: 'Advanced analytics',
+    multiLocation: 'Multi-location',
+    messaging: 'Messaging & comms',
+    prioritySupport: 'Priority support',
+    upgrade: {
+      title: 'Unlock Pro features',
+      body: 'Remove restrictions and access advanced tools.',
+      cta: 'Upgrade to Pro',
+      ctaHint: 'Opens the billing page to start your Pro subscription',
+      price: 'Plans start at $12/mo · Cancel anytime',
+    },
+  },
+  advancedControls: {
+    title: 'Advanced controls',
+    constraints: {
+      title: 'Shift constraints',
+      minRest: 'Min rest hours between shifts',
+      maxWeekly: 'Max weekly hours',
+      minShift: 'Min shift length (hours)',
+    },
+    presets: {
+      title: 'Industry presets',
+      restaurant: 'Restaurant',
+      retail: 'Retail',
+      cafe: 'Café',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Multi-location',
+      toggle: 'Enable per-location scheduling',
+      locations: 'Location names (comma-separated)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Guides & Tour',
+      sectionSubtitle: 'Replay any guide to explore app features',
+      overview: 'Quick Overview',
+      manager: 'Manager Tour',
+      scheduler: 'Scheduler Guide',
+      analytics: 'Analytics Guide',
+    },
+  },
 
 } as const;
 

@@ -634,6 +634,7 @@ export const it = {
     goToScheduler: 'Vai al Pianificatore →',
     startManager: 'Avvia il tour per responsabili',
     startWorker: 'Avvia il tour per membri del team',
+    goToTab: 'Vai a {tab} →',
   },
   manager: {
     step1: {
@@ -709,6 +710,134 @@ export const it = {
       why: 'I lavoratori che completano l\'inserimento si sentono significativamente più sicuri nel gestire i cambi di turno, richiedere permessi e comunicare con il proprio team interamente all\'interno di Horario.',
     },
   },
+  mode: {
+    pickTitle: 'Scegli la tua guida',
+    pickDesc: 'Seleziona un tour per esplorare diverse parti dell\'app.',
+    overview: 'Panoramica rapida',
+    overviewDesc: 'Introduzione in 5 passi a tutte le schede',
+    manager: 'Tour per responsabili',
+    managerDesc: 'Crea il tuo primo piano',
+    worker: 'Tour per membri del team',
+    workerDesc: 'Inizia come membro del team',
+    home: 'Guida scheda Home',
+    homeDesc: 'Dashboard, serie & carenze',
+    scheduler: 'Guida Pianificatore',
+    schedulerDesc: 'Lavoratori, modelli & roster',
+    analytics: 'Guida Analisi',
+    analyticsDesc: 'KPI, ore & equità',
+  },
+  overview: {
+    step1: {
+      title: 'Benvenuto su Horario',
+      desc: 'Questa è la tua dashboard Home — consulta d\'un colpo d\'occhio lo stato della tua pianificazione, i turni imminenti e le carenze di personale.',
+      why: 'Un controllo quotidiano della dashboard ti mantiene un passo avanti rispetto alle carenze prima che diventino assenze.',
+    },
+    step2: {
+      title: 'La tua serie di pianificazione',
+      desc: 'La tua serie misura quanto regolarmente mantieni aggiornato il piano del team. Più alta è la serie, più affidabile diventa il tuo roster.',
+      why: 'I team con pianificazione costante registrano fino al 40% di scambi turni dell\'ultimo minuto in meno.',
+    },
+    step3: {
+      title: 'La scheda Pianificatore',
+      desc: 'Il Pianificatore è dove costruisci il team, imposti le disponibilità, crei modelli di turno e pubblichi il roster.',
+      why: 'La pianificazione centralizzata elimina le doppie prenotazioni e fornisce a tutto il team un\'unica fonte di verità.',
+    },
+    step4: {
+      title: 'Previsione della domanda',
+      desc: 'Usa i dati storici e le importazioni POS per prevedere di quanti dipendenti hai bisogno in un determinato giorno.',
+      why: 'La pianificazione basata sulla domanda riduce i costi di manodopera eccessivi mantenendo alta la qualità del servizio.',
+    },
+    step5: {
+      title: 'Dashboard Analisi',
+      desc: 'Monitora tasso di copertura, ricavi a rischio, distribuzione delle ore e punteggio di equità — tutto in tempo reale.',
+      why: 'Ciò che viene misurato viene migliorato. Gli operatori che monitorano questi KPI riducono i turni non coperti del 30% in un mese.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Il tuo centro di comando',
+      desc: 'La scheda Home ti fornisce un controllo immediato: turni pianificati questa settimana, carenze aperte e la tua serie di affidabilità del roster.',
+      why: 'I responsabili che controllano questa dashboard quotidianamente individuano le carenze prima che diventino una crisi.',
+    },
+    step2: {
+      title: 'La settimana in un colpo d\'occhio',
+      desc: 'La scheda delle statistiche settimanali mostra quanti turni sono pianificati e quanti ruoli devono ancora essere coperti.',
+      why: 'Un singolo numero per carenze vs. turni pianificati è più facile da gestire che scorrere un roster completo.',
+    },
+    step3: {
+      title: 'Serie di affidabilità',
+      desc: 'La tua serie conta i giorni consecutivi in cui hai mantenuto il piano aggiornato. Tocca "Registra il progresso di oggi" per farla avanzare.',
+      why: 'I team con una serie di 7 giorni registrano il 40% di assenze in meno grazie alla visibilità anticipata.',
+    },
+    step4: {
+      title: 'Turni imminenti',
+      desc: 'Visualizza d\'un colpo d\'occhio ogni turno pianificato per i prossimi giorni — nome del lavoratore, modello e orario.',
+      why: 'Sapere cosa c\'è avanti ti permette di individuare una copertura ridotta prima che il turno inizi.',
+    },
+    step5: {
+      title: 'Carenze di personale',
+      desc: 'Qualsiasi ruolo con meno lavoratori assegnati del necessario appare qui come una carenza aperta.',
+      why: 'Ogni carenza non coperta è potenziale fatturato perso. Chiuderle presto mantiene il servizio senza intoppi.',
+    },
+    step6: {
+      title: 'Azioni rapide',
+      desc: 'Passa direttamente ad Aggiungi disponibilità, Crea turni o Pubblica roster — le tre attività di pianificazione più comuni.',
+      why: 'Un tocco alla schermata giusta risparmia il tempo di navigazione e scorrimento, rendendo la pianificazione quotidiana il 30% più veloce.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Aggiungi un membro del team',
+      desc: 'Inserisci il nome del lavoratore, il ruolo (es. Barista, Cameriere) e le competenze separate da virgole.',
+      why: 'Ogni persona nel roster ha bisogno di un profilo affinché il motore di assegnazione automatica possa abbinarla ai turni giusti.',
+      action: 'Compila il modulo lavoratore sopra e tocca "Aggiungi lavoratore" per continuare ↑',
+    },
+    step2: {
+      title: 'Imposta disponibilità',
+      desc: 'Comunica a Horario quando i tuoi membri del team sono disponibili — giorno della settimana, orario di inizio e di fine.',
+      why: 'Pianificare in base alla disponibilità confermata è il principale fattore di accettazione dei turni — i team registrano il 35% di richieste di scambio in meno.',
+      action: 'Aggiungi una finestra di disponibilità sopra e tocca "Aggiungi disponibilità" per continuare ↑',
+    },
+    step3: {
+      title: 'Crea un modello di turno',
+      desc: 'Un modello è una definizione di turno riutilizzabile — nome, ruolo, orario di inizio, orario di fine e numero minimo di lavoratori richiesti.',
+      why: 'I modelli riducono il tempo di creazione del piano del 60% eliminando l\'inserimento dati ripetitivo ogni settimana.',
+      action: 'Compila il modulo del modello sopra e tocca "Aggiungi modello" per continuare ↑',
+    },
+    step4: {
+      title: 'Assegna il tuo primo turno',
+      desc: 'Scegli un lavoratore, scegli un modello, inserisci una data e pubblica. Horario convalida automaticamente disponibilità e corrispondenza del ruolo.',
+      why: 'Pubblicare anche un solo turno assegnato attiva la pipeline di notifiche, in modo che il team sperimenti affidabilità dal primo giorno.',
+      action: 'Assegna un turno sopra e tocca "Salva e notifica il team" per continuare ↑',
+    },
+    step5: {
+      title: 'Prevedi la domanda',
+      desc: 'Imposta quanti dipendenti hai bisogno per ruolo e per giorno. Usa la modalità Omogenea per settimane uniformi, Manuale per date specifiche o importazione CSV POS per previsioni basate sui dati.',
+      why: 'La pianificazione basata sulla domanda aiuta gli operatori a ridurre i costi di manodopera eccessivi del 15% in media mantenendo la qualità del servizio.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'KPI di copertura',
+      desc: 'Il tasso di copertura mostra la percentuale di turni richiesti che sono coperti. I turni in bozza sono in attesa di pubblicazione.',
+      why: 'Mantenere la copertura sopra l\'80% è la soglia dove la qualità del servizio è mantenuta in modo affidabile.',
+    },
+    step2: {
+      title: 'Ricavi a rischio',
+      desc: 'Ogni carenza non coperta ha un costo. Questa cifra stima i potenziali ricavi persi dai turni con personale insufficiente.',
+      why: 'Gli operatori che monitorano i ricavi a rischio chiudono le carenze 2x più velocemente di chi non lo fa.',
+    },
+    step3: {
+      title: 'Distribuzione delle ore',
+      desc: 'Visualizza come le ore totali pianificate sono distribuite nel team. Barre diseguali indicano che un lavoratore porta più carico.',
+      why: 'Le ore bilanciate migliorano il morale del team e riducono il burnout — i due principali fattori di assenze inattese.',
+    },
+    step4: {
+      title: 'Punteggio di equità',
+      desc: 'Il misuratore di equità misura quanto uniformemente le ore sono distribuite. Un punteggio più basso (più verde) significa un piano più equo.',
+      why: 'I team con un punteggio di equità inferiore a 4 registrano tassi di accettazione dei turni del 25% più alti.',
+    },
+  },
   completed: {
     title: '🎉 È tutto pronto!',
     seedConfirmation: '✅ Dati di esempio aggiunti — esplora il tuo primo team, modelli e turni!',
@@ -741,6 +870,64 @@ export const it = {
     emailInputA11y: 'Campo per l\'indirizzo email del lavoratore',
     errorRegenerate: 'Impossibile rigenerare il codice. Riprova.',
     errorShare: 'Impossibile condividere il codice. Copialo manualmente.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Funzionalità',
+      free: 'Gratuito',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Dipendenti illimitati',
+    shiftTemplates: 'Modelli di turno',
+    availabilityTracking: 'Monitoraggio disponibilità',
+    rosterAssignment: 'Assegnazione turni',
+    demandTargets: 'Obiettivi di domanda',
+    posCsvImport: 'Importa CSV cassa',
+    autoAssign: 'Assegnazione automatica',
+    advancedAnalytics: 'Analisi avanzate',
+    multiLocation: 'Multi-sede',
+    messaging: 'Messaggi e comunicazioni',
+    prioritySupport: 'Supporto prioritario',
+    upgrade: {
+      title: 'Sblocca le funzioni Pro',
+      body: 'Rimuovi le restrizioni e accedi agli strumenti avanzati.',
+      cta: 'Passa a Pro',
+      ctaHint: 'Apre la pagina di fatturazione per avviare il tuo abbonamento Pro',
+      price: 'Piani a partire da $12/mese · Disdici quando vuoi',
+    },
+  },
+  advancedControls: {
+    title: 'Controlli avanzati',
+    constraints: {
+      title: 'Vincoli del turno',
+      minRest: 'Ore di riposo minime tra i turni',
+      maxWeekly: 'Ore settimanali massime',
+      minShift: 'Durata minima del turno (ore)',
+    },
+    presets: {
+      title: 'Preset settoriali',
+      restaurant: 'Ristorante',
+      retail: 'Commercio al dettaglio',
+      cafe: 'Caffetteria',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Multi-sede',
+      toggle: 'Abilita programmazione per sede',
+      locations: 'Nomi delle sedi (separati da virgola)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Guide e Tour',
+      sectionSubtitle: 'Riproduci qualsiasi guida per esplorare le funzionalità dell\'app',
+      overview: 'Panoramica rapida',
+      manager: 'Tour per responsabili',
+      scheduler: 'Guida Pianificatore',
+      analytics: 'Guida Analisi',
+    },
   },
 
 } as const;

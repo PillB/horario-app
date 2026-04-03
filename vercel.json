@@ -3,17 +3,67 @@
   "framework": null,
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-  "routes": [
-    { "src": "/_expo/static/(.*)", "dest": "/client/_expo/static/$1" },
-    { "src": "/assets/(.*)", "dest": "/client/assets/$1" },
-    { "src": "/favicon.ico", "dest": "/client/favicon.ico" },
-    { "src": "^/api/secure\\-proxy(?:/)?$", "dest": "/server/_expo/functions/api/secure-proxy+api.js" },
-    { "src": "^/_sitemap(?:/)?$", "dest": "/server/_sitemap.html" },
-    { "src": "^(?:/\\(tabs\\))?(?:/)?$", "dest": "/server/(tabs)/index.html" },
-    { "src": "^(?:/\\(tabs\\))?/scheduler(?:/)?$", "dest": "/server/(tabs)/scheduler.html" },
-    { "src": "^(?:/\\(tabs\\))?/explore(?:/)?$", "dest": "/server/(tabs)/explore.html" },
-    { "src": "^(?:/\\(auth\\))?/sign\\-in(?:/)?$", "dest": "/server/(auth)/sign-in.html" },
-    { "src": "^(?:/\\(auth\\))?/sign\\-up(?:/)?$", "dest": "/server/(auth)/sign-up.html" },
-    { "src": "/(.*)", "dest": "/server/+not-found.html" }
+  "functions": {
+    "app/api/secure-proxy+api.ts": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/_expo/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*)\\.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clerk.accounts.dev https://clerk.horario.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.clerk.accounts.dev https://clerk.horario.app wss://*.supabase.co; frame-ancestors 'none';" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/_expo/static/(.*)", "destination": "/client/_expo/static/$1" },
+    { "source": "/assets/(.*)", "destination": "/client/assets/$1" },
+    { "source": "/favicon.ico", "destination": "/client/favicon.ico" },
+    { "source": "/api/secure-proxy", "destination": "/server/_expo/functions/api/secure-proxy+api.js" },
+    { "source": "/_sitemap", "destination": "/server/_sitemap.html" },
+    { "source": "/", "destination": "/server/(tabs)/index.html" },
+    { "source": "/(tabs)", "destination": "/server/(tabs)/index.html" },
+    { "source": "/(tabs)/scheduler", "destination": "/server/(tabs)/scheduler.html" },
+    { "source": "/scheduler", "destination": "/server/(tabs)/scheduler.html" },
+    { "source": "/(tabs)/explore", "destination": "/server/(tabs)/explore.html" },
+    { "source": "/explore", "destination": "/server/(tabs)/explore.html" },
+    { "source": "/(auth)/sign-in", "destination": "/server/(auth)/sign-in.html" },
+    { "source": "/sign-in", "destination": "/server/(auth)/sign-in.html" },
+    { "source": "/(auth)/sign-up", "destination": "/server/(auth)/sign-up.html" },
+    { "source": "/sign-up", "destination": "/server/(auth)/sign-up.html" },
+    { "source": "/(.*)", "destination": "/server/+not-found.html" }
   ]
 }

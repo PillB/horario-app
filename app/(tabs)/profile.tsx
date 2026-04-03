@@ -20,6 +20,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useT } from '@/contexts/LocaleContext';
+import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 
@@ -141,6 +142,7 @@ export default function ProfileScreen() {
   const { email, displayName, initials, isLoaded } = useUserInfo();
   const subscription = useSubscription();
   const signOut = useSignOut();
+  const { startTourMode } = useWelcomeTour();
 
   const handleBillingPress = useCallback(() => {
     Linking.openURL(BILLING_URL);
@@ -390,6 +392,34 @@ export default function ProfileScreen() {
         )}
       </ThemedView>
 
+      {/* ── Guides & Tour ─────────────────────────────────────────────── */}
+      <ThemedView style={styles.card}>
+        <SectionHeader
+          title={t('profile.guides.sectionTitle')}
+          subtitle={t('profile.guides.sectionSubtitle')}
+          tooltip={t('profile.guides.tooltip')}
+          styles={styles}
+        />
+        {(
+          [
+            { mode: 'overview' as TourMode, label: t('profile.guides.overview') },
+            { mode: 'home' as TourMode, label: t('profile.guides.home') },
+            { mode: 'scheduler' as TourMode, label: t('profile.guides.scheduler') },
+            { mode: 'analytics' as TourMode, label: t('profile.guides.analytics') },
+          ] as const
+        ).map(({ mode, label }) => (
+          <Pressable
+            key={mode}
+            onPress={() => startTourMode(mode)}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            style={({ pressed }) => [styles.guideButton, pressed && { opacity: 0.75 }]}
+          >
+            <ThemedText style={styles.guideButtonText}>{label}</ThemedText>
+          </Pressable>
+        ))}
+      </ThemedView>
+
       {/* ── About ─────────────────────────────────────────────────────── */}
       <ThemedView style={styles.card}>
         <SectionHeader
@@ -625,6 +655,22 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
       fontSize: 14,
       color: colors.text,
       fontWeight: '500',
+    },
+
+    // Guide buttons
+    guideButton: {
+      borderWidth: 1.5,
+      borderColor: brand.primary,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: 8,
+      alignItems: 'center',
+    },
+    guideButtonText: {
+      color: brand.primary,
+      fontWeight: '600',
+      fontSize: 14,
     },
 
     // About rows

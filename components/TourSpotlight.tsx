@@ -10,7 +10,7 @@ import {
 import { useRouter, usePathname } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, type ThemeColors } from '@/constants/Colors';
-import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
+import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
 import type { LangCode } from '@/locales/en';
@@ -38,6 +38,43 @@ const SCHEDULER_TARGETS = new Set([
   'demand-section',
 ]);
 
+/** Tour step targets that live on the Home screen. */
+const HOME_TARGETS = new Set([
+  'home-header',
+  'week-stats',
+  'streak-counter',
+  'upcoming-shifts',
+  'staffing-gaps',
+  'quick-actions',
+]);
+
+/** Tour step targets that live on the Analytics screen. */
+const ANALYTICS_TARGETS = new Set([
+  'analytics-kpis',
+  'analytics-revenue',
+  'analytics-hours',
+  'analytics-fairness',
+]);
+
+function tabForTarget(target: string): string | null {
+  if (SCHEDULER_TARGETS.has(target)) return '/(tabs)/scheduler';
+  if (HOME_TARGETS.has(target)) return '/';
+  if (ANALYTICS_TARGETS.has(target)) return '/(tabs)/explore';
+  return null;
+}
+
+function tabNameForTarget(target: string, t: (key: string) => string): string {
+  if (SCHEDULER_TARGETS.has(target)) return t('nav.scheduler');
+  if (HOME_TARGETS.has(target)) return t('nav.home');
+  if (ANALYTICS_TARGETS.has(target)) return t('nav.analytics');
+  return '';
+}
+
+function pathMatchesTab(pathname: string, tabPath: string): boolean {
+  if (tabPath === '/') return pathname === '/' || pathname.endsWith('/index');
+  return pathname.includes(tabPath.replace('/(tabs)/', ''));
+}
+
 const SPOTLIGHT_PADDING = 8;
 const SPOTLIGHT_RADIUS = 12;
 const CARD_MARGIN_H = 24;
@@ -63,19 +100,58 @@ function BackButton({ colors }: { colors: ThemeColors }) {
   );
 }
 
-/** Role selection card shown before the tour starts */
-function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
-  const { setUserRole } = useWelcomeTour();
+/** Guide mode picker shown before the tour starts */
+function GuideModePicker({ colors }: { colors: ThemeColors }) {
+  const { startTourMode } = useWelcomeTour();
   const { t, langCode, setLanguage } = useT();
   const styles = makeStyles(colors);
 
+  const modes: Array<{
+    mode: TourMode;
+    emoji: string;
+    title: string;
+    desc: string;
+  }> = [
+    {
+      mode: 'overview',
+      emoji: '🗺️',
+      title: t('tour.mode.overview'),
+      desc: t('tour.mode.overviewDesc'),
+    },
+    {
+      mode: 'manager',
+      emoji: '📋',
+      title: t('tour.mode.manager'),
+      desc: t('tour.mode.managerDesc'),
+    },
+    {
+      mode: 'worker',
+      emoji: '👷',
+      title: t('tour.mode.worker'),
+      desc: t('tour.mode.workerDesc'),
+    },
+    {
+      mode: 'home',
+      emoji: '🏠',
+      title: t('tour.mode.home'),
+      desc: t('tour.mode.homeDesc'),
+    },
+    {
+      mode: 'scheduler',
+      emoji: '📅',
+      title: t('tour.mode.scheduler'),
+      desc: t('tour.mode.schedulerDesc'),
+    },
+    {
+      mode: 'analytics',
+      emoji: '📊',
+      title: t('tour.mode.analytics'),
+      desc: t('tour.mode.analyticsDesc'),
+    },
+  ];
+
   return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-    >
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
       <View style={styles.roleBackdrop}>
         <ScrollView
           contentContainerStyle={styles.roleScrollContent}
@@ -110,7 +186,10 @@ function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
                   >
                     <ThemedText style={styles.langChipFlag}>{meta.flag}</ThemedText>
                     <ThemedText
-                      style={[styles.langChipText, selected && styles.langChipTextSelected]}
+                      style={[
+                        styles.langChipText,
+                        selected && styles.langChipTextSelected,
+                      ]}
                       numberOfLines={1}
                     >
                       {meta.native}
@@ -120,49 +199,36 @@ function RoleSelectionModal({ colors }: { colors: ThemeColors }) {
               })}
             </ScrollView>
 
-            {/* ── Role divider ─────────────────────────────── */}
+            {/* ── Divider ──────────────────────────────────── */}
             <View style={styles.roleDivider} />
 
+            {/* ── Section heading ──────────────────────────── */}
             <ThemedText style={styles.roleTitle}>
-              {t('tour.roleSelect.title')}
+              {t('tour.mode.pickTitle')}
             </ThemedText>
             <ThemedText style={styles.roleDesc}>
-              {t('tour.roleSelect.desc')}
+              {t('tour.mode.pickDesc')}
             </ThemedText>
 
-            <Pressable
-              onPress={() => setUserRole('manager')}
-              accessibilityRole="button"
-              accessibilityLabel={t('tour.roleSelect.managerTitle')}
-              style={({ pressed }) => [
-                styles.roleOptionButton,
-                pressed && styles.roleOptionButtonPressed,
-              ]}
-            >
-              <ThemedText style={styles.roleOptionTitle}>
-                {t('tour.roleSelect.managerTitle')}
-              </ThemedText>
-              <ThemedText style={styles.roleOptionDesc}>
-                {t('tour.roleSelect.managerDesc')}
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setUserRole('worker')}
-              accessibilityRole="button"
-              accessibilityLabel={t('tour.roleSelect.workerTitle')}
-              style={({ pressed }) => [
-                styles.roleOptionButton,
-                pressed && styles.roleOptionButtonPressed,
-              ]}
-            >
-              <ThemedText style={styles.roleOptionTitle}>
-                {t('tour.roleSelect.workerTitle')}
-              </ThemedText>
-              <ThemedText style={styles.roleOptionDesc}>
-                {t('tour.roleSelect.workerDesc')}
-              </ThemedText>
-            </Pressable>
+            {/* ── 2-column mode grid ───────────────────────── */}
+            <View style={styles.modeGrid}>
+              {modes.map(({ mode, emoji, title, desc }) => (
+                <Pressable
+                  key={mode}
+                  onPress={() => startTourMode(mode)}
+                  accessibilityRole="button"
+                  accessibilityLabel={title}
+                  style={({ pressed }) => [
+                    styles.modeButton,
+                    pressed && styles.modeButtonPressed,
+                  ]}
+                >
+                  <ThemedText style={styles.modeEmoji}>{emoji}</ThemedText>
+                  <ThemedText style={styles.modeTitle}>{title}</ThemedText>
+                  <ThemedText style={styles.modeDesc}>{desc}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </ScrollView>
       </View>
@@ -174,6 +240,7 @@ export function TourSpotlight() {
   const {
     isActive,
     userRole,
+    tourMode,
     currentStep,
     currentStepIndex,
     totalSteps,
@@ -182,6 +249,7 @@ export function TourSpotlight() {
     progressPercent,
     nextStep,
     skipTour,
+    startTourMode,
   } = useWelcomeTour();
 
   const { t } = useT();
@@ -224,7 +292,11 @@ export function TourSpotlight() {
       screenH - (spotlightRect.y + spotlightRect.height + SPOTLIGHT_PADDING);
     if (spaceBelow >= MIN_SPACE_BELOW) {
       return {
-        top: spotlightRect.y + spotlightRect.height + SPOTLIGHT_PADDING + CARD_BELOW_GAP,
+        top:
+          spotlightRect.y +
+          spotlightRect.height +
+          SPOTLIGHT_PADDING +
+          CARD_BELOW_GAP,
       };
     }
     return { bottom: screenH - spotlightRect.y + CARD_ABOVE_GAP };
@@ -233,41 +305,61 @@ export function TourSpotlight() {
   const isLastStep = currentStepIndex === totalSteps - 1;
   const isFirstStep = currentStepIndex === 0;
 
-  const roleKey = userRole === 'worker' ? 'worker' : 'manager';
+  // Use tourMode for key path; fall back to userRole for backward compat
+  const modeKey =
+    tourMode ?? (userRole === 'worker' ? 'worker' : 'manager');
   const stepId = currentStep?.id ?? '';
 
-  const stepTitle = currentStep ? t(`tour.${roleKey}.step${stepId}.title`) : '';
-  const stepDesc = currentStep ? t(`tour.${roleKey}.step${stepId}.desc`) : '';
-  const stepWhy = currentStep ? t(`tour.${roleKey}.step${stepId}.why`) : '';
+  const stepTitle = currentStep
+    ? t(`tour.${modeKey}.step${stepId}.title`)
+    : '';
+  const stepDesc = currentStep
+    ? t(`tour.${modeKey}.step${stepId}.desc`)
+    : '';
+  const stepWhy = currentStep
+    ? t(`tour.${modeKey}.step${stepId}.why`)
+    : '';
 
-  const roleBadgeText =
-    userRole === 'manager'
-      ? '👔 Manager'
-      : userRole === 'worker'
-      ? '👷 Team Member'
-      : null;
+  const modeBadgeText = (() => {
+    switch (tourMode) {
+      case 'overview':
+        return '🗺️ Overview';
+      case 'manager':
+        return '👔 Manager';
+      case 'worker':
+        return '👷 Team Member';
+      case 'home':
+        return '🏠 Home';
+      case 'scheduler':
+        return '📅 Scheduler';
+      case 'analytics':
+        return '📊 Analytics';
+      default:
+        return null;
+    }
+  })();
 
   const requiresActionAndBlocked =
     currentStep?.requiresAction === true && !canAdvance;
 
-  /**
-   * True when the current step targets a Scheduler-screen section but the
-   * user is on a different screen (layout not registered). In this case the
-   * Modal blocks tab-bar navigation, so we show a CTA button instead of the
-   * misleading "Complete the step above ↑" prompt.
-   */
+  // Cross-tab navigation detection for all tabs
+  const targetTab = currentStep ? tabForTarget(currentStep.target) : null;
   const isOnWrongScreen =
-    requiresActionAndBlocked &&
     currentStep !== null &&
-    SCHEDULER_TARGETS.has(currentStep.target) &&
+    targetTab !== null &&
     rawLayout === null &&
-    !pathname.includes('scheduler');
+    !pathMatchesTab(pathname, targetTab);
+
+  const wrongScreenTabName =
+    currentStep !== null
+      ? tabNameForTarget(currentStep.target, t)
+      : '';
 
   if (!isActive) return null;
 
-  // Show role selection if no role chosen yet
-  if (userRole === null) {
-    return <RoleSelectionModal colors={colors} />;
+  // Show guide mode picker if no mode chosen yet
+  if (tourMode === null) {
+    return <GuideModePicker colors={colors} />;
   }
 
   if (!currentStep) return null;
@@ -299,7 +391,8 @@ export function TourSpotlight() {
                 top: spotlightRect.y + spotlightRect.height,
                 left: 0,
                 width: screenW,
-                height: screenH - (spotlightRect.y + spotlightRect.height),
+                height:
+                  screenH - (spotlightRect.y + spotlightRect.height),
               },
             ]}
             pointerEvents="none"
@@ -324,7 +417,8 @@ export function TourSpotlight() {
               {
                 top: spotlightRect.y,
                 left: spotlightRect.x + spotlightRect.width,
-                width: screenW - (spotlightRect.x + spotlightRect.width),
+                width:
+                  screenW - (spotlightRect.x + spotlightRect.width),
                 height: spotlightRect.height,
               },
             ]}
@@ -346,202 +440,312 @@ export function TourSpotlight() {
           />
         </>
       ) : (
-        <View style={styles.fullBackdrop} pointerEvents="none" />
+        // Full-screen backdrop when the target hasn't measured yet
+        <View
+          style={[
+            styles.backdropSlice,
+            { top: 0, left: 0, width: screenW, height: screenH },
+          ]}
+          pointerEvents="none"
+        />
       )}
 
       {/* ── Callout card ── */}
       <View
         style={[
           styles.card,
-          { position: 'absolute', left: CARD_MARGIN_H, right: CARD_MARGIN_H },
           cardVerticalStyle,
+          { left: CARD_MARGIN_H, right: CARD_MARGIN_H },
         ]}
-        accessibilityRole="alert"
-        accessibilityLabel={`Tour step ${currentStepIndex + 1} of ${totalSteps}: ${stepTitle}`}
       >
         {/* Progress bar */}
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${progressPercent}%` },
-            ]}
-          />
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progressPercent}%` as unknown as number }]} />
         </View>
 
-        {/* Step counter row with role badge */}
-        <View style={styles.headerRow}>
+        {/* Header row: mode badge + step counter + skip */}
+        <View style={styles.cardHeader}>
+          {modeBadgeText ? (
+            <View style={styles.modeBadge}>
+              <ThemedText style={styles.modeBadgeText}>{modeBadgeText}</ThemedText>
+            </View>
+          ) : null}
           <ThemedText style={styles.stepCounter}>
-            {t('tour.nav.stepOf', {
-              current: String(currentStepIndex + 1),
-              total: String(totalSteps),
-            })}
+            {currentStepIndex + 1} / {totalSteps}
           </ThemedText>
-          {roleBadgeText !== null && (
-            <View style={styles.roleBadge}>
-              <ThemedText style={styles.roleBadgeText}>
-                {roleBadgeText}
+          <Pressable
+            onPress={skipTour}
+            accessibilityRole="button"
+            accessibilityLabel={t('tour.nav.skip')}
+            style={({ pressed }) => [styles.skipButton, pressed && { opacity: 0.5 }]}
+          >
+            <ThemedText style={styles.skipText}>{t('tour.nav.skip')}</ThemedText>
+          </Pressable>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.cardScroll}>
+          {/* Cross-tab navigation prompt */}
+          {isOnWrongScreen ? (
+            <View style={styles.wrongScreenBanner}>
+              <ThemedText style={styles.wrongScreenText}>
+                {t('tour.nav.goToTab', { tab: wrongScreenTabName })}
               </ThemedText>
             </View>
-          )}
-        </View>
+          ) : null}
 
-        <ThemedText style={styles.title}>{stepTitle}</ThemedText>
+          {/* Step title */}
+          <ThemedText style={styles.cardTitle}>{stepTitle}</ThemedText>
 
-        <ThemedText style={styles.description}>{stepDesc}</ThemedText>
+          {/* Step description */}
+          <ThemedText style={styles.cardDesc}>{stepDesc}</ThemedText>
 
-        {/* Why this matters expandable section */}
-        {stepWhy !== '' && (
-          <View style={styles.whySection}>
-            <Pressable
-              onPress={() => setWhyExpanded((prev) => !prev)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                whyExpanded
-                  ? t('tour.nav.hide')
-                  : t('tour.nav.whyMatters')
-              }
-              style={({ pressed }) => [
-                styles.whyToggleButton,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <ThemedText style={styles.whyToggleLabel}>
-                {whyExpanded
-                  ? `▲  ${t('tour.nav.hide')}`
-                  : `▼  ${t('tour.nav.whyMatters')}`}
+          {/* Interactive hint chip */}
+          {currentStep?.interactiveHint ? (
+            <View style={styles.hintChip}>
+              <ThemedText style={styles.hintChipText}>
+                {'💡 '}{currentStep.interactiveHint}
               </ThemedText>
-            </Pressable>
-            {whyExpanded && (
-              <View style={styles.whyContent}>
+            </View>
+          ) : null}
+
+          {/* Why this matters — expandable */}
+          {stepWhy ? (
+            <Pressable
+              onPress={() => setWhyExpanded((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.nav.why')}
+              style={styles.whyToggle}
+            >
+              <ThemedText style={styles.whyToggleText}>
+                {whyExpanded ? '▲ ' : '▼ '}{t('tour.nav.why')}
+              </ThemedText>
+              {whyExpanded ? (
                 <ThemedText style={styles.whyText}>{stepWhy}</ThemedText>
-              </View>
-            )}
-          </View>
-        )}
+              ) : null}
+            </Pressable>
+          ) : null}
+        </ScrollView>
 
         {/* Button row */}
         <View style={styles.buttonRow}>
-          <View style={styles.leftButtons}>
-            {!isFirstStep && <BackButton colors={colors} />}
-            {!isLastStep && (
-              <Pressable
-                onPress={skipTour}
-                accessibilityRole="button"
-                accessibilityLabel={t('tour.nav.skip')}
-                accessibilityHint="Closes the welcome tour immediately"
-                style={({ pressed }) => [
-                  styles.textButton,
-                  pressed && { opacity: 0.5 },
-                ]}
-              >
-                <ThemedText style={styles.textButtonLabel}>
-                  {t('tour.nav.skip')}
-                </ThemedText>
-              </Pressable>
-            )}
-          </View>
-
-          {isOnWrongScreen ? (
-            <Pressable
-              onPress={() => router.push('/(tabs)/scheduler')}
-              accessibilityRole="button"
-              accessibilityLabel={t('tour.nav.goToScheduler')}
-              accessibilityHint="Opens the Scheduler tab to complete this tour step"
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.primaryButtonPressed,
-              ]}
-            >
-              <ThemedText style={styles.primaryButtonLabel}>
-                {t('tour.nav.goToScheduler')}
-              </ThemedText>
-            </Pressable>
-          ) : requiresActionAndBlocked ? (
-            <View style={styles.actionPromptContainer}>
-              <ThemedText style={styles.actionPromptLabel}>
-                {t('tour.nav.actionPrompt')}
-              </ThemedText>
-            </View>
+          {!isFirstStep ? (
+            <BackButton colors={colors} />
           ) : (
-            <Pressable
-              onPress={nextStep}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isLastStep ? t('tour.nav.done') : t('tour.nav.next')
-              }
-              accessibilityHint={
-                isLastStep
-                  ? 'Finishes the welcome tour'
-                  : 'Advances to the next tour step'
-              }
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.primaryButtonPressed,
-              ]}
-            >
-              <ThemedText style={styles.primaryButtonLabel}>
-                {isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
-              </ThemedText>
-            </Pressable>
+            <View style={styles.buttonSpacer} />
           )}
+          <Pressable
+            onPress={nextStep}
+            disabled={requiresActionAndBlocked}
+            accessibilityRole="button"
+            accessibilityLabel={isLastStep ? t('tour.nav.finish') : t('tour.nav.next')}
+            accessibilityState={{ disabled: requiresActionAndBlocked }}
+            style={({ pressed }) => [
+              styles.nextButton,
+              requiresActionAndBlocked && styles.nextButtonDisabled,
+              pressed && !requiresActionAndBlocked && { opacity: 0.85 },
+            ]}
+          >
+            <ThemedText style={styles.nextButtonText}>
+              {isLastStep ? t('tour.nav.finish') : t('tour.nav.next')}
+            </ThemedText>
+          </Pressable>
         </View>
       </View>
     </Modal>
   );
 }
 
+// ─── Styles ────────────────────────────────────────────────────────────────────
+
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    // ── Backdrop slices ─────────────────────────────────────────────────────
     backdropSlice: {
       position: 'absolute',
-      backgroundColor: 'rgba(0,0,0,0.65)',
+      backgroundColor: 'rgba(0,0,0,0.6)',
     },
-    fullBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.65)',
-    },
+    // Thin highlight ring drawn on top of the transparent spotlight cutout
     spotlightRing: {
       position: 'absolute',
       borderWidth: 2,
-      borderColor: 'rgba(255,255,255,0.75)',
-      backgroundColor: 'transparent',
+      borderColor: brand.primary,
     },
 
-    // Role selection
-    roleBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.65)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 24,
-    },
-    roleScrollContent: {
-      flexGrow: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingVertical: 32,
-      width: '100%',
-    },
-    roleCard: {
+    // ── Callout card ──────────────────────────────────────────────────────
+    card: {
+      position: 'absolute',
       backgroundColor: colors.surface,
       borderRadius: 16,
-      padding: 24,
-      width: '100%',
-      shadowColor: colors.border,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.18,
       shadowRadius: 12,
       elevation: 8,
+      maxHeight: 380,
     },
-    // Language picker
-    roleLangLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.textSecondary,
+    cardScroll: {
+      flexGrow: 0,
+    },
+    progressTrack: {
+      height: 3,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      marginBottom: 12,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: 3,
+      backgroundColor: brand.primary,
+      borderRadius: 2,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
       marginBottom: 10,
+      gap: 8,
+    },
+    modeBadge: {
+      backgroundColor: brand.primarySurface,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+    },
+    modeBadgeText: {
+      fontSize: 11,
+      color: brand.primaryDeep,
+      fontWeight: '600',
+    },
+    stepCounter: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    skipButton: {
+      paddingVertical: 2,
+      paddingHorizontal: 4,
+    },
+    skipText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    wrongScreenBanner: {
+      backgroundColor: brand.accentSurface,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 10,
+    },
+    wrongScreenText: {
+      fontSize: 13,
+      color: brand.accentDark,
+      fontWeight: '600',
+    },
+    cardTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 6,
+    },
+    cardDesc: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginBottom: 8,
+    },
+    hintChip: {
+      backgroundColor: brand.primarySurface,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 8,
+    },
+    hintChipText: {
+      fontSize: 13,
+      color: brand.primaryDeep,
+      lineHeight: 18,
+    },
+    whyToggle: {
+      marginTop: 2,
+      marginBottom: 4,
+    },
+    whyToggleText: {
+      fontSize: 12,
+      color: brand.primary,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    whyText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+
+    // ── Button row ────────────────────────────────────────────────────────
+    buttonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 14,
+      gap: 12,
+    },
+    textButton: {
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+    },
+    textButtonLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    buttonSpacer: {
+      width: 60,
+    },
+    nextButton: {
+      flex: 1,
+      backgroundColor: brand.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    nextButtonDisabled: {
+      backgroundColor: colors.border,
+    },
+    nextButtonText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+
+    // ── GuideModePicker ───────────────────────────────────────────────────
+    roleBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.65)',
+      justifyContent: 'center',
+    },
+    roleScrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: 20,
+    },
+    roleCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    roleLangLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 8,
+      fontWeight: '600',
       textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      letterSpacing: 0.8,
     },
     langRow: {
       flexDirection: 'row',
@@ -551,204 +755,81 @@ const makeStyles = (colors: ThemeColors) =>
     langChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
+      gap: 4,
       paddingHorizontal: 10,
-      paddingVertical: 7,
+      paddingVertical: 6,
       borderRadius: 20,
       borderWidth: 1.5,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
     },
     langChipSelected: {
       borderColor: brand.primary,
-      backgroundColor: brand.primary + '18',
+      backgroundColor: brand.primarySurface,
     },
     langChipFlag: {
       fontSize: 16,
     },
     langChipText: {
-      fontSize: 12,
-      fontWeight: '500',
+      fontSize: 13,
       color: colors.textSecondary,
     },
     langChipTextSelected: {
       color: brand.primaryDeep,
-      fontWeight: '700',
+      fontWeight: '600',
     },
     roleDivider: {
       height: 1,
       backgroundColor: colors.border,
-      marginVertical: 18,
+      marginVertical: 16,
     },
     roleTitle: {
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: '700',
-      color: brand.primaryDeep,
-      marginBottom: 8,
+      color: colors.text,
+      marginBottom: 6,
       textAlign: 'center',
     },
     roleDesc: {
-      fontSize: 15,
+      fontSize: 14,
       color: colors.textSecondary,
       textAlign: 'center',
-      marginBottom: 20,
-    },
-    roleOptionButton: {
-      borderWidth: 2,
-      borderColor: brand.primary,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-    },
-    roleOptionButtonPressed: {
-      backgroundColor: brand.primary + '18',
-      opacity: 0.85,
-    },
-    roleOptionTitle: {
-      fontSize: 17,
-      fontWeight: '700',
-      color: brand.primaryDeep,
-      marginBottom: 4,
-    },
-    roleOptionDesc: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-
-    // Callout card
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
-      shadowColor: colors.border,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-      elevation: 8,
-    },
-
-    // Progress bar
-    progressBarTrack: {
-      width: '100%',
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: 'rgba(0,0,0,0.10)',
-      marginBottom: 12,
-      overflow: 'hidden',
-    },
-    progressBarFill: {
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: brand.primary,
-    },
-
-    // Header row
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 6,
-    },
-    stepCounter: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    roleBadge: {
-      backgroundColor: brand.primary + '22',
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-    },
-    roleBadgeText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: brand.primaryDeep,
-    },
-
-    title: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: brand.primaryDeep,
-      marginBottom: 8,
-    },
-    description: {
-      fontSize: 16,
-      lineHeight: 24,
-      color: colors.textSecondary,
-      marginBottom: 12,
-    },
-
-    // Why this matters
-    whySection: {
       marginBottom: 16,
-    },
-    whyToggleButton: {
-      paddingVertical: 6,
-    },
-    whyToggleLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: brand.primary,
-    },
-    whyContent: {
-      marginTop: 8,
-      borderLeftWidth: 3,
-      borderLeftColor: brand.primary,
-      paddingLeft: 10,
-    },
-    whyText: {
-      fontSize: 14,
-      fontStyle: 'italic',
-      color: colors.textSecondary,
       lineHeight: 20,
     },
-
-    // Buttons
-    buttonRow: {
+    modeGrid: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    modeButton: {
+      width: '47%',
+      backgroundColor: colors.background,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1.5,
+      borderColor: colors.border,
       alignItems: 'center',
-      marginTop: 4,
     },
-    leftButtons: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+    modeButtonPressed: {
+      backgroundColor: brand.primarySurface,
+      borderColor: brand.primary,
     },
-    textButton: {
-      paddingVertical: 14,
-      paddingHorizontal: 12,
+    modeEmoji: {
+      fontSize: 28,
+      marginBottom: 6,
     },
-    textButtonLabel: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    primaryButton: {
-      backgroundColor: brand.primary,
-      borderRadius: 8,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-    },
-    primaryButtonPressed: {
-      backgroundColor: brand.primaryDeep,
-      opacity: 0.85,
-      transform: [{ scale: 0.97 }],
-    },
-    primaryButtonLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.surface,
-    },
-    actionPromptContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-    },
-    actionPromptLabel: {
+    modeTitle: {
       fontSize: 13,
-      fontStyle: 'italic',
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    modeDesc: {
+      fontSize: 11,
       color: colors.textSecondary,
       textAlign: 'center',
+      lineHeight: 15,
     },
   });

@@ -36,7 +36,7 @@ export const es = {
   auth: { appName: 'Horario', tagline: 'Planificación inteligente, simplificada.', signIn: { title: 'Bienvenido de nuevo', subtitle: 'Inicia sesión para continuar', emailLabel: 'Correo electrónico', emailPlaceholder: 'tu@ejemplo.com', emailA11y: 'Dirección de correo electrónico', passwordLabel: 'Contraseña', passwordPlaceholder: '••••••••', passwordA11y: 'Contraseña', button: 'Iniciar sesión', buttonA11y: 'Iniciar sesión', noAccount: '¿No tienes una cuenta?', createLink: 'Crea una gratis', createLinkA11y: 'Crear cuenta', trustText: 'Gratis para empezar · Sin tarjeta de crédito · Cancela cuando quieras', errDefault: 'No se pudo completar el inicio de sesión. Por favor inténtalo de nuevo.', errToken: 'El token de inicio de sesión es inválido o ha expirado.', errCredentials: 'Inicio de sesión fallido. Revisa tus credenciales.' }, signUp: { promo: '✦ Tu primer horario optimizado es gratis — sin tarjeta requerida', title: 'Crea tu cuenta', subtitle: 'Únete a más de 1.200 gestores de equipos. Reduce las ausencias en un 40%.', emailLabel: 'Correo del trabajo', emailPlaceholder: 'tu@empresa.com', emailA11y: 'Dirección de correo electrónico', passwordLabel: 'Contraseña', passwordPlaceholder: 'Mínimo 8 caracteres', passwordA11y: 'Contraseña', button: 'Crear cuenta gratis →', buttonA11y: 'Crear cuenta', terms: 'Al registrarte aceptas nuestros Términos de Servicio y Política de Privacidad.', pricing: 'Gratis para siempre para 1 equipo · Pro desde $12/mo fijo — sin tarifas por empleado', hasAccount: '¿Ya tienes una cuenta?', signInLink: 'Iniciar sesión', signInLinkA11y: 'Iniciar sesión', trustText: 'Gratis para empezar · Sin tarjeta de crédito · Cancela cuando quieras', verify: { title: 'Revisa tu correo', emoji: '📬', sentTo: 'Enviamos un código de 6 dígitos a', codeLabel: 'Código de verificación', codePlaceholder: '123456', codeA11y: 'Código de verificación', verifyButton: 'Verificar correo', verifyButtonA11y: 'Verificar correo', backButton: '← Volver al registro', backButtonA11y: 'Volver atrás', errDefault: 'Verificación incompleta. Por favor inténtalo de nuevo.' } } },
   wellness: { a11yRole: 'Recordatorio de pausa consciente', heading: 'Es hora de una pausa consciente', body: 'Llevas {minutes} minuto{plural} concentrado. Tómate un momento para estirarte, hidratarte o revisar el plan antes de continuar.', notNow: 'Ahora no', notNowA11y: 'Descartar recordatorio de pausa', takeBreak: 'Tomar un descanso de 3 minutos', takeBreakA11y: 'Tomar un descanso breve' },
   upgrade: { trial: { badge: 'PRUEBA', title: 'Prueba Pro activa — asignaciones automáticas ilimitadas habilitadas.', subtitle: '$12/mo fijo después de la prueba. Sin tarifas por empleado.' }, free: { badge: 'GRATIS', limitReached: 'Deja de construir rosters a mano — alcanzaste el límite gratuito.', autoAssignsLeft: '{n} asignación{plural} automática{plural} gratis restante{plural}', cta: 'Asigna a todo tu equipo automáticamente con un toque. Prueba Pro 10 días gratis →', ctaUnlimited: 'Desbloquea asignaciones automáticas ilimitadas — sin tarifas por empleado →', pricing: '$12/mo fijo · sin tarifas por empleado · cancela cuando quieras' }, buttonA11y: 'Actualizar al plan Pro', buttonHint: 'Abre la página de facturación para iniciar tu prueba Pro gratuita', limitReachedBanner: 'Límite gratuito alcanzado. Actualiza a Pro para asignación automática ilimitada.' },
-  teamInvite: { managerTitle: 'Invitar a un miembro del equipo', workerTitle: 'Únete al equipo de tu gerente', managerSubtitle: 'Comparte este código con tu trabajador para que pueda unirse a tu equipo.', workerSubtitle: 'Ingresa el código de invitación que te compartió tu gerente.', inviteCodeLabel: 'Código de invitación', workerEmailLabel: 'Correo del trabajador (opcional)', workerEmailPlaceholder: 'trabajador@ejemplo.com', emailNote: 'Solo para tu referencia — no se enviará ningún correo.', copyCode: 'Copiar código', codeShared: '✓ ¡Código copiado!', regenerate: 'Regenerar', joinTeam: 'Unirse al equipo', joinedTitle: '¡Te has unido al equipo!', joinedSub: '¡Bienvenido al equipo!', invalidCode: 'Código inválido. Pide a tu gerente el código correcto.', close: 'Cerrar', closeA11y: 'Cerrar modal', managerA11y: 'Abrir modal de invitación de equipo', workerA11y: 'Abrir modal para unirse al equipo', codeLabel: 'Tu código de invitación', codePlaceholder: 'Ingresa el código de tu gerente', joinError: 'No se pudo unir al equipo. Verifica el código e inténtalo de nuevo.', regenerateConfirm: '¿Regenerar el código de invitación? El código anterior dejará de funcionar.', regenerateConfirmOk: 'Sí, regenerar', codeExpiresNote: 'Este código no expira y puede usarse varias veces.', shareVia: 'Compartir por', inviteCodeInputA11y: 'Ingresar código de invitación', copyA11y: 'Copiar código de invitación', regenerateA11y: 'Regenerar código de invitación', joinA11y: 'Unirse al equipo con el código de invitación', emailInputA11y: 'Campo de correo electrónico del trabajador', errorRegenerate: 'No se pudo regenerar el código. Por favor inténtalo de nuevo.', errorShare: 'No se pudo compartir el código. Por favor cópialo manualmente.' , inviteCodeInputA11y: 'Ingresar código de invitación', copyA11y: 'Copiar código de invitación', regenerateA11y: 'Regenerar código de invitación', joinA11y: 'Unirse al equipo con código de invitación', emailInputA11y: 'Campo de correo electrónico del trabajador', errorRegenerate: 'No se pudo regenerar el código. Por favor, inténtalo de nuevo.', errorShare: 'No se pudo compartir el código. Por favor, cópialo manualmente.'},
+  teamInvite: { managerTitle: 'Invitar a un miembro del equipo', workerTitle: 'Únete al equipo de tu gerente', managerSubtitle: 'Comparte este código con tu trabajador para que pueda unirse a tu equipo.', workerSubtitle: 'Ingresa el código de invitación que te compartió tu gerente.', inviteCodeLabel: 'Código de invitación', workerEmailLabel: 'Correo del trabajador (opcional)', workerEmailPlaceholder: 'trabajador@ejemplo.com', emailNote: 'Solo para tu referencia — no se enviará ningún correo.', copyCode: 'Copiar código', codeShared: '✓ ¡Código copiado!', regenerate: 'Regenerar', joinTeam: 'Unirse al equipo', joinedTitle: '¡Te has unido al equipo!', joinedSub: '¡Bienvenido al equipo!', invalidCode: 'Código inválido. Pide a tu gerente el código correcto.', close: 'Cerrar', closeA11y: 'Cerrar modal', managerA11y: 'Abrir modal de invitación de equipo', workerA11y: 'Abrir modal para unirse al equipo', codeLabel: 'Tu código de invitación', codePlaceholder: 'Ingresa el código de tu gerente', joinError: 'No se pudo unir al equipo. Verifica el código e inténtalo de nuevo.', regenerateConfirm: '¿Regenerar el código de invitación? El código anterior dejará de funcionar.', regenerateConfirmOk: 'Sí, regenerar', codeExpiresNote: 'Este código no expira y puede usarse varias veces.', shareVia: 'Compartir por', inviteCodeInputA11y: 'Ingresar código de invitación', copyA11y: 'Copiar código de invitación', regenerateA11y: 'Regenerar código de invitación', joinA11y: 'Unirse al equipo con el código de invitación', emailInputA11y: 'Campo de correo electrónico del trabajador', errorRegenerate: 'No se pudo regenerar el código. Por favor inténtalo de nuevo.', errorShare: 'No se pudo compartir el código. Por favor cópialo manualmente.'},
   language: { selectorLabel: 'Idioma', selectorA11y: 'Seleccionar idioma de la aplicación', selectorHint: 'Cambia el idioma de todo el texto en la aplicación', tooltip: '🌐 Elige tu idioma preferido. Tu elección se guarda automáticamente. La aplicación carga primero en inglés y cambia sin problemas — si falta alguna traducción, regresa al inglés sin errores.', changeSuccess: 'Idioma cambiado a {lang}' },
 
   // ─── Tour ────────────────────────────────────────────────────────────────
@@ -62,6 +62,7 @@ export const es = {
     goToScheduler: 'Ir al Planificador →',
     startManager: 'Iniciar tour de gerente',
     startWorker: 'Iniciar tour de miembro del equipo',
+    goToTab: 'Ir a {tab} →',
   },
   manager: {
     step1: {
@@ -137,11 +138,197 @@ export const es = {
       why: 'Los trabajadores que completan la incorporación son significativamente más seguros gestionando cambios de turno, solicitando días libres y comunicándose con su equipo dentro de Horario.',
     },
   },
+  mode: {
+    pickTitle: 'Elige tu guía',
+    pickDesc: 'Selecciona un recorrido para explorar diferentes partes de la app.',
+    overview: 'Resumen rápido',
+    overviewDesc: 'Introducción de 5 pasos a todas las pestañas',
+    manager: 'Recorrido para gestores',
+    managerDesc: 'Crea tu primer horario',
+    worker: 'Recorrido para empleados',
+    workerDesc: 'Empieza como miembro del equipo',
+    home: 'Guía de la pestaña Inicio',
+    homeDesc: 'Panel, racha y huecos',
+    scheduler: 'Guía del planificador',
+    schedulerDesc: 'Empleados, plantillas y turno',
+    analytics: 'Guía de analíticas',
+    analyticsDesc: 'KPIs, horas y equidad',
+  },
+  overview: {
+    step1: {
+      title: 'Bienvenido a Horario',
+      desc: 'Este es tu panel de inicio: consulta el estado de tu planificación, los próximos turnos y las brechas de personal de un vistazo.',
+      why: 'Revisar el panel a diario te permite anticiparte a los huecos antes de que se conviertan en ausencias.',
+    },
+    step2: {
+      title: 'Tu racha de planificación',
+      desc: 'Tu racha refleja con qué regularidad mantienes actualizado el horario de tu equipo. Cuanto mayor sea, más fiable será tu plantilla.',
+      why: 'Los equipos con planificación constante registran hasta un 40 % menos de cambios de turno de última hora.',
+    },
+    step3: {
+      title: 'La pestaña Planificador',
+      desc: 'El Planificador es donde creas tu equipo, configuras la disponibilidad, creas plantillas de turno y publicas el horario.',
+      why: 'La planificación centralizada elimina las dobles reservas y ofrece a todo el equipo una única fuente de verdad.',
+    },
+    step4: {
+      title: 'Previsión de demanda',
+      desc: 'Usa datos históricos e importaciones de POS para predecir cuánto personal necesitas en cada día.',
+      why: 'La planificación basada en la demanda reduce los costes laborales excesivos sin sacrificar la calidad del servicio.',
+    },
+    step5: {
+      title: 'Panel de analíticas',
+      desc: 'Controla la tasa de cobertura, los ingresos en riesgo, la distribución de horas y la puntuación de equidad, todo en tiempo real.',
+      why: 'Lo que se mide, mejora. Los operadores que rastrean estos KPIs reducen los turnos sin cubrir en un 30 % en un mes.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Tu centro de mando',
+      desc: 'La pestaña Inicio te ofrece un chequeo instantáneo: turnos programados esta semana, huecos abiertos y tu racha de fiabilidad.',
+      why: 'Los gestores que revisan este panel a diario detectan los huecos antes de que se conviertan en una crisis.',
+    },
+    step2: {
+      title: 'La semana de un vistazo',
+      desc: 'La tarjeta de estadísticas semanales muestra cuántos turnos están programados y cuántos puestos aún necesitan cubrirse.',
+      why: 'Un único número de huecos frente a turnos programados es más fácil de gestionar que desplazarse por un horario completo.',
+    },
+    step3: {
+      title: 'Racha de fiabilidad',
+      desc: 'Tu racha cuenta los días consecutivos que has mantenido el horario actualizado. Toca "Registrar el progreso de hoy" para avanzar.',
+      why: 'Los equipos con una racha de 7 días tienen un 40 % menos de ausencias gracias a la visibilidad anticipada.',
+    },
+    step4: {
+      title: 'Próximos turnos',
+      desc: 'Consulta de un vistazo todos los turnos programados para los próximos días: nombre del empleado, plantilla y hora.',
+      why: 'Saber lo que viene te permite detectar una cobertura escasa antes de que comience el turno.',
+    },
+    step5: {
+      title: 'Brechas de personal',
+      desc: 'Cualquier puesto con menos empleados asignados de los necesarios aparece aquí como un hueco abierto.',
+      why: 'Cada hueco sin cubrir es una pérdida potencial de ingresos. Cerrarlos a tiempo mantiene el servicio en marcha.',
+    },
+    step6: {
+      title: 'Acciones rápidas',
+      desc: 'Accede directamente a Añadir disponibilidad, Crear turnos o Publicar horario: las tres tareas de planificación más comunes.',
+      why: 'Un solo toque a la pantalla correcta ahorra el tiempo de navegar y desplazarse, haciendo la planificación diaria un 30 % más rápida.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Añadir un miembro del equipo',
+      desc: 'Introduce el nombre del empleado, su función (p. ej. Barista, Camarero) y sus habilidades separadas por comas.',
+      why: 'Cada persona en tu lista necesita un perfil para que el motor de asignación automática pueda vincularla a los turnos correctos.',
+      action: 'Rellena el formulario de empleado arriba y toca "Añadir empleado" para continuar ↑',
+    },
+    step2: {
+      title: 'Establecer disponibilidad',
+      desc: 'Indica a Horario cuándo están disponibles tus empleados: día de la semana, hora de inicio y hora de fin.',
+      why: 'Planificar según la disponibilidad confirmada es el mayor impulsor de la aceptación de turnos: los equipos tienen un 35 % menos de solicitudes de cambio.',
+      action: 'Añade una ventana de disponibilidad arriba y toca "Añadir disponibilidad" para continuar ↑',
+    },
+    step3: {
+      title: 'Crear una plantilla de turno',
+      desc: 'Una plantilla es una definición de turno reutilizable: nombre, función, hora de inicio, hora de fin y número mínimo de empleados requeridos.',
+      why: 'Las plantillas reducen el tiempo de creación del horario en un 60 % al eliminar la introducción repetitiva de datos cada semana.',
+      action: 'Rellena el formulario de plantilla arriba y toca "Añadir plantilla" para continuar ↑',
+    },
+    step4: {
+      title: 'Asignar tu primer turno',
+      desc: 'Elige un empleado, elige una plantilla, introduce una fecha y publica. Horario valida la disponibilidad y la coincidencia de función automáticamente.',
+      why: 'Publicar incluso un turno asignado activa el canal de notificaciones, para que tu equipo experimente fiabilidad desde el primer día.',
+      action: 'Asigna un turno arriba y toca "Guardar y notificar al equipo" para continuar ↑',
+    },
+    step5: {
+      title: 'Prever la demanda',
+      desc: 'Establece cuántos empleados necesitas por función y día. Usa el modo Homogéneo para semanas uniformes, Manual para fechas específicas o importación CSV de POS para previsiones basadas en datos.',
+      why: 'La planificación informada por la demanda ayuda a los operadores a reducir el exceso de costes laborales en un 15 % de media manteniendo la calidad del servicio.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'KPIs de cobertura',
+      desc: 'La tasa de cobertura muestra el porcentaje de turnos requeridos que están cubiertos. Los turnos en borrador están a la espera de publicación.',
+      why: 'Mantener la cobertura por encima del 80 % es el umbral donde la calidad del servicio se mantiene de forma fiable.',
+    },
+    step2: {
+      title: 'Ingresos en riesgo',
+      desc: 'Cada hueco sin cubrir tiene un coste. Esta cifra estima los ingresos potenciales perdidos por turnos con poco personal.',
+      why: 'Los operadores que rastrean los ingresos en riesgo cierran los huecos 2 veces más rápido que los que no lo hacen.',
+    },
+    step3: {
+      title: 'Distribución de horas',
+      desc: 'Consulta cómo se distribuyen las horas totales programadas en tu equipo. Las barras desiguales indican que un empleado está asumiendo más carga.',
+      why: 'Las horas equilibradas mejoran la moral del equipo y reducen el agotamiento, los dos mayores factores de ausencias inesperadas.',
+    },
+    step4: {
+      title: 'Puntuación de equidad',
+      desc: 'El indicador de equidad mide la igualdad en la distribución de horas. Una puntuación más baja (más verde) significa un horario más justo.',
+      why: 'Los equipos con una puntuación de equidad inferior a 4 registran tasas de aceptación de turnos un 25 % más altas.',
+    },
+  },
   completed: {
     title: '🎉 ¡Todo listo!',
     desc: 'Has completado el tour y tienes todo lo que necesitas para crear horarios más inteligentes, reducir ausencias y mantener a tu equipo sincronizado. Tu primera gran semana empieza ahora.',
     seedConfirmation: '✅ Datos de muestra añadidos — ¡explora tu primer equipo, plantillas y turnos!',
   },
 },
+
+  capability: {
+    header: {
+      feature: 'Función',
+      free: 'Gratis',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Trabajadores ilimitados',
+    shiftTemplates: 'Plantillas de turno',
+    availabilityTracking: 'Seguimiento de disponibilidad',
+    rosterAssignment: 'Asignación de plantilla',
+    demandTargets: 'Objetivos de demanda',
+    posCsvImport: 'Importar CSV de POS',
+    autoAssign: 'Asignación automática',
+    advancedAnalytics: 'Análisis avanzado',
+    multiLocation: 'Múltiples ubicaciones',
+    messaging: 'Mensajería y comunicación',
+    prioritySupport: 'Soporte prioritario',
+    upgrade: {
+      title: 'Desbloquear funciones Pro',
+      body: 'Elimina restricciones y accede a herramientas avanzadas.',
+      cta: 'Actualizar a Pro',
+      ctaHint: 'Abre la página de facturación para iniciar tu suscripción Pro',
+      price: 'Planes desde $12/mes · Cancela cuando quieras',
+    },
+  },
+  advancedControls: {
+    title: 'Controles avanzados',
+    constraints: {
+      title: 'Restricciones de turno',
+      minRest: 'Horas mínimas de descanso entre turnos',
+      maxWeekly: 'Horas máximas semanales',
+      minShift: 'Duración mínima del turno (horas)',
+    },
+    presets: {
+      title: 'Presets por industria',
+      restaurant: 'Restaurante',
+      retail: 'Comercio',
+      cafe: 'Cafetería',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Múltiples ubicaciones',
+      toggle: 'Habilitar programación por ubicación',
+      locations: 'Nombres de ubicaciones (separados por coma)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Guías y recorrido',
+      sectionSubtitle: 'Repite cualquier guía para explorar las funciones de la app',
+      overview: 'Resumen rápido',
+      manager: 'Recorrido para gestores',
+      scheduler: 'Guía del planificador',
+      analytics: 'Guía de analíticas',
+    },
+  },
 
 } as const;

@@ -609,6 +609,8 @@ export const DemandSection = ({
             />
             {/* [1][14] secondaryButton now uses filled teal with white text — 6.88:1 ✓ AA */}
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.demand.saveBaseline')}
               onPress={handleFallbackSubmit}
               style={[local.secondaryButton, styles.tightButton]}
             >

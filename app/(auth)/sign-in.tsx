@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -9,15 +9,58 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useSignIn } from '@clerk/expo/legacy';
+import { useSignIn } from '@clerk/expo';
 import { Link, useRouter, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
 
+// ─── Clerk error-code → user-friendly message map ──────────────────────────
+const CLERK_ERROR_MESSAGES: Record<string, string> = {
+  form_identifier_not_found:
+    'No account found for that email address. Please check your email or create an account.',
+  form_password_incorrect:
+    'Incorrect password. Please try again or reset your password.',
+  form_identifier_exists:
+    'An account with this email already exists. Try signing in instead.',
+  too_many_requests:
+    'Too many attempts. Please wait a moment and try again.',
+  session_exists:
+    'You are already signed in.',
+  ticket_expired:
+    'This sign-in link has expired. Please request a new one.',
+  ticket_invalid:
+    'This sign-in link is invalid. Please request a new one.',
+};
+
+function resolveClerkError(err: unknown): string {
+  const clerkErr = err as {
+    errors?: { code?: string; longMessage?: string; message?: string }[];
+  };
+  const first = clerkErr?.errors?.[0];
+  if (first?.code && CLERK_ERROR_MESSAGES[first.code]) {
+    return CLERK_ERROR_MESSAGES[first.code];
+  }
+  return (
+    first?.longMessage ??
+    first?.message ??
+    (err instanceof Error ? err.message : 'Sign-in failed. Please check your credentials.')
+  );
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
-  const { __clerk_ticket: clerkTicket } = useLocalSearchParams<{ __clerk_ticket?: string }>();
+
+  // Collect both __clerk_ticket (magic-link / org invitation) and
+  // afterSignInUrl (deep-link redirect from referring screen).
+  const {
+    __clerk_ticket: clerkTicket,
+    afterSignInUrl,
+  } = useLocalSearchParams<{
+    __clerk_ticket?: string;
+    afterSignInUrl?: string;
+  }>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,57 +69,86 @@ export default function SignInScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  // Handle magic-link / sign-in token from URL (__clerk_ticket param)
+  // Resolve the post-auth destination once so it is consistent across both
+  // ticket and password flows.
+  const postAuthDestination: string = afterSignInUrl ?? '/';
+
+  // ── Ticket / magic-link flow ──────────────────────────────────────────────
+  // After consuming the ticket we replace the current URL with the clean
+  // destination so the one-time token cannot be replayed on back-navigation or
+  // a future app resume. setActive is always awaited before router.replace to
+  // prevent a flash of unauthenticated state.
   useEffect(() => {
     if (!isLoaded || !signIn || !clerkTicket) return;
-    setLoading(true);
-    signIn.create({ strategy: 'ticket', ticket: clerkTicket })
-      .then(async (result) => {
+
+    let cancelled = false;
+
+    async function consumeTicket() {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await signIn!.create({
+          strategy: 'ticket',
+          ticket: clerkTicket as string,
+        });
+        if (cancelled) return;
+
         if (result.status === 'complete') {
-          await setActive({ session: result.createdSessionId });
-          router.replace('/');
+          // Await setActive so the session is fully established before we
+          // navigate; this prevents the momentary unauthenticated flash.
+          await setActive!({ session: result.createdSessionId });
+          // Replace rather than push — removes the ticket-bearing URL from
+          // the history stack so the token cannot be reused on back-nav.
+          router.replace(postAuthDestination as never);
         } else {
           setError('Sign-in could not be completed. Please try again.');
           setLoading(false);
         }
-      })
-      .catch((err: unknown) => {
-        const clerkError = err as { errors?: { longMessage?: string; message?: string }[] };
-        setError(
-          clerkError?.errors?.[0]?.longMessage ??
-          clerkError?.errors?.[0]?.message ??
-          'Sign-in token invalid or expired.'
-        );
-        setLoading(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(resolveClerkError(err));
+          setLoading(false);
+        }
+      }
+    }
+
+    void consumeTicket();
+
+    return () => {
+      cancelled = true;
+    };
+    // postAuthDestination intentionally excluded: it is derived from
+    // search params and therefore stable for the lifetime of this render.
+    // clerkTicket and isLoaded are the meaningful triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, clerkTicket]);
 
-  const handleSignIn = async () => {
+  // ── Password flow ─────────────────────────────────────────────────────────
+  const handleSignIn = useCallback(async () => {
     if (!isLoaded || !signIn) return;
     setError(null);
     setLoading(true);
     try {
-      const result = await signIn.create({ identifier: email, password });
+      const result = await signIn.create({
+        identifier: email.trim(),
+        password,
+      });
       if (result.status === 'complete') {
+        // Always await setActive before navigating so the session token is
+        // available to any protected route the user lands on.
         await setActive({ session: result.createdSessionId });
-        router.replace('/');
+        router.replace(postAuthDestination as never);
       } else {
         setError('Sign-in could not be completed. Please try again.');
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { longMessage?: string; message?: string }[] };
-      setError(
-        clerkError?.errors?.[0]?.longMessage ??
-        clerkError?.errors?.[0]?.message ??
-        (err instanceof Error ? err.message : 'Sign-in failed. Check your credentials.')
-      );
+      setError(resolveClerkError(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [isLoaded, signIn, setActive, email, password, postAuthDestination, router]);
 
-  const canSubmit = Boolean(email && password) && !loading;
+  const canSubmit = Boolean(email.trim() && password) && !loading;
 
   return (
     <KeyboardAvoidingView
@@ -191,7 +263,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 48,
   },
-  // Brand header
   brandSection: {
     alignItems: 'center',
     marginBottom: 32,
@@ -227,7 +298,6 @@ const styles = StyleSheet.create({
     color: brand.primaryDark,
     opacity: 0.8,
   },
-  // Form card
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -249,7 +319,6 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginBottom: 24,
   },
-  // Fields
   fields: {
     gap: 16,
   },
@@ -316,7 +385,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.2,
   },
-  // Footer
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -333,7 +401,6 @@ const styles = StyleSheet.create({
     color: brand.primary,
     fontWeight: '600',
   },
-  // Trust signals
   trust: {
     alignItems: 'center',
     marginTop: 24,

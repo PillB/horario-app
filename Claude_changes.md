@@ -26,6 +26,42 @@
 
 ---
 
+### [SUMMARY] — 2026-04-03 UTC
+**Last CHG completed:** CHG-058 (below)
+**Current state:** Guide-flow feature is integrated. All guide-flow batch-generated files have been repaired (truncation, type errors, wrong imports). `npx tsc --noEmit` passes with zero new errors (pre-existing errors in sign-in/sign-up Clerk API, CapabilityMatrix.surfaceSecondary, PlaybookLibrary/SyncStatusBar LocaleContextValue remain unchanged). Jest is not installed in node_modules, so `npm test` cannot run locally — the 244/244 baseline was from the last committed state.
+**Active decisions:** All batch-introduced TypeScript errors were fixed; pre-existing errors left untouched. `@types/react-dom` installed as devDep because RosterSection uses `react-dom` portal. `CapacityTrend.direction` is `'improving'|'stable'|'degrading'` (not 'rising'); `syncQueue.ts` uses `trackEvent` alias for `track`.
+**Next action:** Continue any pending feature work or run Playwright E2E if needed.
+**Watch out for:** `useCapacityForecast` requires `accountId` arg; `useSchedulerInsights` requires `accountId` arg — both now get it from `EXPO_PUBLIC_ACCOUNT_ID`. The `AnalyticsEvent` union in `services/analytics.ts` does not include all events used in batch-generated files — new events need to be added to the union before being used strictly.
+
+---
+
+### CHG-058 — 2026-04-03 UTC
+**Type:** FIX (repair all guide-flow batch-generated files — truncation + type errors)
+**Files changed:**
+- `components/TourSpotlight.tsx` — completed truncated JSX (spotlight ring, fullscreen fallback, callout card, GuideModePicker, makeStyles)
+- `app/(tabs)/index.tsx` — restored truncated heroContainer + 12 style tokens
+- `app/(tabs)/explore.tsx` — restored truncated styles (errorText, retryButton, primaryButton, barValue, fairness styles)
+- `app/(tabs)/profile.tsx` — restored from git then applied 3 targeted changes (tour import, startTourMode, guide buttons card + styles)
+- `app/api/secure-proxy+api.ts` — restored from git (batch truncation overwrote ~80% of file)
+- `components/ShiftMessageActions.tsx` — added 20+ missing StyleSheet entries
+- `components/scheduler/AdvancedControls.tsx` — completed truncated JSX + innerStyles
+- `components/scheduler/InputField.tsx` — added React.forwardRef with returnKeyType/onSubmitEditing/blurOnSubmit props
+- `components/scheduler/RosterSection.tsx` — fixed `title` prop on SectionCard, styles refs, `shift.template?.name`, `'Draft'` casing
+- `hooks/useAutoAssign.ts` — fixed assignShifts return type, LogCategory `'ROSTER'`, status `'Draft'`, re-export removal, success path
+- `hooks/useAvailabilityGrid.ts` — `'AVAIL_GRID'` → `'UI'` (10 occurrences), `as unknown as AvailabilityGrid`
+- `hooks/useDemandAnalysis.ts` — fixed useRoster/useShiftTemplates calls, `roster.roster`, status `'Published'`, role lookup via templateId
+- `hooks/useDemandAwareSchedule.ts` — fixed broken imports, added `AssignmentResult` import, removed invalid `shift.role` reference
+- `hooks/useLeaderInsights.ts` — fixed `CapacityTrend.direction`, `projectedGapIn14Days`, removed `uncoveredRevenue`, added accountId args, trackEvent cast
+- `hooks/useReferral.ts` — `@clerk/clerk-expo` → `@clerk/expo`
+- `hooks/useTeamSetup.ts` — `'TEAM_SETUP'` → `'UI'`
+- `hooks/useCapacityForecast.ts` — `'Cancelled'` → `!== 'Published'`
+- `locales/es.ts` — removed 7 duplicate teamInvite property keys (batch inserted them twice)
+- `services/syncQueue.ts` — `track` → `trackEvent as track`, fixed event props to match AnalyticsEvent constraints
+- `package.json` + `package-lock.json` — added `@types/react-dom` devDependency (RosterSection uses react-dom portal)
+**Result:** `npx tsc --noEmit` — zero new errors. Pre-existing errors in sign-in/sign-up, CapabilityMatrix, PlaybookLibrary, SyncStatusBar unchanged.
+
+---
+
 ### CHG-047 — 2026-04-02 UTC
 **Type:** FEATURE (interactive onboarding tour, month calendar view, team invite modal)
 

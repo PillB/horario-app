@@ -1,5 +1,14 @@
-import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput,
+  Keyboard,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type ShiftTemplate } from '@/utils/schedulerMetrics';
@@ -132,202 +141,249 @@ export const ShiftTemplateSection = ({
   const colors = Colors[colorScheme ?? 'light'];
   const local = makeLocalStyles(colors, colorScheme ?? 'light');
 
+  // Focus refs for template form fields
+  const templateNameRef = useRef<TextInput | null>(null);
+  const templateRoleRef = useRef<TextInput | null>(null);
+  const templateStartRef = useRef<TextInput | null>(null);
+  const templateEndRef = useRef<TextInput | null>(null);
+  const templateCoverageRef = useRef<TextInput | null>(null);
+
+  // Focus ref for shift date field
+  const shiftDateRef = useRef<TextInput | null>(null);
+
   return (
-    <>
-      <SectionCard
-        title={t('scheduler.templates.sectionTitle')}
-        subtitle={t('scheduler.templates.sectionSubtitle')}
-        tooltip={t('scheduler.templates.tooltip')}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {shiftTemplates.map((template) => (
-          <View key={template.id} style={styles.rowBetween}>
-            <View>
-              <ThemedText type="defaultSemiBold">{template.name}</ThemedText>
-              {/* [1] Fix: informational role/time text upgraded to textSecondary (≥6.86:1) */}
-              <ThemedText style={local.mutedText}>
-                {template.role} • {template.start} - {template.end}
+        <SectionCard
+          title={t('scheduler.templates.sectionTitle')}
+          subtitle={t('scheduler.templates.sectionSubtitle')}
+          tooltip={t('scheduler.templates.tooltip')}
+        >
+          {shiftTemplates.map((template) => (
+            <View key={template.id} style={styles.rowBetween}>
+              <View>
+                <ThemedText type="defaultSemiBold">{template.name}</ThemedText>
+                {/* [1] Fix: informational role/time text upgraded to textSecondary (≥6.86:1) */}
+                <ThemedText style={local.mutedText}>
+                  {template.role} • {template.start} - {template.end}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.badgeText}>
+                {t('scheduler.templates.needed', { n: String(template.coverage) })}
               </ThemedText>
             </View>
-            <ThemedText style={styles.badgeText}>
-              {t('scheduler.templates.needed', { n: String(template.coverage) })}
-            </ThemedText>
-          </View>
-        ))}
-        {shiftTemplates.length === 0 && (
-          <View>
-            {/* Ghost preview — shows what shift templates look like populated */}
-            <View style={styles.ghostContainer} accessibilityElementsHidden>
-              {[0, 1].map((i) => (
-                <View key={i} style={styles.ghostRow}>
-                  <View style={styles.ghostBlock}>
-                    {/* [10] Fix: ghost bars use border colour for ≥1.5:1 decorative visibility */}
-                    <View style={[styles.ghostNameBar, local.ghostBar]} />
-                    <View style={[styles.ghostTimeBar, local.ghostBar]} />
+          ))}
+          {shiftTemplates.length === 0 && (
+            <View>
+              {/* Ghost preview — shows what shift templates look like populated */}
+              <View style={styles.ghostContainer} accessibilityElementsHidden>
+                {[0, 1].map((i) => (
+                  <View key={i} style={styles.ghostRow}>
+                    <View style={styles.ghostBlock}>
+                      {/* [10] Fix: ghost bars use border colour for ≥1.5:1 decorative visibility */}
+                      <View style={[styles.ghostNameBar, local.ghostBar]} />
+                      <View style={[styles.ghostTimeBar, local.ghostBar]} />
+                    </View>
+                    <View style={[styles.ghostBadgeBar, local.ghostBar]} />
                   </View>
-                  <View style={[styles.ghostBadgeBar, local.ghostBar]} />
-                </View>
-              ))}
-            </View>
-            {/* [5] Fix: ghost empty-state text uses textSecondary for ≥4.5:1 in both modes */}
-            <View style={styles.ghostEmptyCta}>
-              <ThemedText style={local.ghostEmptyCtaText}>{t('scheduler.templates.emptyTitle')}</ThemedText>
-            </View>
-            <ThemedText style={local.ghostEmptyNote}>
-              {t('scheduler.templates.emptyDesc')}
-            </ThemedText>
-          </View>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title={t('scheduler.templates.addCardTitle')}
-        subtitle={t('scheduler.templates.addCardSubtitle')}
-        tooltip={t('scheduler.templates.addCardTooltip')}
-      >
-        <View style={styles.inlineInputs}>
-          <InputField
-            label={t('scheduler.templates.nameLabel')}
-            value={templateForm.name}
-            placeholder={t('scheduler.templates.namePlaceholder')}
-            onChangeText={updateTemplateField('name')}
-            accessibilityLabel={t('scheduler.templates.nameA11y')}
-            accessibilityHint={t('scheduler.templates.nameA11yHint')}
-          />
-          <InputField
-            label={t('scheduler.templates.roleLabel')}
-            value={templateForm.role}
-            placeholder={t('scheduler.templates.rolePlaceholder')}
-            onChangeText={updateTemplateField('role')}
-            accessibilityLabel={t('scheduler.templates.roleA11y')}
-            accessibilityHint={t('scheduler.templates.roleA11yHint')}
-          />
-        </View>
-        <View style={styles.inlineInputs}>
-          {/* [9] Fix: time placeholders '09:00' / '17:00' — InputField must use textTertiary
-              (#64748B, 4.35:1) minimum for placeholder colour; no change needed here as the
-              placeholder text prop itself is correct — ensure InputField applies textTertiary. */}
-          <InputField
-            label={t('scheduler.templates.startLabel')}
-            value={templateForm.start}
-            placeholder="09:00"
-            onChangeText={updateTemplateField('start')}
-            accessibilityLabel={t('scheduler.templates.startA11y')}
-            accessibilityHint={t('scheduler.templates.startA11yHint')}
-          />
-          <InputField
-            label={t('scheduler.templates.endLabel')}
-            value={templateForm.end}
-            placeholder="17:00"
-            onChangeText={updateTemplateField('end')}
-            accessibilityLabel={t('scheduler.templates.endA11y')}
-            accessibilityHint={t('scheduler.templates.endA11yHint')}
-          />
-          <InputField
-            label={t('scheduler.templates.coverageLabel')}
-            value={templateForm.coverage}
-            placeholder={t('scheduler.templates.coveragePlaceholder')}
-            onChangeText={updateTemplateField('coverage')}
-            accessibilityLabel={t('scheduler.templates.coverageA11y')}
-            accessibilityHint={t('scheduler.templates.coverageA11yHint')}
-          />
-        </View>
-        <Pressable
-          onPress={handleAddTemplate}
-          style={styles.primaryButton}
-          accessibilityRole="button"
-          accessibilityLabel={t('scheduler.templates.addButtonA11y')}
-          accessibilityHint={t('scheduler.templates.addButtonHint')}
-        >
-          <ThemedText style={styles.primaryButtonText}>{t('scheduler.templates.addButton')}</ThemedText>
-        </Pressable>
-        {/* [7] Fix: errorText uses scheme-aware colors.error token */}
-        {templateError ? <ThemedText style={local.errorText}>{templateError}</ThemedText> : null}
-        {/* [6] Fix: successText uses scheme-aware colors.success token */}
-        {templateSuccessMessage ? (
-          <ThemedText style={local.successText}>{templateSuccessMessage}</ThemedText>
-        ) : null}
-      </SectionCard>
-
-      <SectionCard
-        title={t('scheduler.shifts.sectionTitle')}
-        subtitle={t('scheduler.shifts.sectionSubtitle')}
-        tooltip={t('scheduler.shifts.tooltip')}
-      >
-        <WorkerIdPicker
-          label={t('scheduler.shifts.workerLabel')}
-          value={shiftForm.workerId}
-          workers={workers}
-          onChangeText={updateShiftField('workerId')}
-        />
-        <TemplateIdPicker
-          label={t('scheduler.shifts.templateLabel')}
-          value={shiftForm.templateId}
-          templates={shiftTemplates}
-          onChangeText={updateShiftField('templateId')}
-        />
-        <InputField
-          label={t('scheduler.shifts.dateLabel')}
-          value={shiftForm.date}
-          placeholder={t('scheduler.shifts.datePlaceholder')}
-          onChangeText={updateShiftField('date')}
-        />
-        <View style={styles.inlineActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('scheduler.shifts.saveButtonA11y')}
-            onPress={handleShiftSubmit}
-            style={[styles.primaryButton, styles.actionButton]}
-          >
-            <ThemedText style={styles.primaryButtonText}>{t('scheduler.shifts.saveButton')}</ThemedText>
-          </Pressable>
-          {/* [2] Fix: secondaryButton now uses secondaryButtonText with dark/teal colour
-              instead of primaryButtonText (white) which would fail on a light/outlined bg */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('scheduler.shifts.autoAssignA11y')}
-            accessibilityHint={t('scheduler.shifts.autoAssignHint')}
-            onPress={handleAutoAssign}
-            style={[styles.secondaryButton, styles.actionButton]}
-          >
-            <ThemedText style={local.secondaryButtonText}>{t('scheduler.shifts.autoAssignButton')}</ThemedText>
-          </Pressable>
-        </View>
-        {/* [7] Fix: errorText uses scheme-aware colors.error token */}
-        {shiftError ? <ThemedText style={local.errorText}>{shiftError}</ThemedText> : null}
-
-        {autoAssignSuggestions && autoAssignSuggestions.length > 0 ? (
-          <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
-            <ThemedText style={styles.bannerText}>
-              {t('scheduler.shifts.suggestions', { n: String(autoAssignSuggestions.length) })}
-            </ThemedText>
-            {autoAssignSuggestions.map((s) => {
-              const workerName = workers.find((w) => w.id === s.workerId)?.name ?? s.workerId;
-              const templateName = shiftTemplates.find((tpl) => tpl.id === s.templateId)?.name ?? s.templateId;
-              return (
-                // [3] Fix: suggestion items inside bannerSuccess use bannerMutedText which
-                // applies textSecondary — adequate contrast on both light and dark successSurface
-                <ThemedText key={`${s.templateId}-${s.workerId}`} style={local.bannerMutedText}>
-                  {t('scheduler.shifts.suggestionItem', { worker: workerName, template: templateName, date: s.date })}
+                ))}
+              </View>
+              {/* [5] Fix: ghost empty-state text uses textSecondary for ≥4.5:1 in both modes */}
+              <View style={styles.ghostEmptyCta}>
+                <ThemedText style={local.ghostEmptyCtaText}>
+                  {t('scheduler.templates.emptyTitle')}
                 </ThemedText>
-              );
-            })}
-            {/* [4][8] Fix: disabled state uses disabledButton bg (#CBD5E1) + disabledButtonText
-                (dark text, ≥13:1) and opacity 0.45; accessibilityState conveys unavailability
-                to screen readers */}
+              </View>
+              <ThemedText style={local.ghostEmptyNote}>
+                {t('scheduler.templates.emptyDesc')}
+              </ThemedText>
+            </View>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title={t('scheduler.templates.addCardTitle')}
+          subtitle={t('scheduler.templates.addCardSubtitle')}
+          tooltip={t('scheduler.templates.addCardTooltip')}
+        >
+          <View style={styles.inlineInputs}>
+            <InputField
+              ref={templateNameRef}
+              label={t('scheduler.templates.nameLabel')}
+              value={templateForm.name}
+              placeholder={t('scheduler.templates.namePlaceholder')}
+              onChangeText={updateTemplateField('name')}
+              accessibilityLabel={t('scheduler.templates.nameA11y')}
+              accessibilityHint={t('scheduler.templates.nameA11yHint')}
+              returnKeyType="next"
+              onSubmitEditing={() => templateRoleRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+            <InputField
+              ref={templateRoleRef}
+              label={t('scheduler.templates.roleLabel')}
+              value={templateForm.role}
+              placeholder={t('scheduler.templates.rolePlaceholder')}
+              onChangeText={updateTemplateField('role')}
+              accessibilityLabel={t('scheduler.templates.roleA11y')}
+              accessibilityHint={t('scheduler.templates.roleA11yHint')}
+              returnKeyType="next"
+              onSubmitEditing={() => templateStartRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+          </View>
+          <View style={styles.inlineInputs}>
+            {/* [9] Fix: time placeholders '09:00' / '17:00' — InputField must use textTertiary
+                (#64748B, 4.35:1) minimum for placeholder colour; no change needed here as the
+                placeholder text prop itself is correct — ensure InputField applies textTertiary. */}
+            <InputField
+              ref={templateStartRef}
+              label={t('scheduler.templates.startLabel')}
+              value={templateForm.start}
+              placeholder="09:00"
+              onChangeText={updateTemplateField('start')}
+              accessibilityLabel={t('scheduler.templates.startA11y')}
+              accessibilityHint={t('scheduler.templates.startA11yHint')}
+              returnKeyType="next"
+              onSubmitEditing={() => templateEndRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+            <InputField
+              ref={templateEndRef}
+              label={t('scheduler.templates.endLabel')}
+              value={templateForm.end}
+              placeholder="17:00"
+              onChangeText={updateTemplateField('end')}
+              accessibilityLabel={t('scheduler.templates.endA11y')}
+              accessibilityHint={t('scheduler.templates.endA11yHint')}
+              returnKeyType="next"
+              onSubmitEditing={() => templateCoverageRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+            <InputField
+              ref={templateCoverageRef}
+              label={t('scheduler.templates.coverageLabel')}
+              value={templateForm.coverage}
+              placeholder={t('scheduler.templates.coveragePlaceholder')}
+              onChangeText={updateTemplateField('coverage')}
+              accessibilityLabel={t('scheduler.templates.coverageA11y')}
+              accessibilityHint={t('scheduler.templates.coverageA11yHint')}
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+            />
+          </View>
+          <Pressable
+            onPress={handleAddTemplate}
+            style={styles.primaryButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('scheduler.templates.addButtonA11y')}
+            accessibilityHint={t('scheduler.templates.addButtonHint')}
+          >
+            <ThemedText style={styles.primaryButtonText}>
+              {t('scheduler.templates.addButton')}
+            </ThemedText>
+          </Pressable>
+          {/* [7] Fix: errorText uses scheme-aware colors.error token */}
+          {templateError ? (
+            <ThemedText style={local.errorText}>{templateError}</ThemedText>
+          ) : null}
+          {/* [6] Fix: successText uses scheme-aware colors.success token */}
+          {templateSuccessMessage ? (
+            <ThemedText style={local.successText}>{templateSuccessMessage}</ThemedText>
+          ) : null}
+        </SectionCard>
+
+        <SectionCard
+          title={t('scheduler.shifts.sectionTitle')}
+          subtitle={t('scheduler.shifts.sectionSubtitle')}
+          tooltip={t('scheduler.shifts.tooltip')}
+        >
+          <WorkerIdPicker
+            label={t('scheduler.shifts.workerLabel')}
+            value={shiftForm.workerId}
+            workers={workers}
+            onChangeText={updateShiftField('workerId')}
+          />
+          <TemplateIdPicker
+            label={t('scheduler.shifts.templateLabel')}
+            value={shiftForm.templateId}
+            templates={shiftTemplates}
+            onChangeText={updateShiftField('templateId')}
+          />
+          <InputField
+            ref={shiftDateRef}
+            label={t('scheduler.shifts.dateLabel')}
+            value={shiftForm.date}
+            placeholder={t('scheduler.shifts.datePlaceholder')}
+            onChangeText={updateShiftField('date')}
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+          />
+          <View style={styles.inlineActions}>
             <Pressable
-              accessibilityLabel={t('scheduler.shifts.applyButton')}
-              onPress={applyAutoAssign}
-              disabled={autoAssignApplying}
-              accessibilityState={{ disabled: autoAssignApplying }}
-              style={[styles.primaryButton, autoAssignApplying && local.disabledButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.shifts.saveButtonA11y')}
+              onPress={handleShiftSubmit}
+              style={[styles.primaryButton, styles.actionButton]}
             >
-              <ThemedText style={autoAssignApplying ? local.disabledButtonText : styles.primaryButtonText}>
-                {autoAssignApplying ? t('scheduler.shifts.applyingButton') : t('scheduler.shifts.applyButton')}
+              <ThemedText style={styles.primaryButtonText}>
+                {t('scheduler.shifts.saveButton')}
               </ThemedText>
             </Pressable>
-          </ThemedView>
-        ) : null}
-      </SectionCard>
-    </>
+            {/* [2] Fix: secondaryButton now uses secondaryButtonText with dark/teal colour
+                instead of primaryButtonText (white) which would fail on a light/outlined bg */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('scheduler.shifts.autoAssignA11y')}
+              accessibilityHint={t('scheduler.shifts.autoAssignHint')}
+              onPress={handleAutoAssign}
+              style={[styles.secondaryButton, styles.actionButton]}
+            >
+              <ThemedText style={local.secondaryButtonText}>
+                {t('scheduler.shifts.autoAssignButton')}
+              </ThemedText>
+            </Pressable>
+          </View>
+          {/* [7] Fix: errorText uses scheme-aware colors.error token */}
+          {shiftError ? (
+            <ThemedText style={local.errorText}>{shiftError}</ThemedText>
+          ) : null}
+
+          {autoAssignSuggestions && autoAssignSuggestions.length > 0 ? (
+            <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
+              <ThemedText style={styles.bannerText}>
+                {t('scheduler.shifts.suggestions', { n: String(autoAssignSuggestions.length) })}
+              </ThemedText>
+              {autoAssignSuggestions.map((s) => {
+                const workerName = workers.find((w) => w.id === s.workerId)?.name ?? s.workerId;
+                const templateName = shiftTemplates.find((tpl) => tpl.id === s.templateId)?.name ?? s.templateId;
+                return (
+                  <ThemedText key={`${s.templateId}-${s.workerId}`} style={local.bannerMutedText}>
+                    {t('scheduler.shifts.suggestionItem', { worker: workerName, template: templateName, date: s.date })}
+                  </ThemedText>
+                );
+              })}
+              <Pressable
+                accessibilityLabel={t('scheduler.shifts.applyButton')}
+                onPress={applyAutoAssign}
+                disabled={autoAssignApplying}
+                accessibilityState={{ disabled: autoAssignApplying }}
+                style={[styles.primaryButton, autoAssignApplying && local.disabledButton]}
+              >
+                <ThemedText style={autoAssignApplying ? local.disabledButtonText : styles.primaryButtonText}>
+                  {autoAssignApplying ? t('scheduler.shifts.applyingButton') : t('scheduler.shifts.applyButton')}
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
+          ) : null}
+        </SectionCard>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };

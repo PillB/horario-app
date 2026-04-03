@@ -89,7 +89,20 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
         name="explore"
         options={{
           title: t('nav.analytics'),
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <TourStep target="analytics-tab">
+              <IconSymbol size={28} name="chart.bar.fill" color={color} />
+            </TourStep>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: t('nav.profile'),
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="person.crop.circle.fill" color={color} />
+          ),
         }}
       />
     </Tabs>

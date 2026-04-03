@@ -72,6 +72,7 @@ export default function HomeScreen() {
       </ThemedView>
       </TourStep>
 
+      <TourStep target="week-stats">
       <ThemedView style={styles.card}>
         <ThemedText type="defaultSemiBold">{t('home.weekStats.title')}</ThemedText>
         {rosterLoading ? <SkeletonCard rows={1} /> : (
@@ -90,6 +91,7 @@ export default function HomeScreen() {
           </View>
         )}
       </ThemedView>
+      </TourStep>
 
       <TourStep target="streak-counter">
       <ThemedView style={styles.card}>
@@ -107,6 +109,7 @@ export default function HomeScreen() {
       </TourStep>
 
       <ErrorBoundary onRetry={refresh}>
+        <TourStep target="upcoming-shifts">
         <ThemedView style={styles.card}>
           <ThemedText type="subtitle">{t('home.upcomingShifts.title')}</ThemedText>
           {rosterLoading ? (
@@ -136,7 +139,9 @@ export default function HomeScreen() {
             ))
           )}
         </ThemedView>
+        </TourStep>
 
+        <TourStep target="staffing-gaps">
         <ThemedView style={styles.card}>
           <ThemedText type="subtitle">{t('home.staffingGaps.title')}</ThemedText>
           {rosterLoading ? (
@@ -162,8 +167,10 @@ export default function HomeScreen() {
             ))
           )}
         </ThemedView>
+        </TourStep>
       </ErrorBoundary>
 
+      <TourStep target="quick-actions">
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">{t('home.quickActions.title')}</ThemedText>
         <View style={styles.actions}>
@@ -196,6 +203,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </ThemedView>
+      </TourStep>
 
       <ThemedView style={styles.card}>
         <ThemedText type="defaultSemiBold">{t('home.invite.title')}</ThemedText>

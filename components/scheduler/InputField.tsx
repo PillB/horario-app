@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, StyleSheet } from 'react-native';
+import { View, TextInput, StyleSheet, type ReturnKeyTypeOptions } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,6 +14,9 @@ type Props = {
   accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
+  returnKeyType?: ReturnKeyTypeOptions;
+  onSubmitEditing?: () => void;
+  blurOnSubmit?: boolean;
 };
 
 const makeStyles = (colors: ThemeColors) =>
@@ -34,7 +37,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
   });
 
-export const InputField = ({
+export const InputField = React.forwardRef<TextInput, Props>(({
   label,
   value,
   placeholder,
@@ -43,7 +46,10 @@ export const InputField = ({
   accessibilityLabel,
   accessibilityHint,
   testID,
-}: Props) => {
+  returnKeyType,
+  onSubmitEditing,
+  blurOnSubmit,
+}, ref) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
@@ -56,6 +62,7 @@ export const InputField = ({
     <View style={styles.inputGroup}>
       <ThemedText style={styles.label}>{label}</ThemedText>
       <TextInput
+        ref={ref}
         value={value}
         placeholder={placeholder}
         onChangeText={onChangeText}
@@ -66,7 +73,10 @@ export const InputField = ({
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityHint={accessibilityHint ?? placeholder}
         testID={testID}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
+        blurOnSubmit={blurOnSubmit}
       />
     </View>
   );
-};
+});

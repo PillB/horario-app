@@ -634,6 +634,7 @@ export const fr = {
     goToScheduler: 'Aller au Planificateur →',
     startManager: 'Démarrer la visite Responsable',
     startWorker: 'Démarrer la visite Membre de l\'équipe',
+    goToTab: 'Aller à {tab} →',
   },
   manager: {
     step1: {
@@ -709,6 +710,134 @@ export const fr = {
       why: 'Les travailleurs qui complètent l\'intégration sont nettement plus à l\'aise pour gérer les changements de quart, demander des congés et communiquer avec leur équipe entièrement dans Horario.',
     },
   },
+  mode: {
+    pickTitle: 'Choisissez votre guide',
+    pickDesc: 'Sélectionnez une visite pour explorer différentes parties de l\'application.',
+    overview: 'Aperçu rapide',
+    overviewDesc: 'Introduction en 5 étapes à tous les onglets',
+    manager: 'Visite Responsable',
+    managerDesc: 'Créez votre premier planning',
+    worker: 'Visite Membre de l\'équipe',
+    workerDesc: 'Démarrez en tant que membre de l\'équipe',
+    home: 'Guide Onglet Accueil',
+    homeDesc: 'Tableau de bord, série & écarts',
+    scheduler: 'Guide Planificateur',
+    schedulerDesc: 'Travailleurs, modèles & planning',
+    analytics: 'Guide Analyses',
+    analyticsDesc: 'KPIs, heures & équité',
+  },
+  overview: {
+    step1: {
+      title: 'Bienvenue sur Horario',
+      desc: 'Voici votre tableau de bord — consultez d\'un coup d\'œil l\'état de votre planification, les prochains quarts et les lacunes en personnel.',
+      why: 'Une vérification quotidienne du tableau de bord vous garde en avance sur les lacunes avant qu\'elles ne deviennent des absences.',
+    },
+    step2: {
+      title: 'Votre série de planification',
+      desc: 'Votre série mesure la régularité avec laquelle vous maintenez le planning de votre équipe à jour. Plus votre série est élevée, plus votre planning est fiable.',
+      why: 'Les équipes avec une planification cohérente enregistrent jusqu\'à 40 % moins d\'échanges de quarts de dernière minute.',
+    },
+    step3: {
+      title: 'L\'onglet Planificateur',
+      desc: 'Le Planificateur vous permet de constituer votre équipe, de définir les disponibilités, de créer des modèles de quarts et de publier le planning.',
+      why: 'La planification centralisée élimine les doubles réservations et fournit à toute votre équipe une source unique de vérité.',
+    },
+    step4: {
+      title: 'Prévision de la demande',
+      desc: 'Utilisez les données historiques et les importations TPV pour prédire le nombre de collaborateurs dont vous avez besoin chaque jour.',
+      why: 'La planification basée sur la demande réduit les coûts de main-d\'œuvre excessifs tout en maintenant une haute qualité de service.',
+    },
+    step5: {
+      title: 'Tableau de bord Analyses',
+      desc: 'Suivez le taux de couverture, les revenus à risque, la répartition des heures et le score d\'équité — tout en temps réel.',
+      why: 'Ce qui est mesuré s\'améliore. Les opérateurs qui suivent ces KPIs réduisent les quarts non couverts de 30 % en un mois.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Votre centre de commandement',
+      desc: 'L\'onglet Accueil vous donne un contrôle instantané : quarts programmés cette semaine, lacunes ouvertes et votre série de fiabilité de planning.',
+      why: 'Les responsables qui consultent ce tableau de bord quotidiennement détectent les lacunes avant qu\'elles ne deviennent une crise.',
+    },
+    step2: {
+      title: 'La semaine en un coup d\'œil',
+      desc: 'La carte des statistiques hebdomadaires indique combien de quarts sont programmés et combien de postes doivent encore être pourvus.',
+      why: 'Un seul chiffre pour les lacunes vs. les quarts programmés est plus facile à traiter que de défiler dans un planning complet.',
+    },
+    step3: {
+      title: 'Série de fiabilité',
+      desc: 'Votre série compte les jours consécutifs où vous avez tenu le planning à jour. Appuyez sur « Enregistrer les progrès d\'aujourd\'hui » pour l\'avancer.',
+      why: 'Les équipes avec une série de 7 jours voient 40 % moins d\'absences grâce à la visibilité anticipée.',
+    },
+    step4: {
+      title: 'Prochains quarts',
+      desc: 'Consultez d\'un coup d\'œil chaque quart programmé pour les prochains jours — nom du travailleur, modèle et heure.',
+      why: 'Savoir ce qui vient vous permet de repérer une couverture insuffisante avant le début du quart.',
+    },
+    step5: {
+      title: 'Lacunes en personnel',
+      desc: 'Tout poste ayant moins de travailleurs assignés que requis apparaît ici comme une lacune ouverte.',
+      why: 'Chaque lacune non couverte représente un manque à gagner potentiel. Les fermer tôt maintient un service fluide.',
+    },
+    step6: {
+      title: 'Actions rapides',
+      desc: 'Accédez directement à Ajouter une disponibilité, Créer des quarts ou Publier le planning — les trois tâches de planification les plus courantes.',
+      why: 'Un seul appui sur le bon écran économise le temps de navigation et de défilement, rendant la planification quotidienne 30 % plus rapide.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Ajouter un membre de l\'équipe',
+      desc: 'Saisissez le nom du travailleur, son rôle (ex. Barista, Serveur) et ses compétences séparées par des virgules.',
+      why: 'Chaque personne dans votre planning a besoin d\'un profil pour que le moteur d\'attribution automatique puisse la correspondre aux bons quarts.',
+      action: 'Remplissez le formulaire de travailleur ci-dessus et appuyez sur « Ajouter un travailleur » pour continuer ↑',
+    },
+    step2: {
+      title: 'Définir les disponibilités',
+      desc: 'Indiquez à Horario quand vos membres d\'équipe sont disponibles — jour de la semaine, heure de début et heure de fin.',
+      why: 'Planifier selon les disponibilités confirmées est le principal moteur d\'acceptation des quarts — les équipes voient 35 % moins de demandes d\'échange.',
+      action: 'Ajoutez une fenêtre de disponibilité ci-dessus et appuyez sur « Ajouter une disponibilité » pour continuer ↑',
+    },
+    step3: {
+      title: 'Créer un modèle de quart',
+      desc: 'Un modèle est une définition de quart réutilisable — nom, rôle, heure de début, heure de fin et nombre minimum de travailleurs requis.',
+      why: 'Les modèles réduisent le temps de création du planning de 60 % en éliminant la saisie répétitive chaque semaine.',
+      action: 'Remplissez le formulaire de modèle ci-dessus et appuyez sur « Ajouter un modèle » pour continuer ↑',
+    },
+    step4: {
+      title: 'Attribuer votre premier quart',
+      desc: 'Choisissez un travailleur, un modèle, saisissez une date et publiez. Horario valide automatiquement la disponibilité et la correspondance de rôle.',
+      why: 'Publier même un quart attribué active le pipeline de notifications, donnant à votre équipe fiabilité dès le premier jour.',
+      action: 'Attribuez un quart ci-dessus et appuyez sur « Enregistrer et notifier l\'équipe » pour continuer ↑',
+    },
+    step5: {
+      title: 'Prévoir la demande',
+      desc: 'Définissez le nombre de collaborateurs nécessaires par rôle et par jour. Utilisez le mode Homogène pour les semaines uniformes, Manuel pour les dates spécifiques ou l\'import CSV TPV pour des prévisions basées sur les données.',
+      why: 'La planification basée sur la demande aide les opérateurs à réduire les coûts de main-d\'œuvre excessifs de 15 % en moyenne tout en maintenant la qualité de service.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'KPIs de couverture',
+      desc: 'Le taux de couverture indique le pourcentage de quarts requis qui sont pourvus. Les quarts en brouillon attendent d\'être publiés.',
+      why: 'Maintenir une couverture au-dessus de 80 % est le seuil où la qualité de service est maintenue de manière fiable.',
+    },
+    step2: {
+      title: 'Revenus à risque',
+      desc: 'Chaque lacune non couverte a un coût. Ce chiffre estime le manque à gagner potentiel dû aux quarts sous-staffés.',
+      why: 'Les opérateurs qui suivent les revenus à risque comblent les lacunes 2x plus vite que ceux qui ne le font pas.',
+    },
+    step3: {
+      title: 'Répartition des heures',
+      desc: 'Voyez comment les heures totales programmées sont réparties dans votre équipe. Des barres inégales indiquent qu\'un travailleur porte plus de charge.',
+      why: 'Des heures équilibrées améliorent le moral de l\'équipe et réduisent l\'épuisement — les deux principaux facteurs d\'absences inattendues.',
+    },
+    step4: {
+      title: 'Score d\'équité',
+      desc: 'La jauge d\'équité mesure l\'égalité de répartition des heures. Un score plus bas (plus vert) signifie un planning plus juste.',
+      why: 'Les équipes avec un score d\'équité inférieur à 4 rapportent des taux d\'acceptation des quarts 25 % plus élevés.',
+    },
+  },
   completed: {
     title: '🎉 Vous êtes prêt !',
     seedConfirmation: '✅ Données exemples ajoutées — explorez votre première équipe, modèles et quarts de travail !',
@@ -741,6 +870,64 @@ export const fr = {
     emailInputA11y: 'Champ de saisie de l\'adresse e-mail de l\'employé',
     errorRegenerate: 'Impossible de régénérer le code. Veuillez réessayer.',
     errorShare: 'Impossible de partager le code. Veuillez le copier manuellement.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Fonctionnalité',
+      free: 'Gratuit',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Employés illimités',
+    shiftTemplates: 'Modèles de quart',
+    availabilityTracking: 'Suivi des disponibilités',
+    rosterAssignment: 'Attribution des quarts',
+    demandTargets: 'Objectifs de demande',
+    posCsvImport: 'Import CSV caisse',
+    autoAssign: 'Attribution automatique',
+    advancedAnalytics: 'Analyses avancées',
+    multiLocation: 'Multi-sites',
+    messaging: 'Messagerie & communication',
+    prioritySupport: 'Support prioritaire',
+    upgrade: {
+      title: 'Débloquer les fonctions Pro',
+      body: 'Supprimez les restrictions et accédez aux outils avancés.',
+      cta: 'Passer à Pro',
+      ctaHint: 'Ouvre la page de facturation pour démarrer votre abonnement Pro',
+      price: 'Plans à partir de 12 $/mois · Résiliation à tout moment',
+    },
+  },
+  advancedControls: {
+    title: 'Contrôles avancés',
+    constraints: {
+      title: 'Contraintes de quart',
+      minRest: 'Heures de repos minimum entre les quarts',
+      maxWeekly: 'Heures hebdomadaires maximales',
+      minShift: 'Durée minimum du quart (heures)',
+    },
+    presets: {
+      title: 'Préréglages sectoriels',
+      restaurant: 'Restaurant',
+      retail: 'Commerce de détail',
+      cafe: 'Café',
+      hotel: 'Hôtel',
+    },
+    multiLocation: {
+      title: 'Multi-sites',
+      toggle: 'Activer la planification par site',
+      locations: 'Noms des sites (séparés par des virgules)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Guides & Visite',
+      sectionSubtitle: 'Rejouez n\'importe quel guide pour explorer les fonctionnalités de l\'app',
+      overview: 'Aperçu rapide',
+      manager: 'Visite Responsable',
+      scheduler: 'Guide Planificateur',
+      analytics: 'Guide Analyses',
+    },
   },
 
 } as const;

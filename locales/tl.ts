@@ -618,6 +618,7 @@ export const tl = {
     goToScheduler: 'Pumunta sa Scheduler →',
     startManager: 'Simulan ang Tour para sa Manager',
     startWorker: 'Simulan ang Tour para sa Miyembro ng Koponan',
+    goToTab: 'Pumunta sa {tab} →',
   },
   manager: {
     step1: {
@@ -693,6 +694,134 @@ export const tl = {
       why: 'Ang mga manggagawang nakumpleto ang onboarding ay mas kumpiyansa sa pamamahala ng mga pagbabago ng shift, paghiling ng pahinga, at pakikipag-ugnayan sa kanilang koponan nang ganap sa loob ng Horario.',
     },
   },
+  mode: {
+    pickTitle: 'Piliin ang iyong gabay',
+    pickDesc: 'Pumili ng tour upang tuklasin ang iba\'t ibang bahagi ng app.',
+    overview: 'Mabilis na Pangkalahatang-tanaw',
+    overviewDesc: '5-hakbang na panimula sa lahat ng tab',
+    manager: 'Tour para sa Manager',
+    managerDesc: 'Buuin ang iyong unang iskedyul',
+    worker: 'Tour para sa Miyembro ng Koponan',
+    workerDesc: 'Magsimula bilang miyembro ng koponan',
+    home: 'Gabay sa Tab na Home',
+    homeDesc: 'Dashboard, streak at agwat',
+    scheduler: 'Gabay sa Scheduler',
+    schedulerDesc: 'Mga manggagawa, template at roster',
+    analytics: 'Gabay sa Analytics',
+    analyticsDesc: 'Mga KPI, oras at pagiging patas',
+  },
+  overview: {
+    step1: {
+      title: 'Maligayang pagdating sa Horario',
+      desc: 'Ito ang iyong Home dashboard — tingnan ang iyong kalusugan ng iskedyul, mga paparating na shift, at mga agwat sa kawani sa isang tingin.',
+      why: 'Ang araw-araw na pagsuri ng dashboard ay nagpapanatiling mas maaga ka sa mga agwat bago pa maging mga no-show.',
+    },
+    step2: {
+      title: 'Ang Iyong Scheduling Streak',
+      desc: 'Sinusubaybayan ng iyong streak kung gaano kadalas mong ina-update ang iskedyul ng koponan. Mas mataas ang streak, mas mapagkakatiwalaan ang iyong roster.',
+      why: 'Ang mga koponan na may pare-parehong pag-iiskedyul ay nakakita ng hanggang 40% mas kaunting last-minute na pagpapalit ng shift.',
+    },
+    step3: {
+      title: 'Ang Tab na Scheduler',
+      desc: 'Ang Scheduler ang lugar kung saan mo binubuo ang iyong koponan, itinatakda ang availability, gumagawa ng mga template ng shift, at inilalathala ang roster.',
+      why: 'Ang sentralisadong pag-iiskedyul ay nag-aalis ng mga double booking at nagbibigay sa buong koponan ng isang pinagmumulan ng katotohanan.',
+    },
+    step4: {
+      title: 'Demand Forecasting',
+      desc: 'Gamitin ang makasaysayang data at mga import ng POS upang mahulaan kung ilang empleyado ang kailangan mo sa isang partikular na araw.',
+      why: 'Ang demand-aware na pag-iiskedyul ay nagbabawas ng labis na gastos sa paggawa habang pinapanatili ang mataas na kalidad ng serbisyo.',
+    },
+    step5: {
+      title: 'Dashboard ng Analytics',
+      desc: 'Subaybayan ang coverage rate, kita na nasa panganib, distribusyon ng oras, at fairness score — lahat sa real time.',
+      why: 'Ang sinusukat ay napabuti. Ang mga operator na sumusubaybay sa mga KPI na ito ay nagbabawas ng mga hindi natatakpan na shift ng 30% sa loob ng isang buwan.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Ang Iyong Command Centre',
+      desc: 'Ang tab na Home ay nagbibigay sa iyo ng instant na health check: mga shift na naka-iskedyul ngayong linggo, mga bukas na agwat, at ang iyong roster reliability streak.',
+      why: 'Ang mga manager na sumusuri ng dashboard na ito araw-araw ay nakakakita ng mga agwat bago pa maging krisis.',
+    },
+    step2: {
+      title: 'Linggo sa Isang Tingin',
+      desc: 'Ipinapakita ng week stats card kung ilang shift ang naka-iskedyul at ilang papel ang kailangan pa ring punan.',
+      why: 'Ang isang numero para sa mga agwat kumpara sa mga naka-iskedyul na shift ay mas madaling kumilos kaysa mag-scroll sa buong roster.',
+    },
+    step3: {
+      title: 'Reliability Streak',
+      desc: 'Binibilang ng iyong streak ang mga magkakasunod na araw na napanatili mong updated ang iskedyul. I-tap ang "I-log ang progreso ngayon" upang itaguyod ito.',
+      why: 'Ang mga koponan na may 7-araw na streak ay nakakakita ng 40% mas kaunting no-show salamat sa advance na visibility.',
+    },
+    step4: {
+      title: 'Mga Paparating na Shift',
+      desc: 'Tingnan ang bawat shift na naka-iskedyul para sa mga darating na araw — pangalan ng manggagawa, template, at oras — sa isang tingin.',
+      why: 'Ang pag-alam kung ano ang naghihintay ay nagbibigay-daan sa iyo na makita ang manipis na coverage bago magsimula ang shift.',
+    },
+    step5: {
+      title: 'Mga Agwat sa Kawani',
+      desc: 'Anumang papel na may mas kaunting mga nakatalagang manggagawa kaysa kinakailangan ay lilitaw dito bilang bukas na agwat.',
+      why: 'Ang bawat hindi natatakpan na agwat ay potensyal na nawalang kita. Ang pagsasara ng mga ito nang maaga ay nagpapanatiling maayos ang serbisyo.',
+    },
+    step6: {
+      title: 'Mga Mabilis na Aksyon',
+      desc: 'Lumundag nang direkta sa Magdagdag ng Availability, Bumuo ng Mga Shift, o Mag-publish ng Roster — ang tatlong pinakakaraniwang gawain sa pag-iiskedyul.',
+      why: 'Ang isang tap sa tamang screen ay nakakatipid ng oras na ginagastos sa pag-navigate at pag-scroll, na ginagawang 30% mas mabilis ang araw-araw na pag-iiskedyul.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Magdagdag ng Miyembro ng Koponan',
+      desc: 'Ilagay ang pangalan ng manggagawa, papel (hal. Barista, Server), at mga kasanayan na pinaghiwalay ng mga kuwit.',
+      why: 'Ang bawat tao sa iyong roster ay nangangailangan ng profile upang mapalabas ng auto-assign engine ang tamang mga shift.',
+      action: 'Punan ang form ng manggagawa sa itaas at i-tap ang "Magdagdag ng manggagawa" upang magpatuloy ↑',
+    },
+    step2: {
+      title: 'Itakda ang Availability',
+      desc: 'Sabihin sa Horario kung kailan available ang iyong mga miyembro ng koponan — araw ng linggo, oras ng simula, at oras ng pagtatapos.',
+      why: 'Ang pag-iiskedyul ayon sa nakumpirmang availability ang pinakamahalagang driver ng tinatanggap na shift — ang mga koponan ay nakakakita ng 35% mas kaunting kahilingan sa pagpapalit.',
+      action: 'Magdagdag ng availability window sa itaas at i-tap ang "Magdagdag ng availability" upang magpatuloy ↑',
+    },
+    step3: {
+      title: 'Lumikha ng Shift Template',
+      desc: 'Ang template ay isang muling magagamit na kahulugan ng shift — pangalan, papel, oras ng simula, oras ng pagtatapos, at minimum na bilang ng mga manggagawa.',
+      why: 'Ang mga template ay nagbabawas ng oras ng pagbuo ng iskedyul ng 60% sa pamamagitan ng pag-aalis ng paulit-ulit na pagpasok ng data bawat linggo.',
+      action: 'Punan ang form ng template sa itaas at i-tap ang "Magdagdag ng template" upang magpatuloy ↑',
+    },
+    step4: {
+      title: 'Italaga ang Iyong Unang Shift',
+      desc: 'Pumili ng manggagawa, pumili ng template, maglagay ng petsa, at mag-publish. Awtomatikong bine-validate ng Horario ang availability at pagtutugma ng papel.',
+      why: 'Ang pag-publish ng kahit isang nakatalagang shift ay nag-a-activate ng notification pipeline, kaya nararamdaman ng iyong koponan ang pagiging maaasahan mula sa unang araw.',
+      action: 'Magtakda ng shift sa itaas at i-tap ang "I-save at abisuhan ang koponan" upang magpatuloy ↑',
+    },
+    step5: {
+      title: 'Hulaan ang Demand',
+      desc: 'Itakda kung ilang empleyado ang kailangan mo bawat papel bawat araw. Gamitin ang Homogeneous mode para sa pantay na linggo, Manual para sa mga tiyak na petsa, o POS CSV import para sa mga hulaan na batay sa data.',
+      why: 'Ang demand-informed na pag-iiskedyul ay tumutulong sa mga operator na mabawasan ang labis na gastos sa paggawa ng average na 15% habang pinapanatili ang kalidad ng serbisyo.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'Mga Coverage KPI',
+      desc: 'Ipinapakita ng Coverage Rate ang porsyento ng mga kinakailangang shift na napuno. Ang mga draft shift ay naghihintay na ma-publish.',
+      why: 'Ang pagpapanatili ng coverage na higit sa 80% ang threshold kung saan maaasahang napapanatili ang kalidad ng serbisyo.',
+    },
+    step2: {
+      title: 'Kita na nasa Panganib',
+      desc: 'Ang bawat hindi natatakpan na agwat ay may gastos. Itinatantya ng numerong ito ang potensyal na nawalang kita mula sa mga understaff na shift.',
+      why: 'Ang mga operator na sumusubaybay sa kita na nasa panganib ay nagsasara ng mga agwat ng 2x nang mas mabilis kaysa sa mga hindi.',
+    },
+    step3: {
+      title: 'Distribusyon ng Oras',
+      desc: 'Tingnan kung paano kumakalat ang kabuuang naka-iskedyul na oras sa iyong koponan. Ang mga hindi pantay na bar ay nagpapahiwatig na ang isang manggagawa ay nagdadala ng mas maraming pasanin.',
+      why: 'Ang balanseng oras ay nagpapabuti ng morale ng koponan at nagbabawas ng burnout — ang dalawang pinakamalaking driver ng mga hindi inaasahang pagkawala.',
+    },
+    step4: {
+      title: 'Fairness Score',
+      desc: 'Sinusukat ng fairness gauge kung gaano pantay na ipinamamahagi ang mga oras. Ang mas mababang score (mas berde) ay nangangahulugang mas patas na iskedyul.',
+      why: 'Ang mga koponan na may fairness score na mas mababa sa 4 ay nag-uulat ng 25% mas mataas na rate ng pagtanggap ng shift.',
+    },
+  },
   completed: {
     title: '🎉 Handa ka na!',
     seedConfirmation: '✅ Naidagdag ang sample data — tuklasin ang iyong unang koponan, mga template, at shift!',
@@ -725,6 +854,64 @@ export const tl = {
     emailInputA11y: 'Input ng email address ng manggagawa',
     errorRegenerate: 'Hindi ma-regenerate ang code. Pakisubukan muli.',
     errorShare: 'Hindi maibahagi ang code. Pakikopya ito nang manu-mano.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Tampok',
+      free: 'Libre',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Walang limitasyong manggagawa',
+    shiftTemplates: 'Mga template ng shift',
+    availabilityTracking: 'Pagsubaybay ng availability',
+    rosterAssignment: 'Pagtatalaga ng shift',
+    demandTargets: 'Mga target ng demand',
+    posCsvImport: 'POS CSV import',
+    autoAssign: 'Awtomatikong pagtatalaga',
+    advancedAnalytics: 'Advanced na analytics',
+    multiLocation: 'Maramihang lokasyon',
+    messaging: 'Pagmemensahe at komunikasyon',
+    prioritySupport: 'Priority na suporta',
+    upgrade: {
+      title: 'I-unlock ang mga Pro na tampok',
+      body: 'Alisin ang mga paghihigpit at i-access ang mga advanced na tool.',
+      cta: 'I-upgrade sa Pro',
+      ctaHint: 'Nagbubukas ng pahina ng pagbabayad para simulan ang iyong Pro subscription',
+      price: 'Nagsisimula sa $12/buwan ang mga plano · Kanselahin anumang oras',
+    },
+  },
+  advancedControls: {
+    title: 'Mga advanced na kontrol',
+    constraints: {
+      title: 'Mga hadlang sa shift',
+      minRest: 'Minimum na oras ng pahinga sa pagitan ng mga shift',
+      maxWeekly: 'Maximum na oras sa isang linggo',
+      minShift: 'Minimum na haba ng shift (oras)',
+    },
+    presets: {
+      title: 'Mga preset ng industriya',
+      restaurant: 'Restaurant',
+      retail: 'Tingi',
+      cafe: 'Café',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Maramihang lokasyon',
+      toggle: 'Paganahin ang pag-iiskedyul bawat lokasyon',
+      locations: 'Mga pangalan ng lokasyon (pinaghiwalay ng kuwit)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Mga Gabay at Tour',
+      sectionSubtitle: 'I-replay ang anumang gabay upang tuklasin ang mga tampok ng app',
+      overview: 'Mabilis na Pangkalahatang-tanaw',
+      manager: 'Tour para sa Manager',
+      scheduler: 'Gabay sa Scheduler',
+      analytics: 'Gabay sa Analytics',
+    },
   },
 
 } as const;
