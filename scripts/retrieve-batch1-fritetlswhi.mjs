@@ -20,8 +20,8 @@ for await (const result of await client.messages.batches.results(batchId)) {
     console.error(`${result.custom_id} failed: ${result.result.type}`);
     continue;
   }
-  // Custom IDs are like "fill-fr-0" or "fill-fr"
-  const match = result.custom_id.match(/^fill-(\w+)(?:-\d+)?$/);
+  // Custom IDs are like "locale-fill-fr"
+  const match = result.custom_id.match(/^locale-fill-(\w+)$/);
   if (!match) {
     console.warn(`Unexpected custom_id: ${result.custom_id}`);
     continue;

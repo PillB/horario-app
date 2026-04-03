@@ -51,6 +51,10 @@ export const tl = {
     shortfall: 'Kakulangan: {n}',
     scheduled: '{n} naka-iskedyul',
     applying: 'Inilalapat…',
+      copyToClipboard: 'Kopyahin sa clipboard',
+      copied: 'Nakopya na!',
+      auditLogEmpty: 'Wala pang mga entry sa log.',
+      exportDiagnostics: 'I-export ang mga diagnostic'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -81,6 +85,8 @@ export const tl = {
       delayed: 'Naantala',
     },
     doneBtn: 'Isara',
+      addCommentBtn: 'Ipadala ang komento',
+      deleteComment: 'Burahin ang komento'
   },
 
   errors: {
@@ -88,6 +94,23 @@ export const tl = {
     retryHint: 'Subukang i-reload ang seksyong nabigo',
     networkError: 'Error sa network. Pakisuri ang iyong koneksyon.',
     loadFailed: 'Nabigo ang pag-load. I-tap para subukang muli.',
+    validation: {
+      WORKER_REQUIRED: 'Pumili ng manggagawa.',
+      DAY_REQUIRED: 'Pumili ng araw.',
+      TIMES_REQUIRED: 'Ilagay ang oras ng simula at pagtatapos.',
+      WORKER_NOT_FOUND: 'Ang ID ng manggagawa ay hindi tumutugma sa anumang umiiral na manggagawa.',
+      DAY_INVALID: 'Ang araw ay dapat Mon, Tue, Wed, Thu, Fri, Sat, o Sun.',
+      FROM_TIME_INVALID: 'Ang oras ng simula ay dapat nasa format na HH:MM (hal. 09:00).',
+      TO_TIME_INVALID: 'Ang oras ng pagtatapos ay dapat nasa format na HH:MM (hal. 17:00).',
+      FROM_BEFORE_TO: 'Ang oras ng simula ay dapat mas maaga kaysa sa oras ng pagtatapos.',
+      AVAILABILITY_OVERLAP: 'Nag-aapaw sa isang umiiral na bloke sa {day} ({from}–{to}).',
+      AVAILABILITY_DUPLICATE: 'Ang availability window na ito ay mayroon na para sa manggagawang ito.',
+      TEMPLATE_MISSING: 'Ang shift template para sa slot na ito ay hindi na available.',
+      WORKER_MISSING: 'Ang manggagawang nakatakda sa shift na ito ay hindi na available.',
+      ROLE_MISMATCH: 'Ang role ng manggagawa ({workerRole}) ay hindi tugma sa kinakailangang role ({templateRole}).',
+      COVERAGE_MISSING: 'Ang manggagawa ay hindi available sa {weekday} para sa window na {start}–{end}.',
+      SHIFT_OVERLAP: 'Ang manggagawa ay mayroon nang shift sa {date} mula {start} hanggang {end}.',
+    }
   },
 
   home: {
@@ -140,6 +163,7 @@ export const tl = {
       coverageChecksDesc: 'Nag-log ng mga update sa 5 sa nakaraang 7 araw.',
       draftsPublished: 'Mga draft na nai-publish',
       draftsPublishedDesc: 'Ilipat ang mga draft sa nai-publish kapag handa na ang mga team.',
+      notStarted: 'Hindi pa sinimulan'
     },
     weekStats: {
       title: 'Ngayong linggo',
@@ -208,6 +232,7 @@ export const tl = {
       addButtonHint: 'I-save ang bagong profile ng manggagawa',
       addedSuccess: 'Naidagdag si {name}! Itakda na ngayon ang kanilang availability para ma-enable ang tumpak na scheduling.',
       tooltip: '👷 Ang mga manggagawa ang puso ng iyong roster. Magdagdag ng pangalan, tungkulin (hal. "Barista"), at mga kasanayan. Kapag na-save, mag-scroll pababa para itakda ang kanilang lingguhang availability para malaman ng tagaplanong kung kailan sila makakapagtrabaho.',
+      addCardTooltip: 'Ilagay ang pangalan ng manggagawa, role (hal. "Barista"), at anumang kasanayan (pinaghiwalay ng kuwit). Awtomatikong malilikha ang kanilang ID. Pagkatapos i-save, mag-scroll sa "Availability intake" upang itakda kung kailan sila maaaring magtrabaho.'
     },
 
     availability: {
@@ -260,6 +285,8 @@ export const tl = {
       savedSuccess: 'Nai-save ang template na "{name}"! Maaari ka nang mag-auto-assign ng mga manggagawa sa shift na ito.',
       needed: '{n} ang kailangan',
       tooltip: '🗂 Ang mga template ay mga reusable na plano ng shift. Tukuyin nang isang beses ang "Morning Support 09:00–17:00, 1 manggagawa ang kailangan" at gamitin ito ulit bawat linggo. Ang mga template ay nagpapatakbo ng auto-assign engine — habang mas marami kang idadagdag, mas matalino ang mga mungkahi.',
+      addCardTooltip: 'Bigyan ng pangalan ang template (hal. "Morning"), pumili ng role, itakda ang time window (24h na format), at ilagay ang pinakamababang bilang ng mga manggagawang kailangan. Ang mga template ang pundasyon ng auto-assign.',
+      addedSuccess: 'Na-save ang "{name}" — handa nang magtalaga ng mga shift.'
     },
 
     shifts: {
@@ -318,6 +345,60 @@ export const tl = {
       source: 'Pinagkukunan: {src}',
       requiredLabel: '{n} ang kailangan',
       tooltip: '📈 Sinasabi ng mga target sa demand sa tagaplanong kung ilang manggagawa ang kailangan mo bawat tungkulin bawat araw. Magsimula sa "Mabilis na setup" para mag-seed ng isang linggong baseline na demand, pagkatapos ay magpatakbo ng forecast para makakuha ng mga target na pinapagana ng AI batay sa iyong makasaysayang shift at panlabas na signal.',
+      forecastRunning: 'Tumatakbo…',
+      forecastWaiting: 'Naghihintay ng mga pagbabago…',
+      forecastNeedInput: 'Magdagdag ng petsa at papel para sa forecast',
+      forecastHelperInvalid: 'Maglagay ng wastong petsa sa format na YYYY-MM-DD at papel upang makabuo ng forecast.',
+      forecastHelperNoData: 'Walang nahanap na makasaysayang mga shift o panlabas na signal. Gamitin ang mabilis na setup upang magtanim ng mga target ng demand.',
+      forecastHelperApiDown: 'Hindi available ang Forecast API. Gumamit ng mabilis na setup o manu-manong mga target upang magpatuloy.',
+      forecastHelperPending: 'Naghihintay na tumigil ang input bago mag-forecast…',
+      forecastHelperRunning: 'Nagpapatakbo ng forecast...',
+      forecastHelperReady: 'Handa nang patakbuhin ang forecast gamit ang mga signal ngayon.',
+      sourceLabelModel: 'AI forecast',
+      sourceLabelOverride: 'Manu-manong entry',
+      sourceLabelPos: 'POS import',
+      sourceLabelFallback: 'Mabilis na setup',
+      posTargetsSaved: '{n} na target ng demand ang na-save mula sa POS data.',
+      posTab: 'POS Import',
+      posRole: 'Italaga sa papel',
+      posRevenuePerHour: 'Kita / worker-hour ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'Average na oras ng shift',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'Smoothing (mga araw)',
+      posText: 'I-paste ang CSV (date,revenue,covers,notes)',
+      posPreviewBtn: 'I-preview ang CSV',
+      posGenerateBtn: 'Bumuo ng {n} na target ng demand',
+      posGenerating: 'Binubuo…',
+      posDone: '{n} na target ang na-save mula sa POS data',
+      posError: 'Error: {msg}',
+      posTooltip: 'Mag-upload ng POS sales CSV upang awtomatikong kalkulahin kung gaano karaming manggagawa ang kailangan bawat araw. Gumagamit ang engine ng rolling average upang i-smooth ang kita at kino-convert ito sa kinakailangang bilang ng tao batay sa iyong target na kita-bawat-worker-hour.',
+      posPresetFine: 'Fine Dining',
+      posPresetCasual: 'Casual',
+      posPresetBar: 'Bar / Café',
+      posPresetQSR: 'Quick Service',
+      posPresetCustom: 'Custom',
+      posMixTitle: 'Staffing mix ng papel',
+      posMixDesc: 'Itakda kung gaano karaming manggagawa ang kailangan bawat papel batay sa inaasahang covers o kita.',
+      posMixRole: 'Papel',
+      posMixRolePlaceholder: 'hal. Server',
+      posMixRatioMode: 'Ayon sa',
+      posMixCovers: 'Cvr',
+      posMixRevenue: 'Rev',
+      posMixPerWorker: '/wkr',
+      posMixMin: 'Min',
+      posMixAddRole: '+ Magdagdag ng papel',
+      posMixRemoveRole: 'Alisin ang row ng {role}',
+      posNoRoles: 'Magdagdag ng kahit isang papel upang makabuo ng mga forecast.',
+      posCoversWarning: 'Walang datos ng covers sa CSV — gumagamit ng revenue estimate para sa mga papel na may cover-ratio.',
+      posTargetsSavedMulti: '{n} na target ang na-save sa {roles} na papel.',
+      posPreviewHeaderDate: 'Petsa',
+      posPreviewHeaderRevenue: 'Kita',
+      posPreviewHeaderCovers: 'Covers',
+      posCsvA11yHint: 'I-paste ang CSV na may mga kolum: date, revenue, covers, notes',
+      posPreviewCount: '{n} sa {total} na row ang ipinapakita',
+      beforeForecast: 'Bago ang forecast',
+      afterForecast: 'Pagkatapos ng forecast'
     },
 
     roster: {
@@ -342,7 +423,34 @@ export const tl = {
         shortfall: 'Kakulangan: {n}',
       },
       tooltip: '🗓 Ang iyong live na kalendaryo ng roster. Ang mga shift ay lilitaw sa sandaling i-save mo ang mga ito. I-click ang "I-publish" para i-lock ang isang shift, pagkatapos ay "Abisuhan" para alertuhin ang manggagawa. Ang mga nai-publish na shift ay nagbibigay ng data ng oras at saklaw sa tab na Analytics.',
+      calendarView: 'Kalendaryo',
+      listView: 'Listahan',
+      noShiftsThisWeek: 'Walang shift ngayong linggo.',
+      weekOf: 'Linggo ng {date}',
+      maximize: 'Fullscreen na kalendaryo',
+      closeFullscreen: 'Isara ang fullscreen',
+      prevWeek: 'Nakaraang linggo',
+      nextWeek: 'Susunod na linggo',
+      today: 'Ngayon'
     },
+      jumpToCalendar: 'Tingnan ang Kalendaryo ↓',
+    pos: {
+      sectionTitle: 'POS Sales Upload',
+      sectionSubtitle: 'Mag-upload ng CSV revenue data upang mapahusay ang demand forecasting.',
+      tooltip: '💰 I-upload ang iyong Point-of-Sale sales data (CSV) upang makakuha ng mas matalinong mga forecast. Ginagamit ng engine ang seasonality araw-ng-linggo, mga trend sa kita, at kahusayan ng revenue-per-worker upang mas tumpak na mahulaan ang demand. Tinatanggap: date, revenue, covers (opsyonal), notes (opsyonal).',
+      uploadButton: 'Pumili ng CSV file',
+      pasteLabel: 'I-paste ang CSV content',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Preview ({n} rows)',
+      uploadAction: 'I-upload ang {n} rows',
+      uploadSuccess: 'Matagumpay na na-save ang {n} rows',
+      uploadError: 'Nabigo ang pag-upload: {msg}',
+      validationErrors: 'Natagpuan ang {n} validation error(s)',
+      resetButton: 'I-clear',
+      noFile: 'Walang napiling file',
+      csvHelp: 'Tinatanggap na format: date (YYYY-MM-DD), revenue (numero), covers (opsyonal na integer), notes (opsyonal na teksto). Hanggang 1,000 rows bawat upload.',
+      dropHint: 'I-drag at i-drop ang isang .csv file dito, o pindutin upang mag-browse',
+    }
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
@@ -362,6 +470,8 @@ export const tl = {
     monthView: 'Buwan',
     weekView: 'Linggo',
     monthLabel: '{month} {year}',
+      prevMonth: 'Nakaraang buwan',
+      nextMonth: 'Susunod na buwan'
   },
 
   analytics: {
@@ -589,5 +699,32 @@ export const tl = {
     desc: 'Nakumpleto mo na ang tour at mayroon ka nang lahat ng kailangan mo upang bumuo ng mas matalinong mga iskedyul, bawasan ang mga no-show, at panatilihing naka-sync ang iyong koponan. Nagsisimula na ngayon ang iyong unang mahusay na linggo.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Mag-imbita ng Miyembro ng Koponan',
+    workerTitle: 'Sumali sa Koponan ng Iyong Manager',
+    managerSubtitle: 'Ibahagi ang code na ito sa iyong manggagawa upang makasali sila sa iyong koponan.',
+    workerSubtitle: 'Ilagay ang invite code na ibinahagi ng iyong manager sa iyo.',
+    inviteCodeLabel: 'Invite Code',
+    workerEmailLabel: 'Email ng manggagawa (opsyonal)',
+    workerEmailPlaceholder: 'worker@example.com',
+    emailNote: 'Para sa iyong sanggunian lamang — walang email na ipapadala.',
+    copyCode: 'Kopyahin ang Code',
+    codeShared: '✓ Naibahagi ang code!',
+    regenerate: 'Mag-regenerate',
+    joinTeam: 'Sumali sa Koponan',
+    joinedTitle: 'Sumali ka na sa koponan!',
+    joinedSub: 'Sumali na! Maligayang pagdating sa koponan.',
+    invalidCode: 'Maling code. Humingi sa iyong manager ng tamang code.',
+    close: 'Isara',
+    closeA11y: 'Isara ang modal',
+    inviteCodeInputA11y: 'Ilagay ang invite code',
+    copyA11y: 'Kopyahin ang invite code',
+    regenerateA11y: 'I-regenerate ang invite code',
+    joinA11y: 'Sumali sa koponan gamit ang invite code',
+    emailInputA11y: 'Input ng email address ng manggagawa',
+    errorRegenerate: 'Hindi ma-regenerate ang code. Pakisubukan muli.',
+    errorShare: 'Hindi maibahagi ang code. Pakikopya ito nang manu-mano.',
+  },
 
 } as const;

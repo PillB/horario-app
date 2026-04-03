@@ -1,0 +1,38 @@
+{
+  "de": {
+    "scheduler.demand.forecastNeedInput": "Datum & Rolle für Prognose hinzufügen",
+    "scheduler.demand.forecastHelperInvalid": "Geben Sie ein gültiges Datum im Format JJJJ-MM-TT und eine Rolle ein, um eine Prognose zu erstellen.",
+    "scheduler.demand.forecastHelperNoData": "Keine historischen Schichten oder externen Signale gefunden. Verwenden Sie die Schnelleinrichtung, um Bedarfsziele zu hinterlegen.",
+    "scheduler.demand.forecastHelperApiDown": "Prognose-API nicht verfügbar. Verwenden Sie die Schnelleinrichtung oder manuelle Ziele, um fortzufahren.",
+    "scheduler.demand.forecastHelperPending": "Warte auf stabile Eingabe vor der Prognose…",
+    "scheduler.demand.forecastHelperRunning": "Prognose wird erstellt...",
+    "scheduler.demand.forecastHelperReady": "Bereit, die Prognose mit den heutigen Signalen auszuführen.",
+    "scheduler.demand.beforeForecast": "Vor der Prognose",
+    "scheduler.demand.afterForecast": "Nach der Prognose",
+    "scheduler.demand.sourceLabelModel": "KI-Prognose",
+    "scheduler.demand.sourceLabelOverride": "Manuelle Eingabe",
+    "scheduler.demand.sourceLabelPos": "POS-Import",
+    "scheduler.demand.sourceLabelFallback": "Schnelleinrichtung",
+    "scheduler.demand.posTargetsSaved": "{n} Bedarfsziele aus POS-Daten gespeichert.",
+    "scheduler.demand.posTab": "POS-Import",
+    "scheduler.demand.posRole": "Rolle zuweisen"
+  },
+  "zh": {
+    "scheduler.demand.forecastNeedInput": "添加日期和职位以生成预测",
+    "scheduler.demand.forecastHelperInvalid": "请输入有效的 YYYY-MM-DD 日期和职位以生成预测。",
+    "scheduler.demand.forecastHelperNoData": "未找到历史班次或外部信号。请使用快速设置来初始化需求目标。",
+    "scheduler.demand.forecastHelperApiDown": "预测 API 暂不可用。请使用快速设置或手动目标继续操作。",
+    "scheduler.demand.forecastHelperPending": "等待输入稳定后开始预测……",
+    "scheduler.demand.forecastHelperRunning": "正在运行预测...",
+    "scheduler.demand.forecastHelperReady": "已准备好使用今日信号运行预测。",
+    "scheduler.demand.beforeForecast": "预测前",
+    "scheduler.demand.afterForecast": "预测后",
+    "scheduler.demand.sourceLabelModel": "AI预测",
+    "scheduler.demand.sourceLabelOverride": "手动输入",
+    "scheduler.demand.sourceLabelPos": "POS导入",
+    "scheduler.demand.sourceLabelFallback": "快速设置",
+    "scheduler.demand.posTargetsSaved": "已从POS数据保存 {n} 个需求目标。",
+    "scheduler.demand.posTab": "POS导入",
+    "scheduler.demand.posRole": "分配至角色"
+  }
+}

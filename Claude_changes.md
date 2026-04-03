@@ -6,6 +6,26 @@
 
 ---
 
+### CHG-057 — 2026-04-03 UTC
+**Type:** FIX (locale completeness — all 9 locales now 0 missing keys)
+**Files changed:**
+- `locales/fr.ts`, `locales/it.ts`, `locales/sw.ts`, `locales/tl.ts`, `locales/hi.ts` — 130 missing keys each added (batch1 101 keys + batch2 65 keys merged; targeted section insertions fixed double-comma bug)
+- `locales/de.ts`, `locales/zh.ts` — 22 remaining missing keys added (batch dezh-final 16 keys + chunk0-retry 6 keys)
+- `scripts/retrieve-batch1-fritetlswhi.mjs` — retrieves msgbatch_017jDn9PLKec93kvJGg3qmQ5 (101 keys per locale)
+- `scripts/locale-fill-fritetlswhi.mjs` — clean merge+insert for fr/it/sw/tl/hi with fixed insertSubSection (comma check)
+- `scripts/locale-fix-targeted.mjs` — targeted insertion for 7 keys that were skipped by leafExists false-positives
+- `scripts/locale-fill-dezh-final.mjs` — batch submission for de/zh 22 missing keys (4 chunks × 2 locales)
+- `scripts/locale-fill-dezh-final-retrieve.mjs` — retrieves msgbatch_01MBixn77sqxio6hop241i8E, applies 16/22 keys
+- `scripts/locale-fill-dezh-chunk0-retry.mjs` — retry for 6 keys with JSON quote escaping issues
+- `scripts/locale-fill-dezh-chunk0-retrieve.mjs` — retrieves retry batch, applies final 6 keys
+**Result:** All 9 locales at 584/584 keys (0 missing). All files parse cleanly. 244/244 tests pass.
+**Root causes fixed:**
+1. `insertSubSection` double-comma bug: now checks `content[insertAt-1] !== ','` before adding prefix comma
+2. `leafExists` false-positive: switched to targeted `insertIntoSection(content, sectionKey, key, value)` for keys that appear in multiple sections
+3. JSON parse failure from curly quotes in German/Chinese: stricter prompt `MUST escape \\"`
+
+---
+
 ### CHG-047 — 2026-04-02 UTC
 **Type:** FEATURE (interactive onboarding tour, month calendar view, team invite modal)
 

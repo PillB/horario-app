@@ -224,6 +224,7 @@ export const zh = {
       addButtonHint: '保存新的员工档案',
       addedSuccess: '{name} 已添加！现在设置其可用性以启用精准排班。',
       tooltip: '👷 员工是排班的核心。添加姓名、职位（如"咖啡师"）和技能。保存后，向下滚动设置其每周可用性，以便排班器了解其工作时间。',
+      addCardTooltip: '填写员工的姓名、职位（例如：咖啡师）以及任何技能（以逗号分隔）。其 ID 将自动生成。保存后，滚动至"可用性填写"部分，设置其可工作的时间。'
     },
 
     availability: {
@@ -276,6 +277,8 @@ export const zh = {
       savedSuccess: '"{name}" 模板已保存！您现在可以为此班次自动分配员工。',
       needed: '需要 {n} 人',
       tooltip: '🗂 模板是可复用的班次蓝图。定义一次"早班支持 09:00–17:00，需1人"，每周重复使用。模板驱动自动分配引擎——添加越多，建议越智能。',
+      addedSuccess: '{name} 已添加 — 请设置其可用时间以启用排班功能。',
+      addCardTooltip: '为模板命名（例如：早班），选择职位，设置时间窗口（24小时制），并输入所需的最少员工人数。模板是自动分配功能的基础构建块。'
     },
 
     shifts: {
@@ -333,7 +336,25 @@ export const zh = {
       confidence: '{pct}% 置信度',
       source: '来源：{src}',
       requiredLabel: '需要 {n} 人',
-      tooltip: '📈 需求目标告知排班器每个职位每天需要多少员工。从"快速设置"开始，填充一周的基准需求，然后运行预测，获取基于历史班次和外部信号的AI驱动目标。', posMixRatioMode: '按', posMixCovers: '客数', posMixRevenue: '营收', posMixPerWorker: '/员工', posMixMin: '最低', posMixAddRole: '+ 添加职位', posMixRemoveRole: '删除 {role} 行', posNoRoles: '请至少添加一个职位以生成预测。', posCoversWarning: 'CSV 中无客数数据 — 按客数比例的职位将使用营收估算。', posTargetsSavedMulti: '已保存 {n} 个目标，共涉及 {roles} 个职位。', posPreviewHeaderDate: '日期', posPreviewHeaderRevenue: '营收', posPreviewHeaderCovers: '客数', posCsvA11yHint: '粘贴包含以下列的 CSV：date、revenue、covers、notes', posPreviewCount: '显示第 {n} / 共 {total} 行', posRevenuePerHour: '营收 / 工时（$）', posRevenuePerHourPlaceholder: '50', posShiftHours: '平均班次时长', posShiftHoursPlaceholder: '8', posSmoothing: '平滑处理（天）', posText: '粘贴 CSV（日期、营收、客流量、备注）', posPreviewBtn: '预览 CSV', posGenerateBtn: '生成 {n} 个需求目标', posGenerating: '生成中…', posDone: '已从 POS 数据保存 {n} 个目标', posError: '错误：{msg}', posTooltip: '上传 POS 销售 CSV 文件，自动计算每日所需员工人数。系统采用滚动平均值对营收数据进行平滑处理，并根据您设定的每工时营收目标换算出所需人力。', posPresetFine: '精致餐饮', posPresetCasual: '休闲餐饮', posPresetBar: '酒吧 / 咖啡馆', posPresetQSR: '快速服务', posPresetCustom: '自定义', posMixTitle: '岗位人员配比', posMixDesc: '根据预期客流量或营收，设置各岗位所需的员工人数。', posMixRole: '岗位', posMixRolePlaceholder: '例如：服务员'
+      tooltip: '📈 需求目标告知排班器每个职位每天需要多少员工。从"快速设置"开始，填充一周的基准需求，然后运行预测，获取基于历史班次和外部信号的AI驱动目标。', posMixRatioMode: '按', posMixCovers: '客数', posMixRevenue: '营收', posMixPerWorker: '/员工', posMixMin: '最低', posMixAddRole: '+ 添加职位', posMixRemoveRole: '删除 {role} 行', posNoRoles: '请至少添加一个职位以生成预测。', posCoversWarning: 'CSV 中无客数数据 — 按客数比例的职位将使用营收估算。', posTargetsSavedMulti: '已保存 {n} 个目标，共涉及 {roles} 个职位。', posPreviewHeaderDate: '日期', posPreviewHeaderRevenue: '营收', posPreviewHeaderCovers: '客数', posCsvA11yHint: '粘贴包含以下列的 CSV：date、revenue、covers、notes', posPreviewCount: '显示第 {n} / 共 {total} 行', posRevenuePerHour: '营收 / 工时（$）', posRevenuePerHourPlaceholder: '50', posShiftHours: '平均班次时长', posShiftHoursPlaceholder: '8', posSmoothing: '平滑处理（天）', posText: '粘贴 CSV（日期、营收、客流量、备注）', posPreviewBtn: '预览 CSV', posGenerateBtn: '生成 {n} 个需求目标', posGenerating: '生成中…', posDone: '已从 POS 数据保存 {n} 个目标', posError: '错误：{msg}', posTooltip: '上传 POS 销售 CSV 文件，自动计算每日所需员工人数。系统采用滚动平均值对营收数据进行平滑处理，并根据您设定的每工时营收目标换算出所需人力。', posPresetFine: '精致餐饮', posPresetCasual: '休闲餐饮', posPresetBar: '酒吧 / 咖啡馆', posPresetQSR: '快速服务', posPresetCustom: '自定义', posMixTitle: '岗位人员配比', posMixDesc: '根据预期客流量或营收，设置各岗位所需的员工人数。', posMixRole: '岗位', posMixRolePlaceholder: '例如：服务员',
+      forecastNeedInput: '添加日期和职位以生成预测',
+      forecastHelperInvalid: '请输入有效的 YYYY-MM-DD 日期和职位以生成预测。',
+      forecastHelperNoData: '未找到历史班次或外部信号。请使用快速设置来初始化需求目标。',
+      forecastHelperApiDown: '预测 API 暂不可用。请使用快速设置或手动目标继续操作。',
+      forecastHelperPending: '等待输入稳定后开始预测……',
+      forecastHelperRunning: '正在运行预测...',
+      forecastHelperReady: '已准备好使用今日信号运行预测。',
+      beforeForecast: '预测前',
+      afterForecast: '预测后',
+      sourceLabelModel: 'AI预测',
+      sourceLabelOverride: '手动输入',
+      sourceLabelPos: 'POS导入',
+      sourceLabelFallback: '快速设置',
+      posTargetsSaved: '已从POS数据保存 {n} 个需求目标。',
+      posTab: 'POS导入',
+      posRole: '分配至角色',
+      forecastRunning: '运行中……',
+      forecastWaiting: '等待编辑……'
     },
 
     roster: {
@@ -375,7 +396,8 @@ export const zh = {
       noFile: '未选择文件',
       csvHelp: '支持格式：date（YYYY-MM-DD）、revenue（数字）、covers（可选整数）、notes（可选文本）。每次最多上传 1,000 行。',
       dropHint: '拖放 .csv 文件至此处，或点击浏览',
-    }},
+    },
+    jumpToCalendar: '查看日历 ↓'},
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
   weekday: { sun: '日', mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六' },

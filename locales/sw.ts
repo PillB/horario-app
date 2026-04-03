@@ -51,6 +51,10 @@ export const sw = {
     shortfall: 'Upungufu: {n}',
     scheduled: '{n} imepangwa',
     applying: 'Inatekeleza…',
+      copyToClipboard: 'Nakili kwenye ubao wa kunakili',
+      copied: 'Imenakiliwa!',
+      auditLogEmpty: 'Hakuna rekodi za kumbukumbu bado.',
+      exportDiagnostics: 'Hamisha uchunguzi wa mfumo'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -81,6 +85,8 @@ export const sw = {
       delayed: 'Imechelewa',
     },
     doneBtn: 'Funga',
+      addCommentBtn: 'Tuma maoni',
+      deleteComment: 'Futa maoni'
   },
 
   errors: {
@@ -88,6 +94,23 @@ export const sw = {
     retryHint: 'Jaribu kupakia upya sehemu iliyoshindwa',
     networkError: 'Hitilafu ya mtandao. Tafadhali angalia muunganisho wako.',
     loadFailed: 'Imeshindwa kupakia. Gusa ili kujaribu tena.',
+    validation: {
+      WORKER_REQUIRED: 'Chagua mfanyakazi.',
+      DAY_REQUIRED: 'Chagua siku.',
+      TIMES_REQUIRED: 'Ingiza wakati wa kuanza na wa kumaliza.',
+      WORKER_NOT_FOUND: 'Kitambulisho hicho cha mfanyakazi hakiendani na mfanyakazi yeyote aliyepo.',
+      DAY_INVALID: 'Siku lazima iwe Jut, Jum, Jua, Ala, Ijm, Jmo, au Jpi.',
+      FROM_TIME_INVALID: 'Wakati wa kuanza lazima uwe katika muundo wa HH:MM (mfano 09:00).',
+      TO_TIME_INVALID: 'Wakati wa kumaliza lazima uwe katika muundo wa HH:MM (mfano 17:00).',
+      FROM_BEFORE_TO: 'Wakati wa kuanza lazima uwe kabla ya wakati wa kumaliza.',
+      AVAILABILITY_OVERLAP: 'Inagongana na kipindi kilichopo tayari siku ya {day} ({from}–{to}).',
+      AVAILABILITY_DUPLICATE: 'Dirisha hili la upatikanaji tayari lipo kwa mfanyakazi huyu.',
+      TEMPLATE_MISSING: 'Kiolezo cha zamu kwa nafasi hii hakipatikani tena.',
+      WORKER_MISSING: 'Mfanyakazi aliyepangwa kwa zamu hii hapatikani tena.',
+      ROLE_MISMATCH: 'Jukumu la mfanyakazi ({workerRole}) halilingani na jukumu linalohitajika ({templateRole}).',
+      COVERAGE_MISSING: 'Mfanyakazi hapatikani siku ya {weekday} kwa kipindi cha {start}–{end}.',
+      SHIFT_OVERLAP: 'Mfanyakazi tayari ana zamu tarehe {date} kuanzia {start} hadi {end}.',
+    }
   },
 
   home: {
@@ -140,6 +163,7 @@ export const sw = {
       coverageChecksDesc: 'Imerekodiwa masasisho siku 5 kati ya 7 zilizopita.',
       draftsPublished: 'Rasimu zimechapishwa',
       draftsPublishedDesc: 'Hamisha rasimu hadi zilizochapishwa timu zinapokuwa tayari.',
+      notStarted: 'Haijaanza'
     },
     weekStats: {
       title: 'Wiki hii',
@@ -208,6 +232,7 @@ export const sw = {
       addButtonHint: 'Hifadhi wasifu mpya wa mfanyakazi',
       addedSuccess: '{name} ameongezwa! Sasa weka upatikanaji wao ili kuwezesha ratiba sahihi.',
       tooltip: '👷 Wafanyakazi ni msingi wa ratiba yako. Ongeza jina, jukumu (mf. "Barista"), na ujuzi. Baada ya kuhifadhi, tembeza chini ili kuweka upatikanaji wao wa kila wiki ili ratiba ijue wanaweza kufanya kazi lini.',
+      addCardTooltip: 'Jaza jina la mfanyakazi, jukumu (mfano "Barista"), na ujuzi wowote (tenganisha kwa mkato). Kitambulisho chake kinazalishwa kiotomatiki. Baada ya kuhifadhi, tembeza hadi "Uingizaji wa upatikanaji" kuweka nyakati wanazoweza kufanya kazi.'
     },
 
     availability: {
@@ -260,6 +285,8 @@ export const sw = {
       savedSuccess: 'Kiolezo cha "{name}" kimehifadhiwa! Sasa unaweza kugawa wafanyakazi otomatiki kwenye zamu hii.',
       needed: '{n} inahitajika',
       tooltip: '🗂 Violezo ni ramani za zamu zinazoweza kutumika tena. Fafanua "Msaada wa Asubuhi 09:00–17:00, mfanyakazi 1 anahitajika" mara moja na uitumie tena kila wiki. Violezo vinaendesha injini ya ugawaji otomatiki — unavyoongeza zaidi, mapendekezo yanakuwa mazuri zaidi.',
+      addCardTooltip: 'Toa jina kiolezo (mfano "Asubuhi"), chagua jukumu, weka kipindi cha muda (muundo wa saa 24), na ingiza idadi ya chini ya wafanyakazi wanaohitajika. Violezo ni msingi wa upangaji wa kiotomatiki.',
+      addedSuccess: '"{name}" imehifadhiwa — iko tayari kupanga zamu.'
     },
 
     shifts: {
@@ -318,6 +345,60 @@ export const sw = {
       source: 'Chanzo: {src}',
       requiredLabel: '{n} inahitajika',
       tooltip: '📈 Malengo ya mahitaji yanaambia ratiba unahitaji wafanyakazi wangapi kwa jukumu kwa kila siku. Anza na "Usanidi wa haraka" kupanda wiki moja ya mahitaji ya msingi, kisha endesha utabiri kupata malengo yanayoendeshwa na AI kulingana na zamu za kihistoria na ishara za nje.',
+      forecastRunning: 'Inafanya kazi…',
+      forecastWaiting: 'Inasubiri mabadiliko…',
+      forecastNeedInput: 'Weka tarehe na jukumu ili kutabiri',
+      forecastHelperInvalid: 'Weka tarehe sahihi ya YYYY-MM-DD na jukumu ili kutengeneza utabiri.',
+      forecastHelperNoData: 'Hakuna zamu za awali au ishara za nje zilizopatikana. Tumia usanidi wa haraka kupanga malengo ya mahitaji.',
+      forecastHelperApiDown: 'API ya utabiri haipatikani. Tumia usanidi wa haraka au malengo ya mikono kuendelea.',
+      forecastHelperPending: 'Inasubiri uingizaji wa data kukamilika kabla ya kutabiri…',
+      forecastHelperRunning: 'Inafanya utabiri...',
+      forecastHelperReady: 'Iko tayari kufanya utabiri kwa kutumia ishara za leo.',
+      sourceLabelModel: 'Utabiri wa AI',
+      sourceLabelOverride: 'Uingizaji wa mikono',
+      sourceLabelPos: 'Uagizaji wa POS',
+      sourceLabelFallback: 'Usanidi wa haraka',
+      posTargetsSaved: 'Malengo {n} ya mahitaji yamehifadhiwa kutoka kwa data ya POS.',
+      posTab: 'Uagizaji wa POS',
+      posRole: 'Tenga kwa jukumu',
+      posRevenuePerHour: 'Mapato / saa-mfanyakazi ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'Wastani wa masaa ya zamu',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'Ulaini (siku)',
+      posText: 'Bandika CSV (tarehe, mapato, idadi ya wageni, maelezo)',
+      posPreviewBtn: 'Hakiki CSV',
+      posGenerateBtn: 'Tengeneza malengo {n} ya mahitaji',
+      posGenerating: 'Inatengeneza…',
+      posDone: 'Malengo {n} yamehifadhiwa kutoka kwa data ya POS',
+      posError: 'Hitilafu: {msg}',
+      posTooltip: 'Pakia CSV ya mauzo ya POS ili kuhesabu kiotomatiki idadi ya wafanyakazi unaohitaji kwa siku. Injini hutumia wastani wa mzunguko kulaini mapato na kuibadilisha kuwa idadi inayohitajika ya wafanyakazi kulingana na lengo lako la mapato kwa kila saa ya mfanyakazi.',
+      posPresetFine: 'Mgahawa wa Kifahari',
+      posPresetCasual: 'Mgahawa wa Kawaida',
+      posPresetBar: 'Baa / Mkahawa',
+      posPresetQSR: 'Huduma ya Haraka',
+      posPresetCustom: 'Maalum',
+      posMixTitle: 'Mchanganyiko wa wafanyakazi kwa jukumu',
+      posMixDesc: 'Weka idadi ya wafanyakazi unaohitaji kwa kila jukumu kulingana na idadi ya wageni au mapato yanayotarajiwa.',
+      posMixRole: 'Jukumu',
+      posMixRolePlaceholder: 'mfano Mhudumu',
+      posMixRatioMode: 'Kwa',
+      posMixCovers: 'Wgn',
+      posMixRevenue: 'Map',
+      posMixPerWorker: '/mfk',
+      posMixMin: 'Kiwango cha chini',
+      posMixAddRole: '+ Ongeza jukumu',
+      posMixRemoveRole: 'Ondoa safu ya {role}',
+      posNoRoles: 'Ongeza jukumu moja angalau ili kutengeneza utabiri.',
+      posCoversWarning: 'Hakuna data ya idadi ya wageni katika CSV — inatumia makadirio ya mapato kwa majukumu ya uwiano wa wageni.',
+      posTargetsSavedMulti: 'Malengo {n} yamehifadhiwa katika majukumu {roles}.',
+      posPreviewHeaderDate: 'Tarehe',
+      posPreviewHeaderRevenue: 'Mapato',
+      posPreviewHeaderCovers: 'Idadi ya Wageni',
+      posCsvA11yHint: 'Bandika CSV yenye safu wima: tarehe, mapato, idadi ya wageni, maelezo',
+      posPreviewCount: '{n} kati ya safu {total} zinaonyeshwa',
+      beforeForecast: 'Kabla ya utabiri',
+      afterForecast: 'Baada ya utabiri'
     },
 
     roster: {
@@ -342,7 +423,34 @@ export const sw = {
         shortfall: 'Upungufu: {n}',
       },
       tooltip: '🗓 Kalenda yako ya ratiba ya wakati halisi. Zamu zinaonekana mara tu unapozihifadhi. Bonyeza "Chapisha" kufunga zamu, kisha "Arifu" kumwarifu mfanyakazi. Zamu zilizochapishwa zinalisha kichupo cha Uchambuzi na data ya masaa na ufunikaji.',
+      calendarView: 'Kalenda',
+      listView: 'Orodha',
+      noShiftsThisWeek: 'Hakuna zamu wiki hii.',
+      weekOf: 'Wiki ya {date}',
+      maximize: 'Kalenda ya skrini nzima',
+      closeFullscreen: 'Funga skrini nzima',
+      prevWeek: 'Wiki iliyopita',
+      nextWeek: 'Wiki ijayo',
+      today: 'Leo'
     },
+      jumpToCalendar: 'Angalia Kalenda ↓',
+    pos: {
+      sectionTitle: 'Upakiaji wa Mauzo ya POS',
+      sectionSubtitle: 'Pakia data ya mapato ya CSV kuboresha utabiri wa mahitaji.',
+      tooltip: '💰 Pakia data yako ya mauzo ya Point-of-Sale (CSV) kufungua utabiri mahiri zaidi. Injini hutumia msimu wa siku ya juma, mwenendo wa mapato, na ufanisi wa mapato kwa mfanyakazi kutabiri mahitaji kwa usahihi zaidi. Inakubali: tarehe, mapato, idadi ya wateja (si lazima), maelezo (si lazima).',
+      uploadButton: 'Chagua faili la CSV',
+      pasteLabel: 'Bandika maudhui ya CSV',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Hakiki ({n} safu)',
+      uploadAction: 'Pakia safu {n}',
+      uploadSuccess: 'Safu {n} zimehifadhiwa kwa mafanikio',
+      uploadError: 'Upakiaji umeshindwa: {msg}',
+      validationErrors: 'Hitilafu {n} za uthibitishaji zimepatikana',
+      resetButton: 'Futa',
+      noFile: 'Hakuna faili lililochaguliwa',
+      csvHelp: 'Muundo unaokubaliwa: tarehe (YYYY-MM-DD), mapato (nambari), idadi ya wateja (nambari kamili, si lazima), maelezo (maandishi, si lazima). Hadi safu 1,000 kwa kila upakiaji.',
+      dropHint: 'Buruta na kudondosha faili la .csv hapa, au gonga kuvinjari',
+    }
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
@@ -362,6 +470,8 @@ export const sw = {
     monthView: 'Mwezi',
     weekView: 'Wiki',
     monthLabel: '{month} {year}',
+      prevMonth: 'Mwezi uliopita',
+      nextMonth: 'Mwezi ujao'
   },
 
   analytics: {
@@ -589,5 +699,32 @@ export const sw = {
     desc: 'Umekamilisha ziara na una kila kitu unachohitaji kujenga ratiba bora zaidi, kupunguza kutokuhudhuria, na kuweka timu yako katika usawa. Wiki yako nzuri ya kwanza inaanza sasa.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Alika Mwanachama wa Timu',
+    workerTitle: 'Jiunge na Timu ya Meneja Wako',
+    managerSubtitle: 'Shiriki nambari hii na mfanyakazi wako ili aweze kujiunga na timu yako.',
+    workerSubtitle: 'Ingiza nambari ya mwaliko ambayo meneja wako amekushirikisha.',
+    inviteCodeLabel: 'Nambari ya Mwaliko',
+    workerEmailLabel: 'Barua pepe ya mfanyakazi (si lazima)',
+    workerEmailPlaceholder: 'mfanyakazi@mfano.com',
+    emailNote: 'Kwa matumizi yako tu — hakuna barua pepe itakayotumwa.',
+    copyCode: 'Nakili Nambari',
+    codeShared: '✓ Nambari imeshirikiwa!',
+    regenerate: 'Zalisha Upya',
+    joinTeam: 'Jiunge na Timu',
+    joinedTitle: 'Umejiunga na timu!',
+    joinedSub: 'Umejiunga! Karibu kwenye timu.',
+    invalidCode: 'Nambari si sahihi. Omba meneja wako nambari sahihi.',
+    close: 'Funga',
+    closeA11y: 'Funga kidirisha',
+    inviteCodeInputA11y: 'Ingiza nambari ya mwaliko',
+    copyA11y: 'Nakili nambari ya mwaliko',
+    regenerateA11y: 'Zalisha upya nambari ya mwaliko',
+    joinA11y: 'Jiunge na timu kwa kutumia nambari ya mwaliko',
+    emailInputA11y: 'Ingizo la anwani ya barua pepe ya mfanyakazi',
+    errorRegenerate: 'Imeshindwa kuzalisha upya nambari. Tafadhali jaribu tena.',
+    errorShare: 'Imeshindwa kushiriki nambari. Tafadhali inakili mwenyewe.',
+  },
 
 } as const;

@@ -51,6 +51,10 @@ export const hi = {
     shortfall: 'कमी: {n}',
     scheduled: '{n} निर्धारित',
     applying: 'लागू हो रहा है…',
+      copyToClipboard: 'क्लिपबोर्ड पर कॉपी करें',
+      copied: 'कॉपी हो गया!',
+      auditLogEmpty: 'अभी तक कोई लॉग प्रविष्टि नहीं है।',
+      exportDiagnostics: 'डायग्नोस्टिक्स निर्यात करें'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -81,6 +85,8 @@ export const hi = {
       delayed: 'विलंबित',
     },
     doneBtn: 'बंद करें',
+      addCommentBtn: 'टिप्पणी भेजें',
+      deleteComment: 'टिप्पणी हटाएँ'
   },
 
   errors: {
@@ -88,6 +94,23 @@ export const hi = {
     retryHint: 'विफल अनुभाग को पुनः लोड करने का प्रयास करें',
     networkError: 'नेटवर्क त्रुटि। कृपया अपना कनेक्शन जांचें।',
     loadFailed: 'लोड करने में विफल। पुनः प्रयास के लिए टैप करें।',
+    validation: {
+      WORKER_REQUIRED: 'एक कर्मचारी चुनें।',
+      DAY_REQUIRED: 'एक दिन चुनें।',
+      TIMES_REQUIRED: 'प्रारंभ और समाप्ति समय दोनों दर्ज करें।',
+      WORKER_NOT_FOUND: 'यह कर्मचारी ID किसी मौजूदा कर्मचारी से मेल नहीं खाती।',
+      DAY_INVALID: 'दिन Mon, Tue, Wed, Thu, Fri, Sat, या Sun होना चाहिए।',
+      FROM_TIME_INVALID: 'प्रारंभ समय HH:MM प्रारूप में होना चाहिए (जैसे 09:00)।',
+      TO_TIME_INVALID: 'समाप्ति समय HH:MM प्रारूप में होना चाहिए (जैसे 17:00)।',
+      FROM_BEFORE_TO: 'प्रारंभ समय, समाप्ति समय से पहले होना चाहिए।',
+      AVAILABILITY_OVERLAP: '{day} ({from}–{to}) पर किसी मौजूदा ब्लॉक से ओवरलैप हो रहा है।',
+      AVAILABILITY_DUPLICATE: 'इस कर्मचारी के लिए यह उपलब्धता विंडो पहले से मौजूद है।',
+      TEMPLATE_MISSING: 'इस स्लॉट का शिफ्ट टेम्पलेट अब उपलब्ध नहीं है।',
+      WORKER_MISSING: 'इस शिफ्ट पर नियुक्त कर्मचारी अब उपलब्ध नहीं है।',
+      ROLE_MISMATCH: 'कर्मचारी की भूमिका ({workerRole}) आवश्यक भूमिका ({templateRole}) से मेल नहीं खाती।',
+      COVERAGE_MISSING: 'कर्मचारी {weekday} को {start}–{end} की अवधि के लिए उपलब्ध नहीं है।',
+      SHIFT_OVERLAP: 'कर्मचारी की {date} को {start} से {end} तक पहले से एक शिफ्ट है।',
+    }
   },
 
   home: {
@@ -140,6 +163,7 @@ export const hi = {
       coverageChecksDesc: 'पिछले 7 दिनों में से 5 दिन अपडेट लॉग किए।',
       draftsPublished: 'मसौदे प्रकाशित',
       draftsPublishedDesc: 'जब टीमें तैयार हों तो मसौदों को प्रकाशित में स्थानांतरित करें।',
+      notStarted: 'शुरू नहीं हुआ'
     },
     weekStats: {
       title: 'इस सप्ताह',
@@ -208,6 +232,7 @@ export const hi = {
       addButtonHint: 'नई कर्मचारी प्रोफाइल सहेजें',
       addedSuccess: '{name} जोड़ा गया! अब सटीक शेड्यूलिंग सक्षम करने के लिए उनकी उपलब्धता सेट करें।',
       tooltip: '👷 कर्मचारी आपके रोस्टर के केंद्र हैं। नाम, भूमिका (जैसे "बरिस्ता"), और कौशल जोड़ें। सहेजने के बाद, नीचे स्क्रॉल करके उनकी साप्ताहिक उपलब्धता सेट करें ताकि शेड्यूलर जान सके कि वे कब काम कर सकते हैं।',
+      addCardTooltip: 'कर्मचारी का नाम, भूमिका (जैसे "Barista"), और कौशल (अल्पविराम से अलग) भरें। उनकी ID स्वतः बन जाएगी। सहेजने के बाद, काम के समय को सेट करने के लिए "Availability intake" तक स्क्रॉल करें।'
     },
 
     availability: {
@@ -260,6 +285,8 @@ export const hi = {
       savedSuccess: '"{name}" टेम्पलेट सहेजा गया! अब आप इस शिफ्ट में कर्मचारियों को ऑटो-असाइन कर सकते हैं।',
       needed: '{n} की जरूरत',
       tooltip: '🗂 टेम्पलेट पुनः उपयोग योग्य शिफ्ट ब्लूप्रिंट हैं। एक बार "मॉर्निंग सपोर्ट 09:00–17:00, 1 कर्मचारी चाहिए" परिभाषित करें और इसे हर हफ्ते पुनः उपयोग करें। टेम्पलेट ऑटो-असाइन इंजन चलाते हैं — जितना अधिक जोड़ेंगे, सुझाव उतने ही स्मार्ट होंगे।',
+      addCardTooltip: 'टेम्पलेट को एक नाम दें (जैसे "Morning"), एक भूमिका चुनें, समय-सीमा सेट करें (24 घंटे प्रारूप), और आवश्यक न्यूनतम कर्मचारियों की संख्या दर्ज करें। टेम्पलेट ऑटो-असाइन की आधारभूत इकाइयाँ हैं।',
+      addedSuccess: '"{name}" सहेजा गया — शिफ्ट असाइन करने के लिए तैयार है।'
     },
 
     shifts: {
@@ -318,6 +345,60 @@ export const hi = {
       source: 'स्रोत: {src}',
       requiredLabel: '{n} की जरूरत',
       tooltip: '📈 डिमांड लक्ष्य शेड्यूलर को बताते हैं कि आपको प्रति दिन प्रति भूमिका कितने कर्मचारियों की जरूरत है। एक सप्ताह की बेसलाइन डिमांड सीड करने के लिए "त्वरित सेटअप" से शुरू करें, फिर अपनी ऐतिहासिक शिफ्ट और बाहरी सिग्नल के आधार पर AI-संचालित लक्ष्य प्राप्त करने के लिए पूर्वानुमान चलाएं।',
+      forecastRunning: 'चल रहा है…',
+      forecastWaiting: 'संपादन की प्रतीक्षा में…',
+      forecastNeedInput: 'पूर्वानुमान के लिए तारीख और भूमिका जोड़ें',
+      forecastHelperInvalid: 'पूर्वानुमान तैयार करने के लिए एक मान्य YYYY-MM-DD तारीख और भूमिका दर्ज करें।',
+      forecastHelperNoData: 'कोई ऐतिहासिक शिफ्ट या बाहरी संकेत नहीं मिला। डिमांड लक्ष्य सेट करने के लिए त्वरित सेटअप का उपयोग करें।',
+      forecastHelperApiDown: 'पूर्वानुमान API अनुपलब्ध है। आगे बढ़ने के लिए त्वरित सेटअप या मैन्युअल लक्ष्य उपयोग करें।',
+      forecastHelperPending: 'पूर्वानुमान से पहले इनपुट स्थिर होने की प्रतीक्षा हो रही है…',
+      forecastHelperRunning: 'पूर्वानुमान चल रहा है...',
+      forecastHelperReady: 'आज के संकेतों के साथ पूर्वानुमान चलाने के लिए तैयार।',
+      sourceLabelModel: 'AI पूर्वानुमान',
+      sourceLabelOverride: 'मैन्युअल प्रविष्टि',
+      sourceLabelPos: 'POS आयात',
+      sourceLabelFallback: 'त्वरित सेटअप',
+      posTargetsSaved: 'POS डेटा से {n} डिमांड लक्ष्य सहेजे गए।',
+      posTab: 'POS आयात',
+      posRole: 'भूमिका को असाइन करें',
+      posRevenuePerHour: 'राजस्व / कर्मचारी-घंटा ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'औसत शिफ्ट घंटे',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'स्मूदिंग (दिन)',
+      posText: 'CSV पेस्ट करें (date,revenue,covers,notes)',
+      posPreviewBtn: 'CSV प्रीव्यू करें',
+      posGenerateBtn: '{n} डिमांड लक्ष्य तैयार करें',
+      posGenerating: 'तैयार हो रहा है…',
+      posDone: 'POS डेटा से {n} लक्ष्य सहेजे गए',
+      posError: 'त्रुटि: {msg}',
+      posTooltip: 'POS बिक्री CSV अपलोड करें और स्वचालित रूप से जानें कि प्रतिदिन कितने कर्मचारी चाहिए। इंजन राजस्व को स्मूद करने के लिए रोलिंग औसत उपयोग करता है और आपके राजस्व-प्रति-कर्मचारी-घंटा लक्ष्य के आधार पर आवश्यक संख्या की गणना करता है।',
+      posPresetFine: 'फाइन डाइनिंग',
+      posPresetCasual: 'कैज़ुअल',
+      posPresetBar: 'बार / कैफे',
+      posPresetQSR: 'क्विक सर्विस',
+      posPresetCustom: 'कस्टम',
+      posMixTitle: 'भूमिका स्टाफिंग मिश्रण',
+      posMixDesc: 'अपेक्षित कवर या राजस्व के आधार पर प्रत्येक भूमिका के लिए आवश्यक कर्मचारियों की संख्या निर्धारित करें।',
+      posMixRole: 'भूमिका',
+      posMixRolePlaceholder: 'जैसे Server',
+      posMixRatioMode: 'आधार',
+      posMixCovers: 'Cvr',
+      posMixRevenue: 'Rev',
+      posMixPerWorker: '/wkr',
+      posMixMin: 'न्यूनतम',
+      posMixAddRole: '+ भूमिका जोड़ें',
+      posMixRemoveRole: '{role} पंक्ति हटाएँ',
+      posNoRoles: 'पूर्वानुमान तैयार करने के लिए कम से कम एक भूमिका जोड़ें।',
+      posCoversWarning: 'CSV में कोई कवर डेटा नहीं है — कवर-अनुपात भूमिकाओं के लिए राजस्व अनुमान का उपयोग किया जा रहा है।',
+      posTargetsSavedMulti: '{roles} भूमिकाओं में {n} लक्ष्य सहेजे गए।',
+      posPreviewHeaderDate: 'तारीख',
+      posPreviewHeaderRevenue: 'राजस्व',
+      posPreviewHeaderCovers: 'कवर',
+      posCsvA11yHint: 'CSV पेस्ट करें जिसमें कॉलम हों: date, revenue, covers, notes',
+      posPreviewCount: '{total} में से {n} पंक्तियाँ दिखाई जा रही हैं',
+      beforeForecast: 'पूर्वानुमान से पहले',
+      afterForecast: 'पूर्वानुमान के बाद'
     },
 
     roster: {
@@ -342,7 +423,34 @@ export const hi = {
         shortfall: 'कमी: {n}',
       },
       tooltip: '🗓 आपका लाइव रोस्टर कैलेंडर। सहेजते ही शिफ्ट दिखाई देती हैं। शिफ्ट लॉक करने के लिए "प्रकाशित करें" क्लिक करें, फिर कर्मचारी को सूचित करने के लिए "सूचित करें"। प्रकाशित शिफ्ट Analytics टैब को घंटों और कवरेज डेटा से भरती हैं।',
+      calendarView: 'कैलेंडर',
+      listView: 'सूची',
+      noShiftsThisWeek: 'इस सप्ताह कोई शिफ्ट नहीं है।',
+      weekOf: '{date} का सप्ताह',
+      maximize: 'फ़ुलस्क्रीन कैलेंडर',
+      closeFullscreen: 'फ़ुलस्क्रीन बंद करें',
+      prevWeek: 'पिछला सप्ताह',
+      nextWeek: 'अगला सप्ताह',
+      today: 'आज'
     },
+      jumpToCalendar: 'कैलेंडर देखें ↓',
+    pos: {
+      sectionTitle: 'POS बिक्री अपलोड',
+      sectionSubtitle: 'मांग पूर्वानुमान को बेहतर बनाने के लिए CSV राजस्व डेटा अपलोड करें।',
+      tooltip: '💰 स्मार्ट पूर्वानुमान अनलॉक करने के लिए अपना Point-of-Sale बिक्री डेटा (CSV) अपलोड करें। यह इंजन सप्ताह के दिन की मौसमी प्रवृत्ति, राजस्व ट्रेंड और प्रति कर्मचारी राजस्व दक्षता का उपयोग करके मांग का अधिक सटीक अनुमान लगाता है। स्वीकृत प्रारूप: date, revenue, covers (वैकल्पिक), notes (वैकल्पिक)।',
+      uploadButton: 'CSV फ़ाइल चुनें',
+      pasteLabel: 'CSV सामग्री पेस्ट करें',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'पूर्वावलोकन ({n} पंक्तियाँ)',
+      uploadAction: '{n} पंक्तियाँ अपलोड करें',
+      uploadSuccess: '{n} पंक्तियाँ सफलतापूर्वक सहेजी गईं',
+      uploadError: 'अपलोड विफल: {msg}',
+      validationErrors: '{n} सत्यापन त्रुटि(याँ) मिलीं',
+      resetButton: 'साफ़ करें',
+      noFile: 'कोई फ़ाइल नहीं चुनी गई',
+      csvHelp: 'स्वीकृत प्रारूप: date (YYYY-MM-DD), revenue (संख्या), covers (वैकल्पिक पूर्णांक), notes (वैकल्पिक टेक्स्ट)। प्रति अपलोड अधिकतम 1,000 पंक्तियाँ।',
+      dropHint: '.csv फ़ाइल यहाँ खींचें और छोड़ें, या ब्राउज़ करने के लिए टैप करें',
+    }
   },
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
@@ -362,6 +470,8 @@ export const hi = {
     monthView: 'माह',
     weekView: 'सप्ताह',
     monthLabel: '{month} {year}',
+      prevMonth: 'पिछला महीना',
+      nextMonth: 'अगला महीना'
   },
 
   analytics: {
@@ -589,5 +699,32 @@ export const hi = {
     desc: 'आपने टूर पूरा कर लिया है और आपके पास स्मार्ट शेड्यूल बनाने, नो-शो कम करने और अपनी टीम को तालमेल में रखने के लिए सब कुछ है। आपका पहला शानदार सप्ताह अभी शुरू होता है।',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'टीम सदस्य को आमंत्रित करें',
+    workerTitle: 'अपने मैनेजर की टीम से जुड़ें',
+    managerSubtitle: 'यह कोड अपने कर्मचारी के साथ साझा करें ताकि वे आपकी टीम में शामिल हो सकें।',
+    workerSubtitle: 'अपने मैनेजर द्वारा साझा किया गया आमंत्रण कोड दर्ज करें।',
+    inviteCodeLabel: 'आमंत्रण कोड',
+    workerEmailLabel: 'कर्मचारी का ईमेल (वैकल्पिक)',
+    workerEmailPlaceholder: 'worker@example.com',
+    emailNote: 'केवल आपके संदर्भ के लिए — कोई ईमेल नहीं भेजा जाएगा।',
+    copyCode: 'कोड कॉपी करें',
+    codeShared: '✓ कोड साझा किया गया!',
+    regenerate: 'पुनः जनरेट करें',
+    joinTeam: 'टीम से जुड़ें',
+    joinedTitle: 'आप टीम में शामिल हो गए!',
+    joinedSub: 'शामिल हो गए! टीम में आपका स्वागत है।',
+    invalidCode: 'अमान्य कोड। सही कोड के लिए अपने मैनेजर से पूछें।',
+    close: 'बंद करें',
+    closeA11y: 'मॉडल बंद करें',
+    inviteCodeInputA11y: 'आमंत्रण कोड दर्ज करें',
+    copyA11y: 'आमंत्रण कोड कॉपी करें',
+    regenerateA11y: 'आमंत्रण कोड पुनः जनरेट करें',
+    joinA11y: 'आमंत्रण कोड से टीम से जुड़ें',
+    emailInputA11y: 'कर्मचारी ईमेल पता इनपुट',
+    errorRegenerate: 'कोड पुनः जनरेट नहीं हो सका। कृपया पुनः प्रयास करें।',
+    errorShare: 'कोड साझा नहीं हो सका। कृपया इसे मैन्युअल रूप से कॉपी करें।',
+  },
 
 } as const;

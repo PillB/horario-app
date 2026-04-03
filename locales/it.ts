@@ -59,6 +59,10 @@ export const it = {
     shortfall: 'Carenza: {n}',
     scheduled: '{n} pianificati',
     applying: 'Applicazione…',
+      copyToClipboard: 'Copia negli appunti',
+      copied: 'Copiato!',
+      auditLogEmpty: 'Nessuna voce nel registro.',
+      exportDiagnostics: 'Esporta diagnostica'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -89,6 +93,8 @@ export const it = {
       delayed: 'In ritardo',
     },
     doneBtn: 'Chiudi',
+      addCommentBtn: 'Invia commento',
+      deleteComment: 'Elimina commento'
   },
 
   // ─── Errors ────────────────────────────────────────────────────────────────
@@ -97,6 +103,23 @@ export const it = {
     retryHint: 'Tentativo di ricaricare la sezione che ha avuto un errore',
     networkError: 'Errore di rete. Controlla la tua connessione.',
     loadFailed: 'Caricamento fallito. Tocca per riprovare.',
+    validation: {
+      WORKER_REQUIRED: 'Seleziona un lavoratore.',
+      DAY_REQUIRED: 'Seleziona un giorno.',
+      TIMES_REQUIRED: 'Inserisci sia l\'orario di inizio che quello di fine.',
+      WORKER_NOT_FOUND: 'L\'ID lavoratore non corrisponde a nessun lavoratore esistente.',
+      DAY_INVALID: 'Il giorno deve essere Lun, Mar, Mer, Gio, Ven, Sab o Dom.',
+      FROM_TIME_INVALID: 'L\'orario di inizio deve essere nel formato HH:MM (es. 09:00).',
+      TO_TIME_INVALID: 'L\'orario di fine deve essere nel formato HH:MM (es. 17:00).',
+      FROM_BEFORE_TO: 'L\'orario di inizio deve essere precedente all\'orario di fine.',
+      AVAILABILITY_OVERLAP: 'Si sovrappone a un blocco esistente il {day} ({from}–{to}).',
+      AVAILABILITY_DUPLICATE: 'Questa finestra di disponibilità esiste già per questo lavoratore.',
+      TEMPLATE_MISSING: 'Il modello di turno per questo slot non è più disponibile.',
+      WORKER_MISSING: 'Il lavoratore assegnato a questo turno non è più disponibile.',
+      ROLE_MISMATCH: 'Il ruolo del lavoratore ({workerRole}) non corrisponde al ruolo richiesto ({templateRole}).',
+      COVERAGE_MISSING: 'Il lavoratore non è disponibile il {weekday} nella fascia oraria {start}–{end}.',
+      SHIFT_OVERLAP: 'Il lavoratore ha già un turno il {date} dalle {start} alle {end}.',
+    }
   },
 
   // ─── Home screen ───────────────────────────────────────────────────────────
@@ -150,6 +173,7 @@ export const it = {
       coverageChecksDesc: 'Aggiornamenti registrati 5 degli ultimi 7 giorni.',
       draftsPublished: 'Bozze pubblicate',
       draftsPublishedDesc: 'Sposta le bozze in pubblicato quando i team sono pronti.',
+      notStarted: 'Non iniziato'
     },
     weekStats: {
       title: 'Questa settimana',
@@ -219,6 +243,7 @@ export const it = {
       addButtonHint: 'Salva il nuovo profilo del lavoratore',
       addedSuccess: '{name} aggiunto/a! Ora imposta la sua disponibilità per una pianificazione accurata.',
       tooltip: '👷 I lavoratori sono il cuore del tuo piano. Aggiungi nome, ruolo (es. "Barista") e competenze. Una volta salvato, scorri verso il basso per impostare la disponibilità settimanale in modo che il pianificatore sappia quando possono lavorare.',
+      addCardTooltip: 'Inserisci il nome del lavoratore, il ruolo (es. "Barista") e le eventuali competenze (separate da virgola). L\'ID viene generato automaticamente. Dopo il salvataggio, scorri fino a "Inserimento disponibilità" per impostare gli orari in cui può lavorare.'
     },
 
     availability: {
@@ -271,6 +296,8 @@ export const it = {
       savedSuccess: 'Modello "{name}" salvato! Ora puoi assegnare automaticamente lavoratori a questo turno.',
       needed: '{n} necessari',
       tooltip: '🗂 I modelli sono blueprint di turni riutilizzabili. Definisci "Mattino Supporto 09:00–17:00, 1 lavoratore necessario" una volta e riusalo ogni settimana. I modelli alimentano il motore di assegnazione automatica — più ne aggiungi, più intelligenti diventano i suggerimenti.',
+      addCardTooltip: 'Assegna un nome al modello (es. "Mattina"), seleziona un ruolo, imposta la fascia oraria (formato 24h) e inserisci il numero minimo di lavoratori necessari. I modelli sono gli elementi base dell\'assegnazione automatica.',
+      addedSuccess: '"{name}" salvato — pronto per l\'assegnazione dei turni.'
     },
 
     shifts: {
@@ -329,6 +356,60 @@ export const it = {
       source: 'Fonte: {src}',
       requiredLabel: '{n} necessari',
       tooltip: '📈 Gli obiettivi di domanda indicano al pianificatore quanti lavoratori hai bisogno per ruolo al giorno. Inizia con "Configurazione rapida" per inserire una settimana di domanda di base, poi esegui una previsione per ottenere obiettivi basati sull\'AI dai tuoi turni storici e segnali esterni.',
+      forecastRunning: 'In esecuzione…',
+      forecastWaiting: 'In attesa di modifiche…',
+      forecastNeedInput: 'Aggiungere data e ruolo per la previsione',
+      forecastHelperInvalid: 'Inserire una data valida in formato YYYY-MM-DD e un ruolo per generare una previsione.',
+      forecastHelperNoData: 'Nessun turno storico o segnale esterno trovato. Utilizzare la configurazione rapida per impostare gli obiettivi di domanda.',
+      forecastHelperApiDown: 'API di previsione non disponibile. Utilizzare la configurazione rapida o gli obiettivi manuali per procedere.',
+      forecastHelperPending: 'In attesa che i dati si stabilizzino prima di avviare la previsione…',
+      forecastHelperRunning: 'Previsione in corso...',
+      forecastHelperReady: 'Pronto per eseguire la previsione con i segnali odierni.',
+      sourceLabelModel: 'Previsione AI',
+      sourceLabelOverride: 'Inserimento manuale',
+      sourceLabelPos: 'Importazione POS',
+      sourceLabelFallback: 'Configurazione rapida',
+      posTargetsSaved: '{n} obiettivi di domanda salvati dai dati POS.',
+      posTab: 'Importazione POS',
+      posRole: 'Assegna a ruolo',
+      posRevenuePerHour: 'Ricavi / ore-lavoratore ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'Ore medie per turno',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'Smussamento (giorni)',
+      posText: 'Incolla CSV (data,ricavi,coperti,note)',
+      posPreviewBtn: 'Anteprima CSV',
+      posGenerateBtn: 'Genera {n} obiettivi di domanda',
+      posGenerating: 'Generazione in corso…',
+      posDone: '{n} obiettivi salvati dai dati POS',
+      posError: 'Errore: {msg}',
+      posTooltip: 'Carichi un CSV POS delle vendite per calcolare automaticamente il numero di dipendenti necessari al giorno. Il motore utilizza una media mobile per smussare i ricavi e li converte in organico richiesto in base all\'obiettivo di ricavi per ora-lavoratore.',
+      posPresetFine: 'Ristorante fine dining',
+      posPresetCasual: 'Casual',
+      posPresetBar: 'Bar / Caffetteria',
+      posPresetQSR: 'Quick Service',
+      posPresetCustom: 'Personalizzato',
+      posMixTitle: 'Mix di personale per ruolo',
+      posMixDesc: 'Imposti il numero di dipendenti necessari per ruolo in base ai coperti o ai ricavi previsti.',
+      posMixRole: 'Ruolo',
+      posMixRolePlaceholder: 'es. Cameriere',
+      posMixRatioMode: 'Per',
+      posMixCovers: 'Cop',
+      posMixRevenue: 'Ric',
+      posMixPerWorker: '/dip',
+      posMixMin: 'Min',
+      posMixAddRole: '+ Aggiungi ruolo',
+      posMixRemoveRole: 'Rimuovi riga {role}',
+      posNoRoles: 'Aggiungere almeno un ruolo per generare le previsioni.',
+      posCoversWarning: 'Nessun dato sui coperti nel CSV — utilizzo della stima dei ricavi per i ruoli basati sui coperti.',
+      posTargetsSavedMulti: '{n} obiettivi salvati per {roles} ruoli.',
+      posPreviewHeaderDate: 'Data',
+      posPreviewHeaderRevenue: 'Ricavi',
+      posPreviewHeaderCovers: 'Coperti',
+      posCsvA11yHint: 'Incolla un CSV con le colonne: data, ricavi, coperti, note',
+      posPreviewCount: '{n} di {total} righe visualizzate',
+      beforeForecast: 'Prima della previsione',
+      afterForecast: 'Dopo la previsione'
     },
 
     roster: {
@@ -353,7 +434,34 @@ export const it = {
         shortfall: 'Carenza: {n}',
       },
       tooltip: '🗓 Il tuo calendario del piano in diretta. I turni appaiono non appena li salvi. Fai clic su "Pubblica" per bloccare un turno, poi su "Notifica" per avvisare il lavoratore. I turni pubblicati alimentano la scheda Analisi con ore e dati di copertura.',
+      calendarView: 'Calendario',
+      listView: 'Elenco',
+      noShiftsThisWeek: 'Nessun turno questa settimana.',
+      weekOf: 'Settimana del {date}',
+      maximize: 'Calendario a schermo intero',
+      closeFullscreen: 'Esci dallo schermo intero',
+      prevWeek: 'Settimana precedente',
+      nextWeek: 'Settimana successiva',
+      today: 'Oggi'
     },
+      jumpToCalendar: 'Visualizza calendario ↓',
+    pos: {
+      sectionTitle: 'Caricamento vendite POS',
+      sectionSubtitle: 'Carica dati di ricavo in formato CSV per arricchire le previsioni della domanda.',
+      tooltip: '💰 Carica i dati di vendita del tuo Point-of-Sale (CSV) per previsioni più intelligenti. Il motore utilizza la stagionalità per giorno della settimana, le tendenze di ricavo e l\'efficienza ricavo-per-lavoratore per prevedere la domanda con maggiore precisione. Accetta: data, ricavo, coperti (opzionale), note (opzionale).',
+      uploadButton: 'Scegli file CSV',
+      pasteLabel: 'Incolla contenuto CSV',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Anteprima ({n} righe)',
+      uploadAction: 'Carica {n} righe',
+      uploadSuccess: '{n} righe salvate con successo',
+      uploadError: 'Caricamento non riuscito: {msg}',
+      validationErrors: '{n} errore/i di validazione trovato/i',
+      resetButton: 'Cancella',
+      noFile: 'Nessun file selezionato',
+      csvHelp: 'Formato accettato: data (AAAA-MM-GG), ricavo (numero), coperti (intero opzionale), note (testo opzionale). Fino a 1.000 righe per caricamento.',
+      dropHint: 'Trascina un file .csv qui, oppure tocca per sfogliare',
+    }
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
@@ -374,6 +482,8 @@ export const it = {
     monthView: 'Mese',
     weekView: 'Settimana',
     monthLabel: '{month} {year}',
+      prevMonth: 'Mese precedente',
+      nextMonth: 'Mese successivo'
   },
 
   analytics: {
@@ -605,5 +715,32 @@ export const it = {
     desc: 'Ha completato il tour e ha tutto il necessario per creare pianificazioni più intelligenti, ridurre le assenze improvvise e mantenere il team sincronizzato. La sua prima grande settimana inizia adesso.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Invita un membro del team',
+    workerTitle: 'Unisciti al team del tuo responsabile',
+    managerSubtitle: 'Condividi questo codice con il tuo lavoratore in modo che possa unirsi al team.',
+    workerSubtitle: 'Inserisci il codice di invito che ti ha condiviso il tuo responsabile.',
+    inviteCodeLabel: 'Codice di invito',
+    workerEmailLabel: 'Email del lavoratore (opzionale)',
+    workerEmailPlaceholder: 'lavoratore@esempio.com',
+    emailNote: 'Solo per tuo riferimento — nessuna email verrà inviata.',
+    copyCode: 'Copia codice',
+    codeShared: '✓ Codice condiviso!',
+    regenerate: 'Rigenera',
+    joinTeam: 'Unisciti al team',
+    joinedTitle: 'Sei entrato nel team!',
+    joinedSub: 'Unito! Benvenuto nel team.',
+    invalidCode: 'Codice non valido. Chiedi al tuo responsabile il codice corretto.',
+    close: 'Chiudi',
+    closeA11y: 'Chiudi finestra',
+    inviteCodeInputA11y: 'Inserisci il codice di invito',
+    copyA11y: 'Copia il codice di invito',
+    regenerateA11y: 'Rigenera il codice di invito',
+    joinA11y: 'Unisciti al team con il codice di invito',
+    emailInputA11y: 'Campo per l\'indirizzo email del lavoratore',
+    errorRegenerate: 'Impossibile rigenerare il codice. Riprova.',
+    errorShare: 'Impossibile condividere il codice. Copialo manualmente.',
+  },
 
 } as const;

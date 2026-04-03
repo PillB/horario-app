@@ -59,6 +59,10 @@ export const fr = {
     shortfall: 'Manque : {n}',
     scheduled: '{n} planifié(s)',
     applying: 'Application…',
+      copyToClipboard: 'Copier dans le presse-papiers',
+      copied: 'Copié !',
+      auditLogEmpty: 'Aucune entrée dans le journal pour l\'instant.',
+      exportDiagnostics: 'Exporter les diagnostics'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -89,6 +93,8 @@ export const fr = {
       delayed: 'Retardé',
     },
     doneBtn: 'Fermer',
+      addCommentBtn: 'Envoyer le commentaire',
+      deleteComment: 'Supprimer le commentaire'
   },
 
   // ─── Errors ────────────────────────────────────────────────────────────────
@@ -97,6 +103,23 @@ export const fr = {
     retryHint: 'Tentative de rechargement de la section défaillante',
     networkError: 'Erreur réseau. Veuillez vérifier votre connexion.',
     loadFailed: 'Échec du chargement. Appuyez pour réessayer.',
+    validation: {
+      WORKER_REQUIRED: 'Sélectionnez un employé.',
+      DAY_REQUIRED: 'Sélectionnez un jour.',
+      TIMES_REQUIRED: 'Saisissez une heure de début et une heure de fin.',
+      WORKER_NOT_FOUND: 'Cet identifiant d\'employé ne correspond à aucun employé existant.',
+      DAY_INVALID: 'Le jour doit être Lun, Mar, Mer, Jeu, Ven, Sam ou Dim.',
+      FROM_TIME_INVALID: 'L\'heure de début doit être au format HH:MM (ex. 09:00).',
+      TO_TIME_INVALID: 'L\'heure de fin doit être au format HH:MM (ex. 17:00).',
+      FROM_BEFORE_TO: 'L\'heure de début doit être antérieure à l\'heure de fin.',
+      AVAILABILITY_OVERLAP: 'Chevauchement avec un créneau existant le {day} ({from}–{to}).',
+      AVAILABILITY_DUPLICATE: 'Cette plage de disponibilité existe déjà pour cet employé.',
+      TEMPLATE_MISSING: 'Le modèle de shift associé à ce créneau n\'est plus disponible.',
+      WORKER_MISSING: 'L\'employé affecté à ce shift n\'est plus disponible.',
+      ROLE_MISMATCH: 'Le rôle de l\'employé ({workerRole}) ne correspond pas au rôle requis ({templateRole}).',
+      COVERAGE_MISSING: 'L\'employé n\'est pas disponible le {weekday} pour le créneau {start}–{end}.',
+      SHIFT_OVERLAP: 'L\'employé a déjà un shift le {date} de {start} à {end}.',
+    }
   },
 
   // ─── Home screen ───────────────────────────────────────────────────────────
@@ -150,6 +173,7 @@ export const fr = {
       coverageChecksDesc: 'Mises à jour enregistrées 5 des 7 derniers jours.',
       draftsPublished: 'Brouillons publiés',
       draftsPublishedDesc: 'Publiez les brouillons lorsque les équipes sont prêtes.',
+      notStarted: 'Non commencé'
     },
     weekStats: {
       title: 'Cette semaine',
@@ -219,6 +243,7 @@ export const fr = {
       addButtonHint: "Enregistrer le nouveau profil d'employé",
       addedSuccess: '{name} ajouté(e) ! Définissez maintenant ses disponibilités pour une planification précise.',
       tooltip: '👷 Les employés sont le cœur de votre planning. Ajoutez un nom, un rôle (ex. « Barista ») et des compétences. Une fois enregistré, faites défiler vers le bas pour définir leurs disponibilités hebdomadaires afin que le planificateur sache quand ils peuvent travailler.',
+      addCardTooltip: 'Renseignez le nom de l\'employé, son rôle (ex. « Barista ») et ses compétences éventuelles (séparées par des virgules). Son identifiant est généré automatiquement. Après l\'enregistrement, faites défiler jusqu\'à « Saisie des disponibilités » pour définir ses horaires de travail.'
     },
 
     availability: {
@@ -271,6 +296,8 @@ export const fr = {
       savedSuccess: 'Modèle « {name} » enregistré ! Vous pouvez maintenant affecter automatiquement des employés à cette équipe.',
       needed: '{n} requis',
       tooltip: "🗂 Les modèles sont des blueprints d'équipes réutilisables. Définissez « Matin Support 09:00–17:00, 1 employé nécessaire » une fois et réutilisez-le chaque semaine. Les modèles alimentent le moteur d'affectation automatique — plus vous en ajoutez, plus les suggestions sont pertinentes.",
+      addCardTooltip: 'Donnez un nom au modèle (ex. « Matin »), sélectionnez un rôle, définissez la plage horaire (format 24h) et indiquez le nombre minimum d\'employés requis. Les modèles sont les éléments de base de l\'affectation automatique.',
+      addedSuccess: '« {name} » enregistré — prêt pour l\'affectation des shifts.'
     },
 
     shifts: {
@@ -329,6 +356,60 @@ export const fr = {
       source: 'Source : {src}',
       requiredLabel: '{n} requis',
       tooltip: "📈 Les objectifs de demande indiquent au planificateur le nombre d'employés dont vous avez besoin par rôle et par jour. Commencez par « Configuration rapide » pour alimenter une semaine de demande de base, puis lancez une prévision pour obtenir des objectifs basés sur l'IA à partir de vos équipes historiques et signaux externes.",
+      forecastRunning: 'En cours…',
+      forecastWaiting: 'En attente de modifications…',
+      forecastNeedInput: 'Ajoutez une date et un rôle pour prévoir',
+      forecastHelperInvalid: 'Saisissez une date valide au format AAAA-MM-JJ et un rôle pour générer une prévision.',
+      forecastHelperNoData: 'Aucun quart historique ni signal externe trouvé. Utilisez la configuration rapide pour initialiser les cibles de demande.',
+      forecastHelperApiDown: 'L\'API de prévision est indisponible. Utilisez la configuration rapide ou les cibles manuelles pour continuer.',
+      forecastHelperPending: 'En attente de la stabilisation des données avant la prévision…',
+      forecastHelperRunning: 'Prévision en cours...',
+      forecastHelperReady: 'Prêt à exécuter la prévision avec les signaux d\'aujourd\'hui.',
+      sourceLabelModel: 'Prévision AI',
+      sourceLabelOverride: 'Saisie manuelle',
+      sourceLabelPos: 'Import POS',
+      sourceLabelFallback: 'Configuration rapide',
+      posTargetsSaved: '{n} cibles de demande enregistrées depuis les données POS.',
+      posTab: 'Import POS',
+      posRole: 'Assigner à un rôle',
+      posRevenuePerHour: 'Chiffre d\'affaires / heure-employé ($)',
+      posRevenuePerHourPlaceholder: '50',
+      posShiftHours: 'Heures moyennes par quart',
+      posShiftHoursPlaceholder: '8',
+      posSmoothing: 'Lissage (jours)',
+      posText: 'Coller le CSV (date,chiffre_affaires,couverts,notes)',
+      posPreviewBtn: 'Aperçu CSV',
+      posGenerateBtn: 'Générer {n} cibles de demande',
+      posGenerating: 'Génération en cours…',
+      posDone: '{n} cibles enregistrées depuis les données POS',
+      posError: 'Erreur : {msg}',
+      posTooltip: 'Importez un CSV POS de ventes pour calculer automatiquement le nombre d\'employés nécessaires par jour. Le moteur utilise une moyenne mobile pour lisser le chiffre d\'affaires et le convertit en effectif requis selon votre cible de chiffre d\'affaires par heure-employé.',
+      posPresetFine: 'Gastronomique',
+      posPresetCasual: 'Décontracté',
+      posPresetBar: 'Bar / Café',
+      posPresetQSR: 'Restauration rapide (QSR)',
+      posPresetCustom: 'Personnalisé',
+      posMixTitle: 'Répartition des effectifs par rôle',
+      posMixDesc: 'Définissez le nombre d\'employés nécessaires par rôle selon les couverts ou le chiffre d\'affaires attendus.',
+      posMixRole: 'Rôle',
+      posMixRolePlaceholder: 'ex. Serveur',
+      posMixRatioMode: 'Par',
+      posMixCovers: 'Cvt',
+      posMixRevenue: 'CA',
+      posMixPerWorker: '/emp',
+      posMixMin: 'Min',
+      posMixAddRole: '+ Ajouter un rôle',
+      posMixRemoveRole: 'Supprimer la ligne {role}',
+      posNoRoles: 'Ajoutez au moins un rôle pour générer des prévisions.',
+      posCoversWarning: 'Aucune donnée de couverts dans le CSV — estimation du chiffre d\'affaires utilisée pour les rôles basés sur les couverts.',
+      posTargetsSavedMulti: '{n} cibles enregistrées pour {roles} rôles.',
+      posPreviewHeaderDate: 'Date',
+      posPreviewHeaderRevenue: 'Chiffre d\'affaires',
+      posPreviewHeaderCovers: 'Couverts',
+      posCsvA11yHint: 'Collez un CSV avec les colonnes : date, chiffre_affaires, couverts, notes',
+      posPreviewCount: '{n} sur {total} lignes affichées',
+      beforeForecast: 'Avant prévision',
+      afterForecast: 'Après prévision'
     },
 
     roster: {
@@ -353,7 +434,34 @@ export const fr = {
         shortfall: 'Manque : {n}',
       },
       tooltip: "🗓 Votre calendrier de planning en direct. Les équipes apparaissent dès que vous les enregistrez. Cliquez sur « Publier » pour verrouiller une équipe, puis sur « Notifier » pour alerter l'employé. Les équipes publiées alimentent l'onglet Analyses avec les heures et les données de couverture.",
+      calendarView: 'Calendrier',
+      listView: 'Liste',
+      noShiftsThisWeek: 'Aucun quart cette semaine.',
+      weekOf: 'Semaine du {date}',
+      maximize: 'Calendrier plein écran',
+      closeFullscreen: 'Quitter le plein écran',
+      prevWeek: 'Semaine précédente',
+      nextWeek: 'Semaine suivante',
+      today: 'Aujourd\'hui'
     },
+      jumpToCalendar: 'Voir le calendrier ↓',
+    pos: {
+      sectionTitle: 'Importation des ventes PDV',
+      sectionSubtitle: 'Importez des données de chiffre d\'affaires au format CSV pour enrichir les prévisions de la demande.',
+      tooltip: '💰 Importez vos données de ventes du point de vente (CSV) pour des prévisions plus intelligentes. Le moteur utilise la saisonnalité par jour de la semaine, les tendances de chiffre d\'affaires et l\'efficacité du revenu par employé pour prédire la demande avec plus de précision. Formats acceptés : date, chiffre d\'affaires, couverts (optionnel), notes (optionnel).',
+      uploadButton: 'Choisir un fichier CSV',
+      pasteLabel: 'Coller le contenu CSV',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Aperçu ({n} lignes)',
+      uploadAction: 'Importer {n} lignes',
+      uploadSuccess: '{n} lignes enregistrées avec succès',
+      uploadError: 'Échec de l\'importation : {msg}',
+      validationErrors: '{n} erreur(s) de validation détectée(s)',
+      resetButton: 'Effacer',
+      noFile: 'Aucun fichier sélectionné',
+      csvHelp: 'Format accepté : date (AAAA-MM-JJ), chiffre d\'affaires (nombre), couverts (entier optionnel), notes (texte optionnel). Jusqu\'à 1 000 lignes par importation.',
+      dropHint: 'Glissez-déposez un fichier .csv ici, ou appuyez pour parcourir',
+    }
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
@@ -374,6 +482,8 @@ export const fr = {
     monthView: 'Mois',
     weekView: 'Semaine',
     monthLabel: '{month} {year}',
+      prevMonth: 'Mois précédent',
+      nextMonth: 'Mois suivant'
   },
 
   analytics: {
@@ -605,5 +715,32 @@ export const fr = {
     desc: 'Vous avez terminé la visite guidée et disposez de tout ce qu\'il vous faut pour créer des plannings plus intelligents, réduire les absences imprévues et maintenir votre équipe synchronisée. Votre première grande semaine commence maintenant.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Inviter un membre de l\'équipe',
+    workerTitle: 'Rejoindre l\'équipe de votre responsable',
+    managerSubtitle: 'Partagez ce code avec votre employé pour qu\'il puisse rejoindre votre équipe.',
+    workerSubtitle: 'Saisissez le code d\'invitation que votre responsable vous a communiqué.',
+    inviteCodeLabel: 'Code d\'invitation',
+    workerEmailLabel: 'E-mail de l\'employé (optionnel)',
+    workerEmailPlaceholder: 'employe@exemple.com',
+    emailNote: 'Pour votre référence uniquement — aucun e-mail ne sera envoyé.',
+    copyCode: 'Copier le code',
+    codeShared: '✓ Code partagé !',
+    regenerate: 'Régénérer',
+    joinTeam: 'Rejoindre l\'équipe',
+    joinedTitle: 'Vous avez rejoint l\'équipe !',
+    joinedSub: 'Inscription confirmée ! Bienvenue dans l\'équipe.',
+    invalidCode: 'Code invalide. Demandez le code correct à votre responsable.',
+    close: 'Fermer',
+    closeA11y: 'Fermer la fenêtre',
+    inviteCodeInputA11y: 'Saisir le code d\'invitation',
+    copyA11y: 'Copier le code d\'invitation',
+    regenerateA11y: 'Régénérer le code d\'invitation',
+    joinA11y: 'Rejoindre l\'équipe avec le code d\'invitation',
+    emailInputA11y: 'Champ de saisie de l\'adresse e-mail de l\'employé',
+    errorRegenerate: 'Impossible de régénérer le code. Veuillez réessayer.',
+    errorShare: 'Impossible de partager le code. Veuillez le copier manuellement.',
+  },
 
 } as const;
