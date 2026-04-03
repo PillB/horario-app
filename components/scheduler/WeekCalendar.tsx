@@ -648,7 +648,7 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
             accessibilityLabel={
               viewMode === 'week'
                 ? t('weekCalendar.prevWeek')
-                : t('weekCalendar.prevWeek') // reuse or add prevMonth key
+                : t('weekCalendar.prevMonth')
             }
           >
             <Text style={styles.navButtonText}>‹</Text>
@@ -670,7 +670,7 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
             accessibilityLabel={
               viewMode === 'week'
                 ? t('weekCalendar.nextWeek')
-                : t('weekCalendar.nextWeek') // reuse or add nextMonth key
+                : t('weekCalendar.nextMonth')
             }
           >
             <Text style={styles.navButtonText}>›</Text>

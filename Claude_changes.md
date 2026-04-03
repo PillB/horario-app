@@ -1292,3 +1292,39 @@ reload — see project_migrations.md):
 **Tests:** 244/244 passing. TypeScript: 0 errors. Lint: 0 errors.
 
 ---
+
+### CHG-053 — 2026-04-02 UTC
+**Type:** IMPROVEMENT (Calendar discoverability + a11y fixes)
+
+**Changes:**
+1. **"View Calendar ↓" quick-jump button**: Added a teal outlined pill button below the scheduler subtitle. Tapping scrolls directly to RosterSection via `scrollViewRef.current.scrollTo()` using a local `rosterSectionOffsetRef` (set by `onLayout` on the roster wrapper).
+2. **Fixed prevMonth/nextMonth a11y labels**: WeekCalendar was using `prevWeek` key for month navigation. Fixed to `prevMonth`/`nextMonth`. Added both to `locales/en.ts`.
+3. **Scheduler style additions**: `jumpCalendarBtn` + `jumpCalendarText` in `scheduler.styles.ts`.
+
+**Files changed:**
+- `app/(tabs)/scheduler.tsx` — add scroll-to-calendar mechanism + button JSX
+- `components/scheduler/WeekCalendar.tsx` — fix month nav a11y labels
+- `styles/scheduler.styles.ts` — add jump button styles
+- `locales/en.ts` — add `weekCalendar.prevMonth`, `weekCalendar.nextMonth`, `scheduler.jumpToCalendar`
+
+**Tests:** 244/244. TypeScript: 0 errors.
+
+---
+
+### CHG-054 — 2026-04-02 UTC
+**Type:** FEATURE (Shift notes: comment threads + AsyncStorage persistence)
+
+**Changes:**
+1. **Comment threads**: Upgraded `ShiftTask.comment: string` → `comments: TaskComment[]`. Each comment has id, text, ISO createdAt timestamp. Displayed as a left-border threaded list with × delete per comment.
+2. **AsyncStorage persistence**: Notes auto-save to `@horario:shiftNotes:<shiftId>` on every change; loaded on mount. Notes survive panel close/reopen and app restart.
+3. **Task summary strip**: Header row below shows pill counts by status (○ 2  ✓ 1  ✗ 1) for at-a-glance health.
+4. **Status timestamps**: Each task chip shows `statusChangedAt` formatted timestamp alongside.
+5. **New locale keys**: `shiftNotes.addCommentBtn`, `shiftNotes.deleteComment`.
+
+**Files changed:**
+- `components/scheduler/ShiftNotesPanel.tsx` — full rewrite with threads + persistence
+- `locales/en.ts` — add `shiftNotes.addCommentBtn`, `shiftNotes.deleteComment`
+
+**Tests:** 244/244. TypeScript: 0 errors.
+
+---

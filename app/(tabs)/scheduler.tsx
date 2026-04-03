@@ -160,6 +160,17 @@ export default function SchedulerScreen() {
     date: string;
   } | null>(null);
 
+  // ── Jump-to-calendar button ────────────────────────────────────────────────
+  const rosterSectionOffsetRef = useRef<number>(0);
+  const handleScrollToCalendar = React.useCallback(() => {
+    if (scrollViewRef.current) {
+      (scrollViewRef.current as unknown as { scrollTo: (opts: { y: number; animated: boolean }) => void }).scrollTo({
+        y: rosterSectionOffsetRef.current,
+        animated: true,
+      });
+    }
+  }, [scrollViewRef]);
+
   // [Finding 2] linkText must meet AA on warningSurface:
   //   light: brand.primaryDeep (#115E59, 5.87:1 on white/warm surface)
   //   dark:  Colors.dark.tint (#2DD4BF, 8.95:1 on dark amber surface)
@@ -198,6 +209,16 @@ export default function SchedulerScreen() {
         <ThemedText style={[styles.mutedText, { color: colors.textSecondary }]}>
           {t('scheduler.subtitle')}
         </ThemedText>
+
+        {/* Quick-jump to calendar — helps users who want to see the roster first */}
+        <Pressable
+          onPress={handleScrollToCalendar}
+          accessibilityRole="button"
+          accessibilityLabel={t('scheduler.jumpToCalendar')}
+          style={({ pressed }) => [styles.jumpCalendarBtn, pressed && { opacity: 0.7 }]}
+        >
+          <ThemedText style={styles.jumpCalendarText}>{t('scheduler.jumpToCalendar')}</ThemedText>
+        </Pressable>
 
         <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
 
@@ -351,6 +372,9 @@ export default function SchedulerScreen() {
         </View>
 
         <TourStep target="roster-section">
+        <View
+          onLayout={(e) => { rosterSectionOffsetRef.current = e.nativeEvent.layout.y; }}
+        >
         <RosterSection
           publishCelebration={publishCelebration}
           rosterByDate={rosterByDate}
@@ -361,6 +385,7 @@ export default function SchedulerScreen() {
           staffingGaps={staffingGaps}
           onSelectShiftForNotes={handleSelectShiftForNotes}
         />
+        </View>
         </TourStep>
 
         <WellnessPrompt

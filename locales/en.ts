@@ -85,7 +85,9 @@ export const en = {
     tasksDesc: 'Add to-dos the worker should complete during this shift.',
     addTaskPlaceholder: 'e.g. Check inventory before opening',
     addTaskBtn: 'Add',
-    commentPlaceholder: 'Add a comment or update…',
+    commentPlaceholder: 'Reply or add an update…',
+    addCommentBtn: 'Send comment',
+    deleteComment: 'Delete comment',
     noTasks: 'No tasks yet — add one above.',
     cycleStatus: 'Cycle task status',
     removeTask: 'Remove task',
@@ -196,6 +198,7 @@ export const en = {
     title: 'Scheduler',
     subtitle: 'Coordinate coverage across workers, shift templates, and day-by-day staffing plans.',
     tooltip: 'Your scheduling hub. Add workers, set their availability, create shift templates, then assign or auto-fill rosters in one tap. Start with step 1 — adding a worker.',
+    jumpToCalendar: 'View Calendar ↓',
 
     missingData: {
       title: 'Missing data detected',
@@ -477,6 +480,8 @@ export const en = {
   weekCalendar: {
     prevWeek: 'Previous week',
     nextWeek: 'Next week',
+    prevMonth: 'Previous month',
+    nextMonth: 'Next month',
     today: 'Today',
     maximize: 'Fullscreen calendar',
     closeFullscreen: 'Close fullscreen',

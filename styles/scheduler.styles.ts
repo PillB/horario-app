@@ -62,6 +62,21 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   mutedText: {
     color: colors.textSecondary, // Slate 600 light / Slate 400 dark — both pass AA
   },
+  jumpCalendarBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: brand.primary,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  jumpCalendarText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brand.primary,
+  },
   banner: {
     padding: 12,
     borderRadius: 12,
