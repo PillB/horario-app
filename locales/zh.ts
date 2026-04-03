@@ -489,6 +489,7 @@ export const zh = {
   tour: {
   roleSelect: {
     title: '您的身份是？',
+    languageLabel: '选择您的语言',
     desc: '请告知您的角色，以便我们为您个性化导览，并立即展示最适合您的功能。',
     managerTitle: '👔 管理员 / 负责人',
     managerDesc: '制定排班、管理团队、预测需求，并有效控制人力成本。',
@@ -584,6 +585,7 @@ export const zh = {
   },
   completed: {
     title: '🎉 一切就绪！',
+    seedConfirmation: '✅ 示例数据已添加 — 探索您的第一个团队、模板和班次！',
     desc: '您已完成导览，现在拥有构建更智能排班、减少缺勤并保持团队同步所需的一切。您精彩的第一周，从现在开始。',
   },
 },

@@ -489,6 +489,7 @@ export const tl = {
   tour: {
   roleSelect: {
     title: 'Sino ka?',
+    languageLabel: 'Piliin ang iyong wika',
     desc: 'Sabihin sa amin ang iyong papel upang maipasadya namin ang iyong tour at mapakita agad ang mga tampok na pinakamahalaga sa iyo.',
     managerTitle: '👔 Manager / May-ari',
     managerDesc: 'Bumuo ng mga iskedyul, pamahalaan ang iyong koponan, hulaan ang demand, at panatilihing kontrolado ang mga gastos sa paggawa.',
@@ -584,6 +585,7 @@ export const tl = {
   },
   completed: {
     title: '🎉 Handa ka na!',
+    seedConfirmation: '✅ Naidagdag ang sample data — tuklasin ang iyong unang koponan, mga template, at shift!',
     desc: 'Nakumpleto mo na ang tour at mayroon ka nang lahat ng kailangan mo upang bumuo ng mas matalinong mga iskedyul, bawasan ang mga no-show, at panatilihing naka-sync ang iyong koponan. Nagsisimula na ngayon ang iyong unang mahusay na linggo.',
   },
 },

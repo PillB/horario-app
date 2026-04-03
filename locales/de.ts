@@ -94,6 +94,7 @@ export const de = {
   tour: {
   roleSelect: {
     title: 'Wer sind Sie?',
+    languageLabel: 'Sprache wählen',
     desc: 'Teilen Sie uns Ihre Rolle mit, damit wir Ihre Tour personalisieren und Ihnen sofort die relevantesten Funktionen anzeigen können.',
     managerTitle: '👔 Manager / Inhaber',
     managerDesc: 'Dienstpläne erstellen, Ihr Team verwalten, den Bedarf prognostizieren und die Personalkosten im Griff behalten.',
@@ -189,6 +190,7 @@ export const de = {
   },
   completed: {
     title: '🎉 Alles bereit!',
+    seedConfirmation: '✅ Beispieldaten hinzugefügt — erkunde dein erstes Team, Vorlagen und Schichten!',
     desc: 'Sie haben die Tour abgeschlossen und verfügen über alles, was Sie benötigen, um intelligentere Dienstpläne zu erstellen, unentschuldigte Fehlzeiten zu reduzieren und Ihr Team synchron zu halten. Ihre erste großartige Woche beginnt jetzt.',
   },
 },

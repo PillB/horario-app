@@ -505,6 +505,7 @@ export const it = {
   tour: {
   roleSelect: {
     title: 'Chi è Lei?',
+    languageLabel: 'Scegli la tua lingua',
     desc: 'Ci indichi il suo ruolo così possiamo personalizzare il tour e mostrarle immediatamente le funzionalità più rilevanti per Lei.',
     managerTitle: '👔 Responsabile / Titolare',
     managerDesc: 'Crei i turni, gestisca il suo team, preveda la domanda e mantenga i costi del personale sotto controllo.',
@@ -600,6 +601,7 @@ export const it = {
   },
   completed: {
     title: '🎉 È tutto pronto!',
+    seedConfirmation: '✅ Dati di esempio aggiunti — esplora il tuo primo team, modelli e turni!',
     desc: 'Ha completato il tour e ha tutto il necessario per creare pianificazioni più intelligenti, ridurre le assenze improvvise e mantenere il team sincronizzato. La sua prima grande settimana inizia adesso.',
   },
 },

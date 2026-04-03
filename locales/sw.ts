@@ -489,6 +489,7 @@ export const sw = {
   tour: {
   roleSelect: {
     title: 'Wewe ni nani?',
+    languageLabel: 'Chagua lugha yako',
     desc: 'Tuambie jukumu lako ili tuweze kubinafsisha ziara yako na kukuonyesha vipengele vinavyokufaa zaidi mara moja.',
     managerTitle: '👔 Msimamizi / Mmiliki',
     managerDesc: 'Jenga ratiba, simamia timu yako, tabiri mahitaji, na udhibiti gharama za kazi.',
@@ -584,6 +585,7 @@ export const sw = {
   },
   completed: {
     title: '🎉 Umekamilisha kila kitu!',
+    seedConfirmation: '✅ Data ya mfano imeongezwa — chunguza timu yako ya kwanza, violezo, na zamu!',
     desc: 'Umekamilisha ziara na una kila kitu unachohitaji kujenga ratiba bora zaidi, kupunguza kutokuhudhuria, na kuweka timu yako katika usawa. Wiki yako nzuri ya kwanza inaanza sasa.',
   },
 },

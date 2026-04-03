@@ -41,6 +41,7 @@ export const es = {
   roleSelect: {
     title: '¿Quién eres?',
     desc: 'Cuéntanos tu rol para que podamos personalizar tu recorrido y mostrarte de inmediato las funciones más relevantes para ti.',
+    languageLabel: 'Elige tu idioma',
     managerTitle: '👔 Gerente / Propietario',
     managerDesc: 'Crea horarios, gestiona tu equipo, pronostica la demanda y mantén los costes laborales bajo control.',
     workerTitle: '👷 Miembro del equipo',
@@ -136,6 +137,7 @@ export const es = {
   completed: {
     title: '🎉 ¡Todo listo!',
     desc: 'Has completado el tour y tienes todo lo que necesitas para crear horarios más inteligentes, reducir ausencias y mantener a tu equipo sincronizado. Tu primera gran semana empieza ahora.',
+    seedConfirmation: '✅ Datos de muestra añadidos — ¡explora tu primer equipo, plantillas y turnos!',
   },
 },
 

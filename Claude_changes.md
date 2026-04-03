@@ -1311,6 +1311,27 @@ reload — see project_migrations.md):
 
 ---
 
+### CHG-056 — 2026-04-02 UTC
+**Type:** FIX (Locale completeness — add 2 missing keys to all 8 non-English locales)
+
+**Missing keys (found by background locale audit agent):**
+- `tour.roleSelect.languageLabel` — "Choose your language" label for language picker in tour role-selection modal
+- `tour.completed.seedConfirmation` — "✅ Sample data added…" confirmation shown after tour completes and seeds data
+
+**Translations added to es, de, fr, it, zh, sw, tl, hi:**
+- es: 'Elige tu idioma' / '✅ Datos de muestra añadidos — ¡explora tu primer equipo, plantillas y turnos!'
+- de: 'Sprache wählen' / '✅ Beispieldaten hinzugefügt — erkunde dein erstes Team, Vorlagen und Schichten!'
+- fr: 'Choisissez votre langue' / '✅ Données exemples ajoutées — explorez votre première équipe, modèles et quarts de travail !'
+- it: 'Scegli la tua lingua' / '✅ Dati di esempio aggiunti — esplora il tuo primo team, modelli e turni!'
+- zh: '选择您的语言' / '✅ 示例数据已添加 — 探索您的第一个团队、模板和班次！'
+- sw: 'Chagua lugha yako' / '✅ Data ya mfano imeongezwa — chunguza timu yako ya kwanza, violezo, na zamu!'
+- tl: 'Piliin ang iyong wika' / '✅ Naidagdag ang sample data — tuklasin ang iyong unang koponan, mga template, at shift!'
+- hi: 'अपनी भाषा चुनें' / '✅ नमूना डेटा जोड़ा गया — अपनी पहली टीम, टेम्पलेट और शिफ्ट देखें!'
+
+**Tests:** 244/244. TypeScript: 0 errors.
+
+---
+
 ### CHG-055 — 2026-04-02 UTC
 **Type:** FIX (Playwright E2E — 16/16 tour-and-home tests passing)
 

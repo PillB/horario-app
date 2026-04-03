@@ -505,6 +505,7 @@ export const fr = {
   tour: {
   roleSelect: {
     title: 'Qui êtes-vous ?',
+    languageLabel: 'Choisissez votre langue',
     desc: 'Indiquez-nous votre rôle afin que nous puissions personnaliser votre visite guidée et mettre immédiatement en avant les fonctionnalités les plus pertinentes pour vous.',
     managerTitle: '👔 Responsable / Propriétaire',
     managerDesc: 'Créez des plannings, gérez votre équipe, anticipez la demande et maîtrisez les coûts de main-d\'œuvre.',
@@ -600,6 +601,7 @@ export const fr = {
   },
   completed: {
     title: '🎉 Vous êtes prêt !',
+    seedConfirmation: '✅ Données exemples ajoutées — explorez votre première équipe, modèles et quarts de travail !',
     desc: 'Vous avez terminé la visite guidée et disposez de tout ce qu\'il vous faut pour créer des plannings plus intelligents, réduire les absences imprévues et maintenir votre équipe synchronisée. Votre première grande semaine commence maintenant.',
   },
 },
