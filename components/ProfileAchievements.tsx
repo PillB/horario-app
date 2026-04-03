@@ -4,6 +4,7 @@ import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
+import { useT } from '@/contexts/LocaleContext';
 
 type Achievement = {
   id: string;
@@ -81,12 +82,13 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
+  const { t } = useT();
 
   if (!items.length) return null;
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="subtitle">Achievements</ThemedText>
+      <ThemedText type="subtitle">{t('home.achievements.title')}</ThemedText>
       <View style={styles.list}>
         {items.map((achievement) => {
           const safeGoal = achievement.goal && achievement.goal > 0 ? achievement.goal : 1;
@@ -108,7 +110,7 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
                 )}
               </View>
               <ThemedText style={styles.helperText}>
-                {percent === 0 ? 'Not started' : `${achievement.progress} of ${safeGoal}`}
+                {percent === 0 ? t('home.achievements.notStarted') : `${achievement.progress} of ${safeGoal}`}
               </ThemedText>
             </ThemedView>
           );

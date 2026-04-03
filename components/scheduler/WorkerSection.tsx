@@ -176,6 +176,7 @@ export const WorkerSection = ({
           onChangeText={updateWorkerField('name')}
           accessibilityLabel={t('scheduler.workers.nameA11y')}
           accessibilityHint={t('scheduler.workers.nameA11yHint')}
+          testID="worker-name-input"
         />
         <InputField
           label={t('scheduler.workers.roleLabel')}
@@ -184,6 +185,7 @@ export const WorkerSection = ({
           onChangeText={updateWorkerField('role')}
           accessibilityLabel={t('scheduler.workers.roleA11y')}
           accessibilityHint={t('scheduler.workers.roleA11yHint')}
+          testID="worker-role-input"
         />
         <InputField
           label={t('scheduler.workers.skillsLabel')}
@@ -208,6 +210,7 @@ export const WorkerSection = ({
           accessibilityLabel={t('scheduler.workers.addButtonA11y')}
           accessibilityHint={t('scheduler.workers.addButtonHint')}
           accessibilityState={{ disabled: isAddWorkerDisabled }}
+          testID="add-worker-btn"
         >
           <ThemedText style={styles.primaryButtonText}>{t('scheduler.workers.addButton')}</ThemedText>
         </Pressable>
@@ -215,7 +218,7 @@ export const WorkerSection = ({
           <ThemedText style={styles.errorText}>{workerError}</ThemedText>
         ) : null}
         {workerSuccessMessage ? (
-          <ThemedText style={styles.successText}>{workerSuccessMessage}</ThemedText>
+          <ThemedText style={styles.successText} testID="worker-success-msg">{workerSuccessMessage}</ThemedText>
         ) : null}
       </SectionCard>
 

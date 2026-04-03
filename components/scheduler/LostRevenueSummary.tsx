@@ -8,6 +8,7 @@ import { formatCurrency } from '@/utils/schedulerUtils';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useT } from '@/contexts/LocaleContext';
 
 type Props = {
   baselineTargets: DemandForecast[];
@@ -70,6 +71,7 @@ export const LostRevenueSummary = ({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const localStyles = makeStyles(colors);
+  const { t } = useT();
 
   const metrics = useMemo(() => {
     const baseline = computeUncoveredLoss(baselineTargets, roster, shiftTemplates);
@@ -99,7 +101,7 @@ export const LostRevenueSummary = ({
   return (
     <ThemedView style={styles.lossSummary}>
       <View style={styles.rowBetween}>
-        <ThemedText type="defaultSemiBold">Lost revenue exposure</ThemedText>
+        <ThemedText type="defaultSemiBold">{t('scheduler.demand.lostRevenue')}</ThemedText>
         <View style={[styles.badge, isPositive ? localStyles.positiveBadge : localStyles.negativeBadge]}>
           <ThemedText style={isPositive ? localStyles.badgeTextPositive : localStyles.badgeTextNegative}>
             {deltaLabel}
@@ -107,21 +109,21 @@ export const LostRevenueSummary = ({
         </View>
       </View>
       <ThemedText style={localStyles.mutedText}>
-        Estimated revenue at risk from uncovered roles before vs. after forecasting.
+        {t('scheduler.demand.lostRevenueDesc')}
       </ThemedText>
       <View style={localStyles.progressTrack}>
         <View style={[localStyles.progressFill, { width: improvementPercent as `${number}%` }]} />
       </View>
       <View style={styles.rowBetween}>
         <View>
-          <ThemedText style={localStyles.mutedText}>Before forecast</ThemedText>
+          <ThemedText style={localStyles.mutedText}>{t('scheduler.demand.beforeForecast')}</ThemedText>
           <ThemedText type="defaultSemiBold">{formatCurrency(metrics.baselineLoss)}</ThemedText>
-          <ThemedText style={localStyles.mutedText}>Uncovered: {metrics.baselineGap}</ThemedText>
+          <ThemedText style={localStyles.mutedText}>{t('scheduler.demand.uncovered', { n: String(metrics.baselineGap) })}</ThemedText>
         </View>
         <View style={localStyles.columnRight}>
-          <ThemedText style={localStyles.mutedText}>After forecast</ThemedText>
+          <ThemedText style={localStyles.mutedText}>{t('scheduler.demand.afterForecast')}</ThemedText>
           <ThemedText type="defaultSemiBold">{formatCurrency(metrics.currentLoss)}</ThemedText>
-          <ThemedText style={localStyles.mutedText}>Uncovered: {metrics.currentGap}</ThemedText>
+          <ThemedText style={localStyles.mutedText}>{t('scheduler.demand.uncovered', { n: String(metrics.currentGap) })}</ThemedText>
         </View>
       </View>
     </ThemedView>

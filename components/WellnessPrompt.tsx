@@ -4,6 +4,7 @@ import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
+import { useT } from '@/contexts/LocaleContext';
 
 type WellnessPromptProps = {
   visible: boolean;
@@ -15,18 +16,19 @@ type WellnessPromptProps = {
 export const WellnessPrompt = ({ visible, minutesActive, onDismiss, onTakeBreak }: WellnessPromptProps) => {
   const colorScheme = useColorScheme();
   const styles = makeStyles(colorScheme ?? 'light');
+  const { t } = useT();
 
   if (!visible) return null;
 
   const roundedMinutes = Math.max(0, minutesActive);
+  const plural = roundedMinutes === 1 ? '' : 's';
 
   return (
-    <ThemedView style={styles.wrapper} accessibilityRole="alert" accessibilityLabel="Mindful break reminder">
+    <ThemedView style={styles.wrapper} accessibilityRole="alert" accessibilityLabel={t('wellness.a11yRole')}>
       <View style={styles.copy}>
-        <ThemedText type="subtitle" style={{ color: '#FFFFFF' }}>Time for a mindful pause</ThemedText>
+        <ThemedText type="subtitle" style={{ color: '#FFFFFF' }}>{t('wellness.heading')}</ThemedText>
         <ThemedText style={styles.bodyText}>
-          You have been focused for {roundedMinutes} minute{roundedMinutes === 1 ? '' : 's'}. Take a moment to stretch,
-          hydrate, or review the plan before continuing.
+          {t('wellness.body', { minutes: String(roundedMinutes), plural })}
         </ThemedText>
       </View>
       <View style={styles.actions}>
@@ -34,17 +36,17 @@ export const WellnessPrompt = ({ visible, minutesActive, onDismiss, onTakeBreak 
           accessibilityRole="button"
           onPress={onDismiss}
           style={({ pressed }) => [styles.button, styles.secondary, pressed && { opacity: 0.75 }]}
-          accessibilityLabel="Dismiss break reminder"
+          accessibilityLabel={t('wellness.notNowA11y')}
         >
-          <ThemedText style={styles.secondaryText}>Not now</ThemedText>
+          <ThemedText style={styles.secondaryText}>{t('wellness.notNow')}</ThemedText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={onTakeBreak}
           style={({ pressed }) => [styles.button, styles.primary, pressed && { opacity: 0.75 }]}
-          accessibilityLabel="Take a short break"
+          accessibilityLabel={t('wellness.takeBreakA11y')}
         >
-          <ThemedText style={styles.primaryText}>Take a 3-minute reset</ThemedText>
+          <ThemedText style={styles.primaryText}>{t('wellness.takeBreak')}</ThemedText>
         </Pressable>
       </View>
     </ThemedView>

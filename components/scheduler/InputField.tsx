@@ -13,6 +13,7 @@ type Props = {
   keyboardType?: 'default' | 'numeric';
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  testID?: string;
 };
 
 const makeStyles = (colors: ThemeColors) =>
@@ -41,6 +42,7 @@ export const InputField = ({
   keyboardType = 'default',
   accessibilityLabel,
   accessibilityHint,
+  testID,
 }: Props) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -63,6 +65,7 @@ export const InputField = ({
         accessibilityRole="none"
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityHint={accessibilityHint ?? placeholder}
+        testID={testID}
       />
     </View>
   );

@@ -1,0 +1,163 @@
+- generic [ref=e1]:
+  - generic [ref=e21]:
+    - generic [ref=e24]:
+      - generic:
+        - generic:
+          - generic:
+            - heading "Home" [level=1] [ref=e26]
+            - generic [ref=e27]:
+              - button "Start app tour" [ref=e28] [cursor=pointer]:
+                - generic [ref=e29]: "?"
+              - button "Select app language" [ref=e31] [cursor=pointer]:
+                - generic [ref=e32]: 🇺🇸 EN
+              - button "Sign out" [ref=e33] [cursor=pointer]
+      - generic [ref=e37]:
+        - generic [ref=e39]:
+          - generic [ref=e41]: H
+          - generic [ref=e42]: Horario
+          - generic [ref=e43]: Smart scheduling, simplified.
+        - generic [ref=e45]:
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic [ref=e49]: Cut no-shows by auto-matching availability to demand in seconds.
+              - generic [ref=e50]: Keep worker availability, templates, and roster health in sync.
+            - link "Open Scheduler to plan shifts" [ref=e51] [cursor=pointer]:
+              - /url: /scheduler
+              - generic [ref=e52]: Open Scheduler
+          - generic [ref=e53]:
+            - generic [ref=e54]: This week
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - generic [ref=e57]: "2"
+                - generic [ref=e58]: Shifts scheduled
+              - generic [ref=e60]:
+                - generic [ref=e61]: "0"
+                - generic [ref=e62]: Roles to fill
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - generic [ref=e67]: Roster health streak
+              - generic [ref=e69]: 0 day streak
+            - generic [ref=e70]: "Longest streak: 0 days. Log an action to extend it."
+            - progressbar "Roster health streak streak progress" [ref=e71]
+            - generic [ref=e73]:
+              - generic [ref=e74]: Great start
+              - generic [ref=e75]: Saved your first update—keep a steady pace rather than rushing.
+            - generic [ref=e77] [cursor=pointer]: Log today’s progress
+          - generic [ref=e78]:
+            - generic [ref=e79]: Upcoming shifts
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - generic [ref=e82]: Maria Santos
+                - generic [ref=e83]: Morning Barista • 07:00–15:00
+              - generic [ref=e84]: 2026-04-03
+            - generic [ref=e85]:
+              - generic [ref=e86]:
+                - generic [ref=e87]: Alice Chen
+                - generic [ref=e88]: Morning Server • 09:00–17:00
+              - generic [ref=e89]: 2026-04-06
+          - generic [ref=e90]:
+            - generic [ref=e91]: Staffing gaps
+            - generic [ref=e92]: All shifts are fully staffed.
+          - generic [ref=e93]:
+            - generic [ref=e94]: Quick actions
+            - generic [ref=e95]:
+              - link "Add availability update" [ref=e96] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e97]: Add availability
+                - generic [ref=e98]: Capture changes from the floor
+              - link "Build shifts from templates" [ref=e99] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e100]: Build shifts
+                - generic [ref=e101]: Start from templates
+              - link "Publish roster" [ref=e102] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e103]: Publish roster
+                - generic [ref=e104]: Review targets vs coverage
+          - generic [ref=e105]:
+            - generic [ref=e106]: Build your team
+            - generic [ref=e107]: Add workers to unlock auto-assign and coverage tracking. Each worker added means fewer scheduling gaps.
+            - button "Invite a team member to your roster" [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]: Invite a team member →
+          - generic [ref=e111]:
+            - generic [ref=e112]: Personalized actions
+            - generic [ref=e113]:
+              - button "Log today’s availability updates. Capture new PTO and swaps to keep forecasts honest." [ref=e114] [cursor=pointer]:
+                - generic [ref=e115]:
+                  - generic [ref=e116]: Log today’s availability updates
+                  - generic [ref=e117]: 100%
+                - generic [ref=e118]: Capture new PTO and swaps to keep forecasts honest.
+              - button "Review demand signals. Compare targets with fresh signals before publishing." [ref=e119] [cursor=pointer]:
+                - generic [ref=e120]:
+                  - generic [ref=e121]: Review demand signals
+                  - generic [ref=e122]: 76%
+                - generic [ref=e123]: Compare targets with fresh signals before publishing.
+              - button "Publish the weekend roster. Nudge draft shifts into publish-ready state." [ref=e124] [cursor=pointer]:
+                - generic [ref=e125]:
+                  - generic [ref=e126]: Publish the weekend roster
+                  - generic [ref=e127]: 76%
+                - generic [ref=e128]: Nudge draft shifts into publish-ready state.
+              - button "Take a stretch break. Pause for a moment—well-rested planners catch more gaps." [ref=e129] [cursor=pointer]:
+                - generic [ref=e130]:
+                  - generic [ref=e131]: Take a stretch break
+                  - generic [ref=e132]: 57%
+                - generic [ref=e133]: Pause for a moment—well-rested planners catch more gaps.
+          - generic [ref=e135]:
+            - generic [ref=e136]: Achievements
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - generic [ref=e139]:
+                  - generic [ref=e140]:
+                    - generic [ref=e141]: Consistent coverage checks
+                    - generic [ref=e142]: Logged updates 5 of the last 7 days.
+                  - generic [ref=e143]: 14%
+                - generic [ref=e146]: 1 of 7
+              - generic [ref=e147]:
+                - generic [ref=e148]:
+                  - generic [ref=e149]:
+                    - generic [ref=e150]: Drafts published
+                    - generic [ref=e151]: Move drafts into published when teams are ready.
+                  - generic [ref=e152]: 60%
+                - generic [ref=e155]: 3 of 5
+    - tablist [ref=e157]:
+      - tab "  Home" [selected] [ref=e159] [cursor=pointer]:
+        - generic [ref=e160]:
+          - generic [ref=e162]: 
+          - generic [ref=e164]: 
+        - generic [ref=e165]: Home
+      - tab "  Scheduler" [ref=e167] [cursor=pointer]:
+        - generic [ref=e168]:
+          - generic [ref=e171]: 
+          - generic [ref=e174]: 
+        - generic [ref=e175]: Scheduler
+      - tab "  Analytics" [ref=e177] [cursor=pointer]:
+        - generic [ref=e178]:
+          - generic [ref=e180]: 
+          - generic [ref=e182]: 
+        - generic [ref=e183]: Analytics
+      - tab "⏷ ⏷ profile" [ref=e185] [cursor=pointer]:
+        - generic [ref=e186]:
+          - generic [ref=e188]: ⏷
+          - generic [ref=e190]: ⏷
+        - generic [ref=e191]: profile
+      - tab "⏷ ⏷ diagnostics" [ref=e193] [cursor=pointer]:
+        - generic [ref=e194]:
+          - generic [ref=e196]: ⏷
+          - generic [ref=e198]: ⏷
+        - generic [ref=e199]: diagnostics
+  - dialog [ref=e202]:
+    - 'alert "Tour step 4 of 8: Add Your First Team Member" [ref=e226]':
+      - generic [ref=e206]:
+        - generic [ref=e207]: Step 4 of 8
+        - generic [ref=e209]: 👔 Manager
+      - generic [ref=e210]: Add Your First Team Member
+      - generic [ref=e211]: Invite a worker by entering their name and contact details so Horario can match them to shifts and send automatic notifications.
+      - button "Why this matters" [ref=e213] [cursor=pointer]:
+        - generic [ref=e214]: ▼ Why this matters
+      - generic [ref=e215]:
+        - generic [ref=e216]:
+          - button "← Back" [ref=e223] [cursor=pointer]:
+            - generic [ref=e224]: ← Back
+          - button "Skip tour" [ref=e217] [cursor=pointer]:
+            - generic [ref=e218]: Skip tour
+        - button "Go to Scheduler →" [active] [ref=e227] [cursor=pointer]:
+          - generic [ref=e220]: Go to Scheduler →

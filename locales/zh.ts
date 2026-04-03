@@ -50,7 +50,7 @@ export const zh = {
     needed: '需要 {n} 人',
     shortfall: '缺口：{n}',
     scheduled: '已排 {n}',
-    applying: '应用中…',
+    applying: '应用中…', copyToClipboard: '复制到剪贴板', copied: '已复制！', auditLogEmpty: '暂无日志记录。', exportDiagnostics: '导出诊断信息'
   },
 
   // ─── Timezone ──────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ export const zh = {
       blocked: '已阻塞',
       delayed: '已延迟',
     },
-    doneBtn: '关闭',
+    doneBtn: '关闭', addCommentBtn: '发送评论', deleteComment: '删除评论'
   },
 
   errors: {
@@ -88,7 +88,23 @@ export const zh = {
     retryHint: '尝试重新加载失败的部分',
     networkError: '网络错误，请检查您的网络连接。',
     loadFailed: '加载失败，点击重试。',
-  },
+    validation: {
+      WORKER_REQUIRED: '请选择员工。',
+      DAY_REQUIRED: '请选择日期。',
+      TIMES_REQUIRED: '请输入开始时间和结束时间。',
+      WORKER_NOT_FOUND: '该员工ID与任何现有员工不匹配。',
+      DAY_INVALID: '日期必须为 Mon、Tue、Wed、Thu、Fri、Sat 或 Sun。',
+      FROM_TIME_INVALID: '开始时间必须为 HH:MM 格式（例如 09:00）。',
+      TO_TIME_INVALID: '结束时间必须为 HH:MM 格式（例如 17:00）。',
+      FROM_BEFORE_TO: '开始时间必须早于结束时间。',
+      AVAILABILITY_OVERLAP: '与 {day} 已有的时间段（{from}–{to}）存在重叠。',
+      AVAILABILITY_DUPLICATE: '该员工已存在相同的可用时间段。',
+      TEMPLATE_MISSING: '此班次槽位对应的班次模板已不可用。',
+      WORKER_MISSING: '分配至此班次的员工已不可用。',
+      ROLE_MISMATCH: '员工角色（{workerRole}）与所需角色（{templateRole}）不匹配。',
+      COVERAGE_MISSING: '员工在 {weekday} 的 {start}–{end} 时间段内不可用。',
+      SHIFT_OVERLAP: '员工在 {date} 已有一个 {start} 至 {end} 的班次。',
+    }},
 
   home: {
     hero: {
@@ -139,7 +155,7 @@ export const zh = {
       coverageChecks: '持续覆盖检查',
       coverageChecksDesc: '过去7天中有5天记录了更新。',
       draftsPublished: '草稿已发布',
-      draftsPublishedDesc: '团队准备就绪后将草稿转为已发布。',
+      draftsPublishedDesc: '团队准备就绪后将草稿转为已发布。', notStarted: '未开始'
     },
     weekStats: {
       title: '本周',
@@ -317,7 +333,7 @@ export const zh = {
       confidence: '{pct}% 置信度',
       source: '来源：{src}',
       requiredLabel: '需要 {n} 人',
-      tooltip: '📈 需求目标告知排班器每个职位每天需要多少员工。从"快速设置"开始，填充一周的基准需求，然后运行预测，获取基于历史班次和外部信号的AI驱动目标。',
+      tooltip: '📈 需求目标告知排班器每个职位每天需要多少员工。从"快速设置"开始，填充一周的基准需求，然后运行预测，获取基于历史班次和外部信号的AI驱动目标。', posMixRatioMode: '按', posMixCovers: '客数', posMixRevenue: '营收', posMixPerWorker: '/员工', posMixMin: '最低', posMixAddRole: '+ 添加职位', posMixRemoveRole: '删除 {role} 行', posNoRoles: '请至少添加一个职位以生成预测。', posCoversWarning: 'CSV 中无客数数据 — 按客数比例的职位将使用营收估算。', posTargetsSavedMulti: '已保存 {n} 个目标，共涉及 {roles} 个职位。', posPreviewHeaderDate: '日期', posPreviewHeaderRevenue: '营收', posPreviewHeaderCovers: '客数', posCsvA11yHint: '粘贴包含以下列的 CSV：date、revenue、covers、notes', posPreviewCount: '显示第 {n} / 共 {total} 行', posRevenuePerHour: '营收 / 工时（$）', posRevenuePerHourPlaceholder: '50', posShiftHours: '平均班次时长', posShiftHoursPlaceholder: '8', posSmoothing: '平滑处理（天）', posText: '粘贴 CSV（日期、营收、客流量、备注）', posPreviewBtn: '预览 CSV', posGenerateBtn: '生成 {n} 个需求目标', posGenerating: '生成中…', posDone: '已从 POS 数据保存 {n} 个目标', posError: '错误：{msg}', posTooltip: '上传 POS 销售 CSV 文件，自动计算每日所需员工人数。系统采用滚动平均值对营收数据进行平滑处理，并根据您设定的每工时营收目标换算出所需人力。', posPresetFine: '精致餐饮', posPresetCasual: '休闲餐饮', posPresetBar: '酒吧 / 咖啡馆', posPresetQSR: '快速服务', posPresetCustom: '自定义', posMixTitle: '岗位人员配比', posMixDesc: '根据预期客流量或营收，设置各岗位所需的员工人数。', posMixRole: '岗位', posMixRolePlaceholder: '例如：服务员'
     },
 
     roster: {
@@ -341,9 +357,25 @@ export const zh = {
         scheduled: '已排 {n}',
         shortfall: '缺口：{n}',
       },
-      tooltip: '🗓 实时排班日历。保存班次后立即显示。点击"发布"锁定班次，然后点击"通知"提醒员工。已发布班次将向分析页面提供工时和覆盖数据。',
+      tooltip: '🗓 实时排班日历。保存班次后立即显示。点击"发布"锁定班次，然后点击"通知"提醒员工。已发布班次将向分析页面提供工时和覆盖数据。', calendarView: '日历', listView: '列表', noShiftsThisWeek: '本周暂无班次。', maximize: '全屏日历', closeFullscreen: '退出全屏', weekOf: '{date} 所在周', prevWeek: '上一周', nextWeek: '下一周', today: '今天'
     },
-  },
+    pos: {
+      sectionTitle: 'POS 销售数据上传',
+      sectionSubtitle: '上传 CSV 营收数据以增强需求预测。',
+      tooltip: '💰 上传您的销售终端 (POS) 销售数据（CSV），以解锁更智能的预测。预测引擎将利用星期季节性规律、营收趋势及人均营收效率更准确地预测需求。支持字段：date（日期）、revenue（营收）、covers（可选）、notes（可选）。',
+      uploadButton: '选择 CSV 文件',
+      pasteLabel: '粘贴 CSV 内容',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: '预览（{n} 行）',
+      uploadAction: '上传 {n} 行',
+      uploadSuccess: '已成功保存 {n} 行',
+      uploadError: '上传失败：{msg}',
+      validationErrors: '发现 {n} 个验证错误',
+      resetButton: '清除',
+      noFile: '未选择文件',
+      csvHelp: '支持格式：date（YYYY-MM-DD）、revenue（数字）、covers（可选整数）、notes（可选文本）。每次最多上传 1,000 行。',
+      dropHint: '拖放 .csv 文件至此处，或点击浏览',
+    }},
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
   weekday: { sun: '日', mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六' },
@@ -361,7 +393,7 @@ export const zh = {
     coverageShort: '{s}/{r} 人手不足',
     monthView: '月',
     weekView: '周',
-    monthLabel: '{year}年{month}',
+    monthLabel: '{year}年{month}', prevMonth: '上个月', nextMonth: '下个月'
   },
 
   analytics: {
@@ -589,5 +621,32 @@ export const zh = {
     desc: '您已完成导览，现在拥有构建更智能排班、减少缺勤并保持团队同步所需的一切。您精彩的第一周，从现在开始。',
   },
 },
+
+  teamInvite: {
+    managerTitle: '邀请团队成员',
+    workerTitle: '加入管理员的团队',
+    managerSubtitle: '将此邀请码分享给员工，让他们加入您的团队。',
+    workerSubtitle: '输入管理员分享给您的邀请码。',
+    inviteCodeLabel: '邀请码',
+    workerEmailLabel: '员工邮箱（可选）',
+    workerEmailPlaceholder: 'worker@example.com',
+    emailNote: '仅供您参考 — 不会发送任何邮件。',
+    copyCode: '复制邀请码',
+    codeShared: '✓ 邀请码已分享！',
+    regenerate: '重新生成',
+    joinTeam: '加入团队',
+    joinedTitle: '您已成功加入团队！',
+    joinedSub: '已加入！欢迎来到团队。',
+    invalidCode: '邀请码无效，请向管理员索取正确的邀请码。',
+    close: '关闭',
+    closeA11y: '关闭弹窗',
+    inviteCodeInputA11y: '输入邀请码',
+    copyA11y: '复制邀请码',
+    regenerateA11y: '重新生成邀请码',
+    joinA11y: '使用邀请码加入团队',
+    emailInputA11y: '员工邮箱地址输入框',
+    errorRegenerate: '无法重新生成邀请码，请重试。',
+    errorShare: '无法分享邀请码，请手动复制。',
+  },
 
 } as const;

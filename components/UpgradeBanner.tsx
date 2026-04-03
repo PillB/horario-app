@@ -12,6 +12,7 @@ import { brand, Colors, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
+import { useT } from '@/contexts/LocaleContext';
 
 const CLERK_BILLING_URL = 'https://pleased-falcon-63.clerk.accounts.dev/user/billing';
 
@@ -25,6 +26,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
+  const { t } = useT();
 
   // Pro users don't see any banner
   if (plan === 'user_subscription' && !isTrialing) return null;
@@ -40,14 +42,14 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
     return (
       <View style={[styles.banner, styles.trialBanner]}>
         <View style={styles.trialBadge}>
-          <ThemedText style={styles.trialBadgeText}>TRIAL</ThemedText>
+          <ThemedText style={styles.trialBadgeText}>{t('upgrade.trial.badge')}</ThemedText>
         </View>
         <View style={styles.trialContent}>
           <ThemedText style={styles.trialText}>
-            Pro trial active — unlimited auto-assigns enabled.
+            {t('upgrade.trial.title')}
           </ThemedText>
           <ThemedText style={styles.trialSub}>
-            $12/mo flat after trial. No per-employee fees.
+            {t('upgrade.trial.subtitle')}
           </ThemedText>
         </View>
       </View>
@@ -56,28 +58,29 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
 
   // Free plan — outcome-framed copy
   const limitReached = autoAssignUsesLeft <= 0;
+  const plural = autoAssignUsesLeft === 1 ? '' : 's';
   const outcomeHeadline = limitReached
-    ? 'Stop building rosters by hand — you\'ve hit the free limit.'
-    : `${autoAssignUsesLeft} free auto-assign${autoAssignUsesLeft === 1 ? '' : 's'} left`;
+    ? t('upgrade.free.limitReached')
+    : t('upgrade.free.autoAssignsLeft', { n: String(autoAssignUsesLeft), plural });
   const outcomeCta = limitReached
-    ? 'Unlock unlimited auto-assigns — no per-employee fees →'
-    : 'Auto-assign your whole team in one tap. Try Pro free 10 days →';
+    ? t('upgrade.free.ctaUnlimited')
+    : t('upgrade.free.cta');
 
   return (
     <Pressable
       onPress={openBilling}
       style={({ pressed }) => [styles.banner, styles.freeBanner, pressed && styles.bannerPressed]}
       accessibilityRole="button"
-      accessibilityLabel="Upgrade to Pro plan"
-      accessibilityHint="Opens billing page to start your free Pro trial">
+      accessibilityLabel={t('upgrade.buttonA11y')}
+      accessibilityHint={t('upgrade.buttonHint')}>
       <View style={styles.bannerContent}>
         <View style={styles.freeBadge}>
-          <ThemedText style={styles.freeBadgeText}>FREE</ThemedText>
+          <ThemedText style={styles.freeBadgeText}>{t('upgrade.free.badge')}</ThemedText>
         </View>
         <View style={styles.bannerText}>
           <ThemedText style={styles.freePlanTitle}>{outcomeHeadline}</ThemedText>
           <ThemedText style={styles.freePlanCta}>{outcomeCta}</ThemedText>
-          <ThemedText style={styles.pricingNote}>$12/mo flat · no per-employee fees · cancel anytime</ThemedText>
+          <ThemedText style={styles.pricingNote}>{t('upgrade.free.pricing')}</ThemedText>
         </View>
       </View>
     </Pressable>

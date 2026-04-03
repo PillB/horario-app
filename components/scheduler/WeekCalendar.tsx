@@ -687,6 +687,7 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
             onPress={toggleViewMode}
             style={styles.viewToggleButton}
             accessibilityRole="button"
+            testID="week-calendar-view-toggle"
             accessibilityLabel={
               viewMode === 'week'
                 ? t('weekCalendar.monthView')

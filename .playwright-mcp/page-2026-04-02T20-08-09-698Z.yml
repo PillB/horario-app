@@ -1,0 +1,160 @@
+- generic [ref=e1]:
+  - generic [ref=e13]:
+    - generic [ref=e16]:
+      - generic:
+        - generic:
+          - generic:
+            - heading "Inicio" [level=1] [ref=e18]
+            - generic [ref=e19]:
+              - button "Start app tour" [ref=e20] [cursor=pointer]:
+                - generic [ref=e21]: "?"
+              - button "Seleccionar idioma de la aplicación" [ref=e23] [cursor=pointer]:
+                - generic [ref=e24]: 🇪🇸 ES
+              - button "Sign out" [ref=e25] [cursor=pointer]
+      - generic [ref=e29]:
+        - generic [ref=e31]:
+          - generic [ref=e33]: H
+          - generic [ref=e34]: Horario
+          - generic [ref=e35]: Smart scheduling, simplified.
+        - generic [ref=e37]:
+          - generic [ref=e39]:
+            - generic [ref=e40]:
+              - generic [ref=e41]: Reduce las ausencias asignando disponibilidad a la demanda en segundos.
+              - generic [ref=e42]: Mantén la disponibilidad, las plantillas y el estado del roster sincronizados.
+            - link "Abrir el Planificador para gestionar turnos" [ref=e43] [cursor=pointer]:
+              - /url: /scheduler
+              - generic [ref=e44]: Abrir Planificador
+          - generic [ref=e45]:
+            - generic [ref=e46]: Esta semana
+            - generic [ref=e207]:
+              - generic [ref=e208]:
+                - generic [ref=e209]: "2"
+                - generic [ref=e210]: Turnos programados
+              - generic [ref=e212]:
+                - generic [ref=e213]: "0"
+                - generic [ref=e214]: Roles por cubrir
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - generic [ref=e55]: Racha de salud del roster
+              - generic [ref=e57]: 1 day streak
+            - generic [ref=e58]: "Longest streak: 1 days. Log an action to extend it."
+            - progressbar "Racha de salud del roster streak progress" [ref=e59]
+            - generic [ref=e61]:
+              - generic [ref=e62]: Great start
+              - generic [ref=e63]: Saved your first update—keep a steady pace rather than rushing.
+            - generic [ref=e65] [cursor=pointer]: Log today’s progress
+          - generic [ref=e66]:
+            - generic [ref=e67]: Próximos turnos
+            - generic [ref=e215]:
+              - generic [ref=e216]:
+                - generic [ref=e217]: Maria Santos
+                - generic [ref=e218]: Morning Barista • 07:00–15:00
+              - generic [ref=e219]: 2026-04-03
+            - generic [ref=e220]:
+              - generic [ref=e221]:
+                - generic [ref=e222]: Alice Chen
+                - generic [ref=e223]: Morning Server • 09:00–17:00
+              - generic [ref=e224]: 2026-04-06
+          - generic [ref=e78]:
+            - generic [ref=e79]: Brechas de personal
+            - generic [ref=e225]: Todos los turnos tienen personal completo.
+          - generic [ref=e87]:
+            - generic [ref=e88]: Acciones rápidas
+            - generic [ref=e89]:
+              - link "Agregar actualización de disponibilidad" [ref=e90] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e91]: Agregar disponibilidad
+                - generic [ref=e92]: Captura cambios del equipo
+              - link "Construir turnos desde plantillas" [ref=e93] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e94]: Construir turnos
+                - generic [ref=e95]: Empezar desde plantillas
+              - link "Publicar roster" [ref=e96] [cursor=pointer]:
+                - /url: /scheduler
+                - generic [ref=e97]: Publicar roster
+                - generic [ref=e98]: Revisar objetivos vs cobertura
+          - generic [ref=e99]:
+            - generic [ref=e100]: Construye tu equipo
+            - generic [ref=e101]: Agrega trabajadores para desbloquear la asignación automática y el seguimiento de cobertura.
+            - button "Invitar a un miembro del equipo a tu roster" [ref=e102] [cursor=pointer]:
+              - generic [ref=e103]: Invitar a un miembro del equipo →
+          - generic [ref=e105]:
+            - generic [ref=e106]: Personalized actions
+            - generic [ref=e107]:
+              - button "Log today’s availability updates. Capture new PTO and swaps to keep forecasts honest." [ref=e108] [cursor=pointer]:
+                - generic [ref=e109]:
+                  - generic [ref=e110]: Log today’s availability updates
+                  - generic [ref=e111]: 100%
+                - generic [ref=e112]: Capture new PTO and swaps to keep forecasts honest.
+              - button "Review demand signals. Compare targets with fresh signals before publishing." [ref=e113] [cursor=pointer]:
+                - generic [ref=e114]:
+                  - generic [ref=e115]: Review demand signals
+                  - generic [ref=e116]: 76%
+                - generic [ref=e117]: Compare targets with fresh signals before publishing.
+              - button "Publish the weekend roster. Nudge draft shifts into publish-ready state." [ref=e118] [cursor=pointer]:
+                - generic [ref=e119]:
+                  - generic [ref=e120]: Publish the weekend roster
+                  - generic [ref=e121]: 76%
+                - generic [ref=e122]: Nudge draft shifts into publish-ready state.
+              - button "Take a stretch break. Pause for a moment—well-rested planners catch more gaps." [ref=e123] [cursor=pointer]:
+                - generic [ref=e124]:
+                  - generic [ref=e125]: Take a stretch break
+                  - generic [ref=e126]: 57%
+                - generic [ref=e127]: Pause for a moment—well-rested planners catch more gaps.
+          - generic [ref=e129]:
+            - generic [ref=e130]: Achievements
+            - generic [ref=e131]:
+              - generic [ref=e132]:
+                - generic [ref=e133]:
+                  - generic [ref=e134]:
+                    - generic [ref=e135]: Revisiones de cobertura consistentes
+                    - generic [ref=e136]: Registraste actualizaciones 5 de los últimos 7 días.
+                  - generic [ref=e137]: 14%
+                - generic [ref=e140]: 1 of 7
+              - generic [ref=e141]:
+                - generic [ref=e142]:
+                  - generic [ref=e143]:
+                    - generic [ref=e144]: Borradores publicados
+                    - generic [ref=e145]: Mueve los borradores a publicado cuando los equipos estén listos.
+                  - generic [ref=e146]: 60%
+                - generic [ref=e149]: 3 of 5
+    - tablist [ref=e151]:
+      - tab "  Inicio" [selected] [ref=e153] [cursor=pointer]:
+        - generic [ref=e154]:
+          - generic [ref=e156]: 
+          - generic [ref=e158]: 
+        - generic [ref=e159]: Inicio
+      - tab "  Planificador" [ref=e161] [cursor=pointer]:
+        - generic [ref=e162]:
+          - generic [ref=e165]: 
+          - generic [ref=e168]: 
+        - generic [ref=e169]: Planificador
+      - tab "  Analítica" [ref=e171] [cursor=pointer]:
+        - generic [ref=e172]:
+          - generic [ref=e174]: 
+          - generic [ref=e176]: 
+        - generic [ref=e177]: Analítica
+      - tab "⏷ ⏷ profile" [ref=e179] [cursor=pointer]:
+        - generic [ref=e180]:
+          - generic [ref=e182]: ⏷
+          - generic [ref=e184]: ⏷
+        - generic [ref=e185]: profile
+      - tab "⏷ ⏷ diagnostics" [ref=e187] [cursor=pointer]:
+        - generic [ref=e188]:
+          - generic [ref=e190]: ⏷
+          - generic [ref=e192]: ⏷
+        - generic [ref=e193]: diagnostics
+  - dialog [ref=e227]:
+    - 'alert "Tour step 1 of 8: Bienvenido a tu panel de control" [ref=e229]':
+      - generic [ref=e231]:
+        - generic [ref=e232]: Paso 1 de 8
+        - generic [ref=e234]: 👔 Manager
+      - generic [ref=e235]: Bienvenido a tu panel de control
+      - generic [ref=e236]: "Desde aquí gestionas todo: horarios, equipo y turnos, en un solo lugar."
+      - button "Por qué importa esto" [active] [ref=e238] [cursor=pointer]:
+        - generic [ref=e239]: ▼ Por qué importa esto
+      - generic [ref=e240]:
+        - button "Saltar tour" [ref=e242] [cursor=pointer]:
+          - generic [ref=e243]: Saltar tour
+        - button "Siguiente →" [ref=e244] [cursor=pointer]:
+          - generic [ref=e245]: Siguiente →

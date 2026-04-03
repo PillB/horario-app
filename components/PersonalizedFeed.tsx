@@ -6,6 +6,7 @@ import type { RankedFeedItem } from '@/hooks/usePersonalizedFeed';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import type { ThemeColors } from '@/constants/Colors';
+import { useT } from '@/contexts/LocaleContext';
 
 type PersonalizedFeedProps = {
   items: RankedFeedItem[];
@@ -16,12 +17,13 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
+  const { t } = useT();
 
   if (!items.length) return null;
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="subtitle">Personalized actions</ThemedText>
+      <ThemedText type="subtitle">{t('home.personalizedActions.title')}</ThemedText>
       <View style={styles.list}>
         {items.map((item) => (
           <Pressable

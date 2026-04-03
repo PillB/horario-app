@@ -1,7 +1,7 @@
 export const de = {
   meta: { langCode: 'de', langName: 'German', langNameNative: 'Deutsch', flag: '🇩🇪' },
   nav: { home: 'Startseite', scheduler: 'Dienstplan', analytics: 'Analyse', signOut: 'Abmelden', signOutA11y: 'Von Ihrem Konto abmelden', languageSelector: 'Sprache' },
-  common: { save: 'Speichern', cancel: 'Abbrechen', dismiss: 'Schließen', retry: 'Erneut versuchen', add: 'Hinzufügen', done: 'Fertig', loading: 'Lädt…', tryAgain: 'Erneut versuchen', publish: 'Veröffentlichen', unpublish: 'Veröffentlichung aufheben', notify: 'Benachrichtigen', notified: 'Benachrichtigt', draft: 'Entwurf', published: 'Veröffentlicht', open: 'Öffnen', close: 'Schließen', apply: 'Anwenden', run: 'Ausführen', name: 'Name', role: 'Rolle', date: 'Datum', notes: 'Notizen', days: 'Tage', start: 'Beginn', end: 'Ende', from: 'Von', to: 'Bis', required: 'Erforderlich', coverage: 'Abdeckung', worker: 'Mitarbeiter', template: 'Vorlage', needed: '{n} benötigt', shortfall: 'Fehlstellen: {n}', scheduled: '{n} eingeplant', applying: 'Wird angewendet…' },
+  common: { save: 'Speichern', cancel: 'Abbrechen', dismiss: 'Schließen', retry: 'Erneut versuchen', add: 'Hinzufügen', done: 'Fertig', loading: 'Lädt…', tryAgain: 'Erneut versuchen', publish: 'Veröffentlichen', unpublish: 'Veröffentlichung aufheben', notify: 'Benachrichtigen', notified: 'Benachrichtigt', draft: 'Entwurf', published: 'Veröffentlicht', open: 'Öffnen', close: 'Schließen', apply: 'Anwenden', run: 'Ausführen', name: 'Name', role: 'Rolle', date: 'Datum', notes: 'Notizen', days: 'Tage', start: 'Beginn', end: 'Ende', from: 'Von', to: 'Bis', required: 'Erforderlich', coverage: 'Abdeckung', worker: 'Mitarbeiter', template: 'Vorlage', needed: '{n} benötigt', shortfall: 'Fehlstellen: {n}', scheduled: '{n} eingeplant', applying: 'Wird angewendet…', copyToClipboard: 'In Zwischenablage kopieren', copied: 'Kopiert!', auditLogEmpty: 'Noch keine Protokolleinträge vorhanden.', exportDiagnostics: 'Diagnose exportieren' },
   // ─── Timezone ──────────────────────────────────────────────────────────────
   timezone: {
     schedulingIn: 'Planung in:',
@@ -29,10 +29,27 @@ export const de = {
       blocked: 'Blockiert',
       delayed: 'Verzögert',
     },
-    doneBtn: 'Schließen',
+    doneBtn: 'Schließen', addCommentBtn: 'Kommentar senden', deleteComment: 'Kommentar löschen'
   },
 
-  errors: { somethingWentWrong: 'Etwas ist schiefgelaufen', retryHint: 'Versuchen Sie, den fehlgeschlagenen Abschnitt neu zu laden', networkError: 'Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.', loadFailed: 'Laden fehlgeschlagen. Tippen Sie zum Wiederholen.' },
+  errors: { somethingWentWrong: 'Etwas ist schiefgelaufen', retryHint: 'Versuchen Sie, den fehlgeschlagenen Abschnitt neu zu laden', networkError: 'Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.', loadFailed: 'Laden fehlgeschlagen. Tippen Sie zum Wiederholen.' ,
+    validation: {
+      WORKER_REQUIRED: 'Bitte eine Arbeitskraft auswählen.',
+      DAY_REQUIRED: 'Bitte einen Tag auswählen.',
+      TIMES_REQUIRED: 'Bitte Start- und Endzeit eingeben.',
+      WORKER_NOT_FOUND: 'Diese Mitarbeiter-ID stimmt mit keiner vorhandenen Arbeitskraft überein.',
+      DAY_INVALID: 'Der Tag muss Mo, Di, Mi, Do, Fr, Sa oder So sein.',
+      FROM_TIME_INVALID: 'Die Startzeit muss im Format HH:MM angegeben werden (z. B. 09:00).',
+      TO_TIME_INVALID: 'Die Endzeit muss im Format HH:MM angegeben werden (z. B. 17:00).',
+      FROM_BEFORE_TO: 'Die Startzeit muss vor der Endzeit liegen.',
+      AVAILABILITY_OVERLAP: 'Überschneidung mit einem vorhandenen Block am {day} ({from}–{to}).',
+      AVAILABILITY_DUPLICATE: 'Dieses Verfügbarkeitsfenster ist für diese Arbeitskraft bereits vorhanden.',
+      TEMPLATE_MISSING: 'Die Schichtvorlage für diesen Slot ist nicht mehr verfügbar.',
+      WORKER_MISSING: 'Die dieser Schicht zugewiesene Arbeitskraft ist nicht mehr verfügbar.',
+      ROLE_MISMATCH: 'Die Rolle der Arbeitskraft ({workerRole}) entspricht nicht der erforderlichen Rolle ({templateRole}).',
+      COVERAGE_MISSING: 'Die Arbeitskraft ist am {weekday} für das Zeitfenster {start}–{end} nicht verfügbar.',
+      SHIFT_OVERLAP: 'Die Arbeitskraft hat am {date} bereits eine Schicht von {start} bis {end}.',
+    }},
   home: {
     hero: { tagline1: 'Reduzieren Sie Fehlzeiten, indem Sie Verfügbarkeit in Sekunden der Nachfrage zuordnen.', tagline2: 'Halten Sie Mitarbeiterverfügbarkeit, Vorlagen und Dienstplanstatus synchron.' },
     openScheduler: 'Dienstplan öffnen', openSchedulerA11y: 'Dienstplan öffnen, um Schichten zu planen', openSchedulerHint: 'Öffnet die Planungsansicht, um Verfügbarkeit mit Abdeckung abzugleichen',
@@ -40,7 +57,7 @@ export const de = {
     upcomingShifts: { title: 'Bevorstehende Schichten', empty: 'Noch keine Schichten geplant.', buildFirst: 'Ersten Dienstplan erstellen →', buildFirstA11y: 'Ersten Dienstplan erstellen' },
     staffingGaps: { title: 'Personallücken', allStaffed: 'Alle Schichten sind vollständig besetzt.', noTargets: 'Noch keine Bedarfsziele — führen Sie im Dienstplan eine Prognose aus.', open: '{n} offen', requiredCount: '{n} erforderlich' },
     quickActions: { title: 'Schnellaktionen', addAvailability: 'Verfügbarkeit hinzufügen', addAvailabilityA11y: 'Verfügbarkeitsaktualisierung hinzufügen', addAvailabilityHint: 'Neue Verfügbarkeitsdetails im Dienstplan erfassen', addAvailabilityDesc: 'Änderungen vom Betrieb erfassen', buildShifts: 'Schichten erstellen', buildShiftsA11y: 'Schichten aus Vorlagen erstellen', buildShiftsHint: 'Öffnet den Dienstplan, um Schichten anhand von Vorlagen zu generieren', buildShiftsDesc: 'Mit Vorlagen beginnen', publishRoster: 'Dienstplan veröffentlichen', publishRosterA11y: 'Dienstplan veröffentlichen', publishRosterHint: 'Ziele überprüfen und Dienstplan für Ihr Team veröffentlichen', publishRosterDesc: 'Ziele vs. Abdeckung prüfen' },
-    achievements: { title: 'Erfolge', coverageChecks: 'Konsistente Abdeckungsprüfungen', coverageChecksDesc: '5 der letzten 7 Tage Aktualisierungen protokolliert.', draftsPublished: 'Entwürfe veröffentlicht', draftsPublishedDesc: 'Verschieben Sie Entwürfe zur Veröffentlichung, wenn Teams bereit sind.' },
+    achievements: { title: 'Erfolge', coverageChecks: 'Konsistente Abdeckungsprüfungen', coverageChecksDesc: '5 der letzten 7 Tage Aktualisierungen protokolliert.', draftsPublished: 'Entwürfe veröffentlicht', draftsPublishedDesc: 'Verschieben Sie Entwürfe zur Veröffentlichung, wenn Teams bereit sind.', notStarted: 'Nicht begonnen' },
     weekStats: {
       title: 'Diese Woche',
       scheduled: 'Geplante Schichten',
@@ -62,9 +79,25 @@ export const de = {
     availability: { sectionTitle: 'Verfügbarkeitserfassung', sectionSubtitle: 'Aktuelle Änderungen vor der Dienstplanerstellung erfassen.', workerIdLabel: 'Mitarbeiter-ID', workerIdPlaceholder: 'Mitarbeiter-ID', dayLabel: 'Tag', dayPlaceholder: 'Mo', fromLabel: 'Von', fromPlaceholder: '09:00', toLabel: 'Bis', toPlaceholder: '17:00', addButton: 'Verfügbarkeit hinzufügen', savedTitle: 'Verfügbarkeit gespeichert.', savedNext: 'Jetzt einer Vorlage zuweisen.', assignNow: 'Jetzt einer Vorlage zuweisen', assignNowHint: 'Springt zum Abschnitt Schichterstellung', tooltip: '📅 Die Verfügbarkeit teilt dem Dienstplan mit, wann jeder Mitarbeiter arbeiten kann. Verwenden Sie Mo–So-Kürzel und die 24-Stunden-Zeit (09:00–17:00). Das automatische Zuweisungssystem setzt Mitarbeiter nur in Schichten ein, die in ihre Verfügbarkeitsfenster passen.' },
     templates: { sectionTitle: 'Schichtvorlagen', sectionSubtitle: 'Standardisieren Sie Beginn-/Endzeiten und Abdeckungserwartungen nach Rolle.', emptyTitle: 'Erste Schicht unten definieren ↓', emptyDesc: 'Mit Vorlagen können Sie einen vollständigen Dienstplan mit einem Tippen erstellen.', addCardTitle: 'Schichtvorlage hinzufügen', addCardSubtitle: 'Definieren Sie eine wiederverwendbare Schicht mit Rolle, Zeitfenster und Mindestabdeckung.', nameLabel: 'Name', namePlaceholder: 'z. B. Morgen', nameA11y: 'Name der Vorlage', nameA11yHint: 'Ein kurzer Name für diese Schichtvorlage', roleLabel: 'Rolle', rolePlaceholder: 'z. B. Support', roleA11y: 'Rolle der Vorlage', roleA11yHint: 'Für diese Vorlage erforderliche Rolle', startLabel: 'Beginn', startA11y: 'Schichtbeginn', startA11yHint: 'Format HH:MM', endLabel: 'Ende', endA11y: 'Schichtende', endA11yHint: 'Format HH:MM', coverageLabel: 'Abdeckung', coveragePlaceholder: '1', coverageA11y: 'Erforderliche Abdeckung', coverageA11yHint: 'Mindestanzahl benötigter Mitarbeiter', addButton: 'Vorlage hinzufügen', addButtonA11y: 'Vorlage hinzufügen', addButtonHint: 'Neue Schichtvorlage speichern', savedSuccess: 'Vorlage „{name}" gespeichert! Sie können dieser Schicht jetzt automatisch Mitarbeiter zuweisen.', needed: '{n} benötigt', tooltip: '🗂 Vorlagen sind wiederverwendbare Schichtpläne. Definieren Sie "Morgen Support 09:00–17:00, 1 Mitarbeiter benötigt" einmal und verwenden Sie es jede Woche wieder. Vorlagen treiben das automatische Zuweisungssystem an — je mehr Sie hinzufügen, desto intelligenter werden die Vorschläge.' },
     shifts: { sectionTitle: 'Schichterstellung', sectionSubtitle: 'Weisen Sie Mitarbeiter für bestimmte Termine Vorlagen zu.', workerLabel: 'Mitarbeiter', workerPlaceholder: 'Mitarbeiter-ID', templateLabel: 'Vorlage', templatePlaceholder: 'Vorlagen-ID', dateLabel: 'Datum', datePlaceholder: 'YYYY-MM-DD', saveButton: 'Speichern und Team benachrichtigen', saveButtonA11y: 'Speichern und Team benachrichtigen', autoAssignButton: 'Automatisch zuweisen', autoAssignA11y: 'Mitarbeiter automatisch allen Vorlagen für dieses Datum zuweisen', autoAssignHint: 'Führt den fairnessbasierten Zuweisungsalgorithmus aus', applyButton: 'Vorschläge anwenden', applyingButton: 'Wird angewendet…', suggestions: '{n} Zuweisungsvorschlag/-vorschläge bereit', suggestionItem: '{worker} → {template} am {date}', tooltip: '📋 Wenn Sie Mitarbeiter und Vorlagen haben, erstellen Sie hier einzelne Schichten. Geben Sie das Datum ein, wählen Sie den Mitarbeiter und die Vorlage, dann speichern. Oder verwenden Sie die automatische Zuweisung, um alle Vorlagen mit einem Tippen zu füllen — sie berücksichtigt Verfügbarkeit, Rolleneignung und Fairness.' },
-    demand: { sectionTitle: 'Bedarfsziele', sectionSubtitle: 'Definieren Sie den erwarteten Bedarf und Personallücken nach Rolle.', quickSetupTab: 'Schnelleinrichtung', fallbackTab: 'Fallback', quickSetupDesc: 'Grundbedarf eingeben, wenn keine historischen Schichten oder externe Signale verfügbar sind.', homogeneous: 'Homogener Bedarf', manualCounts: 'Manuelle Mitarbeiter-/Schichtzahlen', roleLabel: 'Rolle', rolePlaceholder: 'Support', startDateLabel: 'Startdatum', startDatePlaceholder: 'YYYY-MM-DD', daysLabel: 'Tage', daysCoverage: '7', dailyDemandLabel: 'Täglicher Bedarf', shiftsPerDayLabel: 'Schichten pro Tag', workersPerShiftLabel: 'Mitarbeiter pro Schicht', notesLabel: 'Notizen', notesPlaceholder: 'Basiswert während wir Verlaufsdaten sammeln', saveBaseline: 'Basisziele speichern', dateLabel: 'Datum', datePlaceholder: 'YYYY-MM-DD', targetNotesPlaceholder: 'Rückstand, Aktion, usw.', saveTarget: 'Ziel speichern', runForecast: 'Prognose mit heutigen Signalen ausführen', runForecastA11y: 'Prognose mit heutigen Signalen ausführen', noForecastData: 'Keine historischen Schichten oder externe Signale gefunden. Verwenden Sie die Schnelleinrichtung, um Bedarfsziele zu hinterlegen.', lostRevenue: 'Gefährdeter Umsatz', lostRevenueDesc: 'Geschätzter Umsatz, der durch unbesetzte Rollen vor und nach der Prognose gefährdet ist.', uncovered: 'Unbesetzt: {n}', ci: 'KI: {low} – {high}', confidence: '{pct}% Konfidenz', source: 'Quelle: {src}', requiredLabel: '{n} benötigt', tooltip: '📈 Bedarfsziele teilen dem Dienstplan mit, wie viele Mitarbeiter Sie pro Rolle und Tag benötigen. Beginnen Sie mit der "Schnelleinrichtung", um eine Woche Grundbedarf einzugeben, und führen Sie dann eine Prognose aus, um KI-gestützte Ziele basierend auf Ihren historischen Schichten und externen Signalen zu erhalten.' },
-    roster: { sectionTitle: 'Kalender & Dienstplan', sectionSubtitle: 'Überprüfen Sie, was veröffentlicht ist und wo Sie Abdeckungslücken haben.', secured: 'Nächste 7 Tage gesichert.', emptyTitle: 'Weisen Sie Schichten zu, um Ihren Dienstplan hier zu sehen ↑', emptyDesc: 'Erstellen Sie oben unter „Schichterstellung" eine Schicht — sie erscheint sofort hier.', publishA11y: 'Diese Schicht veröffentlichen', unpublishA11y: 'Diese Schicht zurück in den Entwurf verschieben', notifyA11y: 'Benachrichtigung für diese Schicht senden', upcoming: { title: 'Bevorstehende Schichten', subtitle: 'Dem nächsten Dienstplanfenster voraus sein.', empty: 'Noch keine veröffentlichten Schichten — veröffentlichen Sie oben eine Schicht, um sie hier zu sehen.' }, gaps: { title: 'Personallücken', subtitle: 'Unterbesetzte Rollen im gesamten Planungshorizont hervorheben.', allCovered: 'Die Abdeckung erfüllt die aktuellen Bedarfsziele.', scheduled: '{n} eingeplant', shortfall: 'Fehlstellen: {n}' }, tooltip: '🗓 Ihr Live-Dienstplankalender. Schichten erscheinen, sobald Sie sie speichern. Klicken Sie auf „Veröffentlichen", um eine Schicht festzuschreiben, dann auf „Benachrichtigen", um den Mitarbeiter zu informieren. Veröffentlichte Schichten versorgen den Analyse-Tab mit Stunden- und Abdeckungsdaten.' },
-  },
+    demand: { sectionTitle: 'Bedarfsziele', sectionSubtitle: 'Definieren Sie den erwarteten Bedarf und Personallücken nach Rolle.', quickSetupTab: 'Schnelleinrichtung', fallbackTab: 'Fallback', quickSetupDesc: 'Grundbedarf eingeben, wenn keine historischen Schichten oder externe Signale verfügbar sind.', homogeneous: 'Homogener Bedarf', manualCounts: 'Manuelle Mitarbeiter-/Schichtzahlen', roleLabel: 'Rolle', rolePlaceholder: 'Support', startDateLabel: 'Startdatum', startDatePlaceholder: 'YYYY-MM-DD', daysLabel: 'Tage', daysCoverage: '7', dailyDemandLabel: 'Täglicher Bedarf', shiftsPerDayLabel: 'Schichten pro Tag', workersPerShiftLabel: 'Mitarbeiter pro Schicht', notesLabel: 'Notizen', notesPlaceholder: 'Basiswert während wir Verlaufsdaten sammeln', saveBaseline: 'Basisziele speichern', dateLabel: 'Datum', datePlaceholder: 'YYYY-MM-DD', targetNotesPlaceholder: 'Rückstand, Aktion, usw.', saveTarget: 'Ziel speichern', runForecast: 'Prognose mit heutigen Signalen ausführen', runForecastA11y: 'Prognose mit heutigen Signalen ausführen', noForecastData: 'Keine historischen Schichten oder externe Signale gefunden. Verwenden Sie die Schnelleinrichtung, um Bedarfsziele zu hinterlegen.', lostRevenue: 'Gefährdeter Umsatz', lostRevenueDesc: 'Geschätzter Umsatz, der durch unbesetzte Rollen vor und nach der Prognose gefährdet ist.', uncovered: 'Unbesetzt: {n}', ci: 'KI: {low} – {high}', confidence: '{pct}% Konfidenz', source: 'Quelle: {src}', requiredLabel: '{n} benötigt', tooltip: '📈 Bedarfsziele teilen dem Dienstplan mit, wie viele Mitarbeiter Sie pro Rolle und Tag benötigen. Beginnen Sie mit der "Schnelleinrichtung", um eine Woche Grundbedarf einzugeben, und führen Sie dann eine Prognose aus, um KI-gestützte Ziele basierend auf Ihren historischen Schichten und externen Signalen zu erhalten.', posMixRatioMode: 'Nach', posMixCovers: 'Gäste', posMixRevenue: 'Umsatz', posMixPerWorker: '/MA', posMixMin: 'Min', posMixAddRole: '+ Rolle hinzufügen', posMixRemoveRole: 'Zeile {role} entfernen', posNoRoles: 'Fügen Sie mindestens eine Rolle hinzu, um Prognosen zu erstellen.', posCoversWarning: 'Keine Gästedaten in der CSV — Umsatzschätzung wird für Gästequoten-Rollen verwendet.', posTargetsSavedMulti: '{n} Zielwerte für {roles} Rollen gespeichert.', posPreviewHeaderDate: 'Datum', posPreviewHeaderRevenue: 'Umsatz', posPreviewHeaderCovers: 'Gäste', posCsvA11yHint: 'CSV einfügen mit Spalten: Datum, Umsatz, Gäste, Notizen', posPreviewCount: '{n} von {total} Zeilen angezeigt', posRevenuePerHour: 'Umsatz / Arbeitsstunde ($)', posRevenuePerHourPlaceholder: '50', posShiftHours: 'Durchschn. Schichtstunden', posShiftHoursPlaceholder: '8', posSmoothing: 'Glättung (Tage)', posText: 'CSV einfügen (Datum, Umsatz, Couverts, Notizen)', posPreviewBtn: 'CSV-Vorschau', posGenerateBtn: '{n} Bedarfsziele generieren', posGenerating: 'Wird generiert…', posDone: '{n} Ziele aus POS-Daten gespeichert', posError: 'Fehler: {msg}', posTooltip: 'Laden Sie eine POS-Verkaufs-CSV hoch, um automatisch zu berechnen, wie viele Mitarbeitende Sie pro Tag benötigen. Die Engine verwendet einen gleitenden Durchschnitt zur Umsatzglättung und berechnet daraus den erforderlichen Personalbestand anhand Ihres Umsatz-pro-Arbeitsstunde-Ziels.', posPresetFine: 'Gehobene Gastronomie', posPresetCasual: 'Casual Dining', posPresetBar: 'Bar / Café', posPresetQSR: 'Schnellservice', posPresetCustom: 'Benutzerdefiniert', posMixTitle: 'Personalverteilung nach Rolle', posMixDesc: 'Legen Sie fest, wie viele Mitarbeitende pro Rolle basierend auf erwarteten Couverts oder dem Umsatz benötigt werden.', posMixRole: 'Rolle', posMixRolePlaceholder: 'z. B. Servicekraft' },
+    roster: { sectionTitle: 'Kalender & Dienstplan', sectionSubtitle: 'Überprüfen Sie, was veröffentlicht ist und wo Sie Abdeckungslücken haben.', secured: 'Nächste 7 Tage gesichert.', emptyTitle: 'Weisen Sie Schichten zu, um Ihren Dienstplan hier zu sehen ↑', emptyDesc: 'Erstellen Sie oben unter „Schichterstellung" eine Schicht — sie erscheint sofort hier.', publishA11y: 'Diese Schicht veröffentlichen', unpublishA11y: 'Diese Schicht zurück in den Entwurf verschieben', notifyA11y: 'Benachrichtigung für diese Schicht senden', upcoming: { title: 'Bevorstehende Schichten', subtitle: 'Dem nächsten Dienstplanfenster voraus sein.', empty: 'Noch keine veröffentlichten Schichten — veröffentlichen Sie oben eine Schicht, um sie hier zu sehen.' }, gaps: { title: 'Personallücken', subtitle: 'Unterbesetzte Rollen im gesamten Planungshorizont hervorheben.', allCovered: 'Die Abdeckung erfüllt die aktuellen Bedarfsziele.', scheduled: '{n} eingeplant', shortfall: 'Fehlstellen: {n}' }, tooltip: '🗓 Ihr Live-Dienstplankalender. Schichten erscheinen, sobald Sie sie speichern. Klicken Sie auf „Veröffentlichen", um eine Schicht festzuschreiben, dann auf „Benachrichtigen", um den Mitarbeiter zu informieren. Veröffentlichte Schichten versorgen den Analyse-Tab mit Stunden- und Abdeckungsdaten.', calendarView: 'Kalender', listView: 'Liste', noShiftsThisWeek: 'Keine Schichten diese Woche.', maximize: 'Kalender im Vollbild', closeFullscreen: 'Vollbild schließen', weekOf: 'Woche vom {date}', prevWeek: 'Vorherige Woche', nextWeek: 'Nächste Woche', today: 'Heute' },
+    pos: {
+      sectionTitle: 'POS-Verkaufsdaten hochladen',
+      sectionSubtitle: 'CSV-Umsatzdaten hochladen, um die Bedarfsprognose zu verbessern.',
+      tooltip: '💰 Laden Sie Ihre Kassensystem-Verkaufsdaten (CSV) hoch, um genauere Prognosen zu erhalten. Das System nutzt Wochentag-Saisonalität, Umsatztrends und Umsatz-pro-Mitarbeiter-Effizienz für präzisere Bedarfsvorhersagen. Akzeptiert: Datum, Umsatz, Gäste (optional), Notizen (optional).',
+      uploadButton: 'CSV-Datei auswählen',
+      pasteLabel: 'CSV-Inhalt einfügen',
+      pastePlaceholder: 'date,revenue,covers,notes\n2026-01-01,1250.50,45,Weekend',
+      previewTitle: 'Vorschau ({n} Zeilen)',
+      uploadAction: '{n} Zeilen hochladen',
+      uploadSuccess: '{n} Zeilen erfolgreich gespeichert',
+      uploadError: 'Upload fehlgeschlagen: {msg}',
+      validationErrors: '{n} Validierungsfehler gefunden',
+      resetButton: 'Zurücksetzen',
+      noFile: 'Keine Datei ausgewählt',
+      csvHelp: 'Akzeptiertes Format: Datum (JJJJ-MM-TT), Umsatz (Zahl), Gäste (optionale Ganzzahl), Notizen (optionaler Text). Bis zu 1.000 Zeilen pro Upload.',
+      dropHint: '.csv-Datei hier ablegen oder tippen, um zu durchsuchen',
+    }},
   // ─── Week calendar ─────────────────────────────────────────────────────────
   weekday: { sun: 'So', mon: 'Mo', tue: 'Di', wed: 'Mi', thu: 'Do', fri: 'Fr', sat: 'Sa' },
   weekCalendar: {
@@ -81,7 +114,7 @@ export const de = {
     coverageShort: '{s}/{r} fehlend',
     monthView: 'Monat',
     weekView: 'Woche',
-    monthLabel: '{month} {year}',
+    monthLabel: '{month} {year}', prevMonth: 'Vorheriger Monat', nextMonth: 'Nächster Monat'
   },
 
   analytics: { title: 'Analyse', subtitle: 'Planungsleistung auf einen Blick.', tooltip: '📊 Echtzeit-Planungsmetriken. Die Abdeckungsrate zeigt, wie viel Nachfrage Sie decken. Gefährdeter Umsatz schätzt, was unbesetzte Slots kosten. Mitarbeiterstunden verfolgt die Fairness in Ihrem Team. Überprüfen Sie diesen Tab nach dem Veröffentlichen von Schichten.', coverageLabel: 'Abdeckung', coverageSub: 'der Nachfrage gedeckt', draftsPending: 'Entwürfe ausstehend', draftsAwaiting: 'warten auf Genehmigung', revenueAtRisk: 'Umsatz gefährdet', revenueDesc: 'Geschätzte Gefährdung durch unbedeckte Bedarfsziele ({n} veröffentlichte Schichten über alle Termine).', workerHours: 'Mitarbeiterstunden', workerHoursSub: 'Nur veröffentlichte Schichten · gesamte Zeit', noPublishedShifts: 'Noch keine veröffentlichten Schichten.', fairness: 'Planungsgerechtigkeit', fairnessSub: 'Standardabweichung der Stunden pro Mitarbeiter — niedriger ist fairer.', fairnessExcellent: 'Ausgezeichnet', fairnessGood: 'Gut', fairnessNeedsAttention: 'Aufmerksamkeit erforderlich', fairnessStdDev: '{n}h Standardabw.', quickActions: 'Schnellaktionen', openScheduler: 'Dienstplan öffnen', openSchedulerDesc: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', openSchedulerHint: 'Zur Planungsansicht wechseln, um Abdeckungslücken zu schließen', retryA11y: 'Analyse erneut laden', retryA11yHint: 'Versucht, die Planungsdaten neu zu laden', errorPrefix: '' },
@@ -194,5 +227,32 @@ export const de = {
     desc: 'Sie haben die Tour abgeschlossen und verfügen über alles, was Sie benötigen, um intelligentere Dienstpläne zu erstellen, unentschuldigte Fehlzeiten zu reduzieren und Ihr Team synchron zu halten. Ihre erste großartige Woche beginnt jetzt.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Teammitglied einladen',
+    workerTitle: 'Team Ihres Vorgesetzten beitreten',
+    managerSubtitle: 'Teilen Sie diesen Code mit Ihrem Mitarbeiter, damit er Ihrem Team beitreten kann.',
+    workerSubtitle: 'Geben Sie den Einladungscode ein, den Ihr Vorgesetzter mit Ihnen geteilt hat.',
+    inviteCodeLabel: 'Einladungscode',
+    workerEmailLabel: 'E-Mail des Mitarbeiters (optional)',
+    workerEmailPlaceholder: 'mitarbeiter@beispiel.com',
+    emailNote: 'Nur für Ihre Aufzeichnungen — es wird keine E-Mail versendet.',
+    copyCode: 'Code kopieren',
+    codeShared: '✓ Code geteilt!',
+    regenerate: 'Neu generieren',
+    joinTeam: 'Team beitreten',
+    joinedTitle: 'Sie sind dem Team beigetreten!',
+    joinedSub: 'Beigetreten! Willkommen im Team.',
+    invalidCode: 'Ungültiger Code. Bitten Sie Ihren Vorgesetzten um den richtigen Code.',
+    close: 'Schließen',
+    closeA11y: 'Dialog schließen',
+    inviteCodeInputA11y: 'Einladungscode eingeben',
+    copyA11y: 'Einladungscode kopieren',
+    regenerateA11y: 'Einladungscode neu generieren',
+    joinA11y: 'Mit Einladungscode dem Team beitreten',
+    emailInputA11y: 'E-Mail-Adresse des Mitarbeiters eingeben',
+    errorRegenerate: 'Code konnte nicht neu generiert werden. Bitte versuchen Sie es erneut.',
+    errorShare: 'Code konnte nicht geteilt werden. Bitte kopieren Sie ihn manuell.',
+  },
 
 } as const;

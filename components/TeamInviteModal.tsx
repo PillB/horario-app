@@ -13,6 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedText } from '@/components/ThemedText';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useT } from '@/contexts/LocaleContext';
 
 export type TeamInviteModalProps = {
   visible: boolean;
@@ -35,6 +36,7 @@ function generateCode(): string {
 
 export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps): React.JSX.Element {
   const colorScheme = useColorScheme() ?? 'light';
+  const { t } = useT();
 
   // Manager state
   const [inviteCode, setInviteCode] = useState<string>('');
@@ -68,7 +70,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
       setInviteCode(newCode);
       setCodeCopied(false);
     } catch {
-      Alert.alert('Error', 'Could not regenerate code. Please try again.');
+      Alert.alert('Error', t('teamInvite.errorRegenerate'));
     }
   }, []);
 
@@ -91,7 +93,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
       });
       setCodeCopied(true);
     } catch {
-      Alert.alert('Error', 'Could not share the code. Please copy it manually.');
+      Alert.alert('Error', t('teamInvite.errorShare'));
     }
   }, [inviteCode]);
 
@@ -179,17 +181,17 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
   const renderManagerContent = (): React.JSX.Element => (
     <>
       <ThemedText style={styles.subtitle}>
-        Share this code with your worker so they can join your team.
+        {t('teamInvite.managerSubtitle')}
       </ThemedText>
 
       <View style={styles.codeSectionLabel}>
-        <ThemedText style={styles.sectionLabel}>Invite Code</ThemedText>
+        <ThemedText style={styles.sectionLabel}>{t('teamInvite.inviteCodeLabel')}</ThemedText>
       </View>
 
       <View style={[styles.codeBox, dynamicStyles.codeBox]}>
         <ThemedText
           style={[styles.codeText, dynamicStyles.codeText]}
-          accessibilityLabel={`Invite code: ${inviteCode.split('').join(' ')}`}
+          accessibilityLabel={`${t('teamInvite.inviteCodeLabel')}: ${inviteCode.split('').join(' ')}`}
         >
           {inviteCode || '------'}
         </ThemedText>
@@ -197,7 +199,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
 
       {codeCopied && (
         <ThemedText style={[styles.copiedFeedback, dynamicStyles.copiedText]}>
-          ✓ Code shared!
+          {t('teamInvite.codeShared')}
         </ThemedText>
       )}
 
@@ -211,9 +213,9 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
           ]}
           onPress={() => { void handleCopyCode(); }}
           accessibilityRole="button"
-          accessibilityLabel="Copy invite code"
+          accessibilityLabel={t('teamInvite.copyA11y')}
         >
-          <ThemedText style={styles.buttonTextLight}>Copy Code</ThemedText>
+          <ThemedText style={styles.buttonTextLight}>{t('teamInvite.copyCode')}</ThemedText>
         </Pressable>
 
         <View style={styles.buttonGap} />
@@ -227,31 +229,31 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
           ]}
           onPress={() => { void regenerateCode(); }}
           accessibilityRole="button"
-          accessibilityLabel="Regenerate invite code"
+          accessibilityLabel={t('teamInvite.regenerateA11y')}
         >
-          <ThemedText style={styles.buttonTextSecondary}>Regenerate</ThemedText>
+          <ThemedText style={styles.buttonTextSecondary}>{t('teamInvite.regenerate')}</ThemedText>
         </Pressable>
       </View>
 
       <View style={[styles.divider, dynamicStyles.divider]} />
 
-      <ThemedText style={styles.sectionLabel}>{'Worker\'s email (optional)'}</ThemedText>
+      <ThemedText style={styles.sectionLabel}>{t('teamInvite.workerEmailLabel')}</ThemedText>
       <TextInput
         style={[styles.input, dynamicStyles.emailInput]}
-        placeholder="worker@example.com"
+        placeholder={t('teamInvite.workerEmailPlaceholder')}
         placeholderTextColor={colorScheme === 'dark' ? '#8E8E93' : '#AEAEB2'}
         value={workerEmail}
         onChangeText={setWorkerEmail}
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
-        accessibilityLabel="Worker email address input"
+        accessibilityLabel={t('teamInvite.emailInputA11y')}
         accessibilityRole="none"
         maxLength={254}
       />
 
       <ThemedText style={styles.emailNote}>
-        For your reference only — no email will be sent.
+        {t('teamInvite.emailNote')}
       </ThemedText>
     </>
   );
@@ -259,23 +261,23 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
   const renderWorkerContent = (): React.JSX.Element => (
     <>
       <ThemedText style={styles.subtitle}>
-        Enter the invite code your manager shared with you.
+        {t('teamInvite.workerSubtitle')}
       </ThemedText>
 
       {joinStatus === 'success' ? (
         <View style={styles.successContainer}>
           <ThemedText style={[styles.successEmoji]}>🎉</ThemedText>
           <ThemedText style={[styles.successMessage, dynamicStyles.successText]}>
-            {'You\'ve joined the team!'}
+            {t('teamInvite.joinedTitle')}
           </ThemedText>
           <ThemedText style={styles.successSub}>
-            Joined! Welcome to the team.
+            {t('teamInvite.joinedSub')}
           </ThemedText>
         </View>
       ) : (
         <>
           <View style={styles.codeSectionLabel}>
-            <ThemedText style={styles.sectionLabel}>Invite Code</ThemedText>
+            <ThemedText style={styles.sectionLabel}>{t('teamInvite.inviteCodeLabel')}</ThemedText>
           </View>
 
           <TextInput
@@ -294,14 +296,14 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={6}
-            accessibilityLabel="Enter invite code"
+            accessibilityLabel={t('teamInvite.inviteCodeInputA11y')}
             accessibilityRole="none"
             keyboardType="default"
           />
 
           {joinStatus === 'error' && (
             <ThemedText style={[styles.errorText, dynamicStyles.errorText]}>
-              Invalid code. Ask your manager for the correct code.
+              {t('teamInvite.invalidCode')}
             </ThemedText>
           )}
 
@@ -316,10 +318,10 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
             onPress={() => { void handleJoinTeam(); }}
             disabled={enteredCode.length !== 6}
             accessibilityRole="button"
-            accessibilityLabel="Join team with invite code"
+            accessibilityLabel={t('teamInvite.joinA11y')}
             accessibilityState={{ disabled: enteredCode.length !== 6 }}
           >
-            <ThemedText style={styles.buttonTextLight}>Join Team</ThemedText>
+            <ThemedText style={styles.buttonTextLight}>{t('teamInvite.joinTeam')}</ThemedText>
           </Pressable>
         </>
       )}
@@ -347,7 +349,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
             {/* Header */}
             <View style={styles.header}>
               <ThemedText style={styles.title} accessibilityRole="header">
-                {mode === 'manager' ? 'Invite a Team Member' : 'Join Your Manager\'s Team'}
+                {mode === 'manager' ? t('teamInvite.managerTitle') : t('teamInvite.workerTitle')}
               </ThemedText>
               <Pressable
                 style={({ pressed }) => [
@@ -357,7 +359,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
                 ]}
                 onPress={handleClose}
                 accessibilityRole="button"
-                accessibilityLabel="Close modal"
+                accessibilityLabel={t('teamInvite.closeA11y')}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <ThemedText style={styles.closeIcon}>✕</ThemedText>
@@ -380,9 +382,9 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
               ]}
               onPress={handleClose}
               accessibilityRole="button"
-              accessibilityLabel="Close invite modal"
+              accessibilityLabel={t('teamInvite.closeA11y')}
             >
-              <ThemedText style={styles.buttonTextSecondary}>Close</ThemedText>
+              <ThemedText style={styles.buttonTextSecondary}>{t('teamInvite.close')}</ThemedText>
             </Pressable>
           </View>
         </View>
