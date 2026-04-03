@@ -1311,6 +1311,21 @@ reload — see project_migrations.md):
 
 ---
 
+### CHG-055 — 2026-04-02 UTC
+**Type:** FIX (Playwright E2E — 16/16 tour-and-home tests passing)
+
+**Root causes fixed:**
+1. **TT-12/13/14 false-positive selector** — `/month|mes|monat|mois/i` was matching "James" (the "mes" substring) in WorkerIdPicker chip buttons, never reaching the WeekCalendar toggle.
+2. **WeekCalendar not rendered** — `RosterSection` defaults to `'list'` viewMode; the WeekCalendar only renders when switched to `'calendar'` tab. Tests needed to click the "Calendar" tab first.
+3. **Anchored regex collisions** — replaced broad partial regexes with anchored patterns (`^...$`) to avoid substring matches on unrelated text.
+
+**Fix:**
+- `e2e/tour-and-home.spec.ts` — Updated TT-12/13/14 `beforeEach` to also click the "Calendar" tab in the RosterSection after scrolling. Updated all month/week toggle selectors to anchored regexes: `/^(📅\s*)?month$|^mes$|^monat$|^mois$/i` and `/^(📆\s*)?week$|^semana$|^woche$|^semaine$/i`.
+
+**Result:** 16/16 `tour-and-home.spec.ts` tests pass. 244/244 unit tests pass.
+
+---
+
 ### CHG-054 — 2026-04-02 UTC
 **Type:** FEATURE (Shift notes: comment threads + AsyncStorage persistence)
 

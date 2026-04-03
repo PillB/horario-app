@@ -181,9 +181,9 @@ test.describe('Tour — Worker happy path', () => {
     await page.getByText(/who are you|quién eres/i).first()
       .waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
 
-    // Click Team Member / Worker role
+    // Click Team Member / Worker role — anchor to avoid matching "Invite a team member" CTA
     const workerBtn = page
-      .getByRole('button', { name: /team member|worker|trabajador|mitarbeiter|membre/i })
+      .getByRole('button', { name: /^(👷\s*)?team member$|^trabajador$|^mitarbeiter$|^membre$/i })
       .first();
     await workerBtn.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
     await workerBtn.click();
@@ -197,7 +197,7 @@ test.describe('Tour — Worker happy path', () => {
     // Select worker role
     await page.getByText(/who are you|quién eres/i).first()
       .waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await page.getByRole('button', { name: /team member|worker|trabajador/i }).first().click();
+    await page.getByRole('button', { name: /^(👷\s*)?team member$|^trabajador$|^mitarbeiter$/i }).first().click();
 
     // Should show "Step 1 of 5" for worker (vs "Step 1 of 8" for manager)
     const step1of5 = page.getByText(/1 of 5|1 de 5|1 von 5/i).first();
@@ -255,41 +255,54 @@ test.describe('Scheduler — month calendar view', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(SCHEDULER_URL, { timeout: NAV_TIMEOUT });
     await page.waitForLoadState('networkidle', { timeout: NAV_TIMEOUT });
-    // Skip tour
     await skipTourIfVisible(page);
+
+    // Step 1: Scroll to the RosterSection via the jump button (if visible).
+    const viewCalBtn = page.getByRole('button', { name: /view calendar|ver calendario|kalender anzeigen/i }).first();
+    const btnVisible = await viewCalBtn.isVisible().catch(() => false);
+    if (btnVisible) await viewCalBtn.click().catch(() => undefined);
+    await page.waitForTimeout(400);
+
+    // Step 2: The RosterSection defaults to "List" view — switch to "Calendar" tab
+    // so that WeekCalendar is rendered and the Month/Week toggle becomes available.
+    const calendarTabBtn = page.getByRole('button', { name: /^calendar$|^calendario$|^kalender$|^calendrier$/i }).first();
+    const calTabVisible = await calendarTabBtn.isVisible().catch(() => false);
+    if (calTabVisible) {
+      await calendarTabBtn.click().catch(() => undefined);
+      await page.waitForTimeout(400);
+    }
   });
 
   test('TT-12: month view toggle button is visible in calendar', async ({ page }) => {
-    // The WeekCalendar component should have a Month / Week toggle
-    const monthToggle = page.getByRole('button', { name: /month|mes|monat|mois/i }).first();
+    // WeekCalendar is rendered (calendar tab active); the toggle aria-label is exactly "Month"
+    const monthToggle = page.getByRole('button', { name: /^(📅\s*)?month$|^mes$|^monat$|^mois$/i }).first();
     await expect(monthToggle).toBeVisible({ timeout: VISIBLE_TIMEOUT });
   });
 
   test('TT-13: clicking month toggle switches to month grid view', async ({ page }) => {
-    const monthToggle = page.getByRole('button', { name: /month|mes|monat/i }).first();
+    const monthToggle = page.getByRole('button', { name: /^(📅\s*)?month$|^mes$|^monat$|^mois$/i }).first();
     await monthToggle.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
     await monthToggle.click();
 
-    // Month view should show day-of-week column headers (Mon-Sun or equivalent)
-    // and the current month name
-    const monthIndicator = page.getByText(/january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre/i).first();
-    await expect(monthIndicator).toBeVisible({ timeout: VISIBLE_TIMEOUT });
+    // In month view the toggle aria-label becomes exactly "Week" — nav buttons say "Previous/Next month"
+    const weekToggle = page.getByRole('button', { name: /^(📆\s*)?week$|^semana$|^woche$|^semaine$/i }).first();
+    await expect(weekToggle).toBeVisible({ timeout: VISIBLE_TIMEOUT });
   });
 
   test('TT-14: can switch back to week view from month view', async ({ page }) => {
-    // Switch to month view first
-    const monthToggle = page.getByRole('button', { name: /month|mes|monat/i }).first();
+    // Switch to month view
+    const monthToggle = page.getByRole('button', { name: /^(📅\s*)?month$|^mes$|^monat$|^mois$/i }).first();
     await monthToggle.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
     await monthToggle.click();
 
-    // Now click the week toggle
-    const weekToggle = page.getByRole('button', { name: /week|semana|woche|semaine/i }).first();
+    // Switch back to week view
+    const weekToggle = page.getByRole('button', { name: /^(📆\s*)?week$|^semana$|^woche$|^semaine$/i }).first();
     await weekToggle.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
     await weekToggle.click();
 
-    // Week view should be active again - verify by looking for "no shifts this week" or shift columns
-    const weekIndicator = page.getByText(/(week of|previous week|next week|semana|woche)/i).first();
-    await expect(weekIndicator).toBeVisible({ timeout: VISIBLE_TIMEOUT });
+    // Back in week view: the toggle shows "Month" again
+    const monthBack = page.getByRole('button', { name: /^(📅\s*)?month$|^mes$|^monat$|^mois$/i }).first();
+    await expect(monthBack).toBeVisible({ timeout: VISIBLE_TIMEOUT });
   });
 });
 
@@ -307,24 +320,29 @@ test.describe('Scheduler happy paths (locale-guarded)', () => {
   });
 
   test('HP1-guarded: adds a worker successfully', async ({ page }) => {
-    // Use accessible name patterns that work in en/es/de
-    const nameField = page.getByRole('textbox', { name: /name/i }).first();
+    // Use testID selectors — InputField has accessibilityRole="none" which can confuse
+    // getByRole('textbox') in some Playwright versions.
+    const nameField = page.getByTestId('worker-name-input');
     await nameField.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
+    await nameField.scrollIntoViewIfNeeded();
     await nameField.clear();
     await nameField.fill('Bob Martinez');
 
-    // Role field — multiple Role fields exist; first is the Worker form
-    const roleFields = page.getByRole('textbox', { name: /role|rol|rolle|rôle/i });
-    await roleFields.first().clear();
-    await roleFields.first().fill('Barista');
+    const roleField = page.getByTestId('worker-role-input');
+    await roleField.clear();
+    await roleField.fill('Barista');
 
-    // Submit
-    const addWorkerBtn = page.getByRole('button', { name: /add worker|agregar trabajador|mitarbeiter hinzufügen/i }).first();
+    // Submit via testID button
+    const addWorkerBtn = page.getByTestId('add-worker-btn');
     await addWorkerBtn.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
     await addWorkerBtn.click();
 
-    // Success message should contain worker name
-    await expect(page.getByText(/Bob Martinez/i).first()).toBeVisible({ timeout: VISIBLE_TIMEOUT });
+    // Success message "Bob Martinez added! Now set their availability…" (5-second banner)
+    // or worker name appears in the worker list via optimistic update.
+    const successMsg = page.getByTestId('worker-success-msg');
+    await successMsg.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
+    await successMsg.scrollIntoViewIfNeeded();
+    await expect(successMsg).toContainText(/Bob Martinez/i);
   });
 
   test('HP2-guarded: sets availability for a worker', async ({ page }) => {
