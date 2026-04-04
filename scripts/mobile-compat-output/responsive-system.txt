@@ -1,0 +1,296 @@
+hooks/useResponsive.ts
+import { useWindowDimensions, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// ─── Breakpoint Types ─────────────────────────────────────────────────────────
+
+export type Breakpoint = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+// ─── Breakpoint Thresholds ────────────────────────────────────────────────────
+
+const BREAKPOINTS: Record<Breakpoint, number> = {
+  xs: 360,
+  sm: 414,
+  md: 768,
+  lg: 1024,
+  xl: Infinity,
+} as const;
+
+// ─── Breakpoint Resolver ──────────────────────────────────────────────────────
+
+function resolveBreakpoint(width: number): Breakpoint {
+  if (width < BREAKPOINTS.xs) return 'xs';
+  if (width < BREAKPOINTS.sm) return 'sm';
+  if (width < BREAKPOINTS.md) return 'md';
+  if (width < BREAKPOINTS.lg) return 'lg';
+  return 'xl';
+}
+
+// ─── Content Padding Horizontal ───────────────────────────────────────────────
+
+function resolveContentPaddingH(breakpoint: Breakpoint): number {
+  switch (breakpoint) {
+    case 'xs':
+    case 'sm':
+      return 16;
+    case 'md':
+      return 20;
+    case 'lg':
+    case 'xl':
+      return 32;
+  }
+}
+
+// ─── Content Max Width ────────────────────────────────────────────────────────
+
+function resolveContentMaxWidth(breakpoint: Breakpoint): number {
+  switch (breakpoint) {
+    case 'xs':
+    case 'sm':
+    case 'md':
+      // Phone: unbounded — caller should treat this as "100%"
+      return 0;
+    case 'lg':
+      return 720;
+    case 'xl':
+      return 960;
+  }
+}
+
+// ─── Font Scale Multipliers ───────────────────────────────────────────────────
+
+const FONT_SCALE_MULTIPLIERS: Record<Breakpoint, number> = {
+  xs: 0.9,
+  sm: 1.0,
+  md: 1.0,
+  lg: 1.05,
+  xl: 1.1,
+} as const;
+
+const FONT_SCALE_MIN = 10;
+const FONT_SCALE_MAX = 48;
+
+// ─── useResponsive Return Type ────────────────────────────────────────────────
+
+export interface UseResponsiveReturn {
+  /** Current active breakpoint based on screen width */
+  breakpoint: Breakpoint;
+  /** Current screen width in logical pixels */
+  width: number;
+  /** Current screen height in logical pixels */
+  height: number;
+  /** True when breakpoint is lg or xl (tablets, iPad, desktop) */
+  isTablet: boolean;
+  /** True when breakpoint is xs, sm, or md (phones) */
+  isPhone: boolean;
+  /** True when width exceeds height (landscape orientation) */
+  isLandscape: boolean;
+  /**
+   * Backward-compatible wide layout flag.
+   * True when width >= 768 (matches previous md+ logic used across the app).
+   */
+  isWideLayout: boolean;
+  /** Safe area inset — top */
+  safeTop: number;
+  /** Safe area inset — bottom */
+  safeBottom: number;
+  /** Safe area inset — left */
+  safeLeft: number;
+  /** Safe area inset — right */
+  safeRight: number;
+  /**
+   * Recommended horizontal content padding for the current breakpoint.
+   * xs/sm → 16  |  md → 20  |  lg/xl → 32
+   */
+  contentPaddingH: number;
+  /**
+   * Maximum content width for the current breakpoint.
+   * Phone breakpoints (xs/sm/md) return 0 — treat as "100%".
+   * lg → 720  |  xl → 960
+   */
+  contentMaxWidth: number;
+  /**
+   * Returns a font size scaled proportionally to the current breakpoint,
+   * clamped between 10 and 48.
+   *
+   * @param base - Base font size in points (design spec at sm/md)
+   */
+  fontScale: (base: number) => number;
+}
+
+// ─── useResponsive Hook ───────────────────────────────────────────────────────
+
+/**
+ * Primary responsive design hook for the Horario app.
+ *
+ * Provides breakpoint-aware layout values, safe area insets, and typography
+ * scaling utilities that automatically update on window resize or orientation
+ * change across iOS, Android, and web.
+ *
+ * @example
+ * ```tsx
+ * const { breakpoint, isTablet, contentPaddingH, fontScale, safeBottom } = useResponsive();
+ *
+ * <View style={{ paddingHorizontal: contentPaddingH, paddingBottom: safeBottom }}>
+ *   <Text style={{ fontSize: fontScale(15) }}>Hello</Text>
+ * </View>
+ * ```
+ */
+export function useResponsive(): UseResponsiveReturn {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const breakpoint = resolveBreakpoint(width);
+  const isTablet = breakpoint === 'lg' || breakpoint === 'xl';
+  const isPhone = !isTablet;
+  const isLandscape = width > height;
+  const isWideLayout = width >= 768;
+
+  const contentPaddingH = resolveContentPaddingH(breakpoint);
+  const contentMaxWidth = resolveContentMaxWidth(breakpoint);
+
+  const multiplier = FONT_SCALE_MULTIPLIERS[breakpoint];
+  const fontScale = (base: number): number =>
+    Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Math.round(base * multiplier)));
+
+  return {
+    breakpoint,
+    width,
+    height,
+    isTablet,
+    isPhone,
+    isLandscape,
+    isWideLayout,
+    safeTop: insets.top,
+    safeBottom: insets.bottom,
+    safeLeft: insets.left,
+    safeRight: insets.right,
+    contentPaddingH,
+    contentMaxWidth,
+    fontScale,
+  };
+}
+
+// ─── Static Responsive Tokens ─────────────────────────────────────────────────
+
+/**
+ * Static design tokens for use inside `StyleSheet.create()` contexts where
+ * hooks cannot be called.
+ *
+ * These values are fixed and do not adapt to breakpoints — use `useResponsive()`
+ * inside components for breakpoint-aware values.
+ *
+ * @example
+ * ```ts
+ * const styles = StyleSheet.create({
+ *   card: {
+ *     borderRadius: responsive.radius.lg,
+ *     padding: responsive.spacing.lg,
+ *   },
+ *   label: {
+ *     fontSize: responsive.fontSize.sm,
+ *   },
+ * });
+ * ```
+ */
+export const responsive = {
+  /**
+   * Spacing scale — use for margin, padding, and gap values.
+   * Derived from a 4-point base grid.
+   */
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    xxl: 32,
+    xxxl: 48,
+  } as const,
+
+  /**
+   * Border radius scale — use for card, button, input, and modal corners.
+   */
+  radius: {
+    sm: 4,
+    md: 8,
+    lg: 12,
+    xl: 16,
+    pill: 999,
+  } as const,
+
+  /**
+   * Typography scale — base font sizes at the sm/md breakpoint (design spec).
+   * Pass through `fontScale()` from `useResponsive()` for breakpoint-aware sizing.
+   */
+  fontSize: {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 17,
+    xl: 20,
+    xxl: 24,
+    display: 32,
+  } as const,
+} as const;
+
+// ─── useKeyboardOffset Return Type ────────────────────────────────────────────
+
+export interface UseKeyboardOffsetReturn {
+  /**
+   * The `behavior` prop for KeyboardAvoidingView.
+   * - iOS  → 'padding'
+   * - Android → 'height'
+   * - Web → undefined (KeyboardAvoidingView is a no-op on web)
+   */
+  behavior: 'padding' | 'height' | undefined;
+  /**
+   * The `keyboardVerticalOffset` prop for KeyboardAvoidingView.
+   * Currently 0 across all platforms; extend here when a navigation header
+   * height needs to be compensated for.
+   */
+  keyboardVerticalOffset: number;
+}
+
+// ─── useKeyboardOffset Hook ───────────────────────────────────────────────────
+
+/**
+ * Returns the correct `KeyboardAvoidingView` props for the current platform.
+ *
+ * Centralises platform detection so individual screens don't repeat it.
+ *
+ * @example
+ * ```tsx
+ * const { behavior, keyboardVerticalOffset } = useKeyboardOffset();
+ *
+ * <KeyboardAvoidingView
+ *   behavior={behavior}
+ *   keyboardVerticalOffset={keyboardVerticalOffset}
+ *   style={{ flex: 1 }}
+ * >
+ *   {children}
+ * </KeyboardAvoidingView>
+ * ```
+ */
+export function useKeyboardOffset(): UseKeyboardOffsetReturn {
+  if (Platform.OS === 'ios') {
+    return {
+      behavior: 'padding',
+      keyboardVerticalOffset: 0,
+    };
+  }
+
+  if (Platform.OS === 'android') {
+    return {
+      behavior: 'height',
+      keyboardVerticalOffset: 0,
+    };
+  }
+
+  // Web — KeyboardAvoidingView is effectively a no-op; behavior must be
+  // undefined to avoid a React warning about an unrecognised prop value.
+  return {
+    behavior: undefined,
+    keyboardVerticalOffset: 0,
+  };
+}

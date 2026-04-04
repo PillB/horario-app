@@ -1,0 +1,461 @@
+KEY: signup.hero.headline
+EN:  Build your perfect schedule in minutes
+ES:  Crea tu horario perfecto en minutos
+CATEGORY: signup
+PERSUASION_TYPE: value_prop
+
+KEY: signup.hero.subheadline
+EN:  Horario helps teams coordinate shifts, fill gaps, and stay on the same page — effortlessly.
+ES:  Horario ayuda a los equipos a coordinar turnos, cubrir huecos y mantenerse sincronizados — sin esfuerzo.
+CATEGORY: signup
+PERSUASION_TYPE: value_prop
+
+KEY: signup.trust.freeToStart
+EN:  Free to start — no credit card required
+ES:  Gratis para comenzar — no se requiere tarjeta de crédito
+CATEGORY: signup
+PERSUASION_TYPE: trust_proof
+
+KEY: signup.trust.noCommitment
+EN:  No commitment. Cancel anytime.
+ES:  Sin compromiso. Cancela en cualquier momento.
+CATEGORY: signup
+PERSUASION_TYPE: trust_proof
+
+KEY: signup.trust.teamCount
+EN:  Trusted by thousands of scheduling teams worldwide
+ES:  Con la confianza de miles de equipos de programación en todo el mundo
+CATEGORY: signup
+PERSUASION_TYPE: trust_proof
+
+KEY: signup.cta.createAccount
+EN:  Create your free account
+ES:  Crea tu cuenta gratis
+CATEGORY: signup
+PERSUASION_TYPE: cta
+
+KEY: signup.cta.continue
+EN:  Continue
+ES:  Continuar
+CATEGORY: signup
+PERSUASION_TYPE: cta
+
+KEY: signup.cta.verifyEmail
+EN:  Verify my email
+ES:  Verificar mi correo electrónico
+CATEGORY: signup
+PERSUASION_TYPE: cta
+
+KEY: signup.cta.resendCode
+EN:  Resend code
+ES:  Reenviar código
+CATEGORY: signup
+PERSUASION_TYPE: cta
+
+KEY: signup.cta.alreadyHaveAccount
+EN:  Already have an account? Sign in
+ES:  ¿Ya tienes una cuenta? Inicia sesión
+CATEGORY: signup
+PERSUASION_TYPE: cta
+
+KEY: signup.verification.title
+EN:  Check your inbox
+ES:  Revisa tu bandeja de entrada
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.verification.subtitle
+EN:  We sent a 6-digit code to your email address. Enter it below to confirm your account.
+ES:  Enviamos un código de 6 dígitos a tu correo electrónico. Ingrésalo a continuación para confirmar tu cuenta.
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.verification.codeLabel
+EN:  Verification code
+ES:  Código de verificación
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.verification.codePlaceholder
+EN:  Enter 6-digit code
+ES:  Ingresa el código de 6 dígitos
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.verification.emailHint
+EN:  Didn't get it? Check your spam folder or resend the code.
+ES:  ¿No lo recibiste? Revisa tu carpeta de spam o reenvía el código.
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.fields.emailPlaceholder
+EN:  Work email address
+ES:  Correo electrónico del trabajo
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.fields.passwordPlaceholder
+EN:  Create a password
+ES:  Crea una contraseña
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.fields.passwordHint
+EN:  At least 8 characters
+ES:  Al menos 8 caracteres
+CATEGORY: signup
+PERSUASION_TYPE: helper
+
+KEY: signup.error.generic
+EN:  An error occurred. Please try again.
+ES:  Ocurrió un error. Por favor, inténtalo de nuevo.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.error.verificationIncomplete
+EN:  Verification incomplete. Please try again.
+ES:  Verificación incompleta. Por favor, inténtalo de nuevo.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.error.invalidEmail
+EN:  Please enter a valid email address.
+ES:  Por favor, ingresa una dirección de correo electrónico válida.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.error.weakPassword
+EN:  Password must be at least 8 characters long.
+ES:  La contraseña debe tener al menos 8 caracteres.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.error.emailInUse
+EN:  An account with this email already exists. Try signing in instead.
+ES:  Ya existe una cuenta con este correo electrónico. Intenta iniciar sesión.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.error.invalidCode
+EN:  That code doesn't match. Double-check and try again.
+ES:  Ese código no coincide. Verifica e inténtalo de nuevo.
+CATEGORY: signup
+PERSUASION_TYPE: error
+
+KEY: signup.success.verified
+EN:  You're all set! Welcome to Horario.
+ES:  ¡Todo listo! Bienvenido a Horario.
+CATEGORY: signup
+PERSUASION_TYPE: success
+
+KEY: signup.riskReversal.privacy
+EN:  We never sell your data or spam your inbox.
+ES:  Nunca vendemos tus datos ni llenamos tu bandeja de spam.
+CATEGORY: signup
+PERSUASION_TYPE: trust_proof
+
+KEY: teamInvite.manager.headline
+EN:  Invite your team to Horario
+ES:  Invita a tu equipo a Horario
+CATEGORY: teamInvite
+PERSUASION_TYPE: value_prop
+
+KEY: teamInvite.manager.subtitle
+EN:  Share your unique code and your team can join instantly — no app store hunting required.
+ES:  Comparte tu código único y tu equipo puede unirse al instante — sin buscar en la tienda de aplicaciones.
+CATEGORY: teamInvite
+PERSUASION_TYPE: value_prop
+
+KEY: teamInvite.manager.codeLabel
+EN:  Your team invite code
+ES:  Tu código de invitación de equipo
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: teamInvite.manager.cta.share
+EN:  Share invite code
+ES:  Compartir código de invitación
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.manager.cta.regenerate
+EN:  Generate a new code
+ES:  Generar un nuevo código
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.manager.cta.emailInvite
+EN:  Send email invite instead
+ES:  Enviar invitación por correo electrónico
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.manager.shareMessage
+EN:  Join my Horario team with code: {{code}}
+ES:  Únete a mi equipo de Horario con el código: {{code}}
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.manager.codeCopied
+EN:  Code shared! Waiting for your team to join.
+ES:  ¡Código compartido! Esperando que tu equipo se una.
+CATEGORY: teamInvite
+PERSUASION_TYPE: success
+
+KEY: teamInvite.manager.emailLabel
+EN:  Or invite by email address
+ES:  O invitar por dirección de correo electrónico
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: teamInvite.manager.emailPlaceholder
+EN:  teammate@example.com
+ES:  compañero@ejemplo.com
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: teamInvite.manager.riskReversal
+EN:  Team members only see their own shifts until you publish the schedule.
+ES:  Los miembros del equipo solo ven sus propios turnos hasta que publiques el horario.
+CATEGORY: teamInvite
+PERSUASION_TYPE: risk_reversal
+
+KEY: teamInvite.worker.headline
+EN:  Join your team on Horario
+ES:  Únete a tu equipo en Horario
+CATEGORY: teamInvite
+PERSUASION_TYPE: value_prop
+
+KEY: teamInvite.worker.subtitle
+EN:  Enter the 6-character code your manager shared with you.
+ES:  Ingresa el código de 6 caracteres que tu gerente compartió contigo.
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: teamInvite.worker.codePlaceholder
+EN:  Enter team code (e.g. AB12CD)
+ES:  Ingresa el código del equipo (ej. AB12CD)
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: teamInvite.worker.cta.join
+EN:  Join team
+ES:  Unirme al equipo
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.worker.cta.askManager
+EN:  Ask your manager for the code
+ES:  Pide el código a tu gerente
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.worker.riskReversal
+EN:  You can leave the team at any time from your profile settings.
+ES:  Puedes abandonar el equipo en cualquier momento desde la configuración de tu perfil.
+CATEGORY: teamInvite
+PERSUASION_TYPE: risk_reversal
+
+KEY: teamInvite.joinSuccess.title
+EN:  You're on the team!
+ES:  ¡Ya eres parte del equipo!
+CATEGORY: teamInvite
+PERSUASION_TYPE: success
+
+KEY: teamInvite.joinSuccess.body
+EN:  Your schedule will appear here as soon as your manager publishes it.
+ES:  Tu horario aparecerá aquí tan pronto como tu gerente lo publique.
+CATEGORY: teamInvite
+PERSUASION_TYPE: success
+
+KEY: teamInvite.joinSuccess.cta
+EN:  View my schedule
+ES:  Ver mi horario
+CATEGORY: teamInvite
+PERSUASION_TYPE: cta
+
+KEY: teamInvite.error.invalidCode
+EN:  That code didn't match any active team. Check with your manager and try again.
+ES:  Ese código no coincide con ningún equipo activo. Consulta con tu gerente e inténtalo de nuevo.
+CATEGORY: teamInvite
+PERSUASION_TYPE: error
+
+KEY: teamInvite.error.alreadyMember
+EN:  You're already a member of this team.
+ES:  Ya eres miembro de este equipo.
+CATEGORY: teamInvite
+PERSUASION_TYPE: error
+
+KEY: teamInvite.errorRegenerate
+EN:  Could not generate a new code. Please try again.
+ES:  No se pudo generar un nuevo código. Por favor, inténtalo de nuevo.
+CATEGORY: teamInvite
+PERSUASION_TYPE: error
+
+KEY: teamInvite.errorShare
+EN:  Could not open the share sheet. Please try again.
+ES:  No se pudo abrir el menú para compartir. Por favor, inténtalo de nuevo.
+CATEGORY: teamInvite
+PERSUASION_TYPE: error
+
+KEY: teamInvite.close
+EN:  Close
+ES:  Cerrar
+CATEGORY: teamInvite
+PERSUASION_TYPE: helper
+
+KEY: home.quickStart.title
+EN:  Quick Start
+ES:  Inicio rápido
+CATEGORY: home.quickStart
+PERSUASION_TYPE: value_prop
+
+KEY: home.quickStart.subtitle
+EN:  Go from zero to a published schedule your whole team can see — in under 10 minutes.
+ES:  Pasa de cero a un horario publicado que todo tu equipo puede ver — en menos de 10 minutos.
+CATEGORY: home.quickStart
+PERSUASION_TYPE: value_prop
+
+KEY: home.quickStart.cta
+EN:  Publish today's schedule in <10 min
+ES:  Publica el horario de hoy en menos de 10 min
+CATEGORY: home.quickStart
+PERSUASION_TYPE: cta
+
+KEY: home.quickStart.ctaSecondary
+EN:  See how it works
+ES:  Ver cómo funciona
+CATEGORY: home.quickStart
+PERSUASION_TYPE: cta
+
+KEY: home.quickStart.step1
+EN:  Add your team members
+ES:  Agrega a los miembros de tu equipo
+CATEGORY: home.quickStart
+PERSUASION_TYPE: helper
+
+KEY: home.quickStart.step2
+EN:  Set their availability
+ES:  Establece su disponibilidad
+CATEGORY: home.quickStart
+PERSUASION_TYPE: helper
+
+KEY: home.quickStart.step3
+EN:  Publish your schedule with one tap
+ES:  Publica tu horario con un solo toque
+CATEGORY: home.quickStart
+PERSUASION_TYPE: helper
+
+KEY: home.quickStart.outcomeHint
+EN:  Teams using Horario fill open shifts 3× faster than spreadsheets.
+ES:  Los equipos que usan Horario cubren turnos abiertos 3 veces más rápido que con hojas de cálculo.
+CATEGORY: home.quickStart
+PERSUASION_TYPE: trust_proof
+
+KEY: home.quickStart.riskReversal
+EN:  Your team won't see any changes until you hit Publish.
+ES:  Tu equipo no verá ningún cambio hasta que presiones Publicar.
+CATEGORY: home.quickStart
+PERSUASION_TYPE: risk_reversal
+
+KEY: home.quickStart.success.title
+EN:  Schedule published!
+ES:  ¡Horario publicado!
+CATEGORY: home.quickStart
+PERSUASION_TYPE: success
+
+KEY: home.quickStart.success.body
+EN:  Your team has been notified. You can make edits anytime before the shift starts.
+ES:  Tu equipo ha sido notificado. Puedes hacer cambios en cualquier momento antes de que comience el turno.
+CATEGORY: home.quickStart
+PERSUASION_TYPE: success
+
+KEY: home.quickStart.success.cta
+EN:  View published schedule
+ES:  Ver horario publicado
+CATEGORY: home.quickStart
+PERSUASION_TYPE: cta
+
+KEY: home.activation.banner.title
+EN:  You're on a roll — keep building momentum!
+ES:  ¡Vas muy bien — sigue construyendo impulso!
+CATEGORY: home.activation
+PERSUASION_TYPE: value_prop
+
+KEY: home.activation.banner.body
+EN:  You've published your first schedule. Unlock the full power of Horario by inviting your team and setting recurring shifts.
+ES:  Has publicado tu primer horario. Desbloquea todo el poder de Horario invitando a tu equipo y configurando turnos recurrentes.
+CATEGORY: home.activation
+PERSUASION_TYPE: value_prop
+
+KEY: home.activation.banner.cta
+EN:  Complete your setup
+ES:  Completa tu configuración
+CATEGORY: home.activation
+PERSUASION_TYPE: cta
+
+KEY: home.activation.milestone.firstSchedule.title
+EN:  First schedule published 🎉
+ES:  Primer horario publicado 🎉
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.milestone.firstSchedule.body
+EN:  Your team can now see their shifts. Next up: invite more teammates to save even more time.
+ES:  Tu equipo ya puede ver sus turnos. A continuación: invita a más compañeros para ahorrar aún más tiempo.
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.milestone.firstTeamMember.title
+EN:  First teammate joined 🙌
+ES:  Primer compañero unido 🙌
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.milestone.firstTeamMember.body
+EN:  Great start! Add at least 3 team members to unlock auto-scheduling suggestions.
+ES:  ¡Buen comienzo! Agrega al menos 3 miembros del equipo para desbloquear sugerencias de programación automática.
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.milestone.firstTeamMember.cta
+EN:  Invite more teammates
+ES:  Invitar a más compañeros
+CATEGORY: home.activation
+PERSUASION_TYPE: cta
+
+KEY: home.activation.milestone.streakReached.title
+EN:  {{count}}-day scheduling streak 🔥
+ES:  Racha de {{count}} días programando 🔥
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.milestone.streakReached.body
+EN:  Consistency is your superpower. Your team always knows where to be.
+ES:  La constancia es tu superpoder. Tu equipo siempre sabe dónde estar.
+CATEGORY: home.activation
+PERSUASION_TYPE: success
+
+KEY: home.activation.nextAction.cta
+EN:  Set up recurring shifts
+ES:  Configurar turnos recurrentes
+CATEGORY: home.activation
+PERSUASION_TYPE: cta
+
+KEY: home.activation.nudge.inactiveDay.title
+EN:  Your team is waiting on tomorrow's schedule
+ES:  Tu equipo está esperando el horario de mañana
+CATEGORY: home.activation
+PERSUASION_TYPE: value_prop
+
+KEY: home.activation.nudge.inactiveDay.body
+EN:  It only takes a minute to publish. Keep your team in the loop.
+ES:  Solo toma un minuto publicar. Mantén a tu equipo informado.
+CATEGORY: home.activation
+PERSUASION_TYPE: value_prop
+
+KEY: home.activation.nudge.inactiveDay.cta
+EN:  Publish tomorrow's schedule now
+ES:  Publicar el horario de mañana ahora
+CATEGORY: home.activation
+PERSUASION_TYPE: cta

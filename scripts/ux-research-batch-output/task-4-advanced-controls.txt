@@ -1,0 +1,653 @@
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Switch,
+  TextInput,
+  View,
+} from 'react-native';
+
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { Colors, brand } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+
+// ─── Public Types ─────────────────────────────────────────────────────────────
+
+export type ShiftConstraints = {
+  minRestHours: number;
+  maxWeeklyHours: number;
+  minShiftHours: number;
+  locationMode: 'single' | 'multi';
+  locations: string[];
+};
+
+// ─── Internal Types ───────────────────────────────────────────────────────────
+
+type IndustryPresetKey = 'restaurant' | 'retail' | 'cafe' | 'hotel';
+
+type IndustryPreset = Pick<
+  ShiftConstraints,
+  'minRestHours' | 'maxWeeklyHours' | 'minShiftHours'
+>;
+
+type ConstraintDraft = {
+  minRestHours: string;
+  maxWeeklyHours: string;
+  minShiftHours: string;
+};
+
+type Action =
+  | { type: 'SET_FIELD'; field: keyof ConstraintDraft; value: string }
+  | { type: 'APPLY_PRESET'; preset: IndustryPreset }
+  | { type: 'SET_LOCATION_MODE'; enabled: boolean }
+  | { type: 'SET_LOCATIONS_RAW'; value: string };
+
+type State = {
+  draft: ConstraintDraft;
+  locationMode: 'single' | 'multi';
+  locationsRaw: string;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const INDUSTRY_PRESETS: Record<IndustryPresetKey, IndustryPreset> = {
+  restaurant: { minRestHours: 10, maxWeeklyHours: 40, minShiftHours: 3 },
+  retail: { minRestHours: 8, maxWeeklyHours: 40, minShiftHours: 4 },
+  cafe: { minRestHours: 8, maxWeeklyHours: 35, minShiftHours: 2 },
+  hotel: { minRestHours: 11, maxWeeklyHours: 48, minShiftHours: 6 },
+};
+
+const PRESET_LABELS: Record<IndustryPresetKey, string> = {
+  restaurant: 'Restaurant',
+  retail: 'Retail',
+  cafe: 'Café',
+  hotel: 'Hotel',
+};
+
+const PRESET_KEYS = Object.keys(INDUSTRY_PRESETS) as IndustryPresetKey[];
+
+const COLLAPSE_DURATION = 260;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parsePositiveInt(raw: string, fallback: number): number {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function buildConstraints(state: State): ShiftConstraints {
+  return {
+    minRestHours: parsePositiveInt(state.draft.minRestHours, 8),
+    maxWeeklyHours: parsePositiveInt(state.draft.maxWeeklyHours, 40),
+    minShiftHours: parsePositiveInt(state.draft.minShiftHours, 2),
+    locationMode: state.locationMode,
+    locations: state.locationsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  };
+}
+
+function initState(initial?: Partial<ShiftConstraints>): State {
+  return {
+    draft: {
+      minRestHours: String(initial?.minRestHours ?? 8),
+      maxWeeklyHours: String(initial?.maxWeeklyHours ?? 40),
+      minShiftHours: String(initial?.minShiftHours ?? 2),
+    },
+    locationMode: initial?.locationMode ?? 'single',
+    locationsRaw: initial?.locations?.join(', ') ?? '',
+  };
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_FIELD':
+      return {
+        ...state,
+        draft: { ...state.draft, [action.field]: action.value },
+      };
+    case 'APPLY_PRESET':
+      return {
+        ...state,
+        draft: {
+          minRestHours: String(action.preset.minRestHours),
+          maxWeeklyHours: String(action.preset.maxWeeklyHours),
+          minShiftHours: String(action.preset.minShiftHours),
+        },
+      };
+    case 'SET_LOCATION_MODE':
+      return { ...state, locationMode: action.enabled ? 'multi' : 'single' };
+    case 'SET_LOCATIONS_RAW':
+      return { ...state, locationsRaw: action.value };
+    default:
+      return state;
+  }
+}
+
+// ─── Sub-component: Collapse Section ─────────────────────────────────────────
+
+type CollapseSectionProps = {
+  title: string;
+  accessibilityHint?: string;
+  children: React.ReactNode;
+  initiallyOpen?: boolean;
+  accentColor: string;
+  borderColor: string;
+  textColor: string;
+};
+
+function CollapseSection({
+  title,
+  accessibilityHint,
+  children,
+  initiallyOpen = false,
+  accentColor,
+  borderColor,
+  textColor,
+}: CollapseSectionProps) {
+  const [open, setOpen] = useState(initiallyOpen);
+  const animRef = useRef(new Animated.Value(initiallyOpen ? 1 : 0)).current;
+  const rotateRef = useRef(new Animated.Value(initiallyOpen ? 1 : 0)).current;
+
+  const toggle = useCallback(() => {
+    const toValue = open ? 0 : 1;
+    Animated.parallel([
+      Animated.timing(animRef, {
+        toValue,
+        duration: COLLAPSE_DURATION,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotateRef, {
+        toValue,
+        duration: COLLAPSE_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setOpen((prev) => !prev);
+  }, [animRef, open, rotateRef]);
+
+  const maxHeight = animRef.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 600],
+  });
+
+  const rotate = rotateRef.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  return (
+    <View style={[innerStyles.subSection, { borderColor }]}>
+      <Pressable
+        onPress={toggle}
+        accessibilityRole="button"
+        accessibilityLabel={`${title} subsection, ${open ? 'expanded' : 'collapsed'}`}
+        accessibilityHint={accessibilityHint}
+        style={innerStyles.subHeader}
+      >
+        <ThemedText style={[innerStyles.subTitle, { color: textColor }]}>
+          {title}
+        </ThemedText>
+        <Animated.Text
+          style={[
+            innerStyles.chevron,
+            { color: accentColor, transform: [{ rotate }] },
+          ]}
+        >
+          ▾
+        </Animated.Text>
+      </Pressable>
+
+      <Animated.View style={{ overflow: 'hidden', maxHeight }}>
+        <View style={innerStyles.subContent}>{children}</View>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ─── Sub-component: Number Input Row ─────────────────────────────────────────
+
+type NumberRowProps = {
+  label: string;
+  value: string;
+  unit: string;
+  onChangeText: (v: string) => void;
+  accessibilityLabel: string;
+  inputBg: string;
+  borderColor: string;
+  textColor: string;
+  placeholderColor: string;
+};
+
+function NumberRow({
+  label,
+  value,
+  unit,
+  onChangeText,
+  accessibilityLabel,
+  inputBg,
+  borderColor,
+  textColor,
+  placeholderColor,
+}: NumberRowProps) {
+  return (
+    <View style={innerStyles.row}>
+      <ThemedText style={[innerStyles.rowLabel, { color: textColor }]}>
+        {label}
+      </ThemedText>
+      <View style={innerStyles.rowRight}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType="number-pad"
+          accessibilityLabel={accessibilityLabel}
+          style={[
+            innerStyles.numberInput,
+            {
+              backgroundColor: inputBg,
+              borderColor,
+              color: textColor,
+            },
+          ]}
+          placeholderTextColor={placeholderColor}
+        />
+        <ThemedText style={[innerStyles.unit, { color: placeholderColor }]}>
+          {unit}
+        </ThemedText>
+      </View>
+    </View>
+  );
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+type Props = {
+  onConstraintsChange: (c: ShiftConstraints) => void;
+  initialConstraints?: Partial<ShiftConstraints>;
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function AdvancedControls({
+  onConstraintsChange,
+  initialConstraints,
+}: Props) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+
+  const isDark = colorScheme === 'dark';
+  const cardBg = isDark ? '#1C2630' : '#FFFFFF';
+  const sectionBg = isDark ? '#222E3A' : '#F8FFFE';
+  const borderColor = isDark ? '#2D3F50' : '#CCEDE9';
+  const textColor = isDark ? '#E2F7F5' : '#134E4A';
+  const subtextColor = isDark ? '#8BAAB8' : '#64748B';
+  const inputBg = isDark ? '#1A2835' : '#F0FDFA';
+  const inputBorder = isDark ? '#2D4A58' : '#99F6E4';
+  const presetActiveBg = brand.primary;
+  const presetInactiveBg = isDark ? '#1A2835' : '#F0FDFA';
+  const presetActiveBorder = brand.primaryDark;
+  const presetInactiveBorder = inputBorder;
+
+  const [outerOpen, setOuterOpen] = useState(false);
+  const outerAnim = useRef(new Animated.Value(0)).current;
+  const outerRotate = useRef(new Animated.Value(0)).current;
+
+  const [state, dispatch] = useReducer(reducer, initialConstraints, initState);
+
+  const [activePreset, setActivePreset] = useState<IndustryPresetKey | null>(
+    null,
+  );
+
+  // Notify parent whenever constraints change
+  useEffect(() => {
+    onConstraintsChange(buildConstraints(state));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const toggleOuter = useCallback(() => {
+    const toValue = outerOpen ? 0 : 1;
+    Animated.parallel([
+      Animated.timing(outerAnim, {
+        toValue,
+        duration: COLLAPSE_DURATION,
+        useNativeDriver: false,
+      }),
+      Animated.timing(outerRotate, {
+        toValue,
+        duration: COLLAPSE_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setOuterOpen((prev) => !prev);
+  }, [outerAnim, outerOpen, outerRotate]);
+
+  const outerMaxHeight = outerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1200],
+  });
+
+  const outerChevronRotate = outerRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const handleField = useCallback(
+    (field: keyof ConstraintDraft) => (value: string) => {
+      dispatch({ type: 'SET_FIELD', field, value });
+      setActivePreset(null);
+    },
+    [],
+  );
+
+  const handlePreset = useCallback((key: IndustryPresetKey) => {
+    dispatch({ type: 'APPLY_PRESET', preset: INDUSTRY_PRESETS[key] });
+    setActivePreset(key);
+  }, []);
+
+  const handleLocationToggle = useCallback((enabled: boolean) => {
+    dispatch({ type: 'SET_LOCATION_MODE', enabled });
+  }, []);
+
+  const handleLocationsRaw = useCallback((value: string) => {
+    dispatch({ type: 'SET_LOCATIONS_RAW', value });
+  }, []);
+
+  return (
+    <ThemedView style={[innerStyles.card, { backgroundColor: cardBg, borderColor }]}>
+      {/* ── Outer header ── */}
+      <Pressable
+        onPress={toggleOuter}
+        accessibilityRole="button"
+        accessibilityLabel={`Advanced controls, ${outerOpen ? 'expanded' : 'collapsed'}`}
+        accessibilityHint="Expand to configure shift constraints, industry presets, and multi-location rules"
+        style={innerStyles.outerHeader}
+      >
+        <View style={innerStyles.outerHeaderLeft}>
+          <ThemedText style={[innerStyles.outerTitle, { color: brand.primary }]}>
+            ⚙ Advanced Controls
+          </ThemedText>
+          <ThemedText style={[innerStyles.outerSubtitle, { color: subtextColor }]}>
+            Constraints · Presets · Locations
+          </ThemedText>
+        </View>
+        <Animated.Text
+          style={[
+            innerStyles.chevron,
+            {
+              color: brand.primary,
+              transform: [{ rotate: outerChevronRotate }],
+            },
+          ]}
+        >
+          ▾
+        </Animated.Text>
+      </Pressable>
+
+      {/* ── Collapsible body ── */}
+      <Animated.View style={{ overflow: 'hidden', maxHeight: outerMaxHeight }}>
+        <View style={[innerStyles.body, { backgroundColor: sectionBg }]}>
+
+          {/* ── 1. Shift Constraints ── */}
+          <CollapseSection
+            title="Shift Constraints"
+            accessibilityHint="Configure minimum rest hours, maximum weekly hours, and minimum shift length"
+            accentColor={brand.primary}
+            borderColor={borderColor}
+            textColor={textColor}
+          >
+            <NumberRow
+              label="Min rest between shifts"
+              value={state.draft.minRestHours}
+              unit="hrs"
+              onChangeText={handleField('minRestHours')}
+              accessibilityLabel="Minimum rest hours between shifts"
+              inputBg={inputBg}
+              borderColor={inputBorder}
+              textColor={textColor}
+              placeholderColor={subtextColor}
+            />
+            <NumberRow
+              label="Max weekly hours"
+              value={state.draft.maxWeeklyHours}
+              unit="hrs"
+              onChangeText={handleField('maxWeeklyHours')}
+              accessibilityLabel="Maximum weekly hours per worker"
+              inputBg={inputBg}
+              borderColor={inputBorder}
+              textColor={textColor}
+              placeholderColor={subtextColor}
+            />
+            <NumberRow
+              label="Min shift length"
+              value={state.draft.minShiftHours}
+              unit="hrs"
+              onChangeText={handleField('minShiftHours')}
+              accessibilityLabel="Minimum shift length in hours"
+              inputBg={inputBg}
+              borderColor={inputBorder}
+              textColor={textColor}
+              placeholderColor={subtextColor}
+            />
+          </CollapseSection>
+
+          {/* ── 2. Industry Preset Packs ── */}
+          <CollapseSection
+            title="Industry Preset Packs"
+            accessibilityHint="Apply a preset configuration for your industry type"
+            accentColor={brand.primary}
+            borderColor={borderColor}
+            textColor={textColor}
+          >
+            <ThemedText style={[innerStyles.presetHint, { color: subtextColor }]}>
+              Tap a preset to auto-fill constraint values.
+            </ThemedText>
+            <View style={innerStyles.presetRow}>
+              {PRESET_KEYS.map((key) => {
+                const isActive = activePreset === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => handlePreset(key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Apply ${PRESET_LABELS[key]} preset`}
+                    accessibilityState={{ selected: isActive }}
+                    style={[
+                      innerStyles.presetButton,
+                      {
+                        backgroundColor: isActive
+                          ? presetActiveBg
+                          : presetInactiveBg,
+                        borderColor: isActive
+                          ? presetActiveBorder
+                          : presetInactiveBorder,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        innerStyles.presetLabel,
+                        { color: isActive ? '#FFFFFF' : brand.primary },
+                      ]}
+                    >
+                      {PRESET_LABELS[key]}
+                    </ThemedText>
+                    {isActive && (
+                      <ThemedText style={innerStyles.presetCheck}>✓</ThemedText>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+            {activePreset !== null && (
+              <View style={[innerStyles.presetSummary, { borderColor: inputBorder, backgroundColor: inputBg }]}>
+                <ThemedText style={[innerStyles.presetSummaryText, { color: subtextColor }]}>
+                  {`Rest ≥ ${INDUSTRY_PRESETS[activePreset].minRestHours}h · `}
+                  {`Weekly ≤ ${INDUSTRY_PRESETS[activePreset].maxWeeklyHours}h · `}
+                  {`Shift ≥ ${INDUSTRY_PRESETS[activePreset].minShiftHours}h`}
+                </ThemedText>
+              </View>
+            )}
+          </CollapseSection>
+
+          {/* ── 3. Multi-location Rules ── */}
+          <CollapseSection
+            title="Multi-location Rules"
+            accessibilityHint="Enable scheduling across multiple locations and define location names"
+            accentColor={brand.primary}
+            borderColor={borderColor}
+            textColor={textColor}
+          >
+            <View style={innerStyles.row}>
+              <ThemedText style={[innerStyles.rowLabel, { color: textColor }]}>
+                Per-location scheduling
+              </ThemedText>
+              <Switch
+                value={state.locationMode === 'multi'}
+                onValueChange={handleLocationToggle}
+                trackColor={{ false: borderColor, true: brand.primaryLight }}
+                thumbColor={
+                  state.locationMode === 'multi'
+                    ? brand.primary
+                    : subtextColor
+                }
+                accessibilityLabel="Enable per-location scheduling"
+                accessibilityRole="switch"
+                accessibilityState={{ checked: state.locationMode === 'multi' }}
+              />
+            </View>
+
+            {state.locationMode === 'multi' && (
+              <View style={innerStyles.locationInputWrapper}>
+                <ThemedText
+                  style={[innerStyles.rowLabel, { color: textColor, marginBottom: 6 }]}
+                >
+                  Location names
+                </ThemedText>
+                <TextInput
+                  value={state.locationsRaw}
+                  onChangeText={handleLocationsRaw}
+                  placeholder="e.g. Downtown, Airport, Mall"
+                  placeholderTextColor={subtextColor}
+                  accessibilityLabel="Location names, comma-separated"
+                  multiline={false}
+                  returnKeyType="done"
+                  style={[
+                    innerStyles.locationInput,
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
+                      color: textColor,
+                    },
+                  ]}
+                />
+                {state.locationsRaw.trim().length > 0 && (
+                  <View style={innerStyles.locationChips}>
+                    {state.locationsRaw
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((loc, idx) => (
+                        <View
+                          key={`${loc}-${idx}`}
+                          style={[
+                            innerStyles.chip,
+                            { backgroundColor: brand.primarySurface, borderColor: inputBorder },
+                          ]}
+                        >
+                          <ThemedText
+                            style={[innerStyles.chipText, { color: brand.primaryDark }]}
+                          >
+                            {loc}
+                          </ThemedText>
+                        </View>
+                      ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </CollapseSection>
+        </View>
+      </Animated.View>
+    </ThemedView>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const innerStyles = StyleSheet.create({
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginVertical: 10,
+    overflow: 'hidden',
+  },
+  outerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  outerHeaderLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  outerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  outerSubtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  chevron: {
+    fontSize: 18,
+    lineHeight: 22,
+    marginLeft: 8,
+  },
+  body: {
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  subSection: {
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  subTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+  subContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 40,
+  },
+  rowLabel: {
+    fontSize: 13,
+    flex: 1,
+    flexWrap: 'wrap',
+    paddingRight: 8,
+  },
+  rowRight: {
+    

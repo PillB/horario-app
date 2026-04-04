@@ -1,0 +1,526 @@
+===FILE_1: vercel.json===
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npx expo export --platform web",
+  "outputDirectory": "dist",
+  "functions": {
+    "app/api/secure-proxy+api.ts": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/_expo/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*)\\.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clerk.accounts.dev https://clerk.horario.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.clerk.accounts.dev https://clerk.horario.app wss://*.supabase.co; frame-ancestors 'none';" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/_expo/static/(.*)", "destination": "/client/_expo/static/$1" },
+    { "source": "/assets/(.*)", "destination": "/client/assets/$1" },
+    { "source": "/favicon.ico", "destination": "/client/favicon.ico" },
+    { "source": "/api/secure-proxy", "destination": "/server/_expo/functions/api/secure-proxy+api.js" },
+    { "source": "/_sitemap", "destination": "/server/_sitemap.html" },
+    { "source": "/", "destination": "/server/(tabs)/index.html" },
+    { "source": "/(tabs)", "destination": "/server/(tabs)/index.html" },
+    { "source": "/(tabs)/scheduler", "destination": "/server/(tabs)/scheduler.html" },
+    { "source": "/scheduler", "destination": "/server/(tabs)/scheduler.html" },
+    { "source": "/(tabs)/explore", "destination": "/server/(tabs)/explore.html" },
+    { "source": "/explore", "destination": "/server/(tabs)/explore.html" },
+    { "source": "/(auth)/sign-in", "destination": "/server/(auth)/sign-in.html" },
+    { "source": "/sign-in", "destination": "/server/(auth)/sign-in.html" },
+    { "source": "/(auth)/sign-up", "destination": "/server/(auth)/sign-up.html" },
+    { "source": "/sign-up", "destination": "/server/(auth)/sign-up.html" },
+    { "source": "/(.*)", "destination": "/server/+not-found.html" }
+  ]
+}
+
+===FILE_2: app/api/secure-proxy+api.ts===
+// NOTE: This route explicitly uses the Node.js runtime because it depends on
+// the built-in `crypto` module (createPublicKey / createVerify) for RSA-SHA256
+// JWT verification. The Web Crypto API available in Edge runtimes does not
+// expose the synchronous RSA verification path required by Clerk's JWKS flow.
+// If Clerk ever ships an Edge-compatible verification SDK this can be switched
+// to `export const runtime = 'edge'` for lower cold-start latency.
+//
+// TODO: Implement per-IP or per-account rate limiting before going to
+// production at scale. Options:
+//   • Upstash Redis + @upstash/ratelimit (sliding window, 60 req / 60 s)
+//   • Vercel KV with a simple token-bucket stored under `rl:<ip>`
+//   • An edge middleware (middleware.ts) that short-circuits before this
+//     function is invoked, keeping this function's cold-start budget clean.
+// Until that is in place, Supabase RLS and the Clerk JWT check provide the
+// primary defence against abuse.
+
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
+
+import {
+  DemandForecast,
+  ForecastFilters,
+  ForecastGenerationMetadata,
+  ForecastGenerationResult,
+} from '@/services/demandForecast';
+import { OnboardingProgress } from '@/services/onboardingProgress';
+
+// ─── Runtime declaration (Node.js required for built-in crypto) ───────────────
+
+export const runtime = 'nodejs';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+// Maximum accepted request body size (bytes).  Requests larger than this are
+// rejected before JSON.parse to prevent DoS via large payloads.
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
+
+// Maximum age of a valid JWT in seconds beyond which we reject it regardless
+// of the `exp` claim.  Acts as a defence-in-depth guard.
+const MAX_TOKEN_AGE_S = 3600; // 1 hour
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// ─── Environment variables ────────────────────────────────────────────────────
+
+// IMPORTANT — secrets must NEVER use the EXPO_PUBLIC_ prefix.  EXPO_PUBLIC_
+// variables are embedded into the client bundle at build time and are visible
+// to every browser visitor.  Only non-sensitive configuration (Supabase anon
+// key, publishable Clerk key, public API URL) should carry that prefix.
+
+const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
+
+// ✓ supabaseUrl is the project URL — not a secret, EXPO_PUBLIC_ is fine here.
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
+// ✓ serviceRoleKey is a secret — must NOT use EXPO_PUBLIC_.
+// Accept both naming conventions in case the environment was provisioned
+// before the variable was standardised.
+const serviceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+
+// ✓ CLERK_JWKS_URL is a server-only config value — correct without EXPO_PUBLIC_.
+const CLERK_JWKS_URL = process.env.CLERK_JWKS_URL;
+
+// ✓ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is deliberately public — it is the
+// publishable (not secret) key and is safe to ship to the client.
+const AUTH_ENABLED =
+  (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
+
+// ─── CORS / security response headers ────────────────────────────────────────
+
+// These headers are also set at the CDN layer in vercel.json for all /api/*
+// routes.  Repeating them here ensures correctness even when the function is
+// invoked directly (e.g. during local `vercel dev` or unit tests).
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  // No-store on every auth/mutating API response — never cache credentials.
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'X-Content-Type-Options': 'nosniff',
+};
+
+// ─── Response helpers ─────────────────────────────────────────────────────────
+
+// Sanitise error messages before they leave the server.  In production we
+// never expose raw Error.message values because they may contain file paths,
+// SQL snippets, or other internal details.  A stable, opaque code is returned
+// instead so the client can surface a user-friendly message while the full
+// error is captured in server logs.
+const sanitiseMessage = (raw: string, fallback = 'An internal error occurred'): string => {
+  if (IS_PRODUCTION) return fallback;
+  return raw;
+};
+
+const buildErrorResponse = (message: string, status = 500, logError?: unknown): Response => {
+  // Always log the raw error server-side regardless of whether we sanitise.
+  if (logError !== undefined) {
+    console.error('[secure-proxy] error', logError);
+  }
+  const body = JSON.stringify({ error: sanitiseMessage(message) });
+  return new Response(body, {
+    status,
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+  });
+};
+
+const jsonOk = (body: unknown): Response =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+  });
+
+// ─── JWKS / JWT helpers ───────────────────────────────────────────────────────
+
+type JWK = { kid?: string; kty: string; n: string; e: string; alg?: string; use?: string };
+type JWKSet = { keys: JWK[] };
+
+let jwksCache: JWKSet | null = null;
+let jwksCacheExpiry = 0;
+
+async function fetchJwks(): Promise<JWKSet> {
+  if (jwksCache && Date.now() < jwksCacheExpiry) return jwksCache;
+  if (!CLERK_JWKS_URL) throw new Error('CLERK_JWKS_URL is not configured');
+  const res = await fetch(CLERK_JWKS_URL, {
+    // Explicit timeout via AbortSignal — avoids hanging the Vercel function.
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch JWKS (status ${res.status})`);
+  jwksCache = (await res.json()) as JWKSet;
+  jwksCacheExpiry = Date.now() + 5 * 60 * 1000;
+  return jwksCache;
+}
+
+async function verifyClerkToken(token: string): Promise<string | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const header = JSON.parse(
+      Buffer.from(parts[0], 'base64url').toString()
+    ) as { kid?: string; alg?: string };
+
+    const payload = JSON.parse(
+      Buffer.from(parts[1], 'base64url').toString()
+    ) as { sub?: string; exp?: number; iat?: number };
+
+    const now = Date.now() / 1000;
+
+    // Reject expired tokens.
+    if (payload.exp && now > payload.exp) return null;
+
+    // Reject tokens issued too far in the past (defence-in-depth).
+    if (payload.iat && now - payload.iat > MAX_TOKEN_AGE_S) return null;
+
+    const jwks = await fetchJwks();
+    const jwk = header.kid
+      ? jwks.keys.find((k) => k.kid === header.kid)
+      : jwks.keys[0];
+    if (!jwk) return null;
+
+    const publicKey = createPublicKey({
+      key: jwk as unknown as CryptoJWK,
+      format: 'jwk',
+    });
+    const verifier = createVerify('RSA-SHA256');
+    verifier.update(`${parts[0]}.${parts[1]}`);
+    const valid = verifier.verify(publicKey, parts[2], 'base64url');
+    return valid ? (payload.sub ?? null) : null;
+  } catch {
+    // Swallow verification errors — return null to indicate invalid token.
+    // Do NOT log the raw error here; it may contain token fragments.
+    return null;
+  }
+}
+
+async function getAuthorizedAccountId(request: Request): Promise<string | null> {
+  if (!AUTH_ENABLED) return null;
+  const auth = request.headers.get('Authorization');
+  if (!auth?.startsWith('Bearer ')) return null;
+  return verifyClerkToken(auth.slice(7));
+}
+
+// ─── Request size guard ───────────────────────────────────────────────────────
+
+// Reads the raw body as an ArrayBuffer so we can check its byte length before
+// handing it to JSON.parse.  Returns null if the body exceeds MAX_BODY_BYTES.
+async function readBodySafe(
+  request: Request
+): Promise<{ text: string } | { error: string; status: number }> {
+  // Honour Content-Length if present for a cheap early-rejection path.
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null) {
+    const declared = parseInt(contentLength, 10);
+    if (!Number.isNaN(declared) && declared > MAX_BODY_BYTES) {
+      return { error: 'Request body too large (max 1 MiB)', status: 413 };
+    }
+  }
+
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await request.arrayBuffer();
+  } catch {
+    return { error: 'Failed to read request body', status: 400 };
+  }
+
+  if (buffer.byteLength > MAX_BODY_BYTES) {
+    return { error: 'Request body too large (max 1 MiB)', status: 413 };
+  }
+
+  return { text: new TextDecoder().decode(buffer) };
+}
+
+// ─── Supabase service client ──────────────────────────────────────────────────
+
+const roundToInt = (value: number) => Math.max(0, Math.round(value));
+
+const buildKey = (item: ForecastFilters & { date: string; role: string }) =>
+  `${item.date}::${item.role}`;
+
+const getServiceClient = (): SupabaseClient => {
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing service-role Supabase credentials');
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { 'x-application-name': 'horario-forecast-admin' } },
+  });
+};
+
+// ─── DB types ─────────────────────────────────────────────────────────────────
+
+type HistoricalShift = {
+  date: string;
+  role: string;
+  hours?: number;
+  worker_id?: string;
+};
+
+type ExternalSignal = {
+  date: string;
+  role?: string;
+  signal_type?: string;
+  weight?: number;
+};
+
+// ─── Forecast helpers ─────────────────────────────────────────────────────────
+
+const selectFilters = (filters?: ForecastFilters) => {
+  if (!filters) return undefined;
+  const payload: ForecastFilters = {};
+  if (filters.date) payload.date = filters.date;
+  if (filters.role) payload.role = filters.role;
+  return payload;
+};
+
+const fetchHistoricalShifts = async (
+  client: SupabaseClient,
+  filters?: ForecastFilters
+): Promise<HistoricalShift[]> => {
+  const query = client
+    .from('shifts')
+    .select('date, role, worker_id, hours')
+    .order('date', { ascending: true })
+    .limit(500);
+
+  if (filters?.date) {
+    query.gte('date', filters.date).lte('date', filters.date);
+  }
+  if (filters?.role) {
+    query.eq('role', filters.role);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[secure-proxy] Unable to fetch historical shifts', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((shift) => ({
+    date: shift.date,
+    role: shift.role,
+    hours: shift.hours ?? 8,
+    worker_id: shift.worker_id,
+  }));
+};
+
+const fetchExternalSignals = async (
+  client: SupabaseClient,
+  filters?: ForecastFilters
+): Promise<ExternalSignal[]> => {
+  const query = client
+    .from('external_signals')
+    .select('date, role, signal_type, weight')
+    .order('date', { ascending: true })
+    .limit(200);
+
+  if (filters?.date) {
+    query.eq('date', filters.date);
+  }
+  if (filters?.role) {
+    query.eq('role', filters.role);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[secure-proxy] Unable to fetch external signals', error.message);
+    return [];
+  }
+
+  return data ?? [];
+};
+
+const fetchExistingTargets = async (
+  client: SupabaseClient,
+  filters?: ForecastFilters
+): Promise<DemandForecast[]> => {
+  const query = client
+    .from('demand_targets')
+    .select('date, role, required, notes, confidence, lower_bound, upper_bound, source')
+    .order('date', { ascending: true })
+    .limit(500);
+
+  if (filters?.date) {
+    query.eq('date', filters.date);
+  }
+  if (filters?.role) {
+    query.eq('role', filters.role);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[secure-proxy] Unable to fetch demand targets', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    date: row.date,
+    role: row.role,
+    required: Number(row.required ?? 0),
+    notes: row.notes ?? undefined,
+    confidence: row.confidence ?? undefined,
+    lowerBound: row.lower_bound ?? undefined,
+    upperBound: row.upper_bound ?? undefined,
+    source: (row.source as 'model' | 'override') ?? 'model',
+  }));
+};
+
+const persistForecasts = async (
+  client: SupabaseClient,
+  forecasts: DemandForecast[]
+) => {
+  if (!forecasts.length) return;
+  const payload = forecasts.map((forecast) => ({
+    date: forecast.date,
+    role: forecast.role,
+    required: forecast.required,
+    notes: forecast.notes,
+    confidence: forecast.confidence,
+    lower_bound: forecast.lowerBound,
+    upper_bound: forecast.upperBound,
+    source: forecast.source ?? 'model',
+  }));
+
+  const { error } = await client
+    .from('demand_targets')
+    .upsert(payload, { onConflict: 'date,role' });
+  if (error) {
+    console.warn('[secure-proxy] Unable to persist demand targets', error.message);
+  }
+};
+
+// ─── External forecast API call ───────────────────────────────────────────────
+
+type ForecastApiOutcome = {
+  forecasts: DemandForecast[];
+  attempted: boolean;
+  failed: boolean;
+  failureReason?: string;
+};
+
+const callForecastApi = async (inputs: {
+  shifts: HistoricalShift[];
+  signals: ExternalSignal[];
+  filters?: ForecastFilters;
+}): Promise<ForecastApiOutcome> => {
+  if (!FORECAST_API_URL) {
+    return { forecasts: [], attempted: false, failed: false };
+  }
+
+  try {
+    const response = await fetch(FORECAST_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inputs),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      const failureReason = `Forecast API responded with status ${response.status}`;
+      console.warn('[secure-proxy]', failureReason);
+      return { forecasts: [], attempted: true, failed: true, failureReason };
+    }
+
+    const apiPayload = (await response.json()) as DemandForecast[];
+    const normalized = apiPayload.map((item) => ({
+      ...item,
+      required: Number(item.required ?? 0),
+      source: item.source ?? 'model',
+    }));
+
+    return { forecasts: normalized, attempted: true, failed: false };
+  } catch (error) {
+    const failureReason =
+      error instanceof Error ? error.message : 'Unknown forecast API error';
+    console.warn('[secure-proxy] Forecast API call failed', failureReason);
+    return { forecasts: [], attempted: true, failed: true, failureReason };
+  }
+};
+
+// ─── Local fallback computation ───────────────────────────────────────────────
+
+const computeDailyAverages = (
+  shifts: HistoricalShift[],
+  signals: ExternalSignal[],
+  filters?: ForecastFilters
+): DemandForecast[] => {
+  const grouped = shifts.reduce<Record<string, number[]>>((acc, shift) => {
+    if (filters?.role && shift.role !== filters.role) return acc;
+    const key = buildKey({ date: shift.date, role: shift.role });
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(shift.hours ?? 8);
+    return acc;
+  }, {});
+
+  const signalMap = signals.reduce<Record<string, number>>((acc, signal) => {
+    if (filters?.role && signal.role && signal.role !== filters.role) return acc;
+    if (!signal.weight) return acc;
+    const key = buildKey({ date: signal.date, role: signal.role ?? 'global' });
+    acc[key] = (acc[key] ?? 0) + signal.weight;
+    return acc;
+  }, {});
+
+  const keys = new Set<string>();
+  Object.keys(grouped).forEach((k) => keys.add(k));
+  Object.keys(signalMap).forEach((k) => keys.add(k));
+  if (filters?.date && filters?.role) {
+    keys.add(buildKey({ date: filters.date, role: filters.role }));
+  }
+
+  const forecasts: DemandForecast[] = [];
+
+  keys.forEach

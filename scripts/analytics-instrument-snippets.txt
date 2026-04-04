@@ -1,0 +1,192 @@
+FILE: app/(auth)/sign-in.tsx
+LOCATION: SignInScreen (component body, after existing imports)
+ACTION: ADD
+---
+import { trackEvent } from '@/services/analytics';
+===
+
+FILE: app/(auth)/sign-in.tsx
+LOCATION: SignInScreen — useEffect (mount)
+ACTION: ADD
+---
+useEffect(() => {
+  void trackEvent('signin_viewed');
+}, []);
+===
+
+FILE: app/(auth)/sign-in.tsx
+LOCATION: handleSignIn — before try block
+ACTION: ADD
+---
+void trackEvent('signin_submitted', { method: 'email' });
+===
+
+FILE: app/(auth)/sign-in.tsx
+LOCATION: handleSignIn — catch block, after setError(...)
+ACTION: ADD
+---
+void trackEvent('signin_error', {
+  method: 'email',
+  error_message:
+    clerkError?.errors?.[0]?.longMessage ??
+    clerkError?.errors?.[0]?.message ??
+    (err instanceof Error ? err.message : 'Sign-in failed. Check your credentials.'),
+});
+===
+
+FILE: app/(auth)/sign-in.tsx
+LOCATION: clerkTicket useEffect — catch block, after setError(...)
+ACTION: ADD
+---
+void trackEvent('signin_error', {
+  method: 'ticket',
+  error_message:
+    clerkError?.errors?.[0]?.longMessage ??
+    clerkError?.errors?.[0]?.message ??
+    'Sign-in token invalid or expired.',
+});
+===
+
+FILE: app/(auth)/sign-up.tsx
+LOCATION: SignUpScreen (component body, after existing state declarations)
+ACTION: ADD
+---
+useEffect(() => {
+  void trackEvent('signup_viewed');
+}, []);
+===
+
+FILE: app/(auth)/sign-up.tsx
+LOCATION: handleSignUp — inside try block, before await signUp.create(...)
+ACTION: ADD
+---
+void trackEvent('signup_submitted', { method: 'email' });
+===
+
+FILE: app/(auth)/sign-up.tsx
+LOCATION: handleVerify — inside try block, replace existing void trackEvent('sign_up_completed')
+ACTION: REPLACE
+---
+void trackEvent('verification_completed', { method: 'email_code' });
+===
+
+FILE: app/(tabs)/index.tsx
+LOCATION: HomeScreen (component body, after existing hooks)
+ACTION: ADD
+---
+import { trackEvent } from '@/services/analytics';
+===
+
+FILE: app/(tabs)/index.tsx
+LOCATION: HomeScreen — useEffect watching plan/rosterLoading
+ACTION: ADD
+---
+const { plan, isTrialing } = useSubscription();
+
+useEffect(() => {
+  if (rosterLoading) return;
+  const isFree = plan !== 'user_subscription' || isTrialing;
+  if (isFree) {
+    void trackEvent('upgrade_viewed', { source: 'home', plan: isTrialing ? 'trial' : 'free' });
+  }
+}, [plan, isTrialing, rosterLoading]);
+===
+
+FILE: app/(tabs)/index.tsx
+LOCATION: HomeScreen (component body, after existing hooks) — import
+ACTION: ADD
+---
+import { useSubscription } from '@/hooks/useSubscription';
+===
+
+FILE: app/(tabs)/index.tsx
+LOCATION: openInviteAsManager call-site — wrap existing handler in a new callback
+ACTION: ADD
+---
+const handleOpenInviteAsManager = useCallback(() => {
+  openInviteAsManager();
+}, [openInviteAsManager]);
+
+const handleInviteModalClose = useCallback(
+  (didSend: boolean) => {
+    if (didSend) {
+      void trackEvent('invite_sent', { source: 'home', mode: inviteMode ?? 'manager' });
+    }
+    closeInvite();
+  },
+  [closeInvite, inviteMode],
+);
+===
+
+FILE: hooks/useSchedulerHandlers.ts
+LOCATION: useSchedulerHandlers — after roster data hook, add derived ref
+ACTION: ADD
+---
+const rosterWasEmptyRef = useRef<boolean>(true);
+
+useEffect(() => {
+  if (roster && roster.length > 0) {
+    rosterWasEmptyRef.current = false;
+  }
+}, [roster]);
+===
+
+FILE: hooks/useSchedulerHandlers.ts
+LOCATION: wherever addShift result is awaited and the new shift is confirmed added — after addShift succeeds
+ACTION: ADD
+---
+const isFirstShift = roster.length === 0;
+// … existing addShift call …
+void trackEvent('first_shift_assigned', {
+  worker_count: workers.length,
+  template_used: Boolean(selectedTemplate),
+});
+// guard so we only fire once
+if (isFirstShift) {
+  // event already fired above; isFirstShift captures pre-add length
+}
+===
+
+FILE: hooks/useSchedulerHandlers.ts
+LOCATION: wherever schedule_published / publish action completes successfully
+ACTION: ADD
+---
+void trackEvent('first_schedule_published', {
+  worker_count: workers.length,
+  gap_count: staffingGaps ?? 0,
+  previously_empty: rosterWasEmptyRef.current,
+});
+===
+
+FILE: hooks/useSchedulerHandlers.ts
+LOCATION: existing onboarding_step_completed trackEvent call — UPDATE to include step name
+ACTION: UPDATE
+---
+void trackEvent('onboarding_step_completed', {
+  step: step.id,
+  step_index: currentStepIndex,
+  total_steps: onboardingSteps.length,
+});
+===
+
+FILE: components/UpgradeBanner.tsx
+LOCATION: UpgradeBanner — component body, after plan/isTrialing are available
+ACTION: ADD
+---
+useEffect(() => {
+  const isFree = plan !== 'user_subscription' || isTrialing;
+  if (isFree) {
+    void trackEvent('upgrade_viewed', {
+      source: 'banner',
+      plan: isTrialing ? 'trial' : 'free',
+    });
+  }
+}, [plan, isTrialing]);
+===
+
+FILE: components/UpgradeBanner.tsx
+LOCATION: openBilling — replace void trackEvent('upgrade_cta_tapped', ...) with upgrade_started
+ACTION: REPLACE
+---
+void trackEvent('upgrade_started', { plan, source: 'banner' });
+===

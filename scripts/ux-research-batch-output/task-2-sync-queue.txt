@@ -1,0 +1,539 @@
+// services/syncQueue.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { clearInterval, setInterval } from 'timers';
+
+import { track } from '@/services/analytics';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type SyncOperation = {
+  id: string;
+  table: string;
+  operation: 'upsert' | 'delete';
+  payload: Record<string, unknown>;
+  accountId: string;
+  createdAt: number;
+  retries: number;
+  maxRetries: number;
+};
+
+export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+type SyncQueueConfig = {
+  proxyUrl: string;
+  getAuthToken: () => Promise<string | null>;
+};
+
+type StatusListener = () => void;
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = 'horario:syncQueue';
+const MAX_QUEUE_SIZE = 200;
+const FLUSH_INTERVAL_MS = 8_000;
+
+// ---------------------------------------------------------------------------
+// Module-level state
+// ---------------------------------------------------------------------------
+
+let _proxyUrl: string = '';
+let _getAuthToken: (() => Promise<string | null>) | null = null;
+
+let _queue: SyncOperation[] = [];
+let _flushing: boolean = false;
+let _intervalHandle: ReturnType<typeof setInterval> | null = null;
+let _lastSyncedAt: number | null = null;
+let _hasErrors: boolean = false;
+let _currentStatus: SyncStatus = 'idle';
+
+const _statusListeners: Set<StatusListener> = new Set();
+
+// ---------------------------------------------------------------------------
+// Unique ID helper
+// ---------------------------------------------------------------------------
+
+function _generateId(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 9);
+  return `${timestamp}-${random}`;
+}
+
+// ---------------------------------------------------------------------------
+// Status management
+// ---------------------------------------------------------------------------
+
+function _setStatus(next: SyncStatus): void {
+  if (_currentStatus === next) {
+    return;
+  }
+  _currentStatus = next;
+  _notifyListeners();
+}
+
+function _notifyListeners(): void {
+  for (const listener of _statusListeners) {
+    try {
+      listener();
+    } catch (_e) {
+      // swallow — status update must never break the app
+    }
+  }
+}
+
+function _subscribeToStatus(listener: StatusListener): () => void {
+  _statusListeners.add(listener);
+  return () => {
+    _statusListeners.delete(listener);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AsyncStorage persistence
+// ---------------------------------------------------------------------------
+
+async function _persistQueue(): Promise<void> {
+  try {
+    const serialised = JSON.stringify(_queue);
+    await AsyncStorage.setItem(STORAGE_KEY, serialised);
+  } catch (_e) {
+    // best-effort persistence — swallow
+  }
+}
+
+async function _loadPersistedQueue(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw === null) {
+      return;
+    }
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return;
+    }
+    const validated: SyncOperation[] = [];
+    for (const item of parsed) {
+      if (_isSyncOperation(item)) {
+        validated.push(item);
+      }
+    }
+    // Merge without exceeding max size; persisted items go first (older)
+    const combined = [...validated, ..._queue];
+    const deduped = _deduplicateById(combined);
+    _queue = deduped.slice(0, MAX_QUEUE_SIZE);
+  } catch (_e) {
+    // swallow
+  }
+}
+
+function _isSyncOperation(value: unknown): value is SyncOperation {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v['id'] === 'string' &&
+    typeof v['table'] === 'string' &&
+    (v['operation'] === 'upsert' || v['operation'] === 'delete') &&
+    typeof v['payload'] === 'object' &&
+    v['payload'] !== null &&
+    typeof v['accountId'] === 'string' &&
+    typeof v['createdAt'] === 'number' &&
+    typeof v['retries'] === 'number' &&
+    typeof v['maxRetries'] === 'number'
+  );
+}
+
+function _deduplicateById(ops: SyncOperation[]): SyncOperation[] {
+  const seen = new Set<string>();
+  const result: SyncOperation[] = [];
+  for (const op of ops) {
+    if (!seen.has(op.id)) {
+      seen.add(op.id);
+      result.push(op);
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Network helpers
+// ---------------------------------------------------------------------------
+
+function _isOnline(): boolean {
+  try {
+    if (typeof navigator !== 'undefined' && 'onLine' in navigator) {
+      return navigator.onLine;
+    }
+  } catch (_e) {
+    // best-effort
+  }
+  return true;
+}
+
+async function _executeOperation(op: SyncOperation): Promise<'success' | 'retryable' | 'discard'> {
+  if (_proxyUrl === '' || _getAuthToken === null) {
+    return 'retryable';
+  }
+
+  let token: string | null = null;
+  try {
+    token = await _getAuthToken();
+  } catch (_e) {
+    return 'retryable';
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token !== null) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(_proxyUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        table: op.table,
+        operation: op.operation,
+        payload: op.payload,
+        accountId: op.accountId,
+        operationId: op.id,
+      }),
+    });
+  } catch (_networkError) {
+    return 'retryable';
+  }
+
+  const status = response.status;
+
+  if (status >= 200 && status <= 299) {
+    return 'success';
+  }
+
+  if (status >= 400 && status <= 499) {
+    console.warn(
+      '[syncQueue] Discarding operation due to 4xx client error:',
+      status,
+      op.id,
+    );
+    return 'discard';
+  }
+
+  if (status >= 500 || status === 429) {
+    return 'retryable';
+  }
+
+  console.warn(
+    '[syncQueue] Unexpected HTTP status, discarding operation:',
+    status,
+    op.id,
+  );
+  return 'discard';
+}
+
+// ---------------------------------------------------------------------------
+// Flush logic
+// ---------------------------------------------------------------------------
+
+async function _flush(): Promise<void> {
+  if (_flushing) {
+    return;
+  }
+
+  if (_queue.length === 0) {
+    if (_currentStatus !== 'idle' && _currentStatus !== 'saved') {
+      _setStatus('idle');
+    }
+    return;
+  }
+
+  if (!_isOnline()) {
+    return;
+  }
+
+  if (_proxyUrl === '' || _getAuthToken === null) {
+    return;
+  }
+
+  _flushing = true;
+  _setStatus('saving');
+
+  let anySucceeded = false;
+  let anyFinalFailure = false;
+
+  try {
+    // Work on a snapshot so enqueues during flush don't cause issues
+    const snapshot = [..._queue];
+    const remainingAfterFlush: SyncOperation[] = [];
+
+    for (const op of snapshot) {
+      if (!_isOnline()) {
+        remainingAfterFlush.push(op);
+        continue;
+      }
+
+      const result = await _executeOperation(op);
+
+      if (result === 'success') {
+        anySucceeded = true;
+        // Do not add to remaining — operation is done
+      } else if (result === 'retryable') {
+        const nextRetries = op.retries + 1;
+        if (nextRetries > op.maxRetries) {
+          console.warn(
+            '[syncQueue] Discarding operation after max retries:',
+            op.id,
+          );
+          anyFinalFailure = true;
+          try {
+            track('error_displayed', {
+              category: 'sync',
+              operation_id: op.id,
+              table: op.table,
+              operation: op.operation,
+              retries: op.retries,
+            });
+          } catch (_e) {
+            // swallow analytics error
+          }
+        } else {
+          remainingAfterFlush.push({ ...op, retries: nextRetries });
+        }
+      } else {
+        // 'discard' — just drop it, final failure
+        anyFinalFailure = true;
+        try {
+          track('error_displayed', {
+            category: 'sync',
+            operation_id: op.id,
+            table: op.table,
+            operation: op.operation,
+            retries: op.retries,
+          });
+        } catch (_e) {
+          // swallow analytics error
+        }
+      }
+    }
+
+    // Ops that were enqueued during the flush (not in snapshot) stay in _queue
+    // but we need to merge remaining back
+    const enqueuedDuringFlush = _queue.filter(
+      (op) => !snapshot.some((s) => s.id === op.id),
+    );
+
+    _queue = [...remainingAfterFlush, ...enqueuedDuringFlush].slice(0, MAX_QUEUE_SIZE);
+    _hasErrors = anyFinalFailure;
+
+    if (anySucceeded) {
+      _lastSyncedAt = Date.now();
+    }
+
+    await _persistQueue();
+
+    if (_queue.length === 0) {
+      if (anySucceeded) {
+        _setStatus('saved');
+      } else if (anyFinalFailure) {
+        _setStatus('error');
+      } else {
+        _setStatus('idle');
+      }
+    } else if (anyFinalFailure) {
+      _setStatus('error');
+    } else {
+      _setStatus('saving');
+    }
+  } catch (_unexpectedError) {
+    // swallow — sync must never break the app
+  } finally {
+    _flushing = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Interval management
+// ---------------------------------------------------------------------------
+
+function _startInterval(): void {
+  if (_intervalHandle !== null) {
+    clearInterval(_intervalHandle);
+  }
+  _intervalHandle = setInterval(() => {
+    _flush().catch(() => {
+      // swallow
+    });
+  }, FLUSH_INTERVAL_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Public API — configure
+// ---------------------------------------------------------------------------
+
+export function configureSyncQueue(config: SyncQueueConfig): void {
+  try {
+    _proxyUrl = config.proxyUrl;
+    _getAuthToken = config.getAuthToken;
+
+    _loadPersistedQueue()
+      .then(() => {
+        _startInterval();
+      })
+      .catch(() => {
+        _startInterval();
+      });
+  } catch (_e) {
+    // swallow
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — enqueue
+// ---------------------------------------------------------------------------
+
+export function enqueueSyncOp(
+  op: Omit<SyncOperation, 'id' | 'retries' | 'createdAt'>,
+): void {
+  try {
+    if (_queue.length >= MAX_QUEUE_SIZE) {
+      console.warn('[syncQueue] Queue full, dropping operation for table:', op.table);
+      return;
+    }
+
+    const full: SyncOperation = {
+      ...op,
+      id: _generateId(),
+      retries: 0,
+      createdAt: Date.now(),
+    };
+
+    _queue.push(full);
+
+    if (_currentStatus === 'idle' || _currentStatus === 'saved') {
+      _setStatus('saving');
+    }
+
+    _persistQueue().catch(() => {
+      // best-effort
+    });
+
+    if (_intervalHandle === null && _proxyUrl !== '') {
+      _startInterval();
+    }
+  } catch (_e) {
+    // swallow — sync must never break the app
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — getSyncStatus (non-hook)
+// ---------------------------------------------------------------------------
+
+export function getSyncStatus(): {
+  pendingCount: number;
+  lastSyncedAt: number | null;
+  hasErrors: boolean;
+} {
+  return {
+    pendingCount: _queue.length,
+    lastSyncedAt: _lastSyncedAt,
+    hasErrors: _hasErrors,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — useSyncStatus (React hook)
+// ---------------------------------------------------------------------------
+
+export function useSyncStatus(): {
+  status: SyncStatus;
+  pendingCount: number;
+  lastSyncedAt: number | null;
+  retryNow: () => void;
+} {
+  const [status, setStatus] = useState<SyncStatus>(_currentStatus);
+  const [pendingCount, setPendingCount] = useState<number>(_queue.length);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(_lastSyncedAt);
+
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    function handleStatusChange(): void {
+      const next = _currentStatus;
+
+      setStatus(next);
+      setPendingCount(_queue.length);
+      setLastSyncedAt(_lastSyncedAt);
+
+      if (next === 'saved') {
+        if (savedTimerRef.current !== null) {
+          clearTimeout(savedTimerRef.current);
+        }
+        savedTimerRef.current = setTimeout(() => {
+          if (_queue.length === 0) {
+            setStatus('idle');
+          }
+        }, 3000);
+      } else {
+        if (savedTimerRef.current !== null) {
+          clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = null;
+        }
+      }
+    }
+
+    const unsubscribe = _subscribeToStatus(handleStatusChange);
+
+    // Sync with latest state on mount in case something changed before subscription
+    setStatus(_currentStatus);
+    setPendingCount(_queue.length);
+    setLastSyncedAt(_lastSyncedAt);
+
+    return () => {
+      unsubscribe();
+      if (savedTimerRef.current !== null) {
+        clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const retryNow = useCallback((): void => {
+    try {
+      track('retry_action', {
+        category: 'sync',
+        pending_count: _queue.length,
+      });
+    } catch (_e) {
+      // swallow analytics error
+    }
+
+    // Reset retry counters so ops get another full attempt
+    _queue = _queue.map((op) => ({ ...op, retries: 0 }));
+    _hasErrors = false;
+
+    if (_currentStatus === 'error') {
+      _setStatus('saving');
+    }
+
+    _flush().catch(() => {
+      // swallow
+    });
+  }, []);
+
+  return {
+    status,
+    pendingCount,
+    lastSyncedAt,
+    retryNow,
+  };
+}

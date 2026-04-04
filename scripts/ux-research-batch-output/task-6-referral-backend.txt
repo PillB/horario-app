@@ -1,0 +1,605 @@
+===FILE_1: app/api/referrals+api.ts===
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
+
+// ─── Environment ────────────────────────────────────────────────────────────
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const serviceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
+const CLERK_JWKS_URL = process.env.CLERK_JWKS_URL ?? '';
+const AUTH_ENABLED = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type JWK = { kid?: string; kty: string; n: string; e: string; alg?: string; use?: string };
+type JWKSet = { keys: JWK[] };
+
+type ReferralStatus = 'pending' | 'accepted' | 'expired';
+
+type ReferralRow = {
+  id: string;
+  referral_code: string;
+  referrer_user_id: string;
+  referred_user_id: string | null;
+  status: ReferralStatus;
+  created_at: string;
+  accepted_at: string | null;
+  account_id: string;
+  channel: string;
+  max_redemptions: number;
+  redemption_count: number;
+  expires_at: string;
+};
+
+type CreateBody = {
+  action: 'create';
+  account_id: string;
+  channel: string;
+};
+
+type RedeemBody = {
+  action: 'redeem';
+  code: string;
+};
+
+type ListBody = {
+  action: 'list';
+};
+
+type StatsBody = {
+  action: 'stats';
+};
+
+type RequestBody = CreateBody | RedeemBody | ListBody | StatsBody;
+
+// ─── JWKS cache ──────────────────────────────────────────────────────────────
+
+let jwksCache: JWKSet | null = null;
+let jwksCacheExpiry = 0;
+
+async function fetchJwks(): Promise<JWKSet> {
+  if (jwksCache && Date.now() < jwksCacheExpiry) return jwksCache;
+  const res = await fetch(CLERK_JWKS_URL);
+  if (!res.ok) throw new Error('Failed to fetch JWKS');
+  jwksCache = (await res.json()) as JWKSet;
+  jwksCacheExpiry = Date.now() + 5 * 60 * 1000;
+  return jwksCache;
+}
+
+// ─── Clerk JWT verification ──────────────────────────────────────────────────
+
+async function verifyClerkToken(token: string): Promise<string | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const header = JSON.parse(
+      Buffer.from(parts[0], 'base64url').toString(),
+    ) as { kid?: string; alg?: string };
+
+    const payload = JSON.parse(
+      Buffer.from(parts[1], 'base64url').toString(),
+    ) as { sub?: string; exp?: number };
+
+    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+
+    const jwks = await fetchJwks();
+    const jwk = header.kid
+      ? jwks.keys.find((k) => k.kid === header.kid)
+      : jwks.keys[0];
+    if (!jwk) return null;
+
+    const publicKey = createPublicKey({ key: jwk as unknown as CryptoJWK, format: 'jwk' });
+    const verifier = createVerify('RSA-SHA256');
+    const signingInput = `${parts[0]}.${parts[1]}`;
+    verifier.update(signingInput);
+    const signature = Buffer.from(parts[2], 'base64url');
+    const valid = verifier.verify(publicKey, signature);
+
+    if (!valid) return null;
+    return payload.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Auth helper ─────────────────────────────────────────────────────────────
+
+async function resolveUserId(req: Request): Promise<string | null> {
+  if (!AUTH_ENABLED) {
+    return process.env.EXPO_PUBLIC_USER_ID ?? 'local-user';
+  }
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token) return null;
+  return verifyClerkToken(token);
+}
+
+// ─── Supabase service-role client (singleton) ────────────────────────────────
+
+let _supabase: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    _supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return _supabase;
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+
+function generateReferralCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function json(data: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+// ─── Action handlers ─────────────────────────────────────────────────────────
+
+async function handleCreate(
+  body: CreateBody,
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<Response> {
+  const { account_id, channel } = body;
+
+  if (!account_id || typeof account_id !== 'string') {
+    return json({ error: 'Missing or invalid account_id' }, 400);
+  }
+  if (!channel || typeof channel !== 'string') {
+    return json({ error: 'Missing or invalid channel' }, 400);
+  }
+
+  const referralCode = generateReferralCode();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const newRow: Omit<ReferralRow, 'id'> = {
+    referral_code: referralCode,
+    referrer_user_id: userId,
+    referred_user_id: null,
+    status: 'pending',
+    created_at: now.toISOString(),
+    accepted_at: null,
+    account_id,
+    channel,
+    max_redemptions: 5,
+    redemption_count: 0,
+    expires_at: expiresAt.toISOString(),
+  };
+
+  const { error } = await supabase.from('referrals').insert(newRow);
+
+  if (error) {
+    console.error('[referrals] create error:', error);
+    return json({ error: 'Failed to create referral' }, 500);
+  }
+
+  return json({ referralCode });
+}
+
+async function handleRedeem(
+  body: RedeemBody,
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<Response> {
+  const { code } = body;
+
+  if (!code || typeof code !== 'string') {
+    return json({ error: 'Missing or invalid code' }, 400);
+  }
+
+  const { data: rows, error: fetchError } = await supabase
+    .from('referrals')
+    .select('*')
+    .eq('referral_code', code.toUpperCase())
+    .limit(1);
+
+  if (fetchError) {
+    console.error('[referrals] redeem fetch error:', fetchError);
+    return json({ error: 'Failed to look up referral code' }, 500);
+  }
+
+  if (!rows || rows.length === 0) {
+    return json({ error: 'Referral code not found' }, 400);
+  }
+
+  const row = rows[0] as ReferralRow;
+
+  if (row.status !== 'pending') {
+    return json({ error: 'Referral code is no longer active' }, 400);
+  }
+
+  const now = new Date();
+  if (new Date(row.expires_at) < now) {
+    await supabase
+      .from('referrals')
+      .update({ status: 'expired' })
+      .eq('referral_code', code.toUpperCase());
+    return json({ error: 'Referral code has expired' }, 400);
+  }
+
+  if (row.redemption_count >= row.max_redemptions) {
+    return json({ error: 'Referral code has reached its redemption limit' }, 400);
+  }
+
+  if (row.referrer_user_id === userId) {
+    return json({ error: 'Cannot redeem your own referral code' }, 400);
+  }
+
+  const newCount = row.redemption_count + 1;
+  const newStatus: ReferralStatus = newCount >= row.max_redemptions ? 'accepted' : 'pending';
+
+  const { error: updateError } = await supabase
+    .from('referrals')
+    .update({
+      referred_user_id: userId,
+      accepted_at: now.toISOString(),
+      status: newStatus,
+      redemption_count: newCount,
+    })
+    .eq('referral_code', code.toUpperCase());
+
+  if (updateError) {
+    console.error('[referrals] redeem update error:', updateError);
+    return json({ error: 'Failed to redeem referral' }, 500);
+  }
+
+  return json({ success: true, referrerId: row.referrer_user_id });
+}
+
+async function handleList(
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<Response> {
+  const { data, error } = await supabase
+    .from('referrals')
+    .select('*')
+    .eq('referrer_user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[referrals] list error:', error);
+    return json({ error: 'Failed to list referrals' }, 500);
+  }
+
+  return json({ referrals: data ?? [] });
+}
+
+async function handleStats(
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<Response> {
+  const { data, error } = await supabase
+    .from('referrals')
+    .select('status')
+    .eq('referrer_user_id', userId);
+
+  if (error) {
+    console.error('[referrals] stats error:', error);
+    return json({ error: 'Failed to fetch stats' }, 500);
+  }
+
+  const rows = (data ?? []) as { status: ReferralStatus }[];
+
+  const stats = rows.reduce(
+    (acc, row) => {
+      acc.sent += 1;
+      if (row.status === 'accepted') acc.accepted += 1;
+      if (row.status === 'pending') acc.pending += 1;
+      return acc;
+    },
+    { sent: 0, accepted: 0, pending: 0 },
+  );
+
+  return json(stats);
+}
+
+// ─── Route handler ───────────────────────────────────────────────────────────
+
+export async function POST(req: Request): Promise<Response> {
+  const userId = await resolveUserId(req);
+  if (!userId) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  if (typeof body !== 'object' || body === null || !('action' in body)) {
+    return json({ error: 'Missing action field' }, 400);
+  }
+
+  const supabase = getSupabase();
+  const typedBody = body as RequestBody;
+
+  switch (typedBody.action) {
+    case 'create':
+      return handleCreate(typedBody as CreateBody, userId, supabase);
+    case 'redeem':
+      return handleRedeem(typedBody as RedeemBody, userId, supabase);
+    case 'list':
+      return handleList(userId, supabase);
+    case 'stats':
+      return handleStats(userId, supabase);
+    default: {
+      const _exhaustive: never = typedBody;
+      void _exhaustive;
+      return json({ error: 'Invalid action' }, 400);
+    }
+  }
+}
+
+===FILE_2: hooks/useReferral.ts===
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@clerk/clerk-expo';
+
+import { trackEvent } from '@/services/analytics';
+import { useIdentity } from '@/contexts/IdentityContext';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type ReferralStats = {
+  sent: number;
+  accepted: number;
+  pending: number;
+};
+
+export type ReferralState = {
+  referralCode: string | null;
+  stats: ReferralStats | null;
+  loading: boolean;
+  error: string | null;
+};
+
+export type ReferralChannel = 'link' | 'email' | 'sms';
+
+export type UseReferralReturn = ReferralState & {
+  createReferral: (channel: ReferralChannel) => Promise<string>;
+  redeemReferral: (code: string) => Promise<boolean>;
+  refreshStats: () => Promise<void>;
+};
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const API_URL = '/api/referrals';
+
+// ─── Internal fetch helper ───────────────────────────────────────────────────
+
+type ApiCreateResponse = { referralCode: string };
+type ApiRedeemResponse = { success: boolean; referrerId: string };
+type ApiStatsResponse = { sent: number; accepted: number; pending: number };
+type ApiErrorResponse = { error: string };
+
+type ApiResponse =
+  | ApiCreateResponse
+  | ApiRedeemResponse
+  | ApiStatsResponse
+  | ApiErrorResponse;
+
+function isErrorResponse(r: ApiResponse): r is ApiErrorResponse {
+  return 'error' in r;
+}
+
+async function postToApi(
+  body: Record<string, string>,
+  token: string | null,
+): Promise<ApiResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  const data = (await res.json()) as ApiResponse;
+
+  if (!res.ok) {
+    const message = isErrorResponse(data) ? data.error : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
+export function useReferral(): UseReferralReturn {
+  const { userId, accountId } = useIdentity();
+  const { getToken } = useAuth();
+
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [stats, setStats] = useState<ReferralStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Prevent state updates after unmount
+  const mountedRef = useRef<boolean>(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // ── Token resolver ──────────────────────────────────────────────────────
+
+  const resolveToken = useCallback(async (): Promise<string | null> => {
+    try {
+      return await getToken();
+    } catch {
+      return null;
+    }
+  }, [getToken]);
+
+  // ── refreshStats ────────────────────────────────────────────────────────
+
+  const refreshStats = useCallback(async (): Promise<void> => {
+    if (!userId) return;
+
+    try {
+      const token = await resolveToken();
+      const response = await postToApi({ action: 'stats' }, token);
+
+      if (isErrorResponse(response)) {
+        throw new Error(response.error);
+      }
+
+      const statsResponse = response as ApiStatsResponse;
+
+      if (mountedRef.current) {
+        setStats({
+          sent: statsResponse.sent,
+          accepted: statsResponse.accepted,
+          pending: statsResponse.pending,
+        });
+        setError(null);
+      }
+    } catch (err: unknown) {
+      if (mountedRef.current) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch stats';
+        setError(message);
+      }
+    }
+  }, [userId, resolveToken]);
+
+  // ── Auto-refresh on mount ───────────────────────────────────────────────
+
+  useEffect(() => {
+    void refreshStats();
+  }, [refreshStats]);
+
+  // ── createReferral ──────────────────────────────────────────────────────
+
+  const createReferral = useCallback(
+    async (channel: ReferralChannel): Promise<string> => {
+      if (!userId || !accountId) {
+        throw new Error('User not authenticated');
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const token = await resolveToken();
+        const response = await postToApi(
+          { action: 'create', account_id: accountId, channel },
+          token,
+        );
+
+        if (isErrorResponse(response)) {
+          throw new Error(response.error);
+        }
+
+        const createResponse = response as ApiCreateResponse;
+        const code = createResponse.referralCode;
+
+        if (mountedRef.current) {
+          setReferralCode(code);
+        }
+
+        await trackEvent('invite_sent', { channel });
+
+        // Refresh stats so counts reflect the new referral
+        await refreshStats();
+
+        return code;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to create referral';
+        if (mountedRef.current) {
+          setError(message);
+        }
+        throw new Error(message);
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [userId, accountId, resolveToken, refreshStats],
+  );
+
+  // ── redeemReferral ──────────────────────────────────────────────────────
+
+  const redeemReferral = useCallback(
+    async (code: string): Promise<boolean> => {
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      if (!code || code.trim().length === 0) {
+        throw new Error('Referral code is required');
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const token = await resolveToken();
+        const response = await postToApi(
+          { action: 'redeem', code: code.trim().toUpperCase() },
+          token,
+        );
+
+        if (isErrorResponse(response)) {
+          throw new Error(response.error);
+        }
+
+        const redeemResponse = response as ApiRedeemResponse;
+
+        if (redeemResponse.success) {
+          await trackEvent('invite_accepted', { channel: 'direct' });
+          await refreshStats();
+        }
+
+        return redeemResponse.success;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to redeem referral';
+        if (mountedRef.current) {
+          setError(message);
+        }
+        throw new Error(message);
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [userId, resolveToken, refreshStats],
+  );
+
+  // ── Return ──────────────────────────────────────────────────────────────
+
+  return {
+    referralCode,
+    stats,
+    loading,
+    error,
+    createReferral,
+    redeemReferral,
+    refreshStats,
+  };
+}

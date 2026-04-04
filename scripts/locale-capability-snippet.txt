@@ -1,0 +1,123 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// locale-capability-snippet.txt
+//
+// Copy the TWO namespace objects below into EVERY locale file:
+//   locales/en.ts  locales/es.ts  locales/de.ts  locales/fr.ts  locales/it.ts
+//   locales/zh.ts  locales/sw.ts  locales/tl.ts  locales/hi.ts
+//
+// Steps:
+//   1. Paste both objects into the exported const (e.g. `export const en = { … }`).
+//   2. Translate each string value for the target language.
+//      The English values below are the source-of-truth reference.
+//   3. Run `npx tsc --noEmit` to confirm the Translations type is satisfied.
+//   4. Run your locale validation script to verify no keys are missing.
+//
+// Interpolation placeholders use {variable} syntax, resolved by t().
+// Pluralisation variants follow the _one / _other suffix convention.
+// ─────────────────────────────────────────────────────────────────────────────
+
+  capability: {
+    header: {
+      feature: 'Feature',
+      free: 'Free',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Unlimited workers',
+    shiftTemplates: 'Shift templates',
+    availabilityTracking: 'Availability tracking',
+    rosterAssignment: 'Roster assignment',
+    demandTargets: 'Demand targets',
+    posCsvImport: 'POS CSV import',
+    autoAssign: 'Auto-assign',
+    advancedAnalytics: 'Advanced analytics',
+    multiLocation: 'Multi-location',
+    messaging: 'Messaging & comms',
+    prioritySupport: 'Priority support',
+    upgrade: {
+      title: 'Unlock Pro features',
+      body: 'Remove restrictions and access advanced tools.',
+      cta: 'Upgrade to Pro',
+      ctaHint: 'Opens the billing page to start your Pro subscription',
+      price: 'Plans start at $12/mo \u00B7 Cancel anytime',
+    },
+  },
+
+  advancedControls: {
+    title: 'Advanced controls',
+    constraints: {
+      title: 'Shift constraints',
+      minRest: 'Min rest hours between shifts',
+      maxWeekly: 'Max weekly hours',
+      minShift: 'Min shift length (hours)',
+    },
+    presets: {
+      title: 'Industry presets',
+      restaurant: 'Restaurant',
+      retail: 'Retail',
+      cafe: 'Caf\u00E9',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Multi-location',
+      toggle: 'Enable per-location scheduling',
+      locations: 'Location names (comma-separated)',
+    },
+  },
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Corresponding TypeScript type additions for locales/en.ts (types block)
+// Add these to the Translations type if you maintain a separate types.ts:
+//
+//   capability: {
+//     header: { feature: string; free: string; pro: string };
+//     unlimitedWorkers: string;
+//     shiftTemplates: string;
+//     availabilityTracking: string;
+//     rosterAssignment: string;
+//     demandTargets: string;
+//     posCsvImport: string;
+//     autoAssign: string;
+//     advancedAnalytics: string;
+//     multiLocation: string;
+//     messaging: string;
+//     prioritySupport: string;
+//     upgrade: {
+//       title: string;
+//       body: string;
+//       cta: string;
+//       ctaHint: string;
+//       price: string;
+//     };
+//   };
+//
+//   advancedControls: {
+//     title: string;
+//     constraints: {
+//       title: string;
+//       minRest: string;
+//       maxWeekly: string;
+//       minShift: string;
+//     };
+//     presets: {
+//       title: string;
+//       restaurant: string;
+//       retail: string;
+//       cafe: string;
+//       hotel: string;
+//     };
+//     multiLocation: {
+//       title: string;
+//       toggle: string;
+//       locations: string;
+//     };
+//   };
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// t() usage examples once keys are in place:
+//
+//   t('capability.header.feature')          → 'Feature'
+//   t('capability.upgrade.price')           → 'Plans start at $12/mo · Cancel anytime'
+//   t('advancedControls.constraints.minRest') → 'Min rest hours between shifts'
+//   t('advancedControls.presets.cafe')      → 'Café'
+//   t('advancedControls.multiLocation.toggle') → 'Enable per-location scheduling'
+// ─────────────────────────────────────────────────────────────────────────────

@@ -168,6 +168,7 @@ export const de = {
     goToScheduler: 'Zum Planer →',
     startManager: 'Manager-Tour starten',
     startWorker: 'Teammitglied-Tour starten',
+    goToTab: 'Zu {tab} →',
   },
   manager: {
     step1: {
@@ -243,6 +244,134 @@ export const de = {
       why: 'Mitarbeiter, die das Onboarding abschließen, fühlen sich beim Verwalten von Schichtwechseln, beim Beantragen von Urlaub und bei der Kommunikation mit ihrem Team vollständig innerhalb von Horario deutlich sicherer.',
     },
   },
+  mode: {
+    pickTitle: 'Wählen Sie Ihren Leitfaden',
+    pickDesc: 'Wählen Sie eine Tour, um verschiedene Teile der App zu erkunden.',
+    overview: 'Kurzübersicht',
+    overviewDesc: '5-Schritte-Einführung in alle Registerkarten',
+    manager: 'Manager-Tour',
+    managerDesc: 'Erstellen Sie Ihren ersten Dienstplan',
+    worker: 'Teammitglied-Tour',
+    workerDesc: 'Als Teammitglied starten',
+    home: 'Leitfaden Startseite',
+    homeDesc: 'Dashboard, Serie & Lücken',
+    scheduler: 'Planer-Leitfaden',
+    schedulerDesc: 'Mitarbeiter, Vorlagen & Dienstplan',
+    analytics: 'Analyse-Leitfaden',
+    analyticsDesc: 'KPIs, Stunden & Fairness',
+  },
+  overview: {
+    step1: {
+      title: 'Willkommen bei Horario',
+      desc: 'Dies ist Ihr Startdashboard — sehen Sie auf einen Blick Ihren Planungsstand, bevorstehende Schichten und Personallücken.',
+      why: 'Eine tägliche Dashboard-Prüfung hält Sie vor Lücken auf dem Laufenden, bevor diese zu Ausfällen werden.',
+    },
+    step2: {
+      title: 'Ihre Planungsserie',
+      desc: 'Ihre Serie verfolgt, wie konsequent Sie den Teamdienstplan aktuell halten. Je höher Ihre Serie, desto zuverlässiger wird Ihr Dienstplan.',
+      why: 'Teams mit konsequenter Planung verzeichnen bis zu 40 % weniger kurzfristige Schichtwechsel.',
+    },
+    step3: {
+      title: 'Die Planer-Registerkarte',
+      desc: 'Im Planer bauen Sie Ihr Team auf, legen Verfügbarkeiten fest, erstellen Schichtvorlagen und veröffentlichen den Dienstplan.',
+      why: 'Zentralisierte Planung eliminiert Doppelbuchungen und gibt Ihrem gesamten Team eine einzige Wahrheitsquelle.',
+    },
+    step4: {
+      title: 'Bedarfsprognose',
+      desc: 'Nutzen Sie historische Daten und POS-Importe, um vorherzusagen, wie viele Mitarbeiter Sie an einem bestimmten Tag benötigen.',
+      why: 'Bedarfsorientierte Planung senkt übermäßige Personalkosten und hält gleichzeitig die Servicequalität hoch.',
+    },
+    step5: {
+      title: 'Analyse-Dashboard',
+      desc: 'Verfolgen Sie Abdeckungsrate, Umsatz auf dem Spiel, Stundenverteilung und Fairness-Score — alles in Echtzeit.',
+      why: 'Was gemessen wird, verbessert sich. Betreiber, die diese KPIs verfolgen, reduzieren unbesetzte Schichten innerhalb eines Monats um 30 %.',
+    },
+  },
+  home: {
+    step1: {
+      title: 'Ihre Kommandozentrale',
+      desc: 'Die Startseite bietet Ihnen sofort einen Gesundheitscheck: diese Woche geplante Schichten, offene Lücken und Ihre Dienstplan-Zuverlässigkeitsserie.',
+      why: 'Manager, die dieses Dashboard täglich prüfen, erkennen Lücken, bevor sie zur Krise werden.',
+    },
+    step2: {
+      title: 'Die Woche auf einen Blick',
+      desc: 'Die Wochenstatistikkarte zeigt, wie viele Schichten geplant sind und wie viele Stellen noch besetzt werden müssen.',
+      why: 'Eine einzige Zahl für Lücken vs. geplante Schichten ist schneller umsetzbar als das Durchscrollen eines vollständigen Dienstplans.',
+    },
+    step3: {
+      title: 'Zuverlässigkeitsserie',
+      desc: 'Ihre Serie zählt aufeinanderfolgende Tage, an denen Sie den Dienstplan aktuell gehalten haben. Tippen Sie auf „Heutigen Fortschritt protokollieren", um sie voranzutreiben.',
+      why: 'Teams mit einer 7-Tage-Serie verzeichnen dank frühzeitiger Sichtbarkeit 40 % weniger Ausfälle.',
+    },
+    step4: {
+      title: 'Bevorstehende Schichten',
+      desc: 'Sehen Sie jede für die kommenden Tage geplante Schicht — Mitarbeitername, Vorlage und Uhrzeit — auf einen Blick.',
+      why: 'Zu wissen, was bevorsteht, ermöglicht es Ihnen, dünne Abdeckung zu erkennen, bevor die Schicht beginnt.',
+    },
+    step5: {
+      title: 'Personallücken',
+      desc: 'Jede Stelle mit weniger zugewiesenen Mitarbeitern als erforderlich erscheint hier als offene Lücke.',
+      why: 'Jede unbesetzte Lücke ist potenziell verlorener Umsatz. Frühzeitiges Schließen hält den Service reibungslos am Laufen.',
+    },
+    step6: {
+      title: 'Schnellaktionen',
+      desc: 'Springen Sie direkt zu Verfügbarkeit hinzufügen, Schichten erstellen oder Dienstplan veröffentlichen — die drei häufigsten Planungsaufgaben.',
+      why: 'Ein Tippen zum richtigen Bildschirm spart die Zeit für Navigation und Scrollen und macht die tägliche Planung 30 % schneller.',
+    },
+  },
+  scheduler: {
+    step1: {
+      title: 'Teammitglied hinzufügen',
+      desc: 'Geben Sie den Namen des Mitarbeiters, die Rolle (z. B. Barista, Kellner) und Fähigkeiten durch Kommas getrennt ein.',
+      why: 'Jede Person im Dienstplan benötigt ein Profil, damit die Auto-Zuweisung sie den richtigen Schichten zuordnen kann.',
+      action: 'Füllen Sie das Mitarbeiterformular oben aus und tippen Sie auf „Mitarbeiter hinzufügen" um fortzufahren ↑',
+    },
+    step2: {
+      title: 'Verfügbarkeit festlegen',
+      desc: 'Teilen Sie Horario mit, wann Ihre Teammitglieder verfügbar sind — Wochentag, Startzeit und Endzeit.',
+      why: 'Planung gegen bestätigte Verfügbarkeit ist der wichtigste Treiber für Schichtakzeptanz — Teams verzeichnen 35 % weniger Tauschangesuchte.',
+      action: 'Fügen Sie ein Verfügbarkeitsfenster oben hinzu und tippen Sie auf „Verfügbarkeit hinzufügen" um fortzufahren ↑',
+    },
+    step3: {
+      title: 'Schichtvorlage erstellen',
+      desc: 'Eine Vorlage ist eine wiederverwendbare Schichtdefinition — Name, Rolle, Startzeit, Endzeit und Mindestanzahl erforderlicher Mitarbeiter.',
+      why: 'Vorlagen reduzieren die Erstellungszeit des Dienstplans um 60 %, indem sie wöchentliche repetitive Dateneingabe eliminieren.',
+      action: 'Füllen Sie das Vorlagenformular oben aus und tippen Sie auf „Vorlage hinzufügen" um fortzufahren ↑',
+    },
+    step4: {
+      title: 'Erste Schicht zuweisen',
+      desc: 'Wählen Sie einen Mitarbeiter, wählen Sie eine Vorlage, geben Sie ein Datum ein und veröffentlichen. Horario validiert Verfügbarkeit und Rollenzuordnung automatisch.',
+      why: 'Schon eine veröffentlichte Schicht aktiviert die Benachrichtigungspipeline, sodass Ihr Team von Tag eins an Zuverlässigkeit erlebt.',
+      action: 'Weisen Sie oben eine Schicht zu und tippen Sie auf „Speichern und Team benachrichtigen" um fortzufahren ↑',
+    },
+    step5: {
+      title: 'Bedarf prognostizieren',
+      desc: 'Legen Sie fest, wie viele Mitarbeiter Sie pro Rolle und Tag benötigen. Verwenden Sie den homogenen Modus für gleichmäßige Wochen, Manuell für bestimmte Daten oder POS-CSV-Import für datengesteuerte Prognosen.',
+      why: 'Bedarfsorientierte Planung hilft Betreibern, übermäßige Personalkosten um durchschnittlich 15 % zu senken und dabei die Servicequalität zu erhalten.',
+    },
+  },
+  analytics: {
+    step1: {
+      title: 'Abdeckungs-KPIs',
+      desc: 'Die Abdeckungsrate zeigt den Prozentsatz der erforderlichen Schichten, die besetzt sind. Entwurfsschichten warten auf Veröffentlichung.',
+      why: 'Eine Abdeckung über 80 % ist der Schwellenwert, bei dem die Servicequalität zuverlässig aufrechterhalten wird.',
+    },
+    step2: {
+      title: 'Umsatz auf dem Spiel',
+      desc: 'Jede unbesetzte Lücke hat Kosten. Diese Zahl schätzt den potenziellen Umsatzverlust durch unterbesetzte Schichten.',
+      why: 'Betreiber, die den Umsatz auf dem Spiel verfolgen, schließen Lücken 2x schneller als jene, die es nicht tun.',
+    },
+    step3: {
+      title: 'Stundenverteilung',
+      desc: 'Sehen Sie, wie die gesamten geplanten Stunden auf Ihr Team verteilt sind. Ungleichmäßige Balken zeigen an, dass ein Mitarbeiter mehr Last trägt.',
+      why: 'Ausgeglichene Stunden verbessern die Teammoral und reduzieren Burnout — die zwei größten Treiber unerwarteter Ausfälle.',
+    },
+    step4: {
+      title: 'Fairness-Score',
+      desc: 'Die Fairness-Anzeige misst, wie gleichmäßig die Stunden verteilt sind. Ein niedrigerer Score (grüner) bedeutet einen gerechteren Dienstplan.',
+      why: 'Teams mit einem Fairness-Score unter 4 berichten von 25 % höheren Schichtakzeptanzraten.',
+    },
+  },
   completed: {
     title: '🎉 Alles bereit!',
     seedConfirmation: '✅ Beispieldaten hinzugefügt — erkunde dein erstes Team, Vorlagen und Schichten!',
@@ -275,6 +404,64 @@ export const de = {
     emailInputA11y: 'E-Mail-Adresse des Mitarbeiters eingeben',
     errorRegenerate: 'Code konnte nicht neu generiert werden. Bitte versuchen Sie es erneut.',
     errorShare: 'Code konnte nicht geteilt werden. Bitte kopieren Sie ihn manuell.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Funktion',
+      free: 'Kostenlos',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Unbegrenzte Mitarbeiter',
+    shiftTemplates: 'Schichtvorlagen',
+    availabilityTracking: 'Verfügbarkeits-Tracking',
+    rosterAssignment: 'Schichtzuweisung',
+    demandTargets: 'Bedarfsziele',
+    posCsvImport: 'POS-CSV-Import',
+    autoAssign: 'Automatische Zuweisung',
+    advancedAnalytics: 'Erweiterte Analysen',
+    multiLocation: 'Mehrere Standorte',
+    messaging: 'Nachrichten & Kommunikation',
+    prioritySupport: 'Prioritätssupport',
+    upgrade: {
+      title: 'Pro-Funktionen freischalten',
+      body: 'Einschränkungen entfernen und auf erweiterte Tools zugreifen.',
+      cta: 'Auf Pro upgraden',
+      ctaHint: 'Öffnet die Abrechnungsseite für dein Pro-Abonnement',
+      price: 'Pläne ab 12 $/Monat · Jederzeit kündbar',
+    },
+  },
+  advancedControls: {
+    title: 'Erweiterte Steuerung',
+    constraints: {
+      title: 'Schichtbeschränkungen',
+      minRest: 'Mindestpause zwischen Schichten (Stunden)',
+      maxWeekly: 'Maximale Wochenstunden',
+      minShift: 'Mindestschichtlänge (Stunden)',
+    },
+    presets: {
+      title: 'Branchen-Presets',
+      restaurant: 'Restaurant',
+      retail: 'Einzelhandel',
+      cafe: 'Café',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Mehrere Standorte',
+      toggle: 'Standortbasierte Planung aktivieren',
+      locations: 'Standortnamen (kommagetrennt)',
+    },
+  },
+
+  profile: {
+    guides: {
+      sectionTitle: 'Leitfäden & Tour',
+      sectionSubtitle: 'Wiederholen Sie beliebige Leitfäden zur Erkundung der App-Funktionen',
+      overview: 'Kurzübersicht',
+      manager: 'Manager-Tour',
+      scheduler: 'Planer-Leitfaden',
+      analytics: 'Analyse-Leitfaden',
+    },
   },
 
 } as const;

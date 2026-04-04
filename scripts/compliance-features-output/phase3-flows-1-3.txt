@@ -1,0 +1,853 @@
+===FILE_1: hooks/useTeamSetup.ts===
+import { useCallback } from 'react';
+
+import { log } from '@/services/logger';
+import type { DbShiftTemplate } from '@/services/rosterService';
+import type { ShiftTemplate } from '@/utils/schedulerMetrics';
+import { useWorkers, type WorkerWithAvailability } from '@/hooks/useWorkers';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type BulkImportResult = {
+  imported: number;
+  errors: string[];
+};
+
+export type TeamSetupHook = ReturnType<typeof useTeamSetup>;
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Parses a single CSV row into cells, respecting double-quoted fields that may
+ * contain commas.  Returns null if the row is blank or a header sentinel.
+ */
+const parseCSVRow = (
+  raw: string,
+): string[] | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const cells: string[] = [];
+  let current = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+
+    if (ch === '"') {
+      if (insideQuotes && trimmed[i + 1] === '"') {
+        // escaped quote
+        current += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (ch === ',' && !insideQuotes) {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+};
+
+/**
+ * Escapes a single CSV cell value.  Wraps in quotes if the value contains
+ * a comma, double-quote, or newline character.
+ */
+const escapeCSVCell = (value: string): string => {
+  if (/[,"\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+};
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * useTeamSetup
+ *
+ * Wraps `useWorkers` and layers on:
+ *  - `bulkImportWorkers`              — CSV → workers
+ *  - `validateWorkerAgainstTemplates` — role-guard check
+ *  - `exportWorkersCSV`               — dump current workers as CSV
+ */
+export const useTeamSetup = (accountId: string) => {
+  const workersHook = useWorkers(accountId);
+  const { workers, addWorker } = workersHook;
+
+  // ── bulkImportWorkers ───────────────────────────────────────────────────────
+
+  /**
+   * Parses a CSV string whose columns are: name, role, skills
+   * (skills is a pipe-separated list, e.g. "opening|closing|barista").
+   *
+   * A header row is detected by checking whether the first non-blank row's
+   * first cell matches /^name$/i.  If so, it is skipped.
+   *
+   * Returns the number of successfully imported workers and any per-row error
+   * messages so the caller can surface them to the user.
+   */
+  const bulkImportWorkers = useCallback(
+    async (csv: string): Promise<BulkImportResult> => {
+      const lines = csv.split(/\r?\n/);
+      const errors: string[] = [];
+      let imported = 0;
+
+      // Determine whether a header row is present
+      let startIndex = 0;
+      const firstRow = parseCSVRow(lines[0] ?? '');
+      if (firstRow && /^name$/i.test(firstRow[0] ?? '')) {
+        startIndex = 1;
+      }
+
+      for (let i = startIndex; i < lines.length; i++) {
+        const rawLine = lines[i];
+        if (rawLine === undefined) continue;
+
+        const cells = parseCSVRow(rawLine);
+        if (cells === null) continue; // blank row
+
+        const humanIndex = i + 1; // 1-based for error messages
+
+        const name = cells[0] ?? '';
+        const role = cells[1] ?? '';
+        const skillsRaw = cells[2] ?? '';
+
+        if (!name) {
+          errors.push(`Row ${humanIndex}: "name" is required.`);
+          continue;
+        }
+        if (!role) {
+          errors.push(`Row ${humanIndex}: "role" is required for worker "${name}".`);
+          continue;
+        }
+
+        const skills = skillsRaw
+          ? skillsRaw
+              .split('|')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+
+        try {
+          const result = await addWorker(name, role, skills);
+          if (result.success) {
+            imported++;
+            log.info('TEAM_SETUP', 'Bulk-imported worker', { name, role });
+          } else {
+            errors.push(`Row ${humanIndex}: Failed to save "${name}" — ${result.error}`);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          errors.push(`Row ${humanIndex}: Unexpected error for "${name}" — ${message}`);
+        }
+      }
+
+      log.info('TEAM_SETUP', 'Bulk import complete', { imported, errorCount: errors.length });
+      return { imported, errors };
+    },
+    [addWorker],
+  );
+
+  // ── validateWorkerAgainstTemplates ──────────────────────────────────────────
+
+  /**
+   * Returns a human-readable error string when no template in `templates`
+   * matches the worker's role, or `null` when the worker is valid.
+   *
+   * Accepts either `ShiftTemplate` (UI layer) or `DbShiftTemplate` (DB layer)
+   * so callers are not forced to convert.
+   */
+  const validateWorkerAgainstTemplates = useCallback(
+    (
+      worker: Pick<WorkerWithAvailability, 'name' | 'role'>,
+      templates: Array<ShiftTemplate | DbShiftTemplate>,
+    ): string | null => {
+      if (templates.length === 0) {
+        // No templates exist yet — warn but do not block
+        return null;
+      }
+
+      const matchingTemplate = templates.find((t) => {
+        const templateRole =
+          'role' in t ? t.role : (t as DbShiftTemplate).role;
+        return templateRole.trim().toLowerCase() === worker.role.trim().toLowerCase();
+      });
+
+      if (!matchingTemplate) {
+        const knownRoles = [
+          ...new Set(
+            templates.map((t) => ('role' in t ? t.role : (t as DbShiftTemplate).role)),
+          ),
+        ].join(', ');
+        return (
+          `Worker "${worker.name}" has role "${worker.role}" which does not match ` +
+          `any shift template. Known roles: ${knownRoles || 'none'}.`
+        );
+      }
+
+      return null;
+    },
+    [],
+  );
+
+  // ── exportWorkersCSV ────────────────────────────────────────────────────────
+
+  /**
+   * Serialises the current in-memory worker list to a CSV string.
+   *
+   * Columns: name, role, skills (pipe-separated)
+   *
+   * The first row is always the header: name,role,skills
+   */
+  const exportWorkersCSV = useCallback((): string => {
+    const header = 'name,role,skills';
+
+    const rows = workers.map((w) => {
+      const skillsCell = w.skills.join('|');
+      return [
+        escapeCSVCell(w.name),
+        escapeCSVCell(w.role),
+        escapeCSVCell(skillsCell),
+      ].join(',');
+    });
+
+    return [header, ...rows].join('\n');
+  }, [workers]);
+
+  // ── Public surface ──────────────────────────────────────────────────────────
+
+  return {
+    ...workersHook,
+    bulkImportWorkers,
+    validateWorkerAgainstTemplates,
+    exportWorkersCSV,
+  };
+};
+
+===FILE_2: hooks/useAvailabilityGrid.ts===
+import { useCallback, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { log } from '@/services/logger';
+import type { DayOfWeek } from '@/services/rosterService';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const DAYS_OF_WEEK: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const EXCEPTIONS_STORAGE_PREFIX = '@horario/availability_exceptions/';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type TimeSlot = {
+  from: string; // "HH:MM" 24-h
+  to: string;   // "HH:MM" 24-h
+};
+
+/** Grid state: each day maps to zero or more time slots. */
+export type AvailabilityGrid = Record<DayOfWeek, TimeSlot[]>;
+
+/** A one-off date-based unavailability exception stored locally. */
+export type AvailabilityException = {
+  /** ISO date, e.g. "2024-07-04" */
+  date: string;
+  reason: string;
+  createdAt: string;
+};
+
+export type AvailabilityGridHook = ReturnType<typeof useAvailabilityGrid>;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const buildEmptyGrid = (): AvailabilityGrid =>
+  Object.fromEntries(DAYS_OF_WEEK.map((d) => [d, []])) as AvailabilityGrid;
+
+const storageKey = (workerId: string): string =>
+  `${EXCEPTIONS_STORAGE_PREFIX}${workerId}`;
+
+/**
+ * Parses "HH:MM" into total minutes-since-midnight for comparison.
+ * Returns -1 on malformed input so callers can detect invalid times.
+ */
+const toMinutes = (time: string): number => {
+  const parts = time.split(':');
+  const h = parseInt(parts[0] ?? '', 10);
+  const m = parseInt(parts[1] ?? '', 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return -1;
+  return h * 60 + m;
+};
+
+/**
+ * Returns true when two time slots overlap (exclusive touching boundaries are
+ * allowed, e.g. 09:00–12:00 and 12:00–14:00 do NOT overlap).
+ */
+const slotsOverlap = (a: TimeSlot, b: TimeSlot): boolean => {
+  const aFrom = toMinutes(a.from);
+  const aTo = toMinutes(a.to);
+  const bFrom = toMinutes(b.from);
+  const bTo = toMinutes(b.to);
+  if (aFrom < 0 || aTo < 0 || bFrom < 0 || bTo < 0) return false;
+  return aFrom < bTo && bFrom < aTo;
+};
+
+// ─── Human-readable summary helper ───────────────────────────────────────────
+
+/**
+ * Compresses a grid into a human-readable string such as:
+ *   "Mon–Fri 09:00–17:00, Sat 10:00–14:00, exceptions: 3"
+ *
+ * Days with identical single-slot schedules are merged into ranges.
+ */
+const buildSummary = (
+  grid: AvailabilityGrid,
+  exceptions: AvailabilityException[],
+): string => {
+  type Range = { days: DayOfWeek[]; slot: TimeSlot };
+  const ranges: Range[] = [];
+
+  for (const day of DAYS_OF_WEEK) {
+    const slots = grid[day];
+    if (!slots || slots.length !== 1) continue;
+    const slot = slots[0];
+    if (!slot) continue;
+
+    const last = ranges[ranges.length - 1];
+    if (
+      last &&
+      last.slot.from === slot.from &&
+      last.slot.to === slot.to &&
+      DAYS_OF_WEEK.indexOf(day) ===
+        DAYS_OF_WEEK.indexOf(last.days[last.days.length - 1] as DayOfWeek) + 1
+    ) {
+      last.days.push(day);
+    } else {
+      ranges.push({ days: [day], slot });
+    }
+  }
+
+  const dayLabel = (d: DayOfWeek): string => d;
+
+  const parts: string[] = ranges.map((r) => {
+    const first = r.days[0];
+    const last = r.days[r.days.length - 1];
+    const dayPart =
+      r.days.length === 1
+        ? dayLabel(first as DayOfWeek)
+        : `${dayLabel(first as DayOfWeek)}–${dayLabel(last as DayOfWeek)}`;
+    return `${dayPart} ${r.slot.from}–${r.slot.to}`;
+  });
+
+  // Days with multiple slots are listed individually
+  for (const day of DAYS_OF_WEEK) {
+    const slots = grid[day];
+    if (!slots || slots.length <= 1) continue;
+    const slotDesc = slots.map((s) => `${s.from}–${s.to}`).join(', ');
+    parts.push(`${dayLabel(day)} ${slotDesc}`);
+  }
+
+  if (exceptions.length > 0) {
+    parts.push(`exceptions: ${exceptions.length}`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : 'No availability set';
+};
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * useAvailabilityGrid
+ *
+ * Manages a 7-day availability grid (in-memory) plus date-based exceptions
+ * (persisted to AsyncStorage keyed by workerId).
+ *
+ * The grid is intentionally kept in-memory so the parent screen can decide
+ * when to flush it to the DB via `useWorkers.addAvailability`.
+ */
+export const useAvailabilityGrid = (workerId: string) => {
+  const [grid, setGrid] = useState<AvailabilityGrid>(buildEmptyGrid);
+  const [exceptions, setExceptions] = useState<AvailabilityException[]>([]);
+  const [exceptionsLoading, setExceptionsLoading] = useState(true);
+
+  // ── Load persisted exceptions on mount / workerId change ─────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExceptions = async () => {
+      setExceptionsLoading(true);
+      try {
+        const raw = await AsyncStorage.getItem(storageKey(workerId));
+        if (!cancelled) {
+          const parsed: AvailabilityException[] =
+            raw ? (JSON.parse(raw) as AvailabilityException[]) : [];
+          setExceptions(parsed);
+          log.debug('AVAIL_GRID', 'Exceptions loaded', {
+            workerId,
+            count: parsed.length,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          log.warn('AVAIL_GRID', 'Failed to load exceptions', {
+            workerId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          setExceptions([]);
+        }
+      } finally {
+        if (!cancelled) setExceptionsLoading(false);
+      }
+    };
+
+    void loadExceptions();
+    return () => { cancelled = true; };
+  }, [workerId]);
+
+  // ── Persist exceptions whenever they change ───────────────────────────────
+
+  const persistExceptions = useCallback(
+    async (updated: AvailabilityException[]): Promise<void> => {
+      try {
+        await AsyncStorage.setItem(storageKey(workerId), JSON.stringify(updated));
+      } catch (err) {
+        log.warn('AVAIL_GRID', 'Failed to persist exceptions', {
+          workerId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [workerId],
+  );
+
+  // ── addSlot ───────────────────────────────────────────────────────────────
+
+  /**
+   * Adds a time slot to the given day.
+   * Silently ignores the request when the slot would overlap an existing one
+   * or when `from` >= `to`.
+   *
+   * Returns `true` if the slot was added, `false` if rejected.
+   */
+  const addSlot = useCallback(
+    (day: DayOfWeek, from: string, to: string): boolean => {
+      if (toMinutes(from) < 0 || toMinutes(to) < 0) {
+        log.warn('AVAIL_GRID', 'addSlot: invalid time format', { day, from, to });
+        return false;
+      }
+      if (toMinutes(from) >= toMinutes(to)) {
+        log.warn('AVAIL_GRID', 'addSlot: from must be before to', { day, from, to });
+        return false;
+      }
+
+      const newSlot: TimeSlot = { from, to };
+      let rejected = false;
+
+      setGrid((prev) => {
+        const existing = prev[day];
+        if (existing.some((s) => slotsOverlap(s, newSlot))) {
+          rejected = true;
+          return prev; // no change
+        }
+        const sorted = [...existing, newSlot].sort(
+          (a, b) => toMinutes(a.from) - toMinutes(b.from),
+        );
+        return { ...prev, [day]: sorted };
+      });
+
+      if (rejected) {
+        log.debug('AVAIL_GRID', 'addSlot: slot overlaps existing — ignored', {
+          day,
+          from,
+          to,
+        });
+      }
+      return !rejected;
+    },
+    [],
+  );
+
+  // ── removeSlot ────────────────────────────────────────────────────────────
+
+  /**
+   * Removes the slot whose `from` time matches on the given day.
+   * No-ops silently if not found.
+   */
+  const removeSlot = useCallback((day: DayOfWeek, from: string): void => {
+    setGrid((prev) => ({
+      ...prev,
+      [day]: prev[day].filter((s) => s.from !== from),
+    }));
+  }, []);
+
+  // ── toggleDay ─────────────────────────────────────────────────────────────
+
+  /**
+   * If the day has no slots → adds a single slot [defaultFrom, defaultTo].
+   * If the day already has slots → clears all slots (marking the day as
+   * unavailable).
+   *
+   * Designed for a simple toggle-chip in the UI.
+   */
+  const toggleDay = useCallback(
+    (day: DayOfWeek, defaultFrom: string, defaultTo: string): void => {
+      setGrid((prev) => {
+        if (prev[day].length > 0) {
+          return { ...prev, [day]: [] };
+        }
+        if (
+          toMinutes(defaultFrom) < 0 ||
+          toMinutes(defaultTo) < 0 ||
+          toMinutes(defaultFrom) >= toMinutes(defaultTo)
+        ) {
+          log.warn('AVAIL_GRID', 'toggleDay: invalid default times', {
+            day,
+            defaultFrom,
+            defaultTo,
+          });
+          return prev;
+        }
+        return {
+          ...prev,
+          [day]: [{ from: defaultFrom, to: defaultTo }],
+        };
+      });
+    },
+    [],
+  );
+
+  // ── addException ──────────────────────────────────────────────────────────
+
+  /**
+   * Records a one-off date-based unavailability exception.
+   * Duplicate dates overwrite the previous entry for that date.
+   * Persists to AsyncStorage.
+   */
+  const addException = useCallback(
+    async (date: string, reason: string): Promise<void> => {
+      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!isoDateRegex.test(date)) {
+        log.warn('AVAIL_GRID', 'addException: invalid date format (expected YYYY-MM-DD)', {
+          date,
+        });
+        return;
+      }
+
+      const entry: AvailabilityException = {
+        date,
+        reason: reason.trim(),
+        createdAt: new Date().toISOString(),
+      };
+
+      setExceptions((prev) => {
+        const filtered = prev.filter((e) => e.date !== date);
+        const updated = [...filtered, entry].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+        void persistExceptions(updated);
+        return updated;
+      });
+
+      log.info('AVAIL_GRID', 'Exception added', { workerId, date, reason });
+    },
+    [workerId, persistExceptions],
+  );
+
+  // ── removeException ───────────────────────────────────────────────────────
+
+  /**
+   * Removes the exception for the given ISO date.  No-ops if not found.
+   */
+  const removeException = useCallback(
+    async (date: string): Promise<void> => {
+      setExceptions((prev) => {
+        const updated = prev.filter((e) => e.date !== date);
+        void persistExceptions(updated);
+        return updated;
+      });
+      log.info('AVAIL_GRID', 'Exception removed', { workerId, date });
+    },
+    [workerId, persistExceptions],
+  );
+
+  // ── resetGrid ─────────────────────────────────────────────────────────────
+
+  /**
+   * Clears all in-memory grid slots, resetting to the empty state.
+   * Does not affect persisted exceptions.
+   */
+  const resetGrid = useCallback((): void => {
+    setGrid(buildEmptyGrid());
+  }, []);
+
+  // ── isDayActive ───────────────────────────────────────────────────────────
+
+  /** Returns true when the given day has at least one slot. */
+  const isDayActive = useCallback(
+    (day: DayOfWeek): boolean => (grid[day]?.length ?? 0) > 0,
+    [grid],
+  );
+
+  // ── getAvailabilitySummary ────────────────────────────────────────────────
+
+  /**
+   * Returns a human-readable summary of the current grid and exceptions.
+   *
+   * Example output:
+   *   "Mon–Fri 09:00–17:00, Sat 10:00–14:00, exceptions: 2"
+   */
+  const getAvailabilitySummary = useCallback(
+    (): string => buildSummary(grid, exceptions),
+    [grid, exceptions],
+  );
+
+  // ── Public surface ────────────────────────────────────────────────────────
+
+  return {
+    /** Current 7-day grid state. */
+    grid,
+    /** One-off date exceptions loaded from / synced to AsyncStorage. */
+    exceptions,
+    exceptionsLoading,
+    /** Ordered constant for iterating days. */
+    daysOfWeek: DAYS_OF_WEEK,
+    addSlot,
+    removeSlot,
+    toggleDay,
+    addException,
+    removeException,
+    resetGrid,
+    isDayActive,
+    getAvailabilitySummary,
+  };
+};
+
+===FILE_3: hooks/useAutoAssign.ts===
+import { useCallback, useState } from 'react';
+
+import { log } from '@/services/logger';
+import { trackEvent } from '@/services/analytics';
+import {
+  assignShifts,
+  type AssignedShift,
+  type LaborConstraints,
+} from '@/services/shiftAssigner';
+import {
+  upsertRosterShift,
+  type DbRosterShift,
+  type UpsertRosterShiftResult,
+} from '@/services/rosterService';
+import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
+import type { Worker } from '@/types/scheduler';
+import { getTemplateWindow, parseTimeToMinutes } from '@/utils/schedulerUtils';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * Human-readable explanation of why a specific worker was assigned to a
+ * specific template on a given date.
+ */
+export type AssignmentExplanation = {
+  templateId: string;
+  templateName: string;
+  workerId: string;
+  workerName: string;
+  /** Plain-English sentence surfaced in the manager UI. */
+  reason: string;
+};
+
+/**
+ * Coverage gap reported when a template received fewer workers than its
+ * `coverage` requirement after auto-assign completes.
+ */
+export type CoverageGap = {
+  templateId: string;
+  templateName: string;
+  required: number;
+  assigned: number;
+  shortfall: number;
+};
+
+export type AssignmentResult = {
+  /** Shifts that were successfully persisted to the DB. */
+  persisted: DbRosterShift[];
+  /** Shifts that were produced by the algorithm but failed to persist. */
+  failedToPersist: AssignedShift[];
+  /** Templates that were not fully staffed. */
+  coverageGaps: CoverageGap[];
+  totalAssigned: number;
+};
+
+type AutoAssignState = {
+  assigning: boolean;
+  result: AssignmentResult | null;
+  explanations: AssignmentExplanation[];
+  /** Top-level error message, e.g. when the algorithm itself throws. */
+  error: string | null;
+};
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Generates a human-readable explanation string for a single assignment.
+ *
+ * Example:
+ *   "Alice Chen: role match (Barista), covers 09:00–17:00, fairness score 0.92"
+ */
+const buildExplanation = (
+  assigned: AssignedShift,
+  worker: Worker,
+  template: ShiftTemplate,
+): AssignmentExplanation => {
+  const { startTime, endTime } = template as ShiftTemplate & {
+    start?: string;
+    end?: string;
+  };
+
+  // ShiftTemplate uses `start`/`end` in the UI layer; handle both shapes.
+  const displayStart =
+    (template as unknown as { start: string }).start ?? startTime ?? '??:??';
+  const displayEnd =
+    (template as unknown as { end: string }).end ?? endTime ?? '??:??';
+
+  // Compute a naive fairness score proxy from the assigned shift's own window.
+  // The shiftAssigner internally scores on cumulative hours; we re-derive a
+  // simplified normalised score here solely for display purposes.
+  const templateStart = parseTimeToMinutes(displayStart);
+  const templateEnd = parseTimeToMinutes(displayEnd);
+  const durationHours =
+    templateStart >= 0 && templateEnd > templateStart
+      ? (templateEnd - templateStart) / 60
+      : 0;
+
+  // Score in [0, 1]: shorter existing commitment → higher score proxy.
+  // We don't have the exact existing hours here, so we use a display
+  // placeholder if not embedded in the AssignedShift.
+  const fairnessScore =
+    'fairnessScore' in assigned &&
+    typeof (assigned as unknown as { fairnessScore: number }).fairnessScore === 'number'
+      ? ((assigned as unknown as { fairnessScore: number }).fairnessScore).toFixed(2)
+      : (1 / (1 + durationHours * 0.1)).toFixed(2);
+
+  const reason =
+    `${worker.name}: role match (${template.role}), ` +
+    `covers ${displayStart}–${displayEnd}, ` +
+    `fairness score ${fairnessScore}`;
+
+  return {
+    templateId: assigned.templateId,
+    templateName: template.name,
+    workerId: assigned.workerId,
+    workerName: worker.name,
+    reason,
+  };
+};
+
+/**
+ * Identifies templates whose total required coverage exceeds the number of
+ * assignments that were successfully persisted.
+ */
+const computeCoverageGaps = (
+  templates: ShiftTemplate[],
+  persisted: DbRosterShift[],
+): CoverageGap[] => {
+  return templates.reduce<CoverageGap[]>((acc, template) => {
+    const assigned = persisted.filter((s) => s.templateId === template.id).length;
+    const required = template.coverage ?? 1;
+    if (assigned < required) {
+      acc.push({
+        templateId: template.id,
+        templateName: template.name,
+        required,
+        assigned,
+        shortfall: required - assigned,
+      });
+    }
+    return acc;
+  }, []);
+};
+
+// ─── Unique ID generator ──────────────────────────────────────────────────────
+
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * useAutoAssign
+ *
+ * Provides a single `autoAssign` action that:
+ *   1. Calls `shiftAssigner.assignShifts` (greedy + 2-opt algorithm)
+ *   2. Persists each produced assignment via `upsertRosterShift`
+ *   3. Builds human-readable `AssignmentExplanation` objects for the UI
+ *   4. Surfaces `CoverageGap` entries for any under-staffed templates
+ *   5. Emits an analytics event (`auto_assign_used`)
+ */
+export const useAutoAssign = (accountId: string) => {
+  const [state, setState] = useState<AutoAssignState>({
+    assigning: false,
+    result: null,
+    explanations: [],
+    error: null,
+  });
+
+  // ── autoAssign ─────────────────────────────────────────────────────────────
+
+  const autoAssign = useCallback(
+    async (
+      date: string,
+      templates: ShiftTemplate[],
+      workers: Worker[],
+      existingRoster: Shift[],
+      constraints?: LaborConstraints,
+      /** Optional default location string applied to all persisted shifts. */
+      location?: string,
+    ): Promise<AssignmentResult> => {
+      setState((prev) => ({
+        ...prev,
+        assigning: true,
+        error: null,
+      }));
+
+      log.info('AUTO_ASSIGN', 'Starting auto-assign', {
+        date,
+        templateCount: templates.length,
+        workerCount: workers.length,
+        hasConstraints: !!constraints,
+      });
+
+      // ── 1. Run the assignment algorithm ─────────────────────────────────
+
+      let assigned: AssignedShift[];
+      try {
+        assigned = assignShifts({
+          date,
+          templates,
+          workers,
+          existingRoster,
+          constraints,
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Auto-assign algorithm failed unexpectedly.';
+
+        log.error('AUTO_ASSIGN', 'Algorithm threw', { date, error: message });
+
+        setState((prev) => ({
+          ...prev,
+          assigning: false,
+          error: message,
+        }));
+
+        trackEvent('auto_assign_used', {
+          accountId,
+          date,
+          success

@@ -1,0 +1,112 @@
+// =============================================================================
+// GUIDE LOCALE SNIPPET — ALL OTHER LANGUAGES
+// File: scripts/guide-locale-snippet-others.txt
+//
+// Structure is identical to the English snippet in guide-locale-snippet-en.txt.
+// Only values are translated. Key names are unchanged.
+// Apply each section to the corresponding language file in locales/.
+// =============================================================================
+
+
+// =============================================================================
+=== LANGUAGE: es ===
+// Spanish (Español)
+// =============================================================================
+
+// --- tour.mode ---
+mode: {
+  pickTitle: 'Elige tu guía',
+  pickDesc: 'Selecciona un recorrido para explorar diferentes partes de la app.',
+  overview: 'Resumen rápido',
+  overviewDesc: 'Introducción de 5 pasos a todas las pestañas',
+  manager: 'Recorrido para gestores',
+  managerDesc: 'Crea tu primer horario',
+  worker: 'Recorrido para empleados',
+  workerDesc: 'Empieza como miembro del equipo',
+  home: 'Guía de la pestaña Inicio',
+  homeDesc: 'Panel, racha y huecos',
+  scheduler: 'Guía del planificador',
+  schedulerDesc: 'Empleados, plantillas y turno',
+  analytics: 'Guía de analíticas',
+  analyticsDesc: 'KPIs, horas y equidad',
+},
+
+// --- tour.nav (NEW key only) ---
+goToTab: 'Ir a {tab} →',
+
+// --- tour.overview ---
+overview: {
+  step1: {
+    title: 'Bienvenido a Horario',
+    desc: 'Este es tu panel de inicio: consulta el estado de tu planificación, los próximos turnos y las brechas de personal de un vistazo.',
+    why: 'Revisar el panel a diario te permite anticiparte a los huecos antes de que se conviertan en ausencias.',
+  },
+  step2: {
+    title: 'Tu racha de planificación',
+    desc: 'Tu racha refleja con qué regularidad mantienes actualizado el horario de tu equipo. Cuanto mayor sea, más fiable será tu plantilla.',
+    why: 'Los equipos con planificación constante registran hasta un 40 % menos de cambios de turno de última hora.',
+  },
+  step3: {
+    title: 'La pestaña Planificador',
+    desc: 'El Planificador es donde creas tu equipo, configuras la disponibilidad, creas plantillas de turno y publicas el horario.',
+    why: 'La planificación centralizada elimina las dobles reservas y ofrece a todo el equipo una única fuente de verdad.',
+  },
+  step4: {
+    title: 'Previsión de demanda',
+    desc: 'Usa datos históricos e importaciones de POS para predecir cuánto personal necesitas en cada día.',
+    why: 'La planificación basada en la demanda reduce los costes laborales excesivos sin sacrificar la calidad del servicio.',
+  },
+  step5: {
+    title: 'Panel de analíticas',
+    desc: 'Controla la tasa de cobertura, los ingresos en riesgo, la distribución de horas y la puntuación de equidad, todo en tiempo real.',
+    why: 'Lo que se mide, mejora. Los operadores que rastrean estos KPIs reducen los turnos sin cubrir en un 30 % en un mes.',
+  },
+},
+
+// --- tour.home ---
+home: {
+  step1: {
+    title: 'Tu centro de mando',
+    desc: 'La pestaña Inicio te ofrece un chequeo instantáneo: turnos programados esta semana, huecos abiertos y tu racha de fiabilidad.',
+    why: 'Los gestores que revisan este panel a diario detectan los huecos antes de que se conviertan en una crisis.',
+  },
+  step2: {
+    title: 'La semana de un vistazo',
+    desc: 'La tarjeta de estadísticas semanales muestra cuántos turnos están programados y cuántos puestos aún necesitan cubrirse.',
+    why: 'Un único número de huecos frente a turnos programados es más fácil de gestionar que desplazarse por un horario completo.',
+  },
+  step3: {
+    title: 'Racha de fiabilidad',
+    desc: 'Tu racha cuenta los días consecutivos que has mantenido el horario actualizado. Toca "Registrar el progreso de hoy" para avanzar.',
+    why: 'Los equipos con una racha de 7 días tienen un 40 % menos de ausencias gracias a la visibilidad anticipada.',
+  },
+  step4: {
+    title: 'Próximos turnos',
+    desc: 'Consulta de un vistazo todos los turnos programados para los próximos días: nombre del empleado, plantilla y hora.',
+    why: 'Saber lo que viene te permite detectar una cobertura escasa antes de que comience el turno.',
+  },
+  step5: {
+    title: 'Brechas de personal',
+    desc: 'Cualquier puesto con menos empleados asignados de los necesarios aparece aquí como un hueco abierto.',
+    why: 'Cada hueco sin cubrir es una pérdida potencial de ingresos. Cerrarlos a tiempo mantiene el servicio en marcha.',
+  },
+  step6: {
+    title: 'Acciones rápidas',
+    desc: 'Accede directamente a Añadir disponibilidad, Crear turnos o Publicar horario: las tres tareas de planificación más comunes.',
+    why: 'Un solo toque a la pantalla correcta ahorra el tiempo de navegar y desplazarse, haciendo la planificación diaria un 30 % más rápida.',
+  },
+},
+
+// --- tour.scheduler ---
+scheduler: {
+  step1: {
+    title: 'Añadir un miembro del equipo',
+    desc: 'Introduce el nombre del empleado, su función (p. ej. Barista, Camarero) y sus habilidades separadas por comas.',
+    why: 'Cada persona en tu lista necesita un perfil para que el motor de asignación automática pueda vincularla a los turnos correctos.',
+    action: 'Rellena el formulario de empleado arriba y toca "Añadir empleado" para continuar ↑',
+  },
+  step2: {
+    title: 'Establecer disponibilidad',
+    desc: 'Indica a Horario cuándo están disponibles tus empleados: día de la semana, hora de inicio y hora de fin.',
+    why: 'Planificar según la disponibilidad confirmada es el mayor impulsor de la aceptación de turnos: los equipos tienen un 35 % menos de solicitudes de cambio.',
+    action: '

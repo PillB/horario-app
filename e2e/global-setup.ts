@@ -90,6 +90,14 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
       } catch { /* ignore */ }
     });
 
+    // Warm up the scheduler page so Expo pre-compiles the bundle.
+    // Without this, HP-1's first navigation triggers a cold bundle compile
+    // that can take 30-60 s and exceed the per-test timeout.
+    await page.goto('http://localhost:8081/(tabs)/scheduler', { timeout: 90_000 });
+    await page.waitForLoadState('domcontentloaded', { timeout: 90_000 });
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+    console.log('[global-setup] Scheduler page warmed up.');
+
     // Save the authenticated storage state
     fs.mkdirSync(authDir, { recursive: true });
     await context.storageState({ path: stateFile });
