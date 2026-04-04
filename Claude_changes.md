@@ -6,6 +6,36 @@
 
 ---
 
+### CHG-060 — 2026-04-03 UTC
+**Type:** FIX + DOCS (Security review remediation + MCP compliance — CORS, referrals, auth, billing URL)
+
+**Context:** Full security review identified 8 findings. MCP compliance check for Vercel/Supabase/Clerk integrations identified additional gaps. All code-level fixes applied; manual steps documented in `docs/MCP_COMPLIANCE.md`.
+
+**Code changes:**
+- `vercel.json` — removed wildcard `Access-Control-Allow-Origin: *` from `/api/(.*)` headers block (CORS is now handled per-route in API code, not globally); added `app/api/referrals+api.ts` to `functions` config (was missing → defaulted to 10s timeout); added `/api/referrals` rewrite (was missing → 404 in production).
+- `app/api/secure-proxy+api.ts` — replaced `CORS_HEADERS = { '*' }` constant with `getCorsHeaders(origin)` function and `ALLOWED_ORIGINS` Set (reads from `EXPO_PUBLIC_APP_ORIGIN` + `EXPO_PUBLIC_SECURE_PROXY_URL` + localhost fallbacks); updated `buildErrorResponse` and `jsonOk` to accept `origin` param; all switch case responses use dynamically-scoped helpers; fixed OPTIONS handler.
+- `app/api/referrals+api.ts` — added `ALLOWED_ORIGINS`/`getCorsHeaders()` matching secure-proxy pattern; replaced `Math.random()` referral code generation with `crypto.getRandomValues()` (cryptographic randomness); updated `json()` helper with origin param; all 4 handlers (`handleCreate`, `handleRedeem`, `handleList`, `handleStats`) now scope CORS correctly; added OPTIONS handler (was missing).
+- `components/UpgradeBanner.tsx` — replaced hardcoded `pleased-falcon-63.clerk.accounts.dev` billing URL with `${EXPO_PUBLIC_CLERK_FRONTEND_API}/user/billing` (portable across environments).
+- `services/authToken.ts` — added `GetTokenOptions` type matching Clerk SDK signature; updated `setTokenProvider` and `getSessionToken(template?)` to support JWT template name (enables `getToken({ template: 'supabase' })` for Supabase RLS compatibility).
+- `services/supabaseClient.ts` — fixed stale comment: `app/api/secure-proxy/route.ts` → `app/api/secure-proxy+api.ts`.
+- `.env.example` — added `EXPO_PUBLIC_APP_ORIGIN` with documentation comment.
+
+**New files:**
+- `docs/MCP_COMPLIANCE.md` — Step-by-step manual for Clerk JWT template setup, Supabase JWT secret config, Vercel env var verification, CORS smoke tests, and end-to-end auth flow validation.
+- `supabase/migrations/20260403000001_compliance_fixes.sql` — RLS data-leak fix (account-scoped policies on all tables), `private.jwt_account_id()` helper, `updated_at` triggers, composite indexes, `shift_messages` table, `referrals` table.
+
+**Security findings fixed:**
+1. Wildcard CORS (`*`) replaced with per-origin allowlist on both API routes
+2. Referrals endpoint was silently unreachable in production (missing Vercel rewrite)
+3. `Math.random()` in referral code generation → `crypto.getRandomValues()`
+4. Hardcoded Clerk instance URL in UpgradeBanner → env-var derived
+5. `getSessionToken` lacked JWT template support (blocked Supabase JWT from Clerk)
+6. Stale file path comment in supabaseClient
+
+**Tests:** All suites pass (316/316). Lint: 0 errors.
+
+---
+
 ### CHG-059 — 2026-04-03 UTC
 **Type:** TEST (batch-generated test suites fully passing — 316/316)
 **Context:** Anthropic Batch API (claude-sonnet-4-6) was used to generate 7 new test files across untested service and hook areas. After generation, several systemic issues blocked all tests; these were diagnosed and fixed iteratively.

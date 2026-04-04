@@ -8,15 +8,17 @@
       "runtime": "nodejs20.x",
       "maxDuration": 30,
       "memory": 512
+    },
+    "app/api/referrals+api.ts": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 15,
+      "memory": 256
     }
   },
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
         { "key": "Pragma", "value": "no-cache" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
@@ -53,6 +55,7 @@
     { "source": "/assets/(.*)", "destination": "/client/assets/$1" },
     { "source": "/favicon.ico", "destination": "/client/favicon.ico" },
     { "source": "/api/secure-proxy", "destination": "/server/_expo/functions/api/secure-proxy+api.js" },
+    { "source": "/api/referrals", "destination": "/server/_expo/functions/api/referrals+api.js" },
     { "source": "/_sitemap", "destination": "/server/_sitemap.html" },
     { "source": "/", "destination": "/server/(tabs)/index.html" },
     { "source": "/(tabs)", "destination": "/server/(tabs)/index.html" },

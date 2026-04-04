@@ -405,20 +405,38 @@ const upsertOnboarding = async (client: SupabaseClient, accountId: string, flags
   return { success: true, progress: flags } as const;
 };
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Allowed origins for CORS. Wildcard is intentionally avoided — each origin
+// is echoed back only when it matches, preventing cross-origin data leaks.
+const ALLOWED_ORIGINS = new Set(
+  [
+    process.env.EXPO_PUBLIC_APP_ORIGIN,         // e.g. https://horario.app
+    process.env.EXPO_PUBLIC_SECURE_PROXY_URL
+      ? new URL(process.env.EXPO_PUBLIC_SECURE_PROXY_URL).origin
+      : undefined,
+    'http://localhost:8081',
+    'http://localhost:3000',
+  ].filter((o): o is string => Boolean(o)),
+);
 
-const buildErrorResponse = (message: string, status = 500) =>
+function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const origin =
+    requestOrigin && ALLOWED_ORIGINS.has(requestOrigin) ? requestOrigin : 'null';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    Vary: 'Origin',
+  };
+}
+
+const buildErrorResponse = (message: string, status = 500, origin: string | null = null) =>
   new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) },
   });
 
-const jsonOk = (body: unknown) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+const jsonOk = (body: unknown, origin: string | null = null) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) } });
 
 // When auth is enabled, authorizedAccountId is the verified JWT sub.
 // When disabled (dev), fall back to the account ID from the request body.
@@ -888,32 +906,39 @@ type PosRow = {
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  const origin = request.headers.get('origin');
+  // Origin-bound helpers so every response carries the correct CORS header
+  // without threading `origin` through every call site manually.
+  const err = (msg: string, status = 500) => buildErrorResponse(msg, status, origin);
+  const ok  = (body: unknown)             => jsonOk(body, origin);
+  const corsH = getCorsHeaders(origin);
+
   let client: SupabaseClient;
   try {
     client = getServiceClient();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to initialize service client';
-    return buildErrorResponse(message, 500);
+    return err(message, 500);
   }
 
   // Verify Clerk JWT when auth is enabled; extract sub as authoritative accountId.
   const authorizedAccountId = await getAuthorizedAccountId(request);
   if (AUTH_ENABLED && !authorizedAccountId) {
-    return buildErrorResponse('Unauthorized', 401);
+    return err('Unauthorized', 401);
   }
 
   let payload: ProxyRequest;
   try {
     payload = (await request.json()) as ProxyRequest;
   } catch {
-    return buildErrorResponse('Invalid request payload', 400);
+    return err('Invalid request payload', 400);
   }
 
   try {
     switch (payload.action) {
       case 'forecast': {
         const result = await forecastWithServiceRole(client, payload.filters);
-        return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+        return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
       }
       case 'status': {
         const status: ForecastGenerationMetadata = {
@@ -934,123 +959,124 @@ export async function POST(request: Request) {
         status.hasHistorical = historical.length > 0;
         status.hasExternalSignals = signals.length > 0;
         status.hasExistingTargets = existingTargets.length > 0;
-        return new Response(JSON.stringify(status), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+        return new Response(JSON.stringify(status), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
       }
       case 'upsertTargets': {
         const targets = payload.targets?.map((target) => ({ ...target, required: Number(target.required) })) ?? [];
         const result = await upsertTargets(client, targets);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...corsH } });
       }
       case 'loadTargets': {
         const targets = await fetchExistingTargets(client, payload.filters);
-        return new Response(JSON.stringify({ targets }), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+        return new Response(JSON.stringify({ targets }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
       }
       case 'upsertOnboarding': {
         const acctId = resolveAccountId(authorizedAccountId, payload.accountId);
-        if (!acctId || !payload.flags) return buildErrorResponse('Missing onboarding payload', 400);
+        if (!acctId || !payload.flags) return err('Missing onboarding payload', 400);
         const result = await upsertOnboarding(client, acctId, payload.flags, payload.userId);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...corsH } });
       }
       case 'listWorkers': {
         const result = await dbListWorkers(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? jsonOk({ workers: result.workers }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ workers: result.workers }) : err(result.error, 400);
       }
       case 'upsertWorker': {
         const worker = { ...payload.worker as Parameters<typeof dbUpsertWorker>[1], accountId: resolveAccountId(authorizedAccountId, (payload.worker as Record<string, unknown>).accountId as string) };
         const result = await dbUpsertWorker(client, worker);
-        return result.success ? jsonOk({ success: true, worker: result.worker }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true, worker: result.worker }) : err(result.error, 400);
       }
       case 'deleteWorker': {
         const result = await dbDeleteWorker(client, payload.id);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'listWorkerAvailability': {
         const result = await dbListWorkerAvailability(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? jsonOk({ availabilities: result.availabilities }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ availabilities: result.availabilities }) : err(result.error, 400);
       }
       case 'upsertAvailability': {
         const av = { ...payload.availability as Parameters<typeof dbUpsertAvailability>[1], accountId: resolveAccountId(authorizedAccountId, (payload.availability as Record<string, unknown>).accountId as string) };
         const result = await dbUpsertAvailability(client, av);
-        return result.success ? jsonOk({ success: true, availability: result.availability }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true, availability: result.availability }) : err(result.error, 400);
       }
       case 'deleteAvailability': {
         const result = await dbDeleteAvailability(client, payload.id);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'listShiftTemplates': {
         const result = await dbListShiftTemplates(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? jsonOk({ templates: result.templates }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ templates: result.templates }) : err(result.error, 400);
       }
       case 'upsertShiftTemplate': {
         const tmpl = { ...payload.template as Parameters<typeof dbUpsertShiftTemplate>[1], accountId: resolveAccountId(authorizedAccountId, (payload.template as Record<string, unknown>).accountId as string) };
         const result = await dbUpsertShiftTemplate(client, tmpl);
-        return result.success ? jsonOk({ success: true, template: result.template }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true, template: result.template }) : err(result.error, 400);
       }
       case 'deleteShiftTemplate': {
         const result = await dbDeleteShiftTemplate(client, payload.id);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'listRoster': {
         const result = await dbListRoster(client, resolveAccountId(authorizedAccountId, payload.accountId), payload.fromDate, payload.toDate);
-        return result.success ? jsonOk({ shifts: result.shifts }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ shifts: result.shifts }) : err(result.error, 400);
       }
       case 'upsertRosterShift': {
         const shift = { ...payload.shift as Parameters<typeof dbUpsertRosterShift>[1], accountId: resolveAccountId(authorizedAccountId, (payload.shift as Record<string, unknown>).accountId as string) };
         const result = await dbUpsertRosterShift(client, shift);
-        return result.success ? jsonOk({ success: true, shift: result.shift }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true, shift: result.shift }) : err(result.error, 400);
       }
       case 'updateShiftStatus': {
         const result = await dbUpdateShiftStatus(client, payload.id, payload.status);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'markShiftNotified': {
         const result = await dbMarkShiftNotified(client, payload.id);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'deleteRosterShift': {
         const result = await dbDeleteRosterShift(client, payload.id);
-        return result.success ? jsonOk({ success: true }) : buildErrorResponse(result.error, 400);
+        return result.success ? ok({ success: true }) : err(result.error, 400);
       }
       case 'getUsageLimit': {
         const acct = resolveAccountId(authorizedAccountId, payload.accountId);
         const uid = resolveAccountId(authorizedAccountId, payload.userId);
         const result = await dbGetUsageLimit(client, uid, acct);
         return result.success
-          ? jsonOk({ count: result.count, canAutoAssign: result.canAutoAssign })
-          : buildErrorResponse(result.error, 400);
+          ? ok({ count: result.count, canAutoAssign: result.canAutoAssign })
+          : err(result.error, 400);
       }
       case 'incrementAutoAssign': {
         const acct = resolveAccountId(authorizedAccountId, payload.accountId);
         const uid = resolveAccountId(authorizedAccountId, payload.userId);
         const result = await dbIncrementAutoAssign(client, uid, acct);
         return result.success
-          ? jsonOk({ success: true, count: result.count })
-          : buildErrorResponse(result.error, 400);
+          ? ok({ success: true, count: result.count })
+          : err(result.error, 400);
       }
       case 'uploadPosSales': {
         const acct = resolveAccountId(authorizedAccountId, payload.accountId);
         const result = await dbUploadPosSales(client, acct, payload.rows);
         return result.success
-          ? jsonOk({ inserted: result.inserted })
-          : buildErrorResponse(result.error, 400);
+          ? ok({ inserted: result.inserted })
+          : err(result.error, 400);
       }
       case 'listPosSales': {
         const acct = resolveAccountId(authorizedAccountId, payload.accountId);
         const result = await dbListPosSales(client, acct, payload.limit, payload.offset);
         return result.success
-          ? jsonOk({ rows: result.rows, total: result.total })
-          : buildErrorResponse(result.error, 400);
+          ? ok({ rows: result.rows, total: result.total })
+          : err(result.error, 400);
       }
       default:
-        return buildErrorResponse('Unsupported action', 400);
+        return err('Unsupported action', 400);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Secure proxy request failed', error);
-    return buildErrorResponse(message, 500);
+    return err(message, 500);
   }
 }
 
-export function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+export function OPTIONS(request: Request) {
+  const origin = request.headers.get('origin');
+  return new Response(null, { status: 204, headers: getCorsHeaders(origin) });
 }

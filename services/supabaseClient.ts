@@ -7,7 +7,7 @@
  *
  * Horario uses Clerk for authentication and Supabase for persistence.
  * All database mutations go through the server-side secure proxy
- * (app/api/secure-proxy/route.ts), which uses the service-role key and
+ * (app/api/secure-proxy+api.ts), which uses the service-role key and
  * therefore bypasses RLS entirely.  RLS policies on anon SELECT are scoped
  * to the caller's account_id via a private JWT helper function
  * (private.jwt_account_id()) that reads the Clerk JWT claims injected into

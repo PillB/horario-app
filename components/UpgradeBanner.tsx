@@ -14,7 +14,10 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
 
-const CLERK_BILLING_URL = 'https://pleased-falcon-63.clerk.accounts.dev/user/billing';
+// Derived from EXPO_PUBLIC_CLERK_FRONTEND_API so it works across all environments
+// (dev, staging, production) without hardcoding instance-specific hostnames.
+const CLERK_BILLING_URL =
+  `${process.env.EXPO_PUBLIC_CLERK_FRONTEND_API ?? 'https://clerk.horario.app'}/user/billing`;
 
 type Props = {
   /** Number of free auto-assigns remaining (from useUsageLimit) */

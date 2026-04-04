@@ -130,19 +130,45 @@ function getSupabase(): SupabaseClient {
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
+// Allowed origins — mirrors the list in secure-proxy+api.ts.
+const ALLOWED_ORIGINS = new Set(
+  [
+    process.env.EXPO_PUBLIC_APP_ORIGIN,
+    process.env.EXPO_PUBLIC_SECURE_PROXY_URL
+      ? new URL(process.env.EXPO_PUBLIC_SECURE_PROXY_URL).origin
+      : undefined,
+    'http://localhost:8081',
+    'http://localhost:3000',
+  ].filter((o): o is string => Boolean(o)),
+);
+
+function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const origin =
+    requestOrigin && ALLOWED_ORIGINS.has(requestOrigin) ? requestOrigin : 'null';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    Vary: 'Origin',
+  };
+}
+
 function generateReferralCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  // crypto.getRandomValues is available globally in Node.js ≥19 and Vercel Edge.
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
   let code = '';
   for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars[bytes[i] % chars.length];
   }
   return code;
 }
 
-function json(data: Record<string, unknown>, status = 200): Response {
+function json(data: Record<string, unknown>, status = 200, requestOrigin: string | null = null): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getCorsHeaders(requestOrigin) },
   });
 }
 
@@ -152,14 +178,16 @@ async function handleCreate(
   body: CreateBody,
   userId: string,
   supabase: SupabaseClient,
+  origin: string | null,
 ): Promise<Response> {
+  const j = (data: Record<string, unknown>, status = 200) => json(data, status, origin);
   const { account_id, channel } = body;
 
   if (!account_id || typeof account_id !== 'string') {
-    return json({ error: 'Missing or invalid account_id' }, 400);
+    return j({ error: 'Missing or invalid account_id' }, 400);
   }
   if (!channel || typeof channel !== 'string') {
-    return json({ error: 'Missing or invalid channel' }, 400);
+    return j({ error: 'Missing or invalid channel' }, 400);
   }
 
   const referralCode = generateReferralCode();
@@ -184,21 +212,23 @@ async function handleCreate(
 
   if (error) {
     console.error('[referrals] create error:', error);
-    return json({ error: 'Failed to create referral' }, 500);
+    return j({ error: 'Failed to create referral' }, 500);
   }
 
-  return json({ referralCode });
+  return j({ referralCode });
 }
 
 async function handleRedeem(
   body: RedeemBody,
   userId: string,
   supabase: SupabaseClient,
+  origin: string | null,
 ): Promise<Response> {
+  const j = (data: Record<string, unknown>, status = 200) => json(data, status, origin);
   const { code } = body;
 
   if (!code || typeof code !== 'string') {
-    return json({ error: 'Missing or invalid code' }, 400);
+    return j({ error: 'Missing or invalid code' }, 400);
   }
 
   const { data: rows, error: fetchError } = await supabase
@@ -209,17 +239,17 @@ async function handleRedeem(
 
   if (fetchError) {
     console.error('[referrals] redeem fetch error:', fetchError);
-    return json({ error: 'Failed to look up referral code' }, 500);
+    return j({ error: 'Failed to look up referral code' }, 500);
   }
 
   if (!rows || rows.length === 0) {
-    return json({ error: 'Referral code not found' }, 400);
+    return j({ error: 'Referral code not found' }, 400);
   }
 
   const row = rows[0] as ReferralRow;
 
   if (row.status !== 'pending') {
-    return json({ error: 'Referral code is no longer active' }, 400);
+    return j({ error: 'Referral code is no longer active' }, 400);
   }
 
   const now = new Date();
@@ -228,15 +258,15 @@ async function handleRedeem(
       .from('referrals')
       .update({ status: 'expired' })
       .eq('referral_code', code.toUpperCase());
-    return json({ error: 'Referral code has expired' }, 400);
+    return j({ error: 'Referral code has expired' }, 400);
   }
 
   if (row.redemption_count >= row.max_redemptions) {
-    return json({ error: 'Referral code has reached its redemption limit' }, 400);
+    return j({ error: 'Referral code has reached its redemption limit' }, 400);
   }
 
   if (row.referrer_user_id === userId) {
-    return json({ error: 'Cannot redeem your own referral code' }, 400);
+    return j({ error: 'Cannot redeem your own referral code' }, 400);
   }
 
   const newCount = row.redemption_count + 1;
@@ -254,16 +284,18 @@ async function handleRedeem(
 
   if (updateError) {
     console.error('[referrals] redeem update error:', updateError);
-    return json({ error: 'Failed to redeem referral' }, 500);
+    return j({ error: 'Failed to redeem referral' }, 500);
   }
 
-  return json({ success: true, referrerId: row.referrer_user_id });
+  return j({ success: true, referrerId: row.referrer_user_id });
 }
 
 async function handleList(
   userId: string,
   supabase: SupabaseClient,
+  origin: string | null,
 ): Promise<Response> {
+  const j = (data: Record<string, unknown>, status = 200) => json(data, status, origin);
   const { data, error } = await supabase
     .from('referrals')
     .select('*')
@@ -272,16 +304,18 @@ async function handleList(
 
   if (error) {
     console.error('[referrals] list error:', error);
-    return json({ error: 'Failed to list referrals' }, 500);
+    return j({ error: 'Failed to list referrals' }, 500);
   }
 
-  return json({ referrals: data ?? [] });
+  return j({ referrals: data ?? [] });
 }
 
 async function handleStats(
   userId: string,
   supabase: SupabaseClient,
+  origin: string | null,
 ): Promise<Response> {
+  const j = (data: Record<string, unknown>, status = 200) => json(data, status, origin);
   const { data, error } = await supabase
     .from('referrals')
     .select('status')
@@ -289,7 +323,7 @@ async function handleStats(
 
   if (error) {
     console.error('[referrals] stats error:', error);
-    return json({ error: 'Failed to fetch stats' }, 500);
+    return j({ error: 'Failed to fetch stats' }, 500);
   }
 
   const rows = (data ?? []) as { status: ReferralStatus }[];
@@ -304,26 +338,29 @@ async function handleStats(
     { sent: 0, accepted: 0, pending: 0 },
   );
 
-  return json(stats);
+  return j(stats);
 }
 
 // ─── Route handler ───────────────────────────────────────────────────────────
 
 export async function POST(req: Request): Promise<Response> {
+  const origin = req.headers.get('origin');
+  const j = (data: Record<string, unknown>, status = 200) => json(data, status, origin);
+
   const userId = await resolveUserId(req);
   if (!userId) {
-    return json({ error: 'Unauthorized' }, 401);
+    return j({ error: 'Unauthorized' }, 401);
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return j({ error: 'Invalid JSON body' }, 400);
   }
 
   if (typeof body !== 'object' || body === null || !('action' in body)) {
-    return json({ error: 'Missing action field' }, 400);
+    return j({ error: 'Missing action field' }, 400);
   }
 
   const supabase = getSupabase();
@@ -331,17 +368,22 @@ export async function POST(req: Request): Promise<Response> {
 
   switch (typedBody.action) {
     case 'create':
-      return handleCreate(typedBody as CreateBody, userId, supabase);
+      return handleCreate(typedBody as CreateBody, userId, supabase, origin);
     case 'redeem':
-      return handleRedeem(typedBody as RedeemBody, userId, supabase);
+      return handleRedeem(typedBody as RedeemBody, userId, supabase, origin);
     case 'list':
-      return handleList(userId, supabase);
+      return handleList(userId, supabase, origin);
     case 'stats':
-      return handleStats(userId, supabase);
+      return handleStats(userId, supabase, origin);
     default: {
       const _exhaustive: never = typedBody;
       void _exhaustive;
-      return json({ error: 'Invalid action' }, 400);
+      return j({ error: 'Invalid action' }, 400);
     }
   }
+}
+
+export function OPTIONS(req: Request): Response {
+  const origin = req.headers.get('origin');
+  return new Response(null, { status: 204, headers: getCorsHeaders(origin) });
 }
