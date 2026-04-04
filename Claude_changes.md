@@ -6,6 +6,34 @@
 
 ---
 
+### CHG-059 — 2026-04-03 UTC
+**Type:** TEST (batch-generated test suites fully passing — 316/316)
+**Context:** Anthropic Batch API (claude-sonnet-4-6) was used to generate 7 new test files across untested service and hook areas. After generation, several systemic issues blocked all tests; these were diagnosed and fixed iteratively.
+
+**Files changed:**
+- `services/__tests__/syncQueue.test.ts` — NEW: 20 tests for enqueue, flush, retry, discard, persistence, concurrent guard, hook (useSyncStatus + retryNow). Fixed by: adding `__resetQueueForTesting` top-level imports, calling `__flushForTesting()` instead of `jest.advanceTimersByTime` (timer-module import incompatibility with `resetModules`), reordering `makeFreshModule()` before AsyncStorage mock setup (instance mismatch), fixing test 15b expectation to reflect single-enqueue notify behavior.
+- `services/__tests__/analytics.test.ts` — NEW: 17 tests for trackEvent, setBaseProps, setAnalyticsProvider, getTrackedEvents.
+- `services/__tests__/demandForecast.test.ts` — NEW: 13 tests covering all getForecastDataStatus, generateDemandForecast, loadDemandTargets, upsertDemandTarget paths.
+- `hooks/__tests__/useAutoAssign.test.ts` — NEW: 9 tests for happy path, error, upsert failure, coverage gap, explanations, reset, analytics, logger.
+- `hooks/__tests__/useDemandAnalysis.test.ts` — NEW: 13 tests covering demandVsPrior, weeklyDemandSummary, forecastExplanation, forecastAccuracy, confidenceIntervals, stale request guard.
+- `app/(tabs)/__tests__/explore.test.tsx` — NEW: 6 tests for AnalyticsScreen (coverage, drafts, revenue, HoursBar, loading, error). Fixed by adding `jest.mock('@/components/TourStep', ...)` passthrough (TourStep requires WelcomeTourProvider, throws without it, causes ErrorBoundary to catch and hide KPI cards).
+- `e2e/scheduler-negative.spec.ts` — NEW: Playwright E2E negative/edge scenarios (validation, duplicate workers, empty names, identical times, refresh reset, badge).
+- `scripts/tests-batch.mjs` — NEW: Batch API driver that submitted the 7 generation requests.
+- `scripts/test-ideas.md` — NEW: 15 ranked test ideas (property-based, snapshot, performance, contract, a11y, visual regression, mutation testing, timezone, concurrency, security).
+- `services/syncQueue.ts` — MODIFIED: added `__resetQueueForTesting()` and `__flushForTesting()` test-only exports.
+- `__mocks__/emptyMock.js` — NEW: empty module mock for Expo SDK 53 winter runtime polyfills (fixes all-suites crash from `defineLazyObjectProperty` ReferenceError).
+- `package.json` — MODIFIED: added `moduleNameMapper` entries for `@/` path alias, AsyncStorage mock, and Expo winter runtime mock.
+
+**Root causes fixed:**
+1. Expo SDK 53 winter runtime (`expo/src/winter`) registers lazy globals incompatible with Jest scope → fixed by `emptyMock.js` via `moduleNameMapper`.
+2. `syncQueue.ts` imports `setInterval` from `'timers'`; after `jest.resetModules()` the module re-loads from Node's real timers, not Jest's fake — fixed by exporting `__flushForTesting()` and calling it directly.
+3. AsyncStorage mock setup before `makeFreshModule()` → fresh module gets factory defaults, not configured mock — fixed by reordering `makeFreshModule()` first.
+4. `TourStep` requires `WelcomeTourProvider` context → throws in tests, caught by `ErrorBoundary`, hides KPI cards → fixed by mocking `TourStep` as passthrough.
+
+**Result:** 316/316 tests passing across 29 suites. `npm run lint` — 0 new errors (1 pre-existing `display-name` error in `InputField.tsx` unchanged).
+
+---
+
 ### CHG-057 — 2026-04-03 UTC
 **Type:** FIX (locale completeness — all 9 locales now 0 missing keys)
 **Files changed:**

@@ -391,6 +391,30 @@ export function configureSyncQueue(config: SyncQueueConfig): void {
 }
 
 // ---------------------------------------------------------------------------
+// Test helper — resets all module-level state between tests.
+// NOT intended for production use.
+// ---------------------------------------------------------------------------
+
+export function __resetQueueForTesting(): void {
+  _proxyUrl = '';
+  _getAuthToken = null;
+  _queue = [];
+  _flushing = false;
+  if (_intervalHandle !== null) {
+    clearInterval(_intervalHandle);
+    _intervalHandle = null;
+  }
+  _lastSyncedAt = null;
+  _hasErrors = false;
+  _currentStatus = 'idle';
+  _statusListeners.clear();
+}
+
+export async function __flushForTesting(): Promise<void> {
+  await _flush();
+}
+
+// ---------------------------------------------------------------------------
 // Public API — enqueue
 // ---------------------------------------------------------------------------
 

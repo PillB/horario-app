@@ -39,6 +39,11 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// TourStep requires WelcomeTourProvider — stub it out to a passthrough.
+jest.mock('@/components/TourStep', () => ({
+  TourStep: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
