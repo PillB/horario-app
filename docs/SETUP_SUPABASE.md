@@ -127,7 +127,7 @@ Unique constraint: `(account_id, user_id)` to support `onConflict: ['account_id'
 
 ## Provisioning SQL
 
-Use this SQL to create the tables, indexes, and unique constraint. You can paste it into the Supabase SQL editor or save it as a migration (for example, `supabase/migrations/20240101000000_init.sql`).
+The SQL below is for **reference only** — the canonical source of truth is the migration files listed above. Use `supabase db push` to apply them. Only use this SQL directly if you need a quick one-off setup in the Supabase SQL editor.
 
 ```sql
 -- shifts
@@ -222,37 +222,60 @@ create policy if not exists "Service role writes demand targets" on public.deman
   using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');
 
--- Allow anon upserts for onboarding flags while keeping deletes restricted to the service role
-create policy if not exists "Anon upsert onboarding progress" on public.onboarding_progress
-  for insert
-  with check (auth.role() = 'anon');
-
-create policy if not exists "Anon update onboarding progress" on public.onboarding_progress
-  for update
-  using (auth.role() = 'anon')
-  with check (auth.role() = 'anon');
-
+-- onboarding_progress: account-scoped anon access (requires private.jwt_account_id() helper)
+-- See: supabase/migrations/20260403000001_compliance_fixes.sql for the full scoped policies
 create policy if not exists "Service role manages onboarding progress" on public.onboarding_progress
   for all
   using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');
+
+-- NOTE: Unscoped anon insert/update policies for onboarding_progress are intentionally omitted
+-- here. The compliance migration (20260403000001) creates properly account-scoped versions
+-- using private.jwt_account_id(). Apply that migration before granting anon write access.
 ```
 
 - Anonymous reads allow the Expo client to fetch planning data with the public key.
 - Service role keys should only be used by trusted backends or CI jobs to insert, update, or delete records.
 
-## Applying the migration locally and in CI
+## Applying Migrations
 
-1. **Local development**
-   - Link your local Supabase CLI project (`supabase link --project-ref <ref>`).
-   - Save the SQL above as `supabase/migrations/<timestamp>_init.sql`.
-   - Apply it locally with `supabase db push`.
+### Local development
 
-2. **CI**
-   - Add the migration file to version control.
-   - In CI, run `supabase db push --db-url "$SUPABASE_DB_URL"` or use the Supabase SQL API to execute the same SQL so your ephemeral databases match production.
+```bash
+# Link to your Supabase project (one-time)
+supabase link --project-ref YOUR_PROJECT_REF
 
-3. **Dashboard quick start**
-   - If you prefer the UI, paste the SQL blocks into the Supabase Dashboard SQL editor and run them once per environment.
+# Apply all pending migrations
+supabase db push
+```
+
+### CI
+
+```bash
+# Provide the direct DB URL as a secret in your CI environment
+supabase db push --db-url "$SUPABASE_DB_URL"
+```
+
+### Dashboard quick start
+
+If you prefer the Supabase web UI, open your project → **SQL Editor** and run the SQL from each migration file in filename order (see the table at the top of this doc).
+
+### Verifying the setup
+
+After applying migrations, confirm everything is in place:
+
+```sql
+-- Confirm all tables exist
+SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+
+-- Confirm RLS is enabled on all tables
+SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
+-- All rows should show rowsecurity = true
+
+-- Confirm demand_targets unique constraint exists
+SELECT constraint_name FROM information_schema.table_constraints
+WHERE table_name = 'demand_targets' AND constraint_type = 'UNIQUE';
+-- Should show: demand_targets_date_role_key
+```
 
 With the tables, indexes, unique constraint, and RLS policies in place, the app can upsert `demand_targets` records with `onConflict: ['date', 'role']` and read data securely using the appropriate Supabase keys.

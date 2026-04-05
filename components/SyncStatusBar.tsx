@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { Colors, brand, type ThemeColors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { brand } from '@/constants/Colors';
 import { useT } from '@/contexts/LocaleContext';
 
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -29,9 +28,7 @@ export function SyncStatusBar({
   onRetry,
   lastSyncedAt,
 }: SyncStatusBarProps): React.ReactElement | null {
-  const t = useT();
-  const colorScheme = useColorScheme();
-  const colors: ThemeColors = Colors[colorScheme ?? 'light'];
+  const { t } = useT();
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [displayStatus, setDisplayStatus] = useState<SyncStatus>(status);
 
@@ -104,7 +101,7 @@ export function SyncStatusBar({
   return (
     <View
       style={barStyle}
-      accessibilityRole="status"
+      accessibilityRole="text"
       accessibilityLiveRegion={liveRegion}
       accessibilityLabel={accessibilityLabel}
     >

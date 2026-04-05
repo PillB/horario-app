@@ -6,6 +6,137 @@
 
 ---
 
+### CHG-065 — 2026-04-04 UTC
+**Type:** DOCS (Research-backed rewrite of all 5 platform setup manuals)
+
+**What changed:**
+- `docs/manual-setup/SETUP_STRIPE.md` — rewritten with web-researched gotchas: LatAm entity requirement, raw-body webhook issue in Vercel serverless, Stripe CLI local testing flow, Expo WebBrowser redirect handling, idempotency keys for retries, test card matrix
+- `docs/manual-setup/SETUP_CULQI.md` — rewritten with Culqi-specific pain points: RUC/SUNAT document requirements, Yape activation steps, centimos (not soles) pricing, missing SDK for Node (must use REST directly), production IP allowlisting
+- `docs/manual-setup/SETUP_CLERK.md` — rewritten with JWT template gotchas: Handlebars `{{user.public_metadata.horario_tier}}` syntax, Svix webhook signature verification with raw body, `@clerk/expo` vs `@clerk/backend` split, CAPTCHA/device intelligence issue in Expo Go
+- `docs/manual-setup/SETUP_SUPABASE.md` — rewritten with migration gotchas: `CREATE POLICY IF NOT EXISTS` not supported (must DROP+CREATE), service_role bypasses RLS, Realtime replica identity must be FULL, connection pooler vs direct connection for migrations
+- `docs/manual-setup/SETUP_VERCEL.md` — rewritten with Expo Router API route gotchas: `export const runtime = 'nodejs'` required, `EXPO_PUBLIC_*` exposure risk, environment variable scoping (Production vs Preview vs Development), raw body for webhook handlers
+- `docs/manual-setup/README.md` — updated with ordered setup sequence and cross-references
+- `docs/manual-setup/research/` — 5 new raw research files (stripe/culqi/clerk/supabase/vercel) from Batch API web search
+
+**Process:** 2-phase Anthropic Batch API (claude-sonnet-4-6, 50% cost):
+- Phase 1: 5 parallel `web_search_20260209` research requests (15 targeted queries each)
+- Phase 2: 5 parallel rewrite requests consuming Phase 1 research output
+
+**Each manual now includes:**
+- `⚠️ GOTCHA:` callouts for known failure points
+- `✅ Verify:` checkpoints after each major step
+- Troubleshooting tables (10+ rows per manual)
+- Go-live checklists
+- References to official docs and community-discovered issues
+
+---
+
+### CHG-064 — 2026-04-05 UTC
+**Type:** FEATURE (Subscription billing scaffold — pricing tiers, feature gates, platform setup guides)
+
+**Changes:**
+1. **`constants/pricing.ts`** (new) — Complete pricing constants: 4 tiers (free/starter/growth/pro), per-account USD prices, PPP-adjusted local prices for PE/MX/CO/BR/CL, tier limits, feature gate map, helper functions (`tierMeetsRequirement`, `tierCanAccessFeature`, `nextTier`, `formatPriceUsd`).
+2. **`supabase/migrations/20260405000001_subscriptions.sql`** (new) — `subscriptions` table with all billing fields (Stripe + Culqi), RLS (service_role writes, anon reads), auto-seeds existing accounts as free tier.
+3. **`hooks/useSubscription.ts`** (updated) — Migrated from 2-tier (free/paid) to 4-tier model (free/starter/growth/pro). Reads from Clerk `publicMetadata.horario_tier`. Added `useTierCheck` export. Added `EXPO_PUBLIC_DEV_TIER` support for dev bypass mode.
+4. **`hooks/useFeatureGate.ts`** (new) — `useFeatureGate(feature)` and `useFeatureGates(features[])` hooks returning `{ allowed, currentTier, requiredTier, upgradeTo, loading }`.
+5. **`services/subscriptionService.ts`** (new) — Client-side service: `getSubscription`, `getAccountTier`, `createCheckoutSession`, `createBillingPortalSession`, `cancelSubscription`. Mirrors `rosterService.ts` pattern.
+6. **`components/FeatureGate.tsx`** (new) — Declarative `<FeatureGate feature="...">` wrapper + `<FeatureGateOverlay>` variant with blur/preview mode.
+7. **`components/PricingModal.tsx`** (new) — Full-screen upgrade modal with 3 paid tier cards, monthly/annual toggle (-20%), localized prices by country code, Stripe checkout redirect via `createCheckoutSession`.
+8. **`app/api/secure-proxy+api.ts`** (updated) — Added `dbRowToSubscription` helper + 7 new action cases: `getSubscription` (auto-provisions free row on first call), `upsertSubscription`, `createCheckoutSession` (stub → TODO Stripe SDK), `createBillingPortalSession` (stub), `cancelSubscription`, `stripeWebhook` (stub), `culqiWebhook` (stub).
+9. **`.env.example`** (updated) — Added Stripe price ID vars (6), Stripe webhook secret, Culqi keys (3), `EXPO_PUBLIC_DEV_TIER`.
+10. **`docs/manual-setup/`** (new directory, 5 files):
+    - `README.md` — Ordered setup checklist
+    - `SETUP_SUPABASE.md` — Run migration + verify RLS + enable Realtime
+    - `SETUP_STRIPE.md` — Create products/prices (exact USD amounts), webhooks, portal config
+    - `SETUP_CULQI.md` — Peru: Culqi account, Yape activation, PEN price table in centimos
+    - `SETUP_CLERK.md` — JWT template with `horario_tier` claim, webhook for user.created
+    - `SETUP_VERCEL.md` — All 20+ env vars with source instructions per environment
+
+**What is NOT yet implemented (stubs that need code):**
+- Stripe SDK (`npm install stripe`) + checkout session creation
+- Culqi SDK + Yape charge flow
+- `@clerk/backend` SDK for updating `publicMetadata` after payment
+- Stripe/Culqi webhook signature verification + DB update logic
+
+**Tests:** TypeScript typecheck passes (new files). No logic changes to existing tested code.
+
+---
+
+---
+### CHG-063 — 2026-04-05 UTC
+**Type:** FIX (dependency resolution, lint warnings)
+**Changes:**
+1. **npm ERESOLVE fix**: Bumped `@types/react` from `~19.0.10` to `~19.2.0` in `package.json` to satisfy the peer dependency requirement of `@types/react-dom@^19.2.3`.
+2. **ESLint pre-commit fix (3 warnings → 0)**:
+   - `components/CapabilityMatrix.tsx`: Removed unused `AccessibilityInfo` import from RN import block.
+   - `components/SyncStatusBar.tsx`: Removed unused `colors` variable, `Colors`/`ThemeColors` imports, and `colorScheme` variable (cascade — `colorScheme` only existed to compute `colors`; component uses hardcoded constants and `brand.*`).
+**Files changed:**
+- `package.json`
+- `components/CapabilityMatrix.tsx`
+- `components/SyncStatusBar.tsx`
+**Tests:** 352/352 passing (no logic changes).
+---
+
+### CHG-062 — 2026-04-04 UTC
+**Type:** DOCS (README rewrite + docs accuracy improvements)
+
+**Changes:**
+1. **README.md** — Complete rewrite replacing the default Expo template content with Horario-specific documentation: tech stack table (with actual versions), prerequisites, getting started steps, environment variable table, database setup link, security overview, test count, project structure, and deployment notes.
+2. **docs/supabase.md** — Rewrote to be accurate and concise: full variable table with exposure classification, note that Expo SDK 50+ reads `.env.local` natively (no `dotenv` needed), key rotation procedure, safe-handling checklist.
+3. **docs/SETUP_SUPABASE.md** — Three targeted fixes:
+   - "Provisioning SQL" section now clearly states it is reference-only; canonical setup is via `supabase db push`.
+   - Removed unscoped anon `onboarding_progress` RLS policies from the reference SQL; added a note pointing to the compliance migration (`20260403000001`).
+   - Replaced outdated "Applying the migration" section with accurate CLI commands and a verification SQL block.
+
+**Files changed:**
+- `README.md`
+- `docs/supabase.md`
+- `docs/SETUP_SUPABASE.md`
+
+**Tests:** 352/352 passing (no code changes).
+
+---
+
+### CHG-061 — 2026-04-04 UTC
+**Type:** SECURITY + TEST (pre-commit secret scanning, full codebase security audit, validated fixes, 352/352 tests passing)
+
+**Context:** Multi-phase security hardening using Anthropic Batch API (claude-sonnet-4-6). Scope: pre-commit hooks to block secrets, full codebase security/validation audit, critical fixes with tests. All stubs from the batch output were completed; 5 failing generated tests were debugged and fixed.
+
+**New infrastructure:**
+- `.husky/pre-commit` — git hook running lint-staged (secretlint + ESLint --fix) then `tsc --noEmit` on staged TS files.
+- `.secretlintrc.json` — secretlint config using `@secretlint/secretlint-rule-preset-recommend` + `@secretlint/secretlint-rule-pattern` with custom rules for Anthropic (`sk-ant-*`), Supabase service-role (`sb_secret_*`), and Clerk (`sk_test_*/sk_live_*`) key formats.
+- `.secretlintignore` — excludes node_modules, dist, .expo, playwright-report, scripts/*.json, template files.
+- `.gitleaks.toml` — gitleaks config extending default ruleset with custom Anthropic/Supabase/Clerk key rules; global allowlist for placeholder values.
+- `scripts/security-precommit-batch.mjs` — Batch API driver that submitted 10 security analysis requests and wrote the reports.
+
+**Security reports generated (scripts/):**
+- `security-proxy-report.md` — 9 critical/high findings for `secure-proxy+api.ts`
+- `security-services-report.md` — 11 findings across service files
+- `hooks-bugs-report.md` — 11 critical/high findings in hooks
+- `validation-report.md` — 20 validation findings
+- `auth-flow-report.md` — 5 auth flow findings
+
+**Security fixes applied:**
+1. `app/api/secure-proxy+api.ts` — `AUTH_ENABLED` changed from `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` (client-bundled, bypass risk) to `CLERK_JWKS_URL` (server-only, fail-closed): no JWKS URL → 401 on all authenticated actions. Added `ALLOWED_JWT_ALGORITHMS = Set(['RS256'])` to reject algorithm confusion attacks. Added `nbf` (not-before) claim validation. Made `exp` claim mandatory (previously optional).
+2. `hooks/useSchedulerHandlers.ts` — Fixed 3 occurrences of `errors.join(' ')` where `errors` is `ValidationErrorItem[]` (was producing `[object Object]`); fixed to `errors.map(e => e.message).join(' ')`. Replaced bare regex time validation (`^\d{2}:\d{2}$`) with `isValidTime()` (bounds-checked). Added max-length guards: name ≤ 100, role ≤ 80, skills ≤ 200, notes ≤ 500.
+3. `utils/schedulerUtils.ts` — Added `parseTimeToMinutesSafe()` (throws RangeError on invalid input). Added length guard to `normalizeDay()` (returns undefined for input > 20 chars, prevents ReDoS-like quadratic backtracking).
+4. `utils/sanitize.ts` — NEW: `sanitizeDisplayString()` (HTML-encodes 5 dangerous chars, strips C0/C1 control chars, strips zero-width Unicode) and `validateDisplayString()` for rejection-mode validation.
+
+**New test files:**
+- `services/__tests__/secureProxy.test.ts` — 15 tests for secure-proxy auth/security logic (OPTIONS CORS, JWT validation paths, JWKS key selection, cache TTL, Supabase error, rate-limiting documentation). All 15 passing after fixes:
+  - Test 1: OPTIONS correctly expects 204 (route returns 204 for preflight, not 200)
+  - Tests 6, 7: Added `CLERK_JWKS_URL: ''` (empty string, not `undefined`) to actually disable `AUTH_ENABLED` in non-auth tests — `Object.assign(process.env, { key: undefined })` sets it to the string `"undefined"` which is truthy
+  - Test 8: Removed `mockCreateClient.mockImplementationOnce()` that was never consumed (module throws before `createClient` is reached when `supabaseUrl` is falsy); the unconsumed once-implementation polluted test 9's mock queue
+  - Test 13: Changed action from non-existent `onboarding/get` to valid `loadTargets` action (route has `upsertOnboarding` for writes but no read proxy action)
+- `utils/__tests__/schedulerValidators.test.ts` — 38 tests for `findCoveringAvailability`, `validateAvailabilitySubmission`, `validateShiftReadiness`, `localizeValidationErrors`. All 38 passing.
+
+**Packages installed:**
+- `husky`, `lint-staged`, `secretlint`, `@secretlint/secretlint-rule-preset-recommend`, `@secretlint/secretlint-rule-pattern`, `jest@29` (was missing)
+
+**Tests:** 352/352 passing across 30 suites. Lint: pre-existing issues unchanged (149 problems in base).
+
+---
+
 ### CHG-060 — 2026-04-03 UTC
 **Type:** FIX + DOCS (Security review remediation + MCP compliance — CORS, referrals, auth, billing URL)
 

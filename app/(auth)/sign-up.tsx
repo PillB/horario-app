@@ -61,7 +61,7 @@ export default function SignUpScreen() {
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === 'complete') {
-        void trackEvent('sign_up_completed');
+        void trackEvent('verification_completed');
         await setActive({ session: result.createdSessionId });
         router.replace('/');
       } else {
@@ -199,7 +199,7 @@ export default function SignUpScreen() {
                   setEmail(v);
                   if (!hasTrackedStart.current && v.length > 0) {
                     hasTrackedStart.current = true;
-                    void trackEvent('sign_up_started');
+                    void trackEvent('signup_submitted');
                   }
                 }}
                 onFocus={() => setEmailFocused(true)}

@@ -20,6 +20,7 @@ import {
   defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   isValidDate,
+  isValidTime,
   isoDate,
   windowsOverlap,
 } from '@/utils/schedulerUtils';
@@ -584,8 +585,12 @@ export function useSchedulerHandlers() {
   const handleAddWorker = useCallback(async () => {
     const trimmedName = workerForm.name.trim();
     const trimmedRole = workerForm.role.trim();
+    const trimmedSkills = workerForm.skills.trim();
     if (!trimmedName) { setWorkerError('Worker name is required.'); return; }
+    if (trimmedName.length > 100) { setWorkerError('Name must be 100 characters or fewer.'); return; }
     if (!trimmedRole) { setWorkerError('Role is required.'); return; }
+    if (trimmedRole.length > 80) { setWorkerError('Role must be 80 characters or fewer.'); return; }
+    if (trimmedSkills.length > 200) { setWorkerError('Skills must be 200 characters or fewer.'); return; }
     setWorkerError(null);
     const skills = workerForm.skills.split(',').map((s) => s.trim()).filter(Boolean);
     const result = await addWorker(trimmedName, trimmedRole, skills);
@@ -617,9 +622,11 @@ export function useSchedulerHandlers() {
     const trimmedEnd = templateForm.end.trim();
     const coverageNum = parseInt(templateForm.coverage, 10);
     if (!trimmedName) { setTemplateError('Template name is required.'); return; }
+    if (trimmedName.length > 100) { setTemplateError('Name must be 100 characters or fewer.'); return; }
     if (!trimmedRole) { setTemplateError('Role is required.'); return; }
-    if (!/^\d{2}:\d{2}$/.test(trimmedStart)) { setTemplateError('Start time must be HH:MM.'); return; }
-    if (!/^\d{2}:\d{2}$/.test(trimmedEnd)) { setTemplateError('End time must be HH:MM.'); return; }
+    if (trimmedRole.length > 80) { setTemplateError('Role must be 80 characters or fewer.'); return; }
+    if (!isValidTime(trimmedStart)) { setTemplateError('Start time must use the 24-hour HH:MM format (e.g. 09:00).'); return; }
+    if (!isValidTime(trimmedEnd)) { setTemplateError('End time must use the 24-hour HH:MM format (e.g. 17:00).'); return; }
     if (isNaN(coverageNum) || coverageNum < 1) { setTemplateError('Coverage must be at least 1.'); return; }
     setTemplateError(null);
     const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
@@ -647,7 +654,7 @@ export function useSchedulerHandlers() {
       validateAvailabilitySubmission(availabilityForm, workers);
 
     if (errors.length > 0 || !normalizedDay) {
-      setAvailabilityError(errors.join(' '));
+      setAvailabilityError(errors.map((e) => e.message).join(' '));
       setAvailabilitySuccessPromptVisible(false);
       return;
     }
@@ -762,6 +769,8 @@ export function useSchedulerHandlers() {
     if (!trimmedDate) errors.push('Date is required.');
     else if (!isValidDate(trimmedDate)) errors.push('Date must use the YYYY-MM-DD format.');
     if (!trimmedRole) errors.push('Role is required.');
+    else if (trimmedRole.length > 80) errors.push('Role must be 80 characters or fewer.');
+    if (trimmedNotes.length > 500) errors.push('Notes must be 500 characters or fewer.');
 
     const requiredInput = targetForm.required.trim();
     const normalizedRequired = Number(requiredInput);
@@ -871,7 +880,7 @@ export function useSchedulerHandlers() {
       const { errors } = validateShiftReadiness(
         shift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
       );
-      if (errors.length) { showActionBanner(errors.join(' '), 'error'); return; }
+      if (errors.length) { showActionBanner(errors.map((e) => e.message).join(' '), 'error'); return; }
 
       // Alert.alert is a no-op on web — skip confirmation and publish directly.
       const doPublish = async () => {
@@ -881,7 +890,7 @@ export function useSchedulerHandlers() {
           latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
         );
         if (validation.errors.length) {
-          showActionBanner(validation.errors.join(' '), 'error'); return;
+          showActionBanner(validation.errors.map((e) => e.message).join(' '), 'error'); return;
         }
         const publishResult = await setShiftStatus(shiftId, 'Published');
         if (!publishResult.success) {
@@ -988,7 +997,7 @@ export function useSchedulerHandlers() {
       `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
       'info'
     );
-  }, [businessTimezoneOffsetMinutes, roster, shiftForm.date, shiftTemplates, showActionBanner, workers]);
+  }, [businessTimezoneOffsetMinutes, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, workers]);
 
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
@@ -1019,7 +1028,7 @@ export function useSchedulerHandlers() {
     );
   }, [addShift, autoAssignSuggestions, incrementUsage, showActionBanner]);
 
-  const handlePosTargetsGenerated = useCallback(async (targets: Array<{date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}>) => {
+  const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     let savedCount = 0;
     for (const target of targets) {
       try {

@@ -51,6 +51,7 @@ export const Colors = {
     background: '#F8FAFC',     // Slate 50 — page background
     surface: '#FFFFFF',        // Pure white — cards/inputs
     surfaceRaised: '#FFFFFF',  // Cards with elevation
+    surfaceSecondary: '#F1F5F9', // Slate 100 — alternating rows / subtle containers
     border: '#E2E8F0',         // Slate 200
     borderFocus: '#0D9488',    // Teal — focused input ring
 
@@ -78,6 +79,7 @@ export const Colors = {
     background: '#0F172A',     // Slate 900
     surface: '#1E293B',        // Slate 800
     surfaceRaised: '#263548',  // slightly lifted cards
+    surfaceSecondary: '#172032', // slightly darker than surface — alternating rows
     border: '#334155',         // Slate 700
     borderFocus: '#2DD4BF',    // Teal 400 — lighter for dark bg
 

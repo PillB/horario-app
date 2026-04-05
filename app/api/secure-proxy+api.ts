@@ -14,7 +14,12 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
 const CLERK_JWKS_URL = process.env.CLERK_JWKS_URL;
-const AUTH_ENABLED = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
+// Auth is enabled when the server has the JWKS endpoint required to verify tokens.
+// Intentionally derived from a server-only env var — never from EXPO_PUBLIC_* vars
+// (which are bundled into the client and could be absent from a deployment, causing
+// the auth gate to silently open). Fails closed: no JWKS URL → no verified identity
+// → 401 on all authenticated actions (not open access).
+const AUTH_ENABLED: boolean = Boolean(CLERK_JWKS_URL);
 
 type JWK = { kid?: string; kty: string; n: string; e: string; alg?: string; use?: string };
 type JWKSet = { keys: JWK[] };
@@ -31,13 +36,25 @@ async function fetchJwks(): Promise<JWKSet> {
   return jwksCache;
 }
 
+// Only RS256 is acceptable — reject algorithm confusion attacks
+const ALLOWED_JWT_ALGORITHMS = new Set(['RS256']);
+
 async function verifyClerkToken(token: string): Promise<string | null> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString()) as { kid?: string; alg?: string };
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as { sub?: string; exp?: number };
-    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as { sub?: string; exp?: number; nbf?: number; iss?: string };
+
+    // Reject tokens using unexpected algorithms (algorithm confusion attack prevention)
+    if (!header.alg || !ALLOWED_JWT_ALGORITHMS.has(header.alg)) return null;
+
+    // Validate expiry — require the claim to be present
+    if (!payload.exp || Date.now() / 1000 > payload.exp) return null;
+
+    // Reject tokens not yet valid (nbf = not before)
+    if (payload.nbf && Date.now() / 1000 < payload.nbf) return null;
+
     const jwks = await fetchJwks();
     const jwk = (header.kid ? jwks.keys.find(k => k.kid === header.kid) : jwks.keys[0]);
     if (!jwk) return null;

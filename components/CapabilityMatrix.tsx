@@ -13,7 +13,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  AccessibilityInfo,
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -332,7 +331,7 @@ const makeStyles = (colors: ThemeColors) =>
     // ── Header ──
     headerRow: {
       flexDirection: 'row',
-      backgroundColor: colors.surfaceSecondary ?? colors.background,
+      backgroundColor: colors.surfaceSecondary,
       paddingVertical: 10,
     },
     headerText: {
@@ -388,7 +387,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.background,
     },
     rowOdd: {
-      backgroundColor: colors.surfaceSecondary ?? colors.background,
+      backgroundColor: colors.surfaceSecondary,
     },
     rowHighlighted: {
       backgroundColor: brand.accentSurface,

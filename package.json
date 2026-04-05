@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "build": "expo export --platform web",
     "lint": "expo lint",
-    "test": "jest"
+    "test": "jest",
+    "prepare": "husky"
   },
   "dependencies": {
     "@clerk/expo": "^3.1.5",
@@ -49,12 +50,18 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@babel/core": "^7.25.2",
     "@playwright/test": "^1.58.2",
+    "@secretlint/secretlint-rule-pattern": "^11.5.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^11.4.1",
     "@types/react": "~19.0.10",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
     "jest-expo": "~53.0.2",
+    "lint-staged": "^16.4.0",
     "react-test-renderer": "19.0.0",
+    "secretlint": "^11.4.1",
     "typescript": "~5.8.3"
   },
   "jest": {
@@ -68,6 +75,12 @@
       "^@react-native-async-storage/async-storage$": "@react-native-async-storage/async-storage/jest/async-storage-mock",
       "^expo/src/winter(.*)?$": "<rootDir>/__mocks__/emptyMock.js"
     }
+  },
+  "lint-staged": {
+    "*": "secretlint",
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0"
+    ]
   },
   "engines": {
     "node": ">=20.0.0"

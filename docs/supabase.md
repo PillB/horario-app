@@ -1,69 +1,60 @@
-# Supabase environment variables
+# Supabase — Environment Variables & Configuration
 
-This project uses Supabase for backend services. Configure the following public environment variables before running the Expo app locally or in CI builds:
+This project uses Supabase as the backend database. The Expo client uses the **anon key** for read-only access. All writes go through the server-side secure proxy (`app/api/secure-proxy+api.ts`), which holds the **service-role key** and never exposes it to the client.
 
-- `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+## Environment Variables
 
-These keys are exposed to the client runtime. Treat them as credentials that should not be stored in version control or shared outside trusted build systems.
+| Variable | Where used | Required |
+|---|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` | Client + proxy | Yes |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Client (read-only queries) | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only (proxy) | Yes |
 
-## Local development (Expo)
+> **Critical:** `SUPABASE_SERVICE_ROLE_KEY` must **never** appear in an `EXPO_PUBLIC_*` variable. Expo's Metro bundler performs compile-time substitution of all `EXPO_PUBLIC_*` references, embedding the value in the client JavaScript bundle.
 
-1. Create a `.env` file in the project root based on `.env.example` and fill in your Supabase values:
+## Local Development
 
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Ensure your Expo config loads environment variables. If you use `app.config.ts`, import `dotenv/config` and read from `process.env`:
-
-   ```ts
-   // app.config.ts
-   import 'dotenv/config';
-   import { ExpoConfig } from 'expo/config';
-
-   const config: ExpoConfig = {
-     name: 'horario-app',
-     slug: 'horario-app',
-     extra: {
-       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-     },
-   };
-
-   export default config;
-   ```
-
-   If you rely on `app.json`, point to the `.env` file when starting Expo so the values are injected:
+1. Copy the template and fill in your values:
 
    ```bash
-   EXPO_PUBLIC_SUPABASE_URL=... EXPO_PUBLIC_SUPABASE_ANON_KEY=... npx expo start
+   cp .env.example .env.local
    ```
 
-   or use `dotenv` at startup:
+2. Start Expo — it reads `EXPO_PUBLIC_*` variables automatically from `.env.local`:
 
    ```bash
-   export $(cat .env | xargs) && npx expo start
+   npx expo start
    ```
 
-3. Run the app with `npx expo start`. Expo will read the environment variables and make them available as `process.env.EXPO_PUBLIC_SUPABASE_URL` and `process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+   > Expo SDK 50+ reads `.env.local` natively via the `expo/env` module — no `dotenv` import required in `app.config.ts`.
 
-## CI builds
+3. The dev Expo Router server also reads server-only variables (without `EXPO_PUBLIC_` prefix) from `.env.local` for API routes.
 
-- Configure your CI/CD pipeline (e.g., GitHub Actions, EAS Build) to set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` as environment variables or secrets.
-- Avoid committing `.env` files. Instead, provide the values via the CI provider's secret management and expose them as environment variables at build time.
-- For EAS, add the variables under **Build > Environment variables** or include them in your `eas.json` profile using the `env` block.
+## CI / Production
 
-## Safe handling practices
+- Set all variables in your CI provider's secret management (GitHub Actions secrets, Vercel environment variables, etc.)
+- **Never** commit `.env.local` or any file containing real keys. Verify `.env.local` is in `.gitignore`:
+  ```bash
+  git ls-files | grep "\.env"
+  # Expected: only .env.example
+  ```
+- For EAS Build, add variables under **Build → Environment variables** in the Expo dashboard, or in `eas.json` under the `env` block (public vars only).
+- For Vercel, set variables under **Settings → Environment Variables**. Mark server-only vars as **not exposed to the browser**.
 
-- **Never commit secrets**: Add `.env` to `.gitignore` (already included by Expo) and keep actual keys out of version control.
-- **Limit scope**: Use environment-specific keys (development vs. production) and avoid reusing keys across projects.
-- **Rotation**: If a key is exposed or compromised, rotate it in Supabase, update the value in your CI secrets, and refresh the `.env` file locally.
-- **Least privilege**: Use the anonymous public key for client-side calls and keep service role keys exclusively on trusted backends.
+## Key Rotation
 
-## Key rotation checklist
+If a key is exposed or compromised:
 
-1. Generate a new anonymous key in the Supabase dashboard.
-2. Update CI secrets and any deployment environments to the new values.
-3. Replace the local `.env` entries and restart Expo (`npx expo start -c` to clear the cache if needed).
-4. Invalidate old builds that might still embed the previous key.
+1. Go to your Supabase project → **Settings → API** → reset the affected key.
+2. Update the value in all deployment environments (Vercel, EAS, CI secrets).
+3. Update your local `.env.local`.
+4. Restart Expo with cache cleared: `npx expo start -c`.
+5. If the service-role key was exposed, audit your Supabase logs for unexpected writes.
+
+## Safe-Handling Checklist
+
+- [ ] `.env.local` is in `.gitignore` (Expo adds this by default)
+- [ ] Service-role key is only read in `app/api/` files
+- [ ] No `EXPO_PUBLIC_*` variable contains a secret key
+- [ ] Different anon keys used for development and production environments
+- [ ] Keys rotated if `.env.local` was accidentally committed (see [SECURITY_REMEDIATION.md](SECURITY_REMEDIATION.md))

@@ -1,177 +1,520 @@
-import { findCoveringAvailability, validateAvailabilitySubmission, validateShiftReadiness } from '../schedulerValidators';
-import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
+import {
+  findCoveringAvailability,
+  validateAvailabilitySubmission,
+  validateShiftReadiness,
+  localizeValidationErrors,
+  type ValidationErrorItem,
+  type AvailabilityFormInput,
+} from '../schedulerValidators';
 import { type Worker } from '@/types/scheduler';
+import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 
-const template: ShiftTemplate = {
-  id: 'morning',
-  name: 'Morning Coverage',
-  role: 'Support',
-  start: '08:00',
-  end: '12:00',
-  coverage: 1,
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const worker: Worker = {
-  id: 'W-01',
-  name: 'Alice',
-  role: 'Support',
-  skills: ['chat'],
-  availability: [{ day: 'Mon', from: '07:00', to: '16:00' }],
-};
+function makeWorker(overrides: Partial<Worker> = {}): Worker {
+  return {
+    id: 'worker-uuid-1',
+    displayId: 'W-1',
+    name: 'Alice',
+    role: 'nurse',
+    availability: [],
+    ...overrides,
+  };
+}
+
+function makeTemplate(overrides: Partial<ShiftTemplate> = {}): ShiftTemplate {
+  return {
+    id: 'template-1',
+    name: 'Morning',
+    role: 'nurse',
+    start: '09:00',
+    end: '17:00',
+    ...overrides,
+  };
+}
+
+function makeShift(overrides: Partial<Shift> = {}): Shift {
+  return {
+    id: 'shift-1',
+    workerId: 'worker-uuid-1',
+    templateId: 'template-1',
+    date: '2024-01-15', // known Monday in UTC
+    location: 'HQ',
+    status: 'Draft',
+    ...overrides,
+  };
+}
+
+// A fixed timezone offset (UTC+0) to make tests deterministic
+const UTC_OFFSET = 0;
+
+// ─── Setup ────────────────────────────────────────────────────────────────────
+
+let consoleWarnSpy: jest.SpyInstance;
+let consoleErrorSpy: jest.SpyInstance;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  consoleWarnSpy.mockRestore();
+  consoleErrorSpy.mockRestore();
+});
 
 // ─── findCoveringAvailability ─────────────────────────────────────────────────
 
 describe('findCoveringAvailability', () => {
-  it('returns a covering slot when availability fully contains the template window', () => {
-    const { coveringSlot, weekdayLabel } = findCoveringAvailability(worker, template, '2024-12-16', 0);
-    expect(weekdayLabel).toBe('Mon');
-    expect(coveringSlot).toEqual(worker.availability[0]);
-  });
-
-  it('returns undefined slot for a day with no matching availability', () => {
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-12-17', 0); // Tuesday
+  test('1. worker availability 08:00-16:00 does NOT cover template 09:00-17:00', () => {
+    const worker = makeWorker({
+      availability: [{ day: 'Mon', from: '08:00', to: '16:00' }],
+    });
+    const template = makeTemplate({ start: '09:00', end: '17:00' });
+    // 2024-01-15 is a Monday (UTC)
+    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
     expect(coveringSlot).toBeUndefined();
   });
 
-  it('returns correct weekday when timezone pushes date to prior day', () => {
-    const fridayWorker: Worker = {
-      ...worker,
-      availability: [{ day: 'Fri', from: '07:00', to: '16:00' }],
-    };
-    // 2024-06-01 is Saturday UTC; UTC-12 pushes it to Friday
-    const { coveringSlot, weekdayLabel } = findCoveringAvailability(fridayWorker, template, '2024-06-01', -720);
-    expect(weekdayLabel).toBe('Fri');
-    expect(coveringSlot).toEqual(fridayWorker.availability[0]);
+  test('2. worker availability 07:00-18:00 fully covers template 09:00-17:00 → coveringSlot set', () => {
+    const slot = { day: 'Mon', from: '07:00', to: '18:00' };
+    const worker = makeWorker({ availability: [slot] });
+    const template = makeTemplate({ start: '09:00', end: '17:00' });
+    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
+    expect(coveringSlot).toEqual(slot);
   });
 
-  it('returns null weekdayLabel for an invalid date', () => {
-    const { coveringSlot, weekdayLabel } = findCoveringAvailability(worker, template, 'not-a-date', 0);
-    expect(weekdayLabel).toBeNull();
+  test('3. worker with no availability → coveringSlot is undefined', () => {
+    const worker = makeWorker({ availability: [] });
+    const template = makeTemplate({ start: '09:00', end: '17:00' });
+    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
     expect(coveringSlot).toBeUndefined();
+  });
+
+  test('4. worker availability on wrong day (Tue vs Mon) → coveringSlot undefined', () => {
+    const worker = makeWorker({
+      availability: [{ day: 'Tue', from: '07:00', to: '18:00' }],
+    });
+    const template = makeTemplate({ start: '09:00', end: '17:00' });
+    // 2024-01-15 is Monday
+    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
+    expect(coveringSlot).toBeUndefined();
+  });
+
+  test('5. timezone offset pushes date to different weekday → correct weekday used', () => {
+    // 2024-01-15 UTC midnight = still Monday at UTC+0
+    // But with a large positive offset (+720 min = UTC+12), midnight UTC = noon Monday,
+    // so the adjusted day stays Monday. Use a negative offset to push back to Sunday.
+    // UTC-12 offset = -720 minutes; midnight UTC on Mon Jan 15 → noon Sunday Jan 14 UTC-12
+    const negativeOffset = -720;
+    const slot = { day: 'Sun', from: '00:00', to: '23:59' };
+    const worker = makeWorker({ availability: [slot] });
+    const template = makeTemplate({ start: '09:00', end: '17:00' });
+    const { weekdayLabel } = findCoveringAvailability(worker, template, '2024-01-15', negativeOffset);
+    expect(weekdayLabel).toBe('Sun');
+  });
+
+  test('6. worker role does not match template role — findCoveringAvailability still returns slot (role check is separate)', () => {
+    const slot = { day: 'Mon', from: '07:00', to: '18:00' };
+    const worker = makeWorker({ role: 'doctor', availability: [slot] });
+    const template = makeTemplate({ role: 'nurse', start: '09:00', end: '17:00' });
+    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
+    // findCoveringAvailability ignores role — it only checks time coverage
+    expect(coveringSlot).toEqual(slot);
   });
 });
 
 // ─── validateAvailabilitySubmission ──────────────────────────────────────────
 
 describe('validateAvailabilitySubmission', () => {
-  const workers: Worker[] = [worker];
+  const baseWorker = makeWorker({
+    id: 'worker-uuid-1',
+    displayId: 'W-1',
+    availability: [],
+  });
 
-  it('passes for valid inputs', () => {
+  function validForm(overrides: Partial<AvailabilityFormInput> = {}): AvailabilityFormInput {
+    return {
+      workerId: 'W-1',
+      day: 'Mon',
+      from: '09:00',
+      to: '17:00',
+      ...overrides,
+    };
+  }
+
+  test('7. valid submission → no errors returned', () => {
+    const result = validateAvailabilitySubmission(validForm(), [baseWorker]);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test('8. invalid day (not a weekday abbreviation) → DAY_INVALID error', () => {
+    const result = validateAvailabilitySubmission(validForm({ day: 'Someday' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('DAY_INVALID');
+  });
+
+  test('9. invalid from time format "25:00" → FROM_TIME_INVALID error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: '25:00' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('FROM_TIME_INVALID');
+  });
+
+  test('9b. invalid from time format "9:00am" → FROM_TIME_INVALID error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: '9:00am' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('FROM_TIME_INVALID');
+  });
+
+  test('9c. invalid from time format "abc" → FROM_TIME_INVALID error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: 'abc' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('FROM_TIME_INVALID');
+  });
+
+  test('10. invalid to time format "25:99" → TO_TIME_INVALID error', () => {
+    const result = validateAvailabilitySubmission(validForm({ to: '25:99' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('TO_TIME_INVALID');
+  });
+
+  test('11. to time <= from time → FROM_BEFORE_TO error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: '17:00', to: '09:00' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('FROM_BEFORE_TO');
+  });
+
+  test('11b. to time equal to from time → FROM_BEFORE_TO error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: '09:00', to: '09:00' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('FROM_BEFORE_TO');
+  });
+
+  test('12. overlapping existing availability on same day → AVAILABILITY_OVERLAP error', () => {
+    const workerWithSlot = makeWorker({
+      id: 'worker-uuid-1',
+      displayId: 'W-1',
+      availability: [{ day: 'Mon', from: '08:00', to: '14:00' }],
+    });
+    // New slot 12:00-18:00 overlaps existing 08:00-14:00
     const result = validateAvailabilitySubmission(
-      { workerId: 'W-01', day: 'Tue', from: '09:00', to: '17:00' },
-      workers
+      validForm({ from: '12:00', to: '18:00' }),
+      [workerWithSlot]
+    );
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('AVAILABILITY_OVERLAP');
+  });
+
+  test('13. exact duplicate slot → AVAILABILITY_OVERLAP error (overlapping boundary counts as overlap)', () => {
+    const workerWithSlot = makeWorker({
+      id: 'worker-uuid-1',
+      displayId: 'W-1',
+      availability: [{ day: 'Mon', from: '09:00', to: '17:00' }],
+    });
+    const result = validateAvailabilitySubmission(validForm(), [workerWithSlot]);
+    const codes = result.errors.map((e) => e.code);
+    // Duplicate is an exact overlap, so overlap or duplicate code expected
+    expect(codes.some((c) => c === 'AVAILABILITY_OVERLAP' || c === 'AVAILABILITY_DUPLICATE')).toBe(true);
+  });
+
+  test('14. worker has no existing availability → no overlap or duplicate errors', () => {
+    const result = validateAvailabilitySubmission(validForm(), [baseWorker]);
+    const overlapCodes = result.errors.filter(
+      (e) => e.code === 'AVAILABILITY_OVERLAP' || e.code === 'AVAILABILITY_DUPLICATE'
+    );
+    expect(overlapCodes).toHaveLength(0);
+  });
+
+  test('worker not found by displayId or id → WORKER_NOT_FOUND error', () => {
+    const result = validateAvailabilitySubmission(validForm({ workerId: 'UNKNOWN' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('WORKER_NOT_FOUND');
+  });
+
+  test('empty workerId → WORKER_REQUIRED error', () => {
+    const result = validateAvailabilitySubmission(validForm({ workerId: '' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('WORKER_REQUIRED');
+  });
+
+  test('empty day → DAY_REQUIRED error', () => {
+    const result = validateAvailabilitySubmission(validForm({ day: '' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('DAY_REQUIRED');
+  });
+
+  test('empty from and to → TIMES_REQUIRED error', () => {
+    const result = validateAvailabilitySubmission(validForm({ from: '', to: '' }), [baseWorker]);
+    const codes = result.errors.map((e) => e.code);
+    expect(codes).toContain('TIMES_REQUIRED');
+  });
+
+  test('resolves worker by UUID as well as displayId', () => {
+    const result = validateAvailabilitySubmission(
+      validForm({ workerId: 'worker-uuid-1' }),
+      [baseWorker]
     );
     expect(result.errors).toHaveLength(0);
-    expect(result.normalizedDay).toBe('Tue');
-    expect(result.trimmedWorkerId).toBe('W-01');
+    expect(result.trimmedWorkerId).toBe('worker-uuid-1');
   });
 
-  it('reports missing required fields', () => {
-    const result = validateAvailabilitySubmission(
-      { workerId: '', day: '', from: '', to: '' },
-      workers
-    );
-    expect(result.errors.length).toBeGreaterThan(0);
+  test('returns resolvedWorkerId (UUID) even when displayId was provided', () => {
+    const result = validateAvailabilitySubmission(validForm({ workerId: 'W-1' }), [baseWorker]);
+    expect(result.trimmedWorkerId).toBe('worker-uuid-1');
   });
 
-  it('rejects an unknown worker ID', () => {
-    const { errors } = validateAvailabilitySubmission(
-      { workerId: 'W-99', day: 'Mon', from: '09:00', to: '17:00' },
-      workers
-    );
-    expect(errors.some((e) => e.code === 'WORKER_NOT_FOUND')).toBe(true);
-  });
-
-  it('rejects an invalid day name', () => {
-    const { errors } = validateAvailabilitySubmission(
-      { workerId: 'W-01', day: 'Holiday', from: '09:00', to: '17:00' },
-      workers
-    );
-    expect(errors.some((e) => e.code === 'DAY_INVALID')).toBe(true);
-  });
-
-  it('rejects inverted time window', () => {
-    const { errors } = validateAvailabilitySubmission(
-      { workerId: 'W-01', day: 'Tue', from: '17:00', to: '09:00' },
-      workers
-    );
-    expect(errors.some((e) => e.code === 'FROM_BEFORE_TO')).toBe(true);
-  });
-
-  it('rejects overlapping availability on same day', () => {
-    const workerWithSlot: Worker = {
-      ...worker,
-      availability: [{ day: 'Mon', from: '09:00', to: '17:00' }],
-    };
-    const { errors } = validateAvailabilitySubmission(
-      { workerId: 'W-01', day: 'Mon', from: '10:00', to: '14:00' },
-      [workerWithSlot]
-    );
-    expect(errors.some((e) => e.code === 'AVAILABILITY_OVERLAP')).toBe(true);
-  });
-
-  it('reports an overlap error for an identical slot (identical slots are a superset of overlaps)', () => {
-    // An identical slot triggers the overlap check first (windowsOverlap returns true
-    // for identical windows). The "already exists" branch is only reached when
-    // the slot matches exactly but the window comparison finds no strict overlap —
-    // which cannot happen for same-day same-time entries.
-    const workerWithSlot: Worker = {
-      ...worker,
-      availability: [{ day: 'Tue', from: '09:00', to: '17:00' }],
-    };
-    const { errors } = validateAvailabilitySubmission(
-      { workerId: 'W-01', day: 'Tue', from: '09:00', to: '17:00' },
-      [workerWithSlot]
-    );
-    expect(errors.some((e) => e.code === 'AVAILABILITY_OVERLAP' || e.code === 'AVAILABILITY_DUPLICATE')).toBe(true);
+  test('normalizedDay is set correctly for valid day input', () => {
+    const result = validateAvailabilitySubmission(validForm({ day: 'monday' }), [baseWorker]);
+    expect(result.normalizedDay).toBe('Mon');
   });
 });
 
 // ─── validateShiftReadiness ───────────────────────────────────────────────────
 
 describe('validateShiftReadiness', () => {
-  const shift: Shift = {
-    id: 's1',
-    date: '2024-12-16',
-    workerId: 'W-01',
-    templateId: 'morning',
-    location: 'HQ',
-    status: 'Draft',
-  };
+  const template = makeTemplate({ id: 'template-1', role: 'nurse', start: '09:00', end: '17:00' });
 
-  it('passes for a valid, covered shift', () => {
-    const { errors } = validateShiftReadiness(shift, [shift], [template], [worker], 0);
+  const workerWithCoverage = makeWorker({
+    id: 'worker-uuid-1',
+    role: 'nurse',
+    availability: [{ day: 'Mon', from: '07:00', to: '18:00' }],
+  });
+
+  // 2024-01-15 is a Monday at UTC+0
+  const shift = makeShift({
+    id: 'shift-1',
+    workerId: 'worker-uuid-1',
+    templateId: 'template-1',
+    date: '2024-01-15',
+  });
+
+  test('15. template not found → TEMPLATE_MISSING error', () => {
+    const shiftBadTemplate = makeShift({ templateId: 'nonexistent-template' });
+    const { errors } = validateShiftReadiness(
+      shiftBadTemplate,
+      [],
+      [], // no templates
+      [workerWithCoverage],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('TEMPLATE_MISSING');
+  });
+
+  test('16. worker not found → WORKER_MISSING error', () => {
+    const shiftBadWorker = makeShift({ workerId: 'nonexistent-worker' });
+    const { errors } = validateShiftReadiness(
+      shiftBadWorker,
+      [],
+      [template],
+      [], // no workers
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('WORKER_MISSING');
+  });
+
+  test('17. role mismatch (worker.role !== template.role) → ROLE_MISMATCH error', () => {
+    const doctorWorker = makeWorker({
+      id: 'worker-uuid-1',
+      role: 'doctor',
+      availability: [{ day: 'Mon', from: '07:00', to: '18:00' }],
+    });
+    const { errors } = validateShiftReadiness(
+      shift,
+      [],
+      [template],
+      [doctorWorker],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('ROLE_MISMATCH');
+  });
+
+  test('18. worker availability does not cover shift window → COVERAGE_MISSING error', () => {
+    const workerWithPartialCoverage = makeWorker({
+      id: 'worker-uuid-1',
+      role: 'nurse',
+      availability: [{ day: 'Mon', from: '10:00', to: '18:00' }], // starts too late
+    });
+    const { errors } = validateShiftReadiness(
+      shift,
+      [],
+      [template],
+      [workerWithPartialCoverage],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('COVERAGE_MISSING');
+  });
+
+  test('18b. worker has no availability on shift weekday → COVERAGE_MISSING error', () => {
+    const workerNoAvailability = makeWorker({
+      id: 'worker-uuid-1',
+      role: 'nurse',
+      availability: [], // no availability at all
+    });
+    const { errors } = validateShiftReadiness(
+      shift,
+      [],
+      [template],
+      [workerNoAvailability],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('COVERAGE_MISSING');
+  });
+
+  test('19. shift overlaps another shift on same date for same worker → SHIFT_OVERLAP error', () => {
+    const overlappingShift = makeShift({
+      id: 'shift-2', // different id
+      workerId: 'worker-uuid-1',
+      templateId: 'template-1',
+      date: '2024-01-15',
+    });
+    // roster contains the overlapping shift, we validate shift-1 against it
+    const { errors } = validateShiftReadiness(
+      shift,
+      [overlappingShift], // roster
+      [template],
+      [workerWithCoverage],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('SHIFT_OVERLAP');
+  });
+
+  test('19b. overlapping shift with a different time template that still overlaps → SHIFT_OVERLAP error', () => {
+    const template2 = makeTemplate({
+      id: 'template-2',
+      role: 'nurse',
+      start: '12:00',
+      end: '20:00',
+    });
+    const shift2 = makeShift({
+      id: 'shift-2',
+      workerId: 'worker-uuid-1',
+      templateId: 'template-2',
+      date: '2024-01-15',
+    });
+    // shift uses template-1 (09:00-17:00); shift2 uses template-2 (12:00-20:00) → they overlap
+    const { errors } = validateShiftReadiness(
+      shift,
+      [shift2],
+      [template, template2],
+      [workerWithCoverage],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).toContain('SHIFT_OVERLAP');
+  });
+
+  test('20. valid shift → empty errors array', () => {
+    const { errors } = validateShiftReadiness(
+      shift,
+      [], // no other shifts in roster
+      [template],
+      [workerWithCoverage],
+      UTC_OFFSET
+    );
     expect(errors).toHaveLength(0);
   });
 
-  it('reports missing template', () => {
-    const { errors } = validateShiftReadiness(shift, [shift], [], [worker], 0);
-    expect(errors.some((e) => e.code === 'TEMPLATE_MISSING')).toBe(true);
+  test('non-overlapping shifts on same date for same worker → no SHIFT_OVERLAP error', () => {
+    const template2 = makeTemplate({
+      id: 'template-2',
+      role: 'nurse',
+      start: '17:00',
+      end: '23:00',
+    });
+    const shift2 = makeShift({
+      id: 'shift-2',
+      workerId: 'worker-uuid-1',
+      templateId: 'template-2',
+      date: '2024-01-15',
+    });
+    // shift uses 09:00-17:00, shift2 uses 17:00-23:00 → adjacent, not overlapping
+    const { errors } = validateShiftReadiness(
+      shift,
+      [shift2],
+      [template, template2],
+      [workerWithCoverage],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).not.toContain('SHIFT_OVERLAP');
   });
 
-  it('reports missing worker', () => {
-    const { errors } = validateShiftReadiness(shift, [shift], [template], [], 0);
-    expect(errors.some((e) => e.code === 'WORKER_MISSING')).toBe(true);
+  test('shifts on different dates → no SHIFT_OVERLAP error', () => {
+    const shiftDifferentDate = makeShift({
+      id: 'shift-2',
+      workerId: 'worker-uuid-1',
+      templateId: 'template-1',
+      date: '2024-01-16', // Tuesday
+    });
+    const workerTueMon = makeWorker({
+      id: 'worker-uuid-1',
+      role: 'nurse',
+      availability: [
+        { day: 'Mon', from: '07:00', to: '18:00' },
+        { day: 'Tue', from: '07:00', to: '18:00' },
+      ],
+    });
+    const { errors } = validateShiftReadiness(
+      shift,
+      [shiftDifferentDate],
+      [template],
+      [workerTueMon],
+      UTC_OFFSET
+    );
+    const codes = errors.map((e) => e.code);
+    expect(codes).not.toContain('SHIFT_OVERLAP');
+  });
+});
+
+// ─── localizeValidationErrors ─────────────────────────────────────────────────
+
+describe('localizeValidationErrors', () => {
+  test('returns translated string when t() returns a real translation', () => {
+    const errors: ValidationErrorItem[] = [
+      { code: 'WORKER_REQUIRED', message: 'Worker is required.' },
+    ];
+    const t = (_key: string, _params?: Record<string, string>) => 'Worker requis.';
+    const result = localizeValidationErrors(errors, t);
+    expect(result).toEqual(['Worker requis.']);
   });
 
-  it('reports role mismatch', () => {
-    const wrongRoleWorker: Worker = { ...worker, role: 'Cashier' };
-    const { errors } = validateShiftReadiness(shift, [shift], [template], [wrongRoleWorker], 0);
-    expect(errors.some((e) => e.code === 'ROLE_MISMATCH')).toBe(true);
+  test('falls back to English message when t() returns the key path unchanged', () => {
+    const errors: ValidationErrorItem[] = [
+      { code: 'WORKER_REQUIRED', message: 'Worker is required.' },
+    ];
+    // Simulate missing translation — t returns the key itself
+    const t = (key: string, _params?: Record<string, string>) => key;
+    const result = localizeValidationErrors(errors, t);
+    expect(result).toEqual(['Worker is required.']);
   });
 
-  it('reports inadequate availability coverage', () => {
-    const lateWorker: Worker = {
-      ...worker,
-      availability: [{ day: 'Mon', from: '10:00', to: '16:00' }], // starts after template 08:00
+  test('passes params to t() correctly', () => {
+    const errors: ValidationErrorItem[] = [
+      {
+        code: 'ROLE_MISMATCH',
+        message: 'Role mismatch.',
+        params: { workerRole: 'doctor', templateRole: 'nurse' },
+      },
+    ];
+    const capturedParams: Record<string, string>[] = [];
+    const t = (_key: string, params?: Record<string, string>) => {
+      if (params) capturedParams.push(params);
+      return 'Rôle incorrect.';
     };
-    const { errors } = validateShiftReadiness(shift, [shift], [template], [lateWorker], 0);
-    expect(errors.some((e) => e.code === 'COVERAGE_MISSING')).toBe(true);
+    localizeValidationErrors(errors, t);
+    expect(capturedParams[0]).toEqual({ workerRole: 'doctor', templateRole: 'nurse' });
   });
 
-  it('reports time-window overlap with existing shift', () => {
-    const overlap: Shift = { ...shift, id: 's2' };
-    const { errors } = validateShiftReadiness(shift, [shift, overlap], [template], [worker], 0);
-    expect(errors.some((e) => e.code === 'SHIFT_OVERLAP')).toBe(true);
+  test('handles empty errors array → returns empty array', () => {
+    const t = (_key: string) => 'anything';
+    const result = localizeValidationErrors([], t);
+    expect(result).toEqual([]);
   });
 });

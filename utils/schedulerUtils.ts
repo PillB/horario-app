@@ -4,6 +4,10 @@
  */
 import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 
+// ─── Form change handler factory ─────────────────────────────────────────────
+
+import React from 'react';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const defaultTimezoneOffsetMinutes = -new Date().getTimezoneOffset();
@@ -32,6 +36,12 @@ export const parseTimeToMinutes = (value: string): number => {
   return hours * 60 + minutes;
 };
 
+/** Safe variant — throws RangeError if `value` is not a valid HH:MM time. */
+export const parseTimeToMinutesSafe = (value: string): number => {
+  if (!isValidTime(value)) throw new RangeError(`Invalid time value: "${value}"`);
+  return parseTimeToMinutes(value);
+};
+
 // ─── Day normalisation ────────────────────────────────────────────────────────
 
 const DAY_LOOKUP: Record<string, string> = {
@@ -44,8 +54,11 @@ const DAY_LOOKUP: Record<string, string> = {
   sun: 'Sun', sunday: 'Sun',
 };
 
-export const normalizeDay = (value: string): string | undefined =>
-  DAY_LOOKUP[value.trim().toLowerCase()];
+export const normalizeDay = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (trimmed.length > 20) return undefined;
+  return DAY_LOOKUP[trimmed.toLowerCase()];
+};
 
 // ─── Weekday derivation ───────────────────────────────────────────────────────
 
@@ -90,10 +103,6 @@ export const isoDate = (days: number): string => {
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 };
-
-// ─── Form change handler factory ─────────────────────────────────────────────
-
-import React from 'react';
 
 /** Creates a stable change handler for a form state object.
  *  Each returned function updates a single key and calls `onInteraction`. */

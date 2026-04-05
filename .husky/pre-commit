@@ -1,0 +1,9 @@
+#!/bin/sh
+
+npx lint-staged || exit 1
+
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$')
+
+if [ -n "$STAGED_TS" ]; then
+  npx tsc --noEmit || exit 1
+fi

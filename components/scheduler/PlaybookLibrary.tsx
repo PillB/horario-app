@@ -247,7 +247,7 @@ export function PlaybookLibrary({
   onImportTemplate,
   highlightCondition,
 }: PlaybookLibraryProps): React.ReactElement {
-  const t = useT();
+  const { t } = useT();
   const colorScheme = useColorScheme();
   const theme: ThemeColors = Colors[colorScheme ?? 'light'];
 
@@ -352,7 +352,7 @@ export function PlaybookLibrary({
                     <View
                       style={[
                         styles.badgeChip,
-                        { backgroundColor: theme.surfaceSecondary ?? theme.surface },
+                        { backgroundColor: theme.surfaceSecondary },
                       ]}
                     >
                       <ThemedText
@@ -388,7 +388,7 @@ export function PlaybookLibrary({
                       <View
                         style={[
                           styles.roleChip,
-                          { backgroundColor: theme.surfaceSecondary ?? theme.surface },
+                          { backgroundColor: theme.surfaceSecondary },
                         ]}
                       >
                         <ThemedText
@@ -455,7 +455,7 @@ export function PlaybookLibrary({
   );
 }
 
-function createDynamicStyles(theme: ThemeColors): ReturnType<typeof StyleSheet.create> {
+function createDynamicStyles(theme: ThemeColors) {
   return StyleSheet.create({
     filterChipActive: {
       backgroundColor: brand.primary,
