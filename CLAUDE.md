@@ -301,3 +301,23 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 - Never skip compression when starting a Phase 2+ execution block.
 - [TEMP] and [SUMMARY] entries do NOT get a CHG-### ID — they are navigation aids only.
 - After writing a [SUMMARY], re-read only `CLAUDE.md` + `Claude_changes.md` (not the whole codebase) to re-ground.
+
+
+---
+
+## 14. SaaS Pricing Research Protocol (2026)
+
+- Always re-read `CLAUDE.md` and `Research_changes.md` at the start of each pricing research phase.
+- Keep `Research_changes.md` as the single compressed-memory source for pricing decisions (`RES-###` entries + `[SUMMARY]`).
+- Prioritize 2025–2026 primary sources for pricing, elasticity, macroeconomic indicators, and competitor pages.
+- Separate phases strictly:
+  - Phase 1 = raw data collection only (no recommendations).
+  - Phase 2+ = analysis/modeling/recommendations after explicit approval.
+- Every quantitative pricing decision must include explicit formulas and reproducible assumptions.
+- Track geographic segmentation at minimum: Peru, Mexico, Colombia, Brazil, Chile, plus benchmark references from US/EU/Asia.
+- Minimum pricing evidence checklist per phase:
+  1. Direct competitor pricing pages (current plan prices/limits).
+  2. Relevant substitutes (manual scheduling, spreadsheets, WhatsApp workflows).
+  3. Cost-side references (infra/auth/AI/notification/support components).
+  4. Country purchasing-power proxies (inflation, wage levels, SaaS adoption constraints).
+
