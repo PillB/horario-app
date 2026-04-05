@@ -2,7 +2,7 @@
 
 npx lint-staged || exit 1
 
-STAGED_TS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$')
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx)$' || true)
 
 if [ -n "$STAGED_TS" ]; then
   npx tsc --noEmit || exit 1

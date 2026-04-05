@@ -6,6 +6,25 @@
 
 ---
 
+### CHG-066 — 2026-04-05 UTC
+**Type:** DOCS (Second-pass manual improvement — batch rewrite with accumulated research)
+
+**What changed:**
+- All 5 `docs/manual-setup/SETUP_*.md` rewritten via Batch API (claude-sonnet-4-6, 50% off)
+- Input: combined v1 batch research + v2 real-time research from prior sessions
+- Each manual now has 12+ row troubleshooting table, cited ⚠️ GOTCHAs, ✅ Verify checkpoints, ## References section
+- New research files: `docs/manual-setup/research/v2-{clerk,culqi,vercel}-research.md` (real-time Opus 4.6 web searches)
+- New scripts: `scripts/manuals-v2-review.mjs`, `scripts/manuals-batch-write.mjs`
+
+**Key improvements per manual:**
+- SETUP_STRIPE.md — Stripe CLI v2 forwarding syntax, `stripe.webhooks.constructEvent` raw body pattern, idempotency key usage
+- SETUP_CULQI.md — Yape OTP token flow, centimos pricing table, HMAC webhook verification, no official Node SDK (REST only)
+- SETUP_CLERK.md — Session Token V2 migration (deprecated April 2025), Svix raw body, `@clerk/backend` updateUserMetadata pattern
+- SETUP_SUPABASE.md — `DROP POLICY IF EXISTS` + `CREATE POLICY` pattern, Supavisor pooler URL, REPLICA IDENTITY FULL for Realtime
+- SETUP_VERCEL.md — `export const runtime = 'nodejs'` requirement, EXPO_PUBLIC_ build-time bake-in, raw body preservation for webhooks
+
+---
+
 ### CHG-065 — 2026-04-04 UTC
 **Type:** DOCS (Research-backed rewrite of all 5 platform setup manuals)
 

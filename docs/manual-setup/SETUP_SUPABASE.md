@@ -1,6 +1,3 @@
-# SETUP_SUPABASE.md
-
-```markdown
 # Supabase Setup — Horario
 
 **Project:** `rfmdlzaqvmhbzbgjwhqn`
@@ -21,6 +18,7 @@ Stack: Expo SDK 53 · React Native 0.79 · Expo Router v5 · Clerk Auth · Supab
 6. [Testing & Verification Queries](#6-testing--verification-queries)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Setup Checklist](#8-setup-checklist)
+9. [References](#9-references)
 
 ---
 
@@ -63,6 +61,27 @@ INSERT 0 <N>
 
 where `<N>` is the number of rows seeded. Any red banner containing `ERROR:` means the migration did not complete — see [Troubleshooting](#7-troubleshooting).
 
+> ⚠️ **GOTCHA: The SQL Editor has a hard 60-second timeout**
+>
+> The Dashboard SQL Editor enforces a 1-minute execution limit. Migrations that create indexes
+> on large tables, change column types, or backfill data on millions of rows will be killed
+> mid-execution with no partial rollback guarantee, leaving your schema in an inconsistent state.
+>
+> **Fix:** For long-running statements, either:
+> - Prepend `SET statement_timeout = '10min';` to your SQL session before running
+> - Use `CREATE INDEX CONCURRENTLY` (note: cannot run inside a transaction block)
+> - Connect via `psql`, TablePlus, or pgAdmin directly to bypass the dashboard timeout
+>
+> ```sql
+> -- Option A: Extend timeout for the current session in SQL Editor
+> SET statement_timeout = '10min';
+> CREATE INDEX CONCURRENTLY idx_bookings_created_at ON bookings(created_at);
+> ```
+>
+> Note also that the Supabase API (used by `supabase-js`) has a default max statement timeout
+> of 8 seconds for client queries, with a hard ceiling of 2 minutes.
+> (source: https://supabase.com/docs/guides/troubleshooting/avoiding-timeouts-in-long-running-queries-6nmbdN)
+
 ---
 
 ### 1.3 What the migration creates
@@ -73,7 +92,7 @@ where `<N>` is the number of rows seeded. Any red banner containing `ERROR:` mea
 | `idx_subscriptions_account_id` | Index | Fast lookup by account |
 | `idx_subscriptions_stripe_customer_id` | Index | Stripe webhook routing |
 | `idx_subscriptions_culqi_customer_id` | Index | Culqi/Yape webhook routing |
-| RLS policies | Policies | `anon` read; `service_role` write |
+| RLS policies | Policies | `authenticated` read own row; `service_role` write |
 | Seed rows | Data | Existing accounts → `free` tier |
 
 ---
@@ -89,19 +108,23 @@ where `<N>` is the number of rows seeded. Any red banner containing `ERROR:` mea
 > ERROR: 42710: policy "anon read subscriptions" for table "subscriptions" already exists
 > ```
 >
+> Even if the Dashboard's policy list appears empty, the policies may still exist in the
+> catalog — the UI can lag behind the actual state.
+>
 > **Fix already applied:** The migration uses the drop-before-create pattern on every policy:
 >
 > ```sql
-> DROP POLICY IF EXISTS "anon read subscriptions" ON subscriptions;
-> CREATE POLICY "anon read subscriptions"
+> DROP POLICY IF EXISTS "authenticated read own subscriptions" ON subscriptions;
+> CREATE POLICY "authenticated read own subscriptions"
 >   ON subscriptions FOR SELECT
->   TO anon
->   USING (true);
+>   TO authenticated
+>   USING ((SELECT auth.uid()) = user_id);
 > ```
 >
+> Apply this same pattern across triggers, functions, types, and any other objects you add.
 > You do not need to change anything — this is documented so you understand why the pattern
 > exists if you extend the migration file.
-> ([Source: Supabase community discussion](https://github.com/orgs/supabase/discussions/35818))
+> (source: https://github.com/orgs/supabase/discussions/35818)
 
 > ⚠️ **GOTCHA: Running the migration twice is safe — here's exactly what happens**
 >
@@ -112,10 +135,70 @@ where `<N>` is the number of rows seeded. Any red banner containing `ERROR:` mea
 > | `CREATE TABLE subscriptions` | `CREATE TABLE IF NOT EXISTS` |
 > | `CREATE INDEX ...` | `CREATE INDEX IF NOT EXISTS` |
 > | `CREATE POLICY ...` | Preceded by `DROP POLICY IF EXISTS` |
+> | `CREATE TRIGGER ...` | Preceded by `DROP TRIGGER IF EXISTS` |
 > | Seed `INSERT` | `INSERT ... ON CONFLICT (account_id) DO NOTHING` |
 >
 > Re-running produces the same success output with zero side effects.
 > Existing subscription rows are untouched because of `ON CONFLICT DO NOTHING`.
+
+> ⚠️ **GOTCHA: `moddatetime()` trigger fails with "function does not exist" after `db reset`**
+>
+> If your migration uses the `moddatetime` extension for `updated_at` automation, it must be
+> installed with a schema qualifier. Without it, `supabase db reset --linked` fails with:
+>
+> ```
+> ERROR: function moddatetime() does not exist
+> ```
+>
+> Additionally, there is no `CREATE OR REPLACE TRIGGER` in PostgreSQL — re-running a migration
+> with a bare `CREATE TRIGGER` throws an error if the trigger already exists.
+>
+> **Preferred fix for Horario:** Avoid the `moddatetime` extension entirely and use a
+> self-contained function instead:
+>
+> ```sql
+> CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+> RETURNS TRIGGER LANGUAGE plpgsql AS $$
+> BEGIN
+>   NEW.updated_at = NOW();
+>   RETURN NEW;
+> END;
+> $$;
+>
+> DROP TRIGGER IF EXISTS set_updated_at ON subscriptions;
+> CREATE TRIGGER set_updated_at
+>   BEFORE UPDATE ON subscriptions
+>   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+> ```
+>
+> This pattern has zero extension dependencies and is safe to run multiple times.
+> (source: https://github.com/supabase/cli/issues/151)
+
+> ⚠️ **GOTCHA: Never mix Dashboard SQL Editor runs with CLI migrations**
+>
+> Running SQL directly in the Dashboard editor does not record the change in
+> `supabase_migrations.schema_migrations`. If you later run `supabase db reset` or
+> `supabase db push` via the CLI, it will attempt to reapply migrations that were already
+> partially applied, causing `duplicate key value violates unique constraint "schema_migrations_pkey"`.
+>
+> **Fix:** Pick one workflow and stick to it for each environment:
+> - **Dashboard SQL Editor** for one-off exploration and hotfixes
+> - **CLI + migration files** for all version-controlled schema changes
+>
+> If the migration history becomes desynced, repair it:
+>
+> ```bash
+> # Check what's recorded vs what exists on disk
+> npx supabase migrations list
+>
+> # Mark a specific migration as already applied
+> npx supabase migration repair --status applied 20260405000001
+>
+> # Then push remaining migrations
+> npx supabase db push
+> ```
+>
+> (source: https://github.com/supabase/cli/issues/2564)
 
 ---
 
@@ -127,6 +210,11 @@ Row-Level Security is the last line of defense between your billing records and 
 HTTP request. Without RLS enabled, **any request that reaches the PostgREST API — including those
 made with the public `anon` key — can read or modify every row** in the table. Stripe customer IDs,
 subscription tiers, and payment status are all sensitive. RLS must be ON.
+
+The `anon` key is intentionally public and safe to include in the mobile app bundle — **but only
+when RLS is correctly configured on every table**. Any table in the `public` schema with RLS
+disabled is fully readable and writable by anyone who knows your project URL.
+(source: https://supabase.com/docs/guides/database/secure-data)
 
 ---
 
@@ -151,7 +239,7 @@ ORDER BY tablename;
 | subscriptions | true |
 | usage_limits | true |
 
-If any row shows `false`, run the fix immediately (see below).
+If any row shows `false`, run the fix immediately (see section 2.4).
 
 ---
 
@@ -194,7 +282,9 @@ ALTER TABLE public.<table_name> ENABLE ROW LEVEL SECURITY;
 > connections as the database superuser are unaffected).
 >
 > Always add at minimum a `service_role` write policy and an `authenticated` read policy
-> immediately after enabling RLS on a new table:
+> immediately after enabling RLS on a new table. Specifying `TO authenticated` (rather than
+> omitting the role clause) also prevents the policy from running at all for unauthenticated
+> requests, reducing unnecessary database load:
 >
 > ```sql
 > -- Minimum viable policies after enabling RLS on a new table
@@ -209,7 +299,7 @@ ALTER TABLE public.<table_name> ENABLE ROW LEVEL SECURITY;
 > CREATE POLICY "authenticated read own rows"
 >   ON public.<table_name> FOR SELECT
 >   TO authenticated
->   USING ((select auth.uid()) = user_id);
+>   USING ((SELECT auth.uid()) = user_id);
 > ```
 
 ---
@@ -229,8 +319,147 @@ WHERE schemaname = 'public'
 ORDER BY policyname;
 ```
 
-✅ **Verify:** You should see at least two policies — one for `anon` SELECT and one for
-`service_role` ALL.
+✅ **Verify:** You should see at least two policies — one for `authenticated` SELECT (scoped to
+the user's own row) and one for `service_role` ALL.
+
+---
+
+### 2.6 RLS performance: always use the memoized `auth.uid()` pattern
+
+🔄 **UPDATED:** A bare `auth.uid() = user_id` in a `USING` clause causes the function to be
+re-evaluated for every row scanned. On a `schedules` or `bookings` table with 10,000 rows,
+this means 10,000 subquery executions per `SELECT`. Wrap it in a `SELECT` subquery to memoize
+the result:
+
+```sql
+-- ❌ SLOW: auth.uid() re-evaluated per row
+CREATE POLICY "own rows" ON schedules FOR SELECT
+USING (auth.uid() = user_id);
+
+-- ✅ FAST: auth.uid() evaluated once, result cached for the query
+CREATE POLICY "own rows" ON schedules FOR SELECT
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+```
+
+Also ensure an index exists on every column referenced in a `USING` clause:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
+```
+
+(source: https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv)
+
+---
+
+### 2.7 Avoid RLS infinite recursion (error code `42P17`)
+
+If a SELECT policy on a table queries the same table to evaluate itself, PostgreSQL throws:
+
+```
+{"code":"42P17","message":"infinite recursion detected in policy for relation \"profiles\""}
+```
+
+Classic trigger: a `profiles` table whose SELECT policy checks a `role` column by querying `profiles`.
+
+```sql
+-- ❌ INFINITE RECURSION: policy queries the table it's protecting
+CREATE POLICY "admins_read_all" ON profiles FOR SELECT
+USING (
+  auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
+);
+```
+
+**Fix:** Break the recursion with a `SECURITY DEFINER` function, which executes as its owner
+and bypasses RLS on the inner query:
+
+```sql
+-- ✅ CORRECT: security definer function breaks the recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+DROP POLICY IF EXISTS "admins_read_all" ON profiles;
+CREATE POLICY "admins_read_all" ON profiles FOR SELECT
+TO authenticated
+USING (public.is_admin());
+```
+
+(source: https://github.com/orgs/supabase/discussions/33585)
+
+---
+
+### 2.8 Views silently bypass RLS by default
+
+> ⚠️ **GOTCHA: SQL Editor views are owned by a superuser and ignore RLS**
+>
+> Views created through the Dashboard SQL Editor are owned by `supabase_admin`, a superuser.
+> PostgreSQL automatically creates views with `SECURITY DEFINER` semantics when owned by a
+> superuser, meaning they bypass RLS on all underlying tables entirely — every row is returned
+> to every caller.
+>
+> ```typescript
+> // You think this is RLS-protected — it is NOT if the view owner is a superuser:
+> const { data } = await supabase.from('user_schedule_view').select('*');
+> // Returns ALL rows for ALL users!
+> ```
+>
+> **Fix:** All current Supabase projects run PostgreSQL 15+. Set `security_invoker = true` to
+> make the view obey the RLS policies of the underlying tables:
+>
+> ```sql
+> -- For new views:
+> CREATE OR REPLACE VIEW user_schedule_view
+> WITH (security_invoker = true) AS
+>   SELECT s.*, u.display_name
+>   FROM schedules s
+>   JOIN profiles u ON u.id = s.user_id;
+>
+> -- For existing views:
+> ALTER VIEW user_schedule_view SET (security_invoker = true);
+> ```
+>
+> (source: https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+---
+
+### 2.9 `upsert()` requires a unique constraint on the conflict column(s)
+
+> ⚠️ **GOTCHA: `onConflict` column must have a UNIQUE or PRIMARY KEY constraint**
+>
+> Passing a column to `onConflict` that is merely indexed (not uniquely constrained) throws:
+>
+> ```
+> ERROR 42P10: there is no unique or exclusion constraint matching the ON CONFLICT specification
+> ```
+>
+> ```typescript
+> // ❌ Throws 42P10 if (user_id, day) has no UNIQUE constraint — even with an index
+> await supabase.from('user_schedules').upsert(
+>   { user_id: uid, day: 'monday', slot: '09:00' },
+>   { onConflict: 'user_id,day' }
+> );
+> ```
+>
+> **Fix:** Add the required constraint explicitly in a migration:
+>
+> ```sql
+> ALTER TABLE user_schedules
+>   ADD CONSTRAINT user_schedules_user_day_unique UNIQUE (user_id, day);
+> ```
+>
+> For batch upserts that swap unique values (e.g., reordering positions), use a
+> `DEFERRABLE INITIALLY DEFERRED` constraint or perform updates sequentially to avoid
+> row-by-row constraint violations during the batch.
+> (source: https://github.com/orgs/supabase/discussions/36532)
 
 ---
 
@@ -258,23 +487,25 @@ Supabase moved the Replication UI in late 2024. The correct path is now:
 
 ### 3.2 Enable Realtime via SQL (alternative — matches CLI migrations)
 
-If you prefer SQL or are scripting this step:
+If you prefer SQL or are scripting this step, add the following at the **end** of any migration
+that creates a table requiring realtime events:
 
 ```sql
--- Add subscriptions table to the realtime publication
+-- Add tables to the realtime publication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
 ```
 
 ✅ **Verify:**
 
 ```sql
-SELECT pubname, tablename
+SELECT pubname, schemaname, tablename
 FROM pg_publication_tables
 WHERE pubname = 'supabase_realtime'
-  AND tablename = 'subscriptions';
+ORDER BY tablename;
 ```
 
-Expected: 1 row returned. Zero rows means the publication change did not apply.
+Expected: one row per enrolled table. Zero rows means the publication change did not apply.
 
 ---
 
@@ -314,6 +545,9 @@ export function useSubscriptionRealtime(accountId: string) {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Subscribed to subscription changes');
         }
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[Realtime] Channel error — may have hit connection limit');
+        }
       });
 
     // CRITICAL: remove the channel on unmount to avoid connection leaks
@@ -331,33 +565,56 @@ export function useSubscriptionRealtime(accountId: string) {
 > ⚠️ **GOTCHA: Table not in the publication = silent failure**
 >
 > Calling `.on('postgres_changes', ...)` on a table not added to `supabase_realtime`
-> succeeds (no error thrown) but fires **zero events**. This is the most common reason
+> succeeds with no error thrown, but fires **zero events**. This is the most common reason
 > Realtime "doesn't work."
 >
 > **Fix:** Run the verification query in [3.2](#32-enable-realtime-via-sql-alternative--matches-cli-migrations).
-> If 0 rows are returned, run `ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;`
+> If 0 rows are returned, run:
+> ```sql
+> ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
+> ```
 >
-> ([Source: Supabase Realtime docs](https://supabase.com/docs/guides/realtime/postgres-changes))
+> (source: https://supabase.com/docs/guides/realtime/postgres-changes)
 
 > ⚠️ **GOTCHA: Free plan caps Realtime at 200 concurrent connections**
 >
 > The Supabase free tier allows a maximum of **200 concurrent Realtime connections** across
 > your entire project. On Horario, each active mobile session that calls `useSubscriptionRealtime`
-> consumes one connection.
->
-> **At 200 active users simultaneously, new connections are silently dropped** — the subscribe
-> callback receives `'CHANNEL_ERROR'` instead of `'SUBSCRIBED'`.
+> consumes one connection. Once exceeded, new connections are refused with WebSocket messages:
+> `"Too many channels currently joined"` or `"Too many total concurrent connections"` — the
+> subscribe callback receives `'CHANNEL_ERROR'` instead of `'SUBSCRIBED'`.
 >
 > **Mitigation on free plan:**
 > - Only subscribe when the user is on a paywalled screen, not globally in `_layout.tsx`
 > - Unsubscribe aggressively on blur events using `useFocusEffect`
 > - Poll as fallback: if `status !== 'SUBSCRIBED'` after 5 seconds, fall back to a REST fetch
+> - Debug active channel count: `console.log(supabase.getChannels().length)` — if climbing, you have a leak
 >
 > **Long-term fix:** Upgrade to Pro ($25/mo) for 500 concurrent connections, or use
-> [Broadcast via triggers](https://supabase.com/docs/guides/realtime/broadcast) which is
-> more efficient at scale.
+> server-side Broadcast via triggers which multiplexes many users over far fewer server connections.
+>
+> (source: https://supabase.com/docs/guides/realtime/limits)
 
-> ⚠️ **GOTCHA: `filter` param on `postgres_changes` requires the column to be indexed**
+> ⚠️ **GOTCHA: React StrictMode and Expo Router v5 cause double-subscribe channel leaks**
+>
+> React StrictMode runs effects twice in development. Expo Router v5 also mounts and unmounts
+> screens during navigation. Every `supabase.channel().subscribe()` call without a matching
+> `removeChannel()` in the cleanup function creates a persistent, leaked channel.
+>
+> The hook in section 3.3 already handles this correctly via the `return () => supabase.removeChannel(channel)`
+> teardown. Verify your implementation matches this pattern exactly — missing the `return`
+> statement is the most common mistake.
+>
+> ```typescript
+> // ✅ Correct cleanup prevents StrictMode double-subscribe leak
+> return () => {
+>   supabase.removeChannel(channel);
+> };
+> ```
+>
+> (source: https://supabase.com/docs/guides/troubleshooting/realtime-too-many-channels-error)
+
+> ⚠️ **GOTCHA: `filter` param on `postgres_changes` requires an index on the filter column**
 >
 > The `filter: 'account_id=eq.${accountId}'` in the subscription above pushes filtering
 > to the server. Without an index on `account_id`, this degrades to a full table scan on
@@ -369,6 +626,24 @@ export function useSubscriptionRealtime(accountId: string) {
 > WHERE tablename = 'subscriptions'
 >   AND indexname = 'idx_subscriptions_account_id';
 > ```
+
+> ⚠️ **GOTCHA: `postgres_changes` does not scale to high fan-out — use Broadcast triggers instead**
+>
+> For tables receiving frequent writes with many concurrent subscribers (e.g., `bookings`
+> in a large Horario deployment), raw `postgres_changes` creates one server-side listener
+> per client connection. Supabase recommends using Broadcast via database triggers for
+> high-scale scenarios — this maintains a single server connection regardless of subscriber count:
+>
+> ```sql
+> -- ✅ Server-side broadcast trigger (1 server connection, not N)
+> CREATE OR REPLACE TRIGGER broadcast_booking_changes
+>   AFTER INSERT OR UPDATE OR DELETE ON bookings
+>   FOR EACH ROW EXECUTE FUNCTION realtime.broadcast_changes(
+>     'topic:bookings', TG_OP, TG_OP, 'bookings', NEW, OLD
+>   );
+> ```
+>
+> (source: https://supabase.com/docs/guides/realtime/subscribing-to-database-changes)
 
 ---
 
@@ -382,6 +657,7 @@ every table for the entire request**. There are no exceptions.
 
 This key is necessary for Horario's webhook handlers (Stripe, Culqi) which must write to
 `subscriptions` on behalf of any user. It must **never** leave the server.
+(source: https://supabase.com/docs/guides/database/secure-data)
 
 ---
 
@@ -397,8 +673,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // ✅ CORRECT: service role client with auth inheritance disabled
 const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.SUPABASE_URL!,             // no EXPO_PUBLIC_ prefix — server-only
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // never expose this key client-side
   {
     auth: {
       autoRefreshToken: false,   // no token refresh — this is a server process
@@ -408,32 +684,52 @@ const supabaseAdmin = createClient(
 );
 
 // ❌ WRONG patterns — never do these:
+//
 // 1. const supabaseAdmin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-//    — missing auth options allows accidental session inheritance
+//    — missing auth options allows accidental session inheritance from a Clerk JWT
+//    — a user's Authorization header flowing into the service_role client can cause
+//      confusing RLS errors or unexpected behavior
 //
 // 2. Forwarding the incoming request's Authorization header to supabaseAdmin
 //    — a malformed or attacker-controlled JWT could interfere with client behavior
 //
 // 3. Importing supabaseAdmin into any file under app/ that is not an API route
-//    — Expo's bundler may include it in the client JS bundle
+//    — Expo's Metro bundler may include it in the client JS bundle
+//
+// 4. Prefixing the key with EXPO_PUBLIC_
+//    — EXPO_PUBLIC_ variables are baked into the JS bundle at build time and are
+//      visible to anyone who unpacks the app binary
 ```
 
-The anon-key client used in the mobile app never receives the service role key:
+The anon-key client used in the mobile app never receives the service role key. For Clerk JWT
+integration, the client forwards the Clerk token as the Supabase auth bearer:
 
 ```typescript
 // lib/supabase.ts  (bundled into the mobile app)
 import { createClient } from '@supabase/supabase-js';
 
-// Only the anon key goes here — safe to ship in the client bundle
+// ✅ Only the anon key goes here — safe to ship in the client bundle
+// ✅ Clerk JWT is forwarded so Supabase RLS receives the user's identity
 export const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!, // safe to expose WITH RLS enabled
+  {
+    global: {
+      fetch: async (url, options = {}) => {
+        const clerkToken = await getToken({ template: 'supabase' });
+        const headers = new Headers(options?.headers);
+        if (clerkToken) headers.set('Authorization', `Bearer ${clerkToken}`);
+        return fetch(url, { ...options, headers });
+      },
+    },
+  }
 );
 ```
 
 Note the `EXPO_PUBLIC_` prefix: Expo only inlines environment variables with this prefix into
 the client bundle. Variables without it (like `SUPABASE_SERVICE_ROLE_KEY`) are unavailable
 at runtime in the app — this is a build-time guardrail, not a runtime check.
+(source: https://supabase.com/docs/guides/api/api-keys)
 
 ---
 
@@ -447,7 +743,9 @@ npx expo export --platform ios 2>/dev/null
 grep -r "service_role" dist/ && echo "🔴 KEY FOUND IN BUNDLE" || echo "✅ Key not in bundle"
 ```
 
-✅ **Verify:** Output is `✅ Key not in bundle`. Any other result is a critical security issue.
+✅ **Verify:** Output is `✅ Key not in bundle`. Any other result is a critical security issue
+requiring immediate key rotation (see section 4.4) and a full audit of which environment
+variable names have the `EXPO_PUBLIC_` prefix.
 
 ---
 
@@ -459,271 +757,4 @@ message, treat it as compromised and rotate within minutes:
 1. Open **Project Settings → API**
    (`https://supabase.com/dashboard/project/rfmdlzaqvmhbzbgjwhqn/settings/api`)
 2. Under **Project API keys**, click **Reveal** next to `service_role`
-3. Click **Rotate** (or **Regenerate**) and confirm
-4. The old key is immediately invalidated — all in-flight requests using it will receive `401`
-5. Update `SUPABASE_SERVICE_ROLE_KEY` in Vercel:
-   - **Vercel Dashboard → Horario project → Settings → Environment Variables**
-   - Update the value for all three environments: **Production**, **Preview**, **Development**
-6. Redeploy: `vercel --prod` or trigger a redeploy from the Vercel dashboard
-7. Confirm webhooks are functioning by triggering a test event from the Stripe and Culqi dashboards
-
-✅ **Verify:** Run a test webhook delivery and confirm the proxy returns `200 OK` with the
-new key in place.
-
-> ⚠️ **GOTCHA: Rotating the service role key does NOT revoke existing JWTs issued to end users**
->
-> The service role key and the JWT secret are separate. Rotating the API key only invalidates
-> server-to-server calls. End-user sessions (signed with `JWT_SECRET`) are unaffected.
-> If you believe user sessions are compromised, rotate the JWT secret under
-> **Project Settings → Configuration → JWT Secret**.
-
----
-
-## 5. Connection Limits & Free Tier
-
-### 5.1 Current Supabase free tier limits (2025)
-
-| Resource | Free Tier Limit | Pro Tier ($25/mo) |
-|---|---|---|
-| Database size | 500 MB | 8 GB (then $0.125/GB) |
-| Monthly Active Users (Auth) | 50,000 MAU | 100,000 MAU |
-| Storage | 1 GB | 100 GB |
-| Bandwidth | 5 GB/month | 250 GB/month |
-| Realtime connections | 200 concurrent | 500 concurrent |
-| Edge Function invocations | 500,000/month | 2,000,000/month |
-| Database connections (pooled via pgBouncer) | 60 | 120 |
-| Point-in-time recovery | ❌ | ✅ (7 days) |
-| Daily backups | ✅ (7 days retained) | ✅ (30 days retained) |
-
-> ⚠️ **GOTCHA: Free projects pause after 1 week of inactivity**
->
-> Supabase automatically pauses free-tier projects that receive no database activity for
-> 7 days. The first request after a pause triggers a cold-start that takes **20–30 seconds**
-> before the database becomes available. During this window, all API calls return `503`.
->
-> **Workarounds (free tier):**
-> - Set up a cron job (e.g., via GitHub Actions or cron-job.org) to ping your project's
->   REST API every 5 days:
->   ```bash
->   curl https://rfmdlzaqvmhbzbgjwhqn.supabase.co/rest/v1/ \
->     -H "apikey: $SUPABASE_ANON_KEY"
->   ```
-> - Upgrade to Pro — pausing is disabled on paid plans.
->
-> ([Source: Supabase Free Plan docs](https://supabase.com/docs/guides/platform/managing-your-usage))
-
----
-
-### 5.2 When to upgrade from free to Pro
-
-Upgrade to Pro ($25/month) when **any** of the following is true:
-
-- [ ] You have paying Horario customers (production billing must not pause)
-- [ ] Your database is approaching 400 MB (leave headroom for migrations)
-- [ ] You regularly see > 150 concurrent mobile sessions (Realtime connection headroom)
-- [ ] You need point-in-time recovery (required for PCI compliance conversations with Culqi)
-- [ ] Your team needs audit logs for Stripe/Culqi webhook debugging beyond 7 days
-
----
-
-### 5.3 Database connection pooling
-
-Vercel's serverless functions create a new process per invocation. Without connection pooling,
-each invocation opens a new PostgreSQL connection. At scale, this exhausts the free tier's
-60-connection limit and causes `too many connections` errors.
-
-Horario's `secure-proxy+api.ts` must connect via the **pooler URL** (PgBouncer), not the
-direct connection string:
-
-```bash
-# ✅ CORRECT — use the pooler URL in Vercel env vars
-# Found at: Project Settings → Database → Connection pooling → Connection string
-DATABASE_URL=<pooler-url-from-supabase-dashboard-connection-pooling>
-
-# ❌ WRONG — direct connection string (fine for local psql, bad for serverless)
-DATABASE_URL=<direct-url-from-supabase-dashboard-database-settings>
-```
-
-✅ **Verify:** Run a load test with 10 concurrent requests to `app/api/secure-proxy+api.ts`
-and confirm no `too many connections` errors in Vercel's function logs.
-
----
-
-## 6. Testing & Verification Queries
-
-All queries below run in the [SQL Editor](https://supabase.com/dashboard/project/rfmdlzaqvmhbzbgjwhqn/sql/new).
-
----
-
-### 6.1 Inspect the most recently created subscriptions
-
-```sql
-SELECT
-  account_id,
-  tier,
-  status,
-  stripe_customer_id,
-  culqi_customer_id,
-  created_at,
-  updated_at
-FROM public.subscriptions
-ORDER BY created_at DESC
-LIMIT 10;
-```
-
-✅ **Verify:** All existing accounts appear with `tier = 'free'` and `status = 'active'`.
-The `stripe_customer_id` and `culqi_customer_id` columns are `NULL` until a payment is made.
-
----
-
-### 6.2 Count subscriptions by tier (sanity check after migrations)
-
-```sql
-SELECT
-  tier,
-  status,
-  count(*) AS account_count
-FROM public.subscriptions
-GROUP BY tier, status
-ORDER BY tier, status;
-```
-
-✅ **Verify:** Every account appears in exactly one tier. No account appears in multiple rows
-(would indicate a missing `UNIQUE` constraint on `account_id`).
-
----
-
-### 6.3 Simulate a tier upgrade (local/staging only)
-
-> 🚨 **Do NOT run in production.** Use only against a local Supabase instance or a staging project.
-
-```sql
--- Simulate Stripe upgrading an account to the 'starter' tier
-UPDATE public.subscriptions
-SET
-  tier = 'starter',
-  status = 'active',
-  stripe_subscription_id = 'sub_test_XXXXXXXXXXXXXXXXXXXXXXXX',
-  stripe_customer_id = 'cus_test_XXXXXXXXXXXXXXXXXXXXXXXX',
-  updated_at = now()
-WHERE account_id = 'demo-account-id-replace-me';
-```
-
-✅ **Verify:** The Realtime hook in your running simulator fires and updates the UI tier badge
-without a manual refresh.
-
----
-
-### 6.4 Reset to free tier (local/staging only)
-
-> 🚨 **Do NOT run in production.**
-
-```sql
-UPDATE public.subscriptions
-SET
-  tier = 'free',
-  status = 'active',
-  stripe_subscription_id = NULL,
-  stripe_customer_id = NULL,
-  culqi_customer_id = NULL,
-  updated_at = now()
-WHERE account_id = 'demo-account-id-replace-me';
-```
-
----
-
-### 6.5 Verify indexes exist
-
-```sql
-SELECT
-  indexname,
-  indexdef
-FROM pg_indexes
-WHERE tablename = 'subscriptions'
-ORDER BY indexname;
-```
-
-✅ **Verify:** You see at minimum:
-
-| indexname | indexdef |
-|---|---|
-| `idx_subscriptions_account_id` | `CREATE INDEX ... ON subscriptions(account_id)` |
-| `idx_subscriptions_culqi_customer_id` | `CREATE INDEX ... ON subscriptions(culqi_customer_id)` |
-| `idx_subscriptions_stripe_customer_id` | `CREATE INDEX ... ON subscriptions(stripe_customer_id)` |
-| `subscriptions_pkey` | `CREATE UNIQUE INDEX ... ON subscriptions(id)` |
-
----
-
-### 6.6 Confirm no duplicate subscriptions per account
-
-```sql
-SELECT
-  account_id,
-  count(*) AS row_count
-FROM public.subscriptions
-GROUP BY account_id
-HAVING count(*) > 1;
-```
-
-✅ **Verify:** Zero rows returned. Any row here means the `UNIQUE` constraint on `account_id`
-is missing or was dropped. Fix immediately:
-
-```sql
-ALTER TABLE public.subscriptions
-  ADD CONSTRAINT subscriptions_account_id_key UNIQUE (account_id);
-```
-
----
-
-### 6.7 Confirm Realtime publication (repeat of 3.2 for convenience)
-
-```sql
-SELECT pubname, schemaname, tablename
-FROM pg_publication_tables
-WHERE pubname = 'supabase_realtime'
-ORDER BY tablename;
-```
-
-✅ **Verify:** `subscriptions` appears in the results.
-
----
-
-## 7. Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `ERROR: 42710: policy "..." already exists` | Migration run twice on a database that had policies from an earlier non-idempotent version | Add `DROP POLICY IF EXISTS "..." ON <table>;` before each `CREATE POLICY` in the migration file, then re-run |
-| `ERROR: 42P01: relation "subscriptions" does not exist` | Migration did not run or ran in wrong schema | Open SQL Editor, verify you pasted the full file, confirm `search_path` is `public`, re-run |
-| `SELECT` returns 0 rows on `subscriptions` despite data existing | RLS is enabled but the querying role has no SELECT policy | Run query 2.2 to check `rowsecurity`; add an appropriate policy per section 2.4 |
-| Realtime events never fire in the app | Table not added to `supabase_realtime` publication | Run `ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;` |
-| Realtime subscription status is `CHANNEL_ERROR` | 200 concurrent connection limit hit on free plan | Unsubscribe on screen blur; upgrade to Pro for 500 connections |
-| `401 Unauthorized` on all API calls after key rotation | Old service role key still set in Vercel env vars | Update `SUPABASE_SERVICE_ROLE_KEY` in Vercel for all environments and redeploy |
-| `too many connections` errors in Vercel function logs | Using direct connection URL instead of pooler URL | Switch `DATABASE_URL` to the PgBouncer pooler URL with `?pgbouncer=true` |
-| App returns `503` on first request of the day | Free project paused due to inactivity | Set up keep-alive ping cron (section 5.2) or upgrade to Pro |
-| Service role client behaves as if RLS is active (returns limited rows) | Client was initialized with anon key by mistake | Verify `process.env.SUPABASE_SERVICE_ROLE_KEY` is set in Vercel and not shadowed by `EXPO_PUBLIC_` variant |
-| `stripe_customer_id` column not found in webhook handler | Migration has not been run on this environment | Confirm migration ran; check column exists: `SELECT column_name FROM information_schema.columns WHERE table_name = 'subscriptions';` |
-| Tier change in DB does not update UI | `useSubscriptionRealtime` hook not mounted, or channel not removed on prior unmount causing duplicate channels | Ensure hook is mounted once per session; verify `supabase.removeChannel(channel)` runs on cleanup |
-| `INSERT` seed step inserts 0 rows | No existing accounts in the `accounts` table | Expected on a fresh project — accounts will be seeded as they sign up |
-| Duplicate key error on seed INSERT | `ON CONFLICT DO NOTHING` missing from seed statement in migration | Update seed statement to use `INSERT ... ON CONFLICT (account_id) DO NOTHING` |
-
----
-
-## 8. Setup Checklist
-
-Complete these steps in order. Check each box only after verifying success.
-
-- [ ] **Migration file opened** — `supabase/migrations/20260405000001_subscriptions.sql` opened in VS Code, full contents copied
-- [ ] **Migration executed** — Pasted into SQL Editor, clicked **Run**, received `Success` or `INSERT 0 N` output (no red `ERROR` banners)
-- [ ] **Tables created** — `SELECT * FROM public.subscriptions LIMIT 1;` returns without error (even if 0 rows on fresh project)
-- [ ] **RLS enabled on all tables** — Query 2.2 returns `true` for all billing tables; query 2.4 returns 0 rows
-- [ ] **Policies verified** — Query 2.5 shows at least one `anon` SELECT policy and one `service_role` ALL policy on `subscriptions`
-- [ ] **Indexes verified** — Query 6.5 shows all four expected indexes
-- [ ] **No duplicate subscriptions** — Query 6.6 returns 0 rows
-- [ ] **Realtime publication enabled** — `subscriptions` added via Dashboard or SQL; query 6.7 confirms 1 row
-- [ ] **Realtime hook integrated** — `useSubscriptionRealtime` added to the appropriate screen; channel cleanup (`removeChannel`) confirmed
-- [ ] **Service role key not in bundle** — `grep -r "service_role" dist/` returns no matches after production build
-- [ ] **Pooler URL in use** — `DATABASE_URL` in Vercel points to `*.pooler.supabase.com:6543` with `?pgbouncer=true`
-- [ ] **Keep-alive configured** — Cron job pings project REST API every 5 days (or Pro plan active)
-- [ ] **Tier simulation tested** — Query 6.3 run on staging; Realtime hook updates UI without refresh
-- [ ] **Key rotation runbook read** — Section 4.4 reviewed by at least one team member; rotation steps bookmarked
-```
+3. Click **Generate a new key** (available in the API Keys dashboard), then delete the old
