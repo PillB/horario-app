@@ -1,0 +1,1 @@
+All models run cleanly. Now I'll compile the full formatted report:

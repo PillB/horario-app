@@ -25,17 +25,17 @@ type Props = {
 };
 
 export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
-  const { plan, isTrialing } = useSubscription();
+  const { tier, isTrialing, isSubscribed } = useSubscription();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
   const { t } = useT();
 
-  // Pro users don't see any banner
-  if (plan === 'user_subscription' && !isTrialing) return null;
+  // Paid users on active plans don't see the banner
+  if (isSubscribed && !isTrialing) return null;
 
   const openBilling = () => {
-    void trackEvent('upgrade_cta_tapped', { plan, source: 'banner' });
+    void trackEvent('upgrade_cta_tapped', { tier, source: 'banner' });
     Linking.openURL(CLERK_BILLING_URL).catch(() => {
       // Silently ignore if the URL can't be opened
     });

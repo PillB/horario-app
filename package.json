@@ -52,7 +52,7 @@
     "@playwright/test": "^1.58.2",
     "@secretlint/secretlint-rule-pattern": "^11.5.0",
     "@secretlint/secretlint-rule-preset-recommend": "^11.4.1",
-    "@types/react": "~19.0.10",
+    "@types/react": "~19.2.0",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",

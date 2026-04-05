@@ -885,6 +885,30 @@ const dbListPosSales = async (
   return { success: true, rows: data ?? [], total: count ?? 0 };
 };
 
+// ─── Subscription DB helper ───────────────────────────────────────────────────
+
+function dbRowToSubscription(row: Record<string, unknown>) {
+  return {
+    id: row['id'],
+    accountId: row['account_id'],
+    tier: row['tier'] ?? 'free',
+    status: row['status'] ?? 'active',
+    stripeCustomerId: row['stripe_customer_id'] ?? null,
+    stripeSubscriptionId: row['stripe_subscription_id'] ?? null,
+    stripePriceId: row['stripe_price_id'] ?? null,
+    culqiCustomerId: row['culqi_customer_id'] ?? null,
+    currentPeriodStart: row['current_period_start'] ?? null,
+    currentPeriodEnd: row['current_period_end'] ?? null,
+    cancelAtPeriodEnd: Boolean(row['cancel_at_period_end']),
+    trialEndsAt: row['trial_ends_at'] ?? null,
+    paymentProvider: row['payment_provider'] ?? null,
+    billingInterval: row['billing_interval'] ?? 'month',
+    countryCode: row['country_code'] ?? 'PE',
+    createdAt: row['created_at'],
+    updatedAt: row['updated_at'],
+  };
+}
+
 // ─── ProxyRequest union ───────────────────────────────────────────────────────
 
 type ProxyRequest =
@@ -910,7 +934,15 @@ type ProxyRequest =
   | { action: 'getUsageLimit'; userId: string; accountId: string }
   | { action: 'incrementAutoAssign'; userId: string; accountId: string }
   | { action: 'uploadPosSales'; accountId: string; rows: PosRow[] }
-  | { action: 'listPosSales'; accountId: string; limit?: number; offset?: number };
+  | { action: 'listPosSales'; accountId: string; limit?: number; offset?: number }
+  // ── Subscription / billing ──────────────────────────────────────────────
+  | { action: 'getSubscription'; accountId: string }
+  | { action: 'upsertSubscription'; accountId: string; subscription: Record<string, unknown> }
+  | { action: 'createCheckoutSession'; accountId: string; tier: string; billingInterval: string; countryCode: string; successUrl: string; cancelUrl: string }
+  | { action: 'createBillingPortalSession'; accountId: string; returnUrl: string }
+  | { action: 'cancelSubscription'; accountId: string }
+  | { action: 'stripeWebhook'; payload: string; signature: string }
+  | { action: 'culqiWebhook'; payload: Record<string, unknown> };
 
 type PosRow = {
   date: string;
@@ -1083,6 +1115,87 @@ export async function POST(request: Request) {
           ? ok({ rows: result.rows, total: result.total })
           : err(result.error, 400);
       }
+
+      // ── Subscription / billing ────────────────────────────────────────────
+      case 'getSubscription': {
+        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
+        if (!acct) return err('accountId required', 400);
+        const { data, error: sbErr } = await client
+          .from('subscriptions')
+          .select('*')
+          .eq('account_id', acct)
+          .maybeSingle();
+        if (sbErr) return err(sbErr.message, 500);
+        if (!data) {
+          // Auto-provision free tier row on first read
+          const { data: inserted, error: insertErr } = await client
+            .from('subscriptions')
+            .insert({ account_id: acct, tier: 'free', status: 'active' })
+            .select()
+            .single();
+          if (insertErr) return err(insertErr.message, 500);
+          return ok({ subscription: dbRowToSubscription(inserted) });
+        }
+        return ok({ subscription: dbRowToSubscription(data) });
+      }
+
+      case 'upsertSubscription': {
+        // Internal use only — called by webhook handlers
+        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
+        if (!acct) return err('accountId required', 400);
+        const { error: sbErr } = await client
+          .from('subscriptions')
+          .upsert({ account_id: acct, ...payload.subscription }, { onConflict: 'account_id' });
+        if (sbErr) return err(sbErr.message, 500);
+        return ok({ success: true });
+      }
+
+      case 'createCheckoutSession': {
+        // TODO: Integrate Stripe SDK here.
+        // 1. Create or retrieve Stripe customer for payload.accountId
+        // 2. Look up price ID from STRIPE_*_PRICE_ID env vars based on payload.tier + payload.billingInterval
+        // 3. Create Stripe Checkout Session with success_url/cancel_url
+        // 4. Return { checkoutUrl, provider: 'stripe' }
+        //
+        // For Culqi (Peru, countryCode === 'PE'):
+        // 1. Create Culqi charge token link
+        // 2. Return { checkoutUrl, provider: 'culqi' }
+        //
+        // This stub returns a placeholder until Stripe/Culqi SDKs are installed.
+        return err('Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md', 501);
+      }
+
+      case 'createBillingPortalSession': {
+        // TODO: Create Stripe billing portal session for customer linked to payload.accountId
+        return err('Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md', 501);
+      }
+
+      case 'cancelSubscription': {
+        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
+        if (!acct) return err('accountId required', 400);
+        // TODO: Cancel Stripe subscription with cancel_at_period_end: true
+        // For now, just mark as cancelled in DB
+        const { error: sbErr } = await client
+          .from('subscriptions')
+          .update({ cancel_at_period_end: true })
+          .eq('account_id', acct);
+        if (sbErr) return err(sbErr.message, 500);
+        return ok({ success: true });
+      }
+
+      case 'stripeWebhook': {
+        // TODO: Verify Stripe webhook signature using STRIPE_WEBHOOK_SECRET env var
+        // Parse event type and update subscriptions table + Clerk publicMetadata accordingly
+        // Events to handle: checkout.session.completed, customer.subscription.updated,
+        //                   customer.subscription.deleted, invoice.payment_failed
+        return ok({ received: true });
+      }
+
+      case 'culqiWebhook': {
+        // TODO: Verify Culqi webhook signature and update subscription on payment success
+        return ok({ received: true });
+      }
+
       default:
         return err('Unsupported action', 400);
     }
