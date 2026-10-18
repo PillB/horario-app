@@ -6,6 +6,29 @@
 
 ---
 
+### [SUMMARY] — 2026-10-18 01:10 UTC
+**Last CHG completed:** CHG-066
+**Current state:** Production-readiness plan agreed with Pablo (4 steps, PR review per step). Step 1 audit done: gap report at /mnt/project-files/plan/step1-gap-report.md (project shared folder), QA red-team baseline at /mnt/project-files/qa/redteam-baseline-2026-10-18.md. Step 2 (hardening) in progress on branch claude/project-thread-80h0k5.
+**Active decisions:** Two cloud stacks (dev: Supabase horario-dev + Clerk dev + Vercel Preview; prod: horario-prod + Clerk prod + Vercel Production). Supabase native Clerk third-party auth; tenant = Clerk org id, else user id. Labor rules become per-jurisdiction data packs (US+states/cities, Peru, LatAm, EU+strict countries, AU, CA) with country auto-detect + confirm, stored per business location (step 3). OR-Tools CP-SAT optimizer as a Python function in step 3; current TS assigner stays as preview/fallback.
+**Next action:** CHG-067 CI green, then tenant scoping of the secure proxy and RLS rebuild.
+**Watch out for:** CLAUDE.md feature table is stale (auth + CI exist). Previous "TypeScript: 0 errors" claims were false; re-run checks instead of trusting this log.
+
+---
+
+### CHG-067 — 2026-10-18 UTC
+**Type:** FIX (CI green: lockfile, typecheck, lint) + SECURITY (remove committed Clerk session state)
+
+**Changes:**
+- `package-lock.json` regenerated so `npm ci` succeeds (was missing react@19.3.1, react-dom, scheduler, utf-8-validate).
+- `components/InfoTooltip.tsx`: typed web-only `position: 'fixed'` via a cast instead of ineffective `@ts-ignore` (TS2769).
+- `components/scheduler/RosterSection.tsx`: `className` is not a View prop (and RN-web drops it), so the print CSS never matched. Now uses `nativeID="print-region"` and a visibility-based `@media print` rule.
+- `components/scheduler/InputField.tsx`: add `displayName` (react/display-name lint error).
+- Deleted `.playwright-auth/state.json` (live Clerk dev session cookies) and gitignored `.playwright-auth/`, `playwright-report/`, `test-results/`. The sessions must also be revoked in the Clerk dashboard.
+
+**Verified:** `npm ci` OK; `tsc --noEmit` 0 errors; `npm run lint` 0 errors (17 warnings); `npm test` 352/352.
+
+---
+
 ### CHG-066 — 2026-04-05 UTC
 **Type:** DOCS (Second-pass manual improvement — batch rewrite with accumulated research)
 
