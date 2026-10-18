@@ -8,6 +8,7 @@ import {
 
 import { useRoster } from '@/hooks/useRoster';
 import { useShiftTemplates } from '@/hooks/useShiftTemplates';
+import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,14 +105,11 @@ function utcWeekday(dateStr: string): number | null {
 }
 
 function addDays(dateStr: string, days: number): string | null {
-  const d = parseIsoDate(dateStr);
-  if (!d) return null;
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return isDateKey(dateStr) ? addDaysToKey(dateStr, days) : null;
 }
 
 function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayKey();
 }
 
 function subtractDays(dateStr: string, days: number): string | null {
@@ -366,7 +364,7 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
         errorPct,
       };
     });
-  }, [currentWeekTargets, roster.roster]);
+  }, [currentWeekTargets, roster.roster, templates]);
 
   // -------------------------------------------------------------------------
   // weeklyDemandSummary

@@ -2,6 +2,7 @@
  * Pure, side-effect-free utilities for the scheduler.
  * No React imports — safe to use in hooks, components, and tests alike.
  */
+import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
 import { type ShiftTemplate } from '@/utils/schedulerMetrics';
 
 // ─── Form change handler factory ─────────────────────────────────────────────
@@ -62,22 +63,20 @@ export const normalizeDay = (value: string): string | undefined => {
 
 // ─── Weekday derivation ───────────────────────────────────────────────────────
 
-/** Returns the 3-letter weekday label (e.g. 'Mon') for an ISO date string,
- *  adjusted for the supplied business timezone offset. */
+/** Returns the 3-letter weekday label (e.g. 'Mon') for a YYYY-MM-DD date key.
+ *
+ *  Shift dates are business-local calendar dates, so the weekday is a property
+ *  of the date itself and does not depend on any timezone. The offset
+ *  parameter is accepted for backwards compatibility and ignored; shifting the
+ *  date by an offset used to return the wrong weekday (e.g. 2024-06-01, a
+ *  Saturday, was reported as Friday for UTC-12). */
 export const getWeekdayFromDate = (
   value: string,
-  timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
+  _timezoneOffsetMinutes: number = defaultTimezoneOffsetMinutes
 ): string | null => {
   if (!isValidDate(value)) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  if (!Number.isFinite(parsed.getTime())) return null;
-
-  const deviceOffset = -parsed.getTimezoneOffset();
-  const offsetDelta = timezoneOffsetMinutes - deviceOffset;
-  const adjusted = new Date(parsed.getTime() + offsetDelta * 60 * 1000);
-
   const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return labels[adjusted.getDay()];
+  return labels[weekdayOfKey(value)];
 };
 
 // ─── Shift window helpers ─────────────────────────────────────────────────────
@@ -126,12 +125,8 @@ export const windowsOverlap = (
 
 // ─── ISO date helper ──────────────────────────────────────────────────────────
 
-/** Returns an ISO-8601 date string (YYYY-MM-DD) offset by `days` from today. */
-export const isoDate = (days: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-};
+/** Returns the device-local date key (YYYY-MM-DD) offset by `days` from today. */
+export const isoDate = (days: number): string => addDaysToKey(todayKey(), days);
 
 /** Creates a stable change handler for a form state object.
  *  Each returned function updates a single key and calls `onInteraction`. */

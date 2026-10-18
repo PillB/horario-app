@@ -11,7 +11,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 describe('computeNextStreak', () => {
-  const baseDate = new Date('2024-01-01T12:00:00Z');
+  const baseDate = new Date(2024, 0, 1, 12); // device-local; streak days are local calendar days
 
   it('starts a new streak when there is no history', () => {
     const next = computeNextStreak(null, baseDate);
@@ -22,14 +22,14 @@ describe('computeNextStreak', () => {
 
   it('increments streak on consecutive days', () => {
     const previous = { count: 2, longest: 2, lastActionDate: '2024-01-01' };
-    const next = computeNextStreak(previous, new Date('2024-01-02T10:00:00Z'));
+    const next = computeNextStreak(previous, new Date(2024, 0, 2, 10));
     expect(next.count).toBe(3);
     expect(next.longest).toBe(3);
   });
 
   it('resets streak when a day is skipped', () => {
     const previous = { count: 4, longest: 5, lastActionDate: '2024-01-01' };
-    const next = computeNextStreak(previous, new Date('2024-01-03T10:00:00Z'));
+    const next = computeNextStreak(previous, new Date(2024, 0, 3, 10));
     expect(next.count).toBe(1);
     expect(next.longest).toBe(5);
   });

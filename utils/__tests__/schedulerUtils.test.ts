@@ -72,17 +72,18 @@ describe('normalizeDay', () => {
 });
 
 describe('getWeekdayFromDate', () => {
-  it('derives weekday using a supplied timezone offset', () => {
-    // 2024-06-01 is a Saturday in UTC. UTC-12 pushes it to Friday.
-    expect(getWeekdayFromDate('2024-06-01', -720)).toBe('Fri');
+  it('returns the weekday of the calendar date regardless of timezone offset', () => {
+    // 2024-06-01 is a Saturday as a business-local calendar date in every zone.
+    expect(getWeekdayFromDate('2024-06-01', -720)).toBe('Sat');
+    expect(getWeekdayFromDate('2024-06-01', 540)).toBe('Sat');
+    expect(getWeekdayFromDate('2024-06-01')).toBe('Sat');
   });
   it('returns null for invalid dates', () => {
     expect(getWeekdayFromDate('not-a-date')).toBeNull();
     expect(getWeekdayFromDate('2024-13-01')).toBeNull();
   });
-  it('uses defaultTimezoneOffsetMinutes when no offset provided', () => {
-    const result = getWeekdayFromDate('2024-12-16'); // known Monday in UTC
-    expect(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).toContain(result);
+  it('returns Monday for 2024-12-16 without an offset', () => {
+    expect(getWeekdayFromDate('2024-12-16')).toBe('Mon');
   });
 });
 
@@ -138,9 +139,14 @@ describe('normalizeWindow', () => {
 });
 
 describe('isoDate', () => {
-  it('returns today for offset 0', () => {
-    const today = new Date().toISOString().slice(0, 10);
-    expect(isoDate(0)).toBe(today);
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+  it('returns the device-local date for offset 0 (not the UTC date)', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 17, 23, 30)); // local 23:30
+    expect(isoDate(0)).toBe('2026-10-17');
+    expect(isoDate(1)).toBe('2026-10-18');
+    expect(isoDate(-17)).toBe('2026-09-30');
   });
   it('returns YYYY-MM-DD format', () => {
     expect(isoDate(1)).toMatch(/^\d{4}-\d{2}-\d{2}$/);

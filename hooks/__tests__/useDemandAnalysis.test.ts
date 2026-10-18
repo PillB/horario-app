@@ -1,5 +1,12 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import renderer, { act } from 'react-test-renderer';
+
+import { loadDemandTargets } from '@/services/demandForecast';
+import { useRoster } from '@/hooks/useRoster';
+import { useShiftTemplates } from '@/hooks/useShiftTemplates';
+import { useDemandAnalysis, UseDemandAnalysisReturn } from '../useDemandAnalysis';
+import type { DemandForecast } from '@/services/demandForecast';
+import { todayKey } from '@/utils/dateKeys';
 
 jest.mock('@/services/demandForecast', () => ({
   loadDemandTargets: jest.fn(),
@@ -12,12 +19,6 @@ jest.mock('@/hooks/useRoster', () => ({
 jest.mock('@/hooks/useShiftTemplates', () => ({
   useShiftTemplates: jest.fn(),
 }));
-
-import { loadDemandTargets } from '@/services/demandForecast';
-import { useRoster } from '@/hooks/useRoster';
-import { useShiftTemplates } from '@/hooks/useShiftTemplates';
-import { useDemandAnalysis, UseDemandAnalysisReturn } from '../useDemandAnalysis';
-import type { DemandForecast } from '@/services/demandForecast';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,20 +44,13 @@ const mockUseRoster = useRoster as jest.Mock;
 const mockUseShiftTemplates = useShiftTemplates as jest.Mock;
 
 function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Device-local calendar date, matching the hook (not the UTC date).
+  return todayKey();
 }
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function getMonday(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -67,37 +61,11 @@ function makeForecast(overrides: Partial<DemandForecast> & { date: string; role:
   } as DemandForecast;
 }
 
-function hookResult(result: UseDemandAnalysisReturn): UseDemandAnalysisReturn {
-  return result;
-}
-
-// Renders the hook using a test component and returns a ref-like accessor
-function renderHook(
-  hookFn: () => UseDemandAnalysisReturn,
-): { getResult: () => UseDemandAnalysisReturn } {
-  let result!: UseDemandAnalysisReturn;
-
-  function TestComponent(): null {
-    result = hookFn();
-    return null;
-  }
-
-  act(() => {
-    renderer.create(React.createElement(TestComponent));
-  });
-
-  return {
-    getResult: () => result,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
 const today = isoToday();
-const currentWeekStart = addDays(today, -6);
-const priorWeekStart = addDays(today, -13);
 
 const defaultRoster = { roster: [], loading: false };
 const defaultTemplates = { shiftTemplates: [] };
@@ -170,7 +138,6 @@ describe('useDemandAnalysis', () => {
   // 3. demandVsPrior — changePct=100 when prior=0 and current>0
   it('demandVsPrior sets changePct=100 when prior=0 and current>0', async () => {
     const currentDate = today;
-    const priorDate = addDays(currentDate, -7);
 
     const currentForecast = makeForecast({ date: currentDate, role: 'Nurse', required: 5 });
 

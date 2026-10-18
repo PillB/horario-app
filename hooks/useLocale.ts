@@ -26,6 +26,7 @@ import { I18nManager } from 'react-native';
 import { getLocales } from 'expo-localization';
 import { getBaseLocale, loadLocale } from '@/locales/index';
 import type { LangCode, Translations } from '@/locales/en';
+import { isDateKey, parseDateKey } from '@/utils/dateKeys';
 
 const STORAGE_KEY = '@horario:language';
 
@@ -129,7 +130,10 @@ export function formatDate(
   langCode: LangCode,
   options?: Intl.DateTimeFormatOptions,
 ): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  // A bare 'YYYY-MM-DD' key is a calendar date: parse it as local noon, not
+  // UTC midnight (which renders as the previous day west of UTC).
+  const d =
+    typeof date === 'string' ? (isDateKey(date) ? parseDateKey(date) : new Date(date)) : date;
   const bcp47 = LANG_TO_BCP47[langCode] ?? 'en-US';
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',

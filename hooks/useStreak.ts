@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { daysBetweenKeys, isDateKey, toDateKey } from '@/utils/dateKeys';
+
 type StreakState = {
   count: number;
   longest: number;
@@ -18,7 +20,8 @@ let cachedStorage: AsyncStorageLike | null = null;
 const STORAGE_PREFIX = 'streak::';
 const STREAK_CAP = 365;
 
-const formatDate = (value: Date) => value.toISOString().slice(0, 10);
+/** Device-local calendar date of the action (not the UTC date). */
+const formatDate = (value: Date) => toDateKey(value);
 
 const getStorageKey = (actionKey: string) => `${STORAGE_PREFIX}${actionKey}`;
 
@@ -82,25 +85,19 @@ const persistState = async (actionKey: string, state: StreakState) => {
   }
 };
 
-const daysBetween = (current: Date, previous: Date) => {
-  const msInDay = 24 * 60 * 60 * 1000;
-  const start = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate());
-  const end = Date.UTC(previous.getUTCFullYear(), previous.getUTCMonth(), previous.getUTCDate());
-  return Math.floor((start - end) / msInDay);
-};
-
 export const computeNextStreak = (
   previous: StreakState | null,
   actionDate: Date
 ): StreakState => {
-  const lastActionDate = previous?.lastActionDate ? new Date(`${previous.lastActionDate}T00:00:00Z`) : null;
+  const lastActionDate =
+    previous?.lastActionDate && isDateKey(previous.lastActionDate) ? previous.lastActionDate : null;
   const todayLabel = formatDate(actionDate);
 
   if (!lastActionDate) {
     return { count: 1, longest: 1, lastActionDate: todayLabel };
   }
 
-  const deltaDays = daysBetween(actionDate, lastActionDate);
+  const deltaDays = daysBetweenKeys(lastActionDate, todayLabel);
 
   if (deltaDays === 0) {
     return previous as StreakState;

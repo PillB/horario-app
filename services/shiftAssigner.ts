@@ -50,6 +50,7 @@ import {
   normalizeWindow,
   parseTimeToMinutes,
 } from '@/utils/schedulerUtils';
+import { addDaysToKey, weekdayOfKey } from '@/utils/dateKeys';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -157,11 +158,7 @@ const MS_PER_DAY = 86_400_000;
 const dayIndex = (date: string): number => Math.round(Date.parse(`${date}T00:00:00Z`) / MS_PER_DAY);
 
 /** Returns an ISO date string offset by `days` from the given ISO date. */
-const offsetDate = (date: string, days: number): string => {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-};
+const offsetDate = (date: string, days: number): string => addDaysToKey(date, days);
 
 /** Absolute interval of `template` when it starts on `date`. */
 const shiftInterval = (template: ShiftTemplate, date: string): Interval => {
@@ -193,17 +190,10 @@ const availabilityInterval = (from: string, to: string, date: string): Interval 
  * Exported for unit testing.
  */
 export const getWeekBounds = (date: string): { weekStart: string; weekEnd: string } => {
-  const d = new Date(`${date}T00:00:00Z`);
-  const dayOfWeek = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
+  const dayOfWeek = weekdayOfKey(date); // 0=Sun, 1=Mon, …, 6=Sat
   const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(d);
-  monday.setUTCDate(d.getUTCDate() - daysFromMonday);
-  const sunday = new Date(monday);
-  sunday.setUTCDate(monday.getUTCDate() + 6);
-  return {
-    weekStart: monday.toISOString().slice(0, 10),
-    weekEnd: sunday.toISOString().slice(0, 10),
-  };
+  const weekStart = addDaysToKey(date, -daysFromMonday);
+  return { weekStart, weekEnd: addDaysToKey(weekStart, 6) };
 };
 
 /** Coverage requirement of a template (non-finite or < 1 counts as 1). */

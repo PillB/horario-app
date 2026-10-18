@@ -24,6 +24,7 @@ import {
   isoDate,
   windowsOverlap,
 } from '@/utils/schedulerUtils';
+import { addDaysToKey, isDateKey } from '@/utils/dateKeys';
 import {
   findCoveringAvailability,
   validateAvailabilitySubmission,
@@ -126,7 +127,7 @@ export function useSchedulerHandlers() {
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: isoDate(0),
     days: '7',
     homogeneousDemand: '4',
     shiftsPerDay: '2',
@@ -380,12 +381,9 @@ export function useSchedulerHandlers() {
 
   const buildDateSequence = useCallback((startDate: string, days: number) => {
     const sequence: string[] = [];
-    const anchor = new Date(`${startDate}T00:00:00Z`);
-    if (!Number.isFinite(anchor.getTime())) return sequence;
+    if (!isDateKey(startDate)) return sequence;
     for (let offset = 0; offset < days; offset += 1) {
-      const next = new Date(anchor);
-      next.setUTCDate(anchor.getUTCDate() + offset);
-      sequence.push(next.toISOString().slice(0, 10));
+      sequence.push(addDaysToKey(startDate, offset));
     }
     return sequence;
   }, []);
@@ -1076,11 +1074,7 @@ export function useSchedulerHandlers() {
     if (workers.length > 0) return; // already has data
 
     // Helper: YYYY-MM-DD for today + offset days
-    const dateOffset = (days: number): string => {
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
+    const dateOffset = (days: number): string => isoDate(days);
 
     // Step 1 — add sample workers
     const [w1, w2] = await Promise.all([

@@ -40,6 +40,8 @@ jest.mock('@/contexts/WelcomeTourContext', () => ({
 }));
 
 jest.mock('@/contexts/LocaleContext', () => {
+  // jest.mock factories cannot reference imports, so require is needed here.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { en } = require('@/locales/en');
   function resolve(obj: Record<string, unknown>, path: string): string {
     const val = path.split('.').reduce((a: unknown, k) => (a as Record<string, unknown>)?.[k], obj);
@@ -94,9 +96,9 @@ jest.mock('@/hooks/useRoster', () => ({
 }));
 
 describe('getWeekdayFromDate', () => {
-  it('derives weekday using a supplied timezone offset to account for local boundaries', () => {
+  it('returns the calendar weekday of a business-local date regardless of offset', () => {
     const backwardTimezoneOffsetMinutes = -720; // UTC-12
-    expect(getWeekdayFromDate('2024-06-01', backwardTimezoneOffsetMinutes)).toBe('Fri');
+    expect(getWeekdayFromDate('2024-06-01', backwardTimezoneOffsetMinutes)).toBe('Sat');
   });
 });
 
@@ -118,16 +120,16 @@ describe('findCoveringAvailability', () => {
     availability: [{ day: 'Fri', from: '07:00', to: '16:00' }],
   };
 
-  it('acknowledges coverage when the timezone-adjusted weekday matches availability', () => {
-    const { coveringSlot, weekdayLabel } = findCoveringAvailability(
-      worker,
-      template,
-      '2024-06-01',
-      -720 // UTC-12 pushes the label to the prior weekday
-    );
+  it('uses the calendar weekday of the business-local date, not an offset-shifted one', () => {
+    // 2024-05-31 is a Friday; the shift date is already business-local, so a
+    // UTC-12 offset must not shift it to another weekday.
+    const friday = findCoveringAvailability(worker, template, '2024-05-31', -720);
+    expect(friday.weekdayLabel).toBe('Fri');
+    expect(friday.coveringSlot).toEqual(worker.availability[0]);
 
-    expect(weekdayLabel).toBe('Fri');
-    expect(coveringSlot).toEqual(worker.availability[0]);
+    const saturday = findCoveringAvailability(worker, template, '2024-06-01', -720);
+    expect(saturday.weekdayLabel).toBe('Sat');
+    expect(saturday.coveringSlot).toBeUndefined();
   });
 });
 

@@ -26,6 +26,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { todayKey } from '@/utils/dateKeys';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ export default function DiagnosticsScreen(): React.JSX.Element {
             accessibilityRole="text"
           >
             Build: {process.env.EXPO_PUBLIC_APP_VERSION ?? 'development'} ·{' '}
-            {new Date().toISOString().slice(0, 10)}
+            {todayKey()}
           </ThemedText>
         </View>
       </ScrollView>

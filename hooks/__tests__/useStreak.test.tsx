@@ -92,7 +92,7 @@ describe('useStreak with async storage', () => {
     await flushMicrotasks();
 
     await act(async () => {
-      await latest?.recordAction(new Date('2024-03-01T00:00:00Z'));
+      await latest?.recordAction(new Date(2024, 2, 1, 9, 0)); // device-local 2024-03-01
     });
 
     if (renderer) {
@@ -116,7 +116,7 @@ describe('useStreak with async storage', () => {
         <StreakHarness
           actionKey="session"
           onRender={(value) => (firstSession = value)}
-          today={new Date('2024-04-01T12:00:00Z')}
+          today={new Date(2024, 3, 1, 12)}
         />
       );
     });
@@ -124,8 +124,8 @@ describe('useStreak with async storage', () => {
     await flushMicrotasks();
 
     await act(async () => {
-      await firstSession?.recordAction(new Date('2024-04-01T12:00:00Z'));
-      await firstSession?.recordAction(new Date('2024-04-02T08:00:00Z'));
+      await firstSession?.recordAction(new Date(2024, 3, 1, 12));
+      await firstSession?.recordAction(new Date(2024, 3, 2, 8));
     });
 
     await act(async () => {
@@ -138,7 +138,7 @@ describe('useStreak with async storage', () => {
         <StreakHarness
           actionKey="session"
           onRender={(value) => (nextSession = value)}
-          today={new Date('2024-04-02T20:00:00Z')}
+          today={new Date(2024, 3, 2, 20)}
         />
       );
     });
