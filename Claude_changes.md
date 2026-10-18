@@ -6,6 +6,17 @@
 
 ---
 
+### CHG-074 — 2026-10-18 UTC
+**Type:** FIX (Codex review of PR #52)
+
+1. `contexts/IdentityContext.tsx`: client `accountId` is the active Clerk org id, else the user id, matching `accountIdFromClaims` on the server, so switching organization refetches account-scoped hooks instead of showing the previous org's data.
+2. `.env.local.template` / `.env.example`: document the local dev bypass (`HORARIO_INSECURE_DEV_AUTH`, `HORARIO_DEV_ACCOUNT_ID`, comment out `CLERK_JWKS_URL`) and `CLERK_AUTHORIZED_PARTIES` (required in production).
+3. Missing-`azp` finding: answered on the PR; CHG-073 already rejects browser requests without `azp` and requires the allow-list in production. Native tokens carry no `azp`, matching Clerk's own `authorizedParties` check.
+
+**Tests:** jest 439 passed, 12 skipped; tsc 0 errors.
+
+---
+
 ### CHG-073 — 2026-10-18 UTC
 **Type:** SECURITY (QA review of PR #52: R1–R4)
 
