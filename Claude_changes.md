@@ -6,6 +6,20 @@
 
 ---
 
+### CHG-072 — 2026-10-18 UTC
+**Type:** INFRA (official Expo-on-Vercel deploy, health check, prod-only diagnostics, repo cleanup)
+
+- `api/index.ts` + `vercel.json` follow the SDK 53 Expo Router docs (`@expo/server/adapter/vercel`, pinned 0.6.2; single rewrite to the function; `dist/client` static). Old hand-written route table removed (it 404'd `/profile` and `/diagnostics`).
+- Headers per path; CSP now applies to server-rendered pages (the old rule only matched `*.html`), drops `'unsafe-eval'`, adds Clerk-required hosts, `object-src 'none'`, `base-uri`, `form-action`. 0 CSP violations across 8 routes in headless Chromium (without Clerk keys — recheck on a preview).
+- `app/api/health+api.ts`: env, short commit, `authConfigured`, `databaseConfigured`; no secrets; `no-store`.
+- Diagnostics tab and route hidden/redirected when `EXPO_PUBLIC_APP_ENV=production` (`utils/appEnv.ts`).
+- Deleted 240 committed artefacts (root PNGs, `screenshots/`, `.playwright-mcp/`, `playwright-report/`, `test-results/`, `agent.md.pdf`); none were referenced.
+- CLAUDE.md feature table and env table updated (auth, multi-tenant, CI rows were stale).
+- Verified: `npm ci`, tsc 0 errors, lint 0 errors, 432 tests passed (12 integration skipped), web export; built server: `/api/health` 200, `/api/secure-proxy` 503 without auth config, `/profile` 200.
+- Not verified: behaviour on real Vercel (rewrite path pass-through, negative-lookahead header source), Clerk under the CSP.
+
+---
+
 ### CHG-071 — 2026-10-18 UTC
 **Type:** FIX (calendar dates were UTC, off by one day in the evening west of UTC)
 

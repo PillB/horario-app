@@ -77,6 +77,8 @@ Client (Expo App)
 
 ## 4. Current Feature Status
 
+> Rows marked "re-verified" were checked against the code on that date; others may be stale.
+
 | Feature | Status | Notes |
 |---|---|---|
 | Home dashboard | Partial | Static hardcoded data; no live queries |
@@ -93,16 +95,16 @@ Client (Expo App)
 | Session wellness prompts | Working | In-memory, no persistence |
 | Personalized feed | Working | In-memory ranking, no server |
 | Push notifications | Missing | `notified` flag exists but no actual push |
-| Authentication | Missing | No login, uses hardcoded account/user IDs |
+| Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
-| Shift optimization algorithm | Missing | Manual assignment only |
+| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; CP-SAT optimizer planned (step 3) |
 | Analytics screen | Missing | explore.tsx is placeholder |
-| Labor-law constraint engine | Missing | No max-hours, min-rest enforcement |
-| Multi-tenant support | Missing | Single hardcoded accountId |
+| Labor-law constraint engine | Partial | Optional max daily/weekly hours and min rest in the assigner; per-jurisdiction rule packs planned (step 3) |
+| Multi-tenant support | Working | Tenant = Clerk org id, else user id; enforced in the proxy and by RLS (`20261018000001_tenant_isolation.sql`) — re-verified 2026-10-18 |
 | Date/time picker components | Missing | Raw text inputs only |
-| Error boundaries | Missing | No React error boundaries |
-| CI/CD pipeline | Missing | No GitHub Actions config |
-| EAS build config | Missing | No eas.json |
+| Error boundaries | Partial | ErrorBoundary used in `app/_layout.tsx` and some screens |
+| CI/CD pipeline | Working | `ci.yml` (typecheck, lint, tests, web export, local-Supabase RLS + isolation tests); `migrate.yml` (dev on merge, prod manual) |
+| EAS build config | Partial | `eas.json` exists; not re-verified |
 
 ---
 
@@ -217,6 +219,11 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 | `EXPO_PUBLIC_ACCOUNT_ID` | Client | Current account/tenant ID |
 | `EXPO_PUBLIC_USER_ID` | Client | Current user ID (pre-auth placeholder) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Service-role key — NEVER expose to client |
+| `CLERK_JWKS_URL` | Server only | Clerk JWKS URL; required — API routes return 503 without it |
+| `CLERK_ISSUER` | Server only | Optional; expected `iss` (defaults to the JWKS URL origin) |
+| `CLERK_AUTHORIZED_PARTIES` | Server only | Optional comma-separated `azp` allow-list |
+| `HORARIO_INSECURE_DEV_AUTH` / `HORARIO_DEV_ACCOUNT_ID` | Server, local dev only | Skip Clerk with one fixed tenant; refused when NODE_ENV=production |
+| `EXPO_PUBLIC_APP_ENV` | Client (build time) | `production` hides diagnostics |
 
 ---
 
