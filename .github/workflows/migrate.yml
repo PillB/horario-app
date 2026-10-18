@@ -1,0 +1,73 @@
+name: Database migrations
+
+# Dev is migrated on every push to main. Prod is migrated only by a manual
+# run, gated by the "production" environment's required reviewers.
+# Secrets (repository or environment level):
+#   SUPABASE_ACCESS_TOKEN                      personal access token (Supabase account)
+#   SUPABASE_DEV_PROJECT_REF / SUPABASE_DEV_DB_PASSWORD
+#   SUPABASE_PROD_PROJECT_REF / SUPABASE_PROD_DB_PASSWORD   (in the "production" environment)
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which project to migrate
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-${{ github.event.inputs.target || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  dev:
+    if: github.event_name == 'push' || github.event.inputs.target == 'dev'
+    runs-on: ubuntu-latest
+    environment: development
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - name: Skip when dev is not configured yet
+        id: configured
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
+            echo "::notice::Dev Supabase secrets are not set; skipping migrations."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.configured.outputs.ok == 'true'
+        run: supabase link --project-ref "$PROJECT_REF"
+      - if: steps.configured.outputs.ok == 'true'
+        run: supabase db push
+
+  prod:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'prod' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - run: supabase link --project-ref "$PROJECT_REF"
+      - name: Show pending migrations
+        run: supabase migration list
+      - run: supabase db push

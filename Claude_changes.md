@@ -6,6 +6,39 @@
 
 ---
 
+### CHG-071 — 2026-10-18 UTC
+**Type:** FIX (calendar dates were UTC, off by one day in the evening west of UTC)
+
+- New `utils/dateKeys.ts` (`toDateKey`, `todayKey`, `parseDateKey`, `addDaysToKey`, `weekdayOfKey`, `daysBetweenKeys`, `isDateKey`).
+- Replaced all 14 `toISOString().slice(0, 10)` date keys in app code; `useLocale.formatDate` reads `YYYY-MM-DD` as local noon; `useStreak` counts local days.
+- `getWeekdayFromDate` returns the weekday of the date itself (the offset argument is ignored; three tests that expected 2024-06-01 to be a Friday were corrected).
+- Tests no longer depend on the machine running in UTC; suite verified under America/Lima, America/New_York, Asia/Tokyo.
+- Follow-up: business timezone is still offset minutes; it should become an IANA zone stored per location (step 3, with jurisdictions).
+
+---
+
+### CHG-070 — 2026-10-18 UTC
+**Type:** FIX (auto-assign correctness, QA findings A1–A4, A6)
+
+- `services/shiftAssigner.ts` rewritten around absolute time spans: overnight shifts and availability (incl. split Mon 18:00–23:59 + Tue 00:00–08:00) are handled; overlap and min-rest are checked across days against all of a worker's shifts; templates are looked up in the full catalog.
+- 2-opt swaps re-validate every hard constraint against the real resulting roster, then a fill pass retries open slots (no more double-booking).
+- Every shortfall is reported (`CoverageShortfall`: required, assigned, missing, reasonCode `no_role_match | no_availability | overlap | max_hours | min_rest`). The Scheduler shows a partial-coverage banner; strings added to all 9 locales.
+- Overnight hours count toward the day/ISO week the shift starts on.
+- Tests: 5,000-case seeded fuzz with 8 invariants checked by an independent reference model (it flagged hundreds of violations on the old engine), 22 regression tests, component test for the banner. Four old tests that encoded the bugs were corrected.
+- Not in scope: jurisdiction labor rules (A5, step 3), server-side paywall (A7, moves with the optimizer in step 3), existing roster not counted toward coverage, DST-length days.
+
+---
+
+### CHG-069 — 2026-10-18 UTC
+**Type:** INFRA (CI database job, migrations pipeline, dev seed)
+
+- `.github/workflows/ci.yml`: Node 22; job `checks` (tsc, lint, unit tests, web export) and job `database` (local Supabase via `supabase/setup-cli`, `supabase test db`, proxy integration tests).
+- `.github/workflows/migrate.yml`: `supabase db push` to the dev project on pushes to main that touch migrations (skips with a notice until secrets exist); prod only via manual run gated by the `production` environment.
+- `scripts/seed-dev.mjs`: creates Clerk dev test users A, B (owner of org "Horario QA Tenant B") and C (no tenant) with `+clerk_test` emails, seeds both tenants (workers, availability, templates incl. overnight, a week of roster, targets) with deterministic ids, prints all ids as JSON. Refuses `sk_live_` keys and URLs containing "prod".
+- Verified locally: the CI database steps pass (pgTAP 41/41, integration 12/12).
+
+---
+
 ### CHG-068 — 2026-10-18 UTC
 **Type:** SECURITY (tenant isolation in the API and the database; fail-closed auth)
 

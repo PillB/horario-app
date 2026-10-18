@@ -6,29 +6,47 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  ci:
-    name: Test, Lint & Typecheck
+  checks:
+    name: Typecheck, lint, unit tests, web build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test -- --ci
+      - run: npx expo export --platform web
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test -- --ci --passWithNoTests
-
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run typecheck
-        run: npx tsc --noEmit
+  database:
+    name: Database isolation tests (local Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - run: npm ci
+      - name: Start Supabase (database, REST and gateway only)
+        run: supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,storage-api,realtime,supavisor,postgres-meta
+      - name: RLS and SQL tests (pgTAP)
+        run: supabase test db
+      - name: Proxy tenant-isolation tests against the local API
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+          SUPABASE_TEST_URL="$API_URL" SUPABASE_TEST_SERVICE_KEY="$SERVICE_ROLE_KEY" npm run test:integration -- --ci
