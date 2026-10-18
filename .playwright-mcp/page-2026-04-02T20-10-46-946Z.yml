@@ -1,9 +1,0 @@
-- generic [ref=e12]:
-  - generic [ref=e13]: Who are you?
-  - generic [ref=e14]: Tell us your role so we can personalise your tour and surface the features that matter most to you right away.
-  - button "👔 Manager / Owner" [ref=e15] [cursor=pointer]:
-    - generic [ref=e16]: 👔 Manager / Owner
-    - generic [ref=e17]: Build schedules, manage your team, forecast demand, and keep labour costs under control.
-  - button "👷 Team Member" [ref=e18] [cursor=pointer]:
-    - generic [ref=e19]: 👷 Team Member
-    - generic [ref=e20]: View your shifts, set your availability, and stay in sync with your team — all in one place.

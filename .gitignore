@@ -46,3 +46,7 @@ test-results/
 
 # Local agent worktrees
 .claude/worktrees/
+
+# Ad-hoc screenshots and Playwright MCP session output
+/*.png
+.playwright-mcp/
