@@ -28,26 +28,51 @@ begin
   end if;
 end $$;
 
--- Redeems a code in one statement so concurrent requests cannot exceed
--- max_redemptions. Returns the referrer's user id, or NULL when the code is
--- unknown, inactive, expired, exhausted or belongs to the caller.
+-- One row per (code, redeemer): the unique key stops a user redeeming the same
+-- code twice (QA R1). Server-only: no grants to anon or authenticated.
+create table if not exists public.referral_redemptions (
+  referral_id uuid        not null references public.referrals (id) on delete cascade,
+  user_id     text        not null,
+  redeemed_at timestamptz not null default now(),
+  primary key (referral_id, user_id)
+);
+alter table public.referral_redemptions enable row level security;
+revoke all on public.referral_redemptions from anon, authenticated;
+
+-- Redeems a code in one statement. The referral row is locked first, so
+-- concurrent requests cannot exceed max_redemptions, and the count only moves
+-- when this user's redemption row is new. Returns the referrer's user id, or
+-- NULL when the code is unknown, inactive, expired, exhausted, belongs to the
+-- caller, or was already redeemed by the caller.
 create or replace function public.redeem_referral(p_code text, p_user_id text)
 returns text
 language sql
 volatile
 set search_path = ''
 as $$
-  update public.referrals
-     set redemption_count = redemption_count + 1,
+  with target as (
+    select id
+      from public.referrals
+     where code = upper(p_code)
+       and status = 'pending'
+       and (expires_at is null or expires_at > now())
+       and redemption_count < max_redemptions
+       and referrer_user_id <> p_user_id
+     for update
+  ), claimed as (
+    insert into public.referral_redemptions (referral_id, user_id)
+    select id, p_user_id from target
+    on conflict do nothing
+    returning referral_id
+  )
+  update public.referrals r
+     set redemption_count = r.redemption_count + 1,
          referred_user_id = p_user_id,
-         completed_at     = case when redemption_count + 1 >= max_redemptions then now() else completed_at end,
-         status           = case when redemption_count + 1 >= max_redemptions then 'completed' else status end
-   where code = upper(p_code)
-     and status = 'pending'
-     and (expires_at is null or expires_at > now())
-     and redemption_count < max_redemptions
-     and referrer_user_id <> p_user_id
-  returning referrer_user_id;
+         completed_at     = case when r.redemption_count + 1 >= r.max_redemptions then now() else r.completed_at end,
+         status           = case when r.redemption_count + 1 >= r.max_redemptions then 'completed' else r.status end
+    from claimed
+   where r.id = claimed.referral_id
+  returning r.referrer_user_id;
 $$;
 
 revoke all on function public.redeem_referral(text, text) from public, anon, authenticated;

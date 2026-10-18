@@ -11,6 +11,7 @@ type Route = { POST: (req: Request) => Promise<Response>; OPTIONS: (req: Request
 const ENV_KEYS = [
   'CLERK_JWKS_URL', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'HORARIO_INSECURE_DEV_AUTH', 'HORARIO_DEV_ACCOUNT_ID',
   'EXPO_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY', 'EXPO_PUBLIC_APP_ORIGIN',
+  'VERCEL_ENV', 'EXPO_PUBLIC_APP_ENV',
 ];
 const savedEnv: Record<string, string | undefined> = {};
 const savedNodeEnv = process.env.NODE_ENV;
@@ -37,10 +38,14 @@ const loadRoute = (): Route => {
   return mod;
 };
 
-const request = (token?: string, body: unknown = { action: 'listWorkers' }) =>
+const request = (token?: string, body: unknown = { action: 'listWorkers' }, origin?: string) =>
   new Request('http://localhost/api/secure-proxy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(origin ? { Origin: origin } : {}),
+    },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 
@@ -70,7 +75,7 @@ describe('proxy authentication', () => {
 
   it('accepts a valid personal-session token; tenant is the user', async () => {
     const result = await loadAuth().authenticate(request(signToken('user_1')));
-    expect(result).toEqual({ ok: true, ctx: { userId: 'user_1', accountId: 'user_1', insecureDev: false } });
+    expect(result).toEqual({ ok: true, ctx: { userId: 'user_1', accountId: 'user_1', canManage: true, insecureDev: false } });
   });
 
   it('uses the active organization as tenant (v2 o.id and v1 org_id)', async () => {
@@ -119,6 +124,33 @@ describe('proxy authentication', () => {
     expect((await auth.authenticate(request(signToken('u', { claims: { azp: 'https://horario.app' } })))).ok).toBe(true);
   });
 
+  it('rejects a browser token without azp once the allow-list is set; native may omit it', async () => {
+    process.env.CLERK_AUTHORIZED_PARTIES = 'https://horario.app';
+    const auth = loadAuth();
+    expect((await auth.authenticate(request(signToken('u'), undefined, 'https://horario.app'))).ok).toBe(false);
+    expect((await auth.authenticate(request(signToken('u')))).ok).toBe(true);
+  });
+
+  it.each(['VERCEL_ENV', 'EXPO_PUBLIC_APP_ENV'])('requires the azp allow-list in production (%s)', async (key) => {
+    process.env[key] = 'production';
+    const result = await loadAuth().authenticate(request(signToken('u', { claims: { azp: 'https://horario.app' } })));
+    expect(result).toEqual({ ok: false, status: 503, error: 'Authentication is not configured' });
+  });
+
+  it('lets personal accounts and org admins manage, not other org members', async () => {
+    const auth = loadAuth();
+    const roleOf = async (claims: Record<string, unknown>) => {
+      const r = await auth.authenticate(request(signToken('u', { claims })));
+      return r.ok && r.ctx.canManage;
+    };
+    expect(await roleOf({})).toBe(true);
+    expect(await roleOf({ o: { id: 'org_1', rol: 'admin' } })).toBe(true);
+    expect(await roleOf({ org_id: 'org_1', org_role: 'org:admin' })).toBe(true);
+    expect(await roleOf({ o: { id: 'org_1', rol: 'member' } })).toBe(false);
+    expect(await roleOf({ org_id: 'org_1', org_role: 'org:member' })).toBe(false);
+    expect(await roleOf({ o: { id: 'org_1' } })).toBe(false);
+  });
+
   it('fails closed with 503 when no verifier is configured', async () => {
     delete process.env.CLERK_JWKS_URL;
     const result = await loadAuth().authenticate(request());
@@ -133,7 +165,7 @@ describe('proxy authentication', () => {
 
     setNodeEnv('development');
     const dev = await loadAuth().authenticate(request(undefined, { action: 'listWorkers', accountId: 'someone_else' }));
-    expect(dev).toEqual({ ok: true, ctx: { userId: 'acct_dev', accountId: 'acct_dev', insecureDev: true } });
+    expect(dev).toEqual({ ok: true, ctx: { userId: 'acct_dev', accountId: 'acct_dev', canManage: true, insecureDev: true } });
 
     setNodeEnv('production');
     const prod = await loadAuth().authenticate(request());
@@ -185,6 +217,15 @@ describe('secure proxy route', () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: 'Database is not configured' });
   });
+
+  it.each(['deleteWorker', 'deleteRosterShift', 'cancelSubscription'])(
+    'forbids %s for an org member who is not an admin',
+    async (action) => {
+      const member = signToken('u', { claims: { o: { id: 'org_1', rol: 'member' } } });
+      const res = await loadRoute().POST(request(member, { action, id: 'x' }));
+      expect(res.status).toBe(403);
+    },
+  );
 
   it('answers CORS preflight only for allowed origins', () => {
     process.env.EXPO_PUBLIC_APP_ORIGIN = 'https://horario.app';

@@ -40,6 +40,17 @@ const fail = (status: number, error: string): Result => ({ status, body: { error
 const badRequest = (error: string) => fail(400, error);
 const notFound = () => fail(404, 'Not found');
 
+/** Deletes and billing changes need a personal account or an org admin. */
+const MANAGER_ACTIONS = new Set([
+  'deleteWorker',
+  'deleteAvailability',
+  'deleteShiftTemplate',
+  'deleteRosterShift',
+  'cancelSubscription',
+  'createCheckoutSession',
+  'createBillingPortalSession',
+]);
+
 /** Logs the database error and returns a generic message. */
 const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
@@ -842,6 +853,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const auth = await authenticate(request);
   if (!auth.ok) return respond(fail(auth.status, auth.error));
+  if (MANAGER_ACTIONS.has(payload.action) && !auth.ctx.canManage) {
+    return respond(fail(403, 'Only an admin of this business can do this'));
+  }
 
   const client = getServiceClient();
   if (!client) {

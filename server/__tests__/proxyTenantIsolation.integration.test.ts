@@ -225,6 +225,7 @@ describeIfDb('referrals API (local Supabase)', () => {
     expect((await call(tokenA(), { action: 'redeem', code })).status).toBe(400);
     const redeemed = await call(tokenB(), { action: 'redeem', code: code.toLowerCase() });
     expect(redeemed.body).toEqual({ success: true, referrerId: USER_A });
+    expect((await call(tokenB(), { action: 'redeem', code })).status).toBe(400);
 
     expect((await call(tokenA(), { action: 'stats' })).body).toEqual({ sent: 1, accepted: 1, pending: 1 });
     expect((await call(tokenB(), { action: 'list' })).body.referrals).toEqual([]);

@@ -6,6 +6,20 @@
 
 ---
 
+### CHG-073 — 2026-10-18 UTC
+**Type:** SECURITY (QA review of PR #52: R1–R4)
+
+1. **R1 (blocker) referral double redeem:** new server-only `referral_redemptions (referral_id, user_id)` table with a primary key; `redeem_referral()` locks the code row, inserts the redemption and only then increments the count, so one user can redeem a code once. pgTAP 44/44 (3 new), integration test asserts a repeat redeem returns 400.
+2. **R2:** `supabase/config.toml` turns Supabase Auth signups off (Clerk is the only sign-in). Cloud checklist tells Pablo to do the same in both projects.
+3. **R3:** in production (`VERCEL_ENV` or `EXPO_PUBLIC_APP_ENV` = production) the proxy refuses requests until `CLERK_AUTHORIZED_PARTIES` is set; with the allow-list set, a browser request (Origin header) whose token has no `azp` is rejected. Native clients may omit `azp`.
+4. **R4:** `AuthContext.canManage` (personal account, or org role `admin` / `org:admin` from `o.rol` or `org_role`). Deletes and billing actions return 403 otherwise.
+
+Deferred to step 3, per QA: R5 (Expo SDK / Clerk upgrade, npm audit), R6 (rate limiting), R7 (IANA timezone in the engine).
+
+**Tests:** jest 439 passed, 12 skipped; integration 12/12; pgTAP 44/44; tsc 0 errors; lint 0 errors.
+
+---
+
 ### CHG-072 — 2026-10-18 UTC
 **Type:** INFRA (official Expo-on-Vercel deploy, health check, prod-only diagnostics, repo cleanup)
 

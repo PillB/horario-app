@@ -9,6 +9,9 @@
  * Tenant = Clerk organization id when the session has an active organization
  * (session token v2 claim `o.id`, v1 claim `org_id`), otherwise the user id.
  * This must match private.current_account_id() in the database migrations.
+ *
+ * Inside an organization only admins may delete data or change billing
+ * (`canManage`); a personal account always manages itself.
  */
 import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
 
@@ -17,6 +20,8 @@ export type AuthContext = {
   userId: string;
   /** Tenant id used for every database read and write. */
   accountId: string;
+  /** May delete data and change billing: personal accounts and org admins. */
+  canManage: boolean;
   /** True only in the explicit local insecure mode. */
   insecureDev: boolean;
 };
@@ -24,6 +29,8 @@ export type AuthContext = {
 export type AuthResult =
   | { ok: true; ctx: AuthContext }
   | { ok: false; status: 401 | 503; error: string };
+
+const ORG_ADMIN_ROLES = new Set(['admin', 'org:admin']);
 
 type JWK = { kid?: string; kty: string; n: string; e: string; alg?: string; use?: string };
 type JWKSet = { keys: JWK[] };
@@ -35,7 +42,8 @@ type TokenClaims = {
   iss?: string;
   azp?: string;
   org_id?: string;
-  o?: { id?: string };
+  org_role?: string;
+  o?: { id?: string; rol?: string };
 };
 
 const JWKS_TTL_MS = 5 * 60 * 1000;
@@ -50,6 +58,10 @@ export function resetJwksCache(): void {
 }
 
 const isProductionBuild = (): boolean => process.env.NODE_ENV === 'production';
+
+/** The live production deployment (Vercel previews are NODE_ENV=production too). */
+const isProductionDeployment = (): boolean =>
+  process.env.VERCEL_ENV === 'production' || process.env.EXPO_PUBLIC_APP_ENV === 'production';
 
 /**
  * The insecure mode trusts an account id sent by the client. It exists only so
@@ -130,6 +142,13 @@ export async function verifyClerkToken(token: string, jwksUrl: string): Promise<
 export const accountIdFromClaims = (claims: TokenClaims): string | null =>
   claims.o?.id || claims.org_id || claims.sub || null;
 
+/** Personal accounts manage themselves; in an organization only admins do. */
+export const canManageFromClaims = (claims: TokenClaims): boolean => {
+  if (!claims.o?.id && !claims.org_id) return true;
+  const role = claims.o?.rol ?? claims.org_role;
+  return role !== undefined && ORG_ADMIN_ROLES.has(role);
+};
+
 const DEV_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
@@ -144,9 +163,16 @@ export async function authenticate(request: Request): Promise<AuthResult> {
     if (insecureDevAuthEnabled()) {
       const configured = process.env.HORARIO_DEV_ACCOUNT_ID;
       const id = configured && DEV_ID_RE.test(configured) ? configured : 'dev-account';
-      return { ok: true, ctx: { userId: id, accountId: id, insecureDev: true } };
+      return { ok: true, ctx: { userId: id, accountId: id, canManage: true, insecureDev: true } };
     }
     console.error('[auth] CLERK_JWKS_URL is not set; refusing request');
+    return { ok: false, status: 503, error: 'Authentication is not configured' };
+  }
+  // In production the azp allow-list is mandatory, so a token minted for
+  // another site on the same Clerk instance cannot be replayed here.
+  const parties = authorizedParties();
+  if (!parties && isProductionDeployment()) {
+    console.error('[auth] CLERK_AUTHORIZED_PARTIES is not set in production; refusing request');
     return { ok: false, status: 503, error: 'Authentication is not configured' };
   }
 
@@ -156,6 +182,11 @@ export async function authenticate(request: Request): Promise<AuthResult> {
   const claims = await verifyClerkToken(header.slice(7), jwksUrl);
   const accountId = claims ? accountIdFromClaims(claims) : null;
   if (!claims?.sub || !accountId) return { ok: false, status: 401, error: 'Unauthorized' };
+  // Browser requests carry an Origin and Clerk always sets azp for them; only
+  // native clients may omit it.
+  if (parties && !claims.azp && request.headers.get('origin')) {
+    return { ok: false, status: 401, error: 'Unauthorized' };
+  }
 
-  return { ok: true, ctx: { userId: claims.sub, accountId, insecureDev: false } };
+  return { ok: true, ctx: { userId: claims.sub, accountId, canManage: canManageFromClaims(claims), insecureDev: false } };
 }

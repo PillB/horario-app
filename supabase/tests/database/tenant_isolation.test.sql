@@ -4,7 +4,7 @@
 -- users must see only their own tenant and must not write directly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(44);
 
 -- ── Fixtures (as the table owner) ────────────────────────────────────────────
 insert into public.workers (id, account_id, name, role) values
@@ -75,6 +75,7 @@ select throws_ok($$insert into public.workers (account_id, name, role) values ('
 select throws_ok($$update public.subscriptions set tier = 'pro'$$, '42501', null, 'signed-in users cannot change their tier');
 select throws_ok($$select public.increment_auto_assign('user_a','user_a')$$, '42501', null, 'usage counter is server-only');
 select throws_ok($$select public.redeem_referral('CODEA1','user_a')$$, '42501', null, 'referral redeem is server-only');
+select throws_ok('select * from public.referral_redemptions', '42501', null, 'redemptions are server-only');
 reset role;
 
 -- ── Tenant B (organization) ──────────────────────────────────────────────────
@@ -93,6 +94,8 @@ select throws_ok($$insert into public.demand_targets (date, role, required) valu
 select is(public.increment_auto_assign('user_b','org_b'), 4, 'counter increments an existing row');
 select is(public.increment_auto_assign('user_c','org_c'), 1, 'counter creates a row at 1');
 select is(public.redeem_referral('codea1','user_x'), 'user_a', 'redeem is case-insensitive and returns referrer');
+select is(public.redeem_referral('CODEA1','user_x'), null, 'same user cannot redeem a code twice');
+select is((select redemption_count from public.referrals where code = 'CODEA1'), 1, 'repeat redeem does not move the count');
 select is(public.redeem_referral('CODEA1','user_a'), null, 'referrer cannot redeem own code');
 select is(public.redeem_referral('CODEA1','user_y'), 'user_a', 'second redemption reaches the limit');
 select is(public.redeem_referral('CODEA1','user_z'), null, 'exhausted code cannot be redeemed');
