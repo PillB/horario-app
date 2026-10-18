@@ -1,6 +1,24 @@
+/**
+ * Secure proxy: the only place the Supabase service-role key is used.
+ *
+ * The service-role client bypasses row-level security, so this file is the
+ * tenant boundary. Every statement is scoped by the tenant taken from the
+ * verified Clerk session (server/proxyAuth.ts) — never by an id the client
+ * sends. Rules:
+ *   - reads filter by account_id;
+ *   - updates and deletes match id AND account_id, and report 404 when no row
+ *     matched;
+ *   - writes that reference another row (availability → worker, roster →
+ *     worker and template) first check that row belongs to the same tenant;
+ *   - an upsert with a client-generated id updates only the caller's row; if
+ *     no such row exists it inserts, and a primary-key clash with another
+ *     tenant's row fails instead of overwriting it.
+ * Database error details are logged, not returned to the client.
+ */
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
-import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
 
+import { authenticate, type AuthContext } from '@/server/proxyAuth';
+import { jsonResponse, optionsResponse } from '@/server/http';
 import {
   DemandForecast,
   ForecastFilters,
@@ -10,182 +28,204 @@ import {
 import { OnboardingProgress } from '@/services/onboardingProgress';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
-const CLERK_JWKS_URL = process.env.CLERK_JWKS_URL;
-// Auth is enabled when the server has the JWKS endpoint required to verify tokens.
-// Intentionally derived from a server-only env var — never from EXPO_PUBLIC_* vars
-// (which are bundled into the client and could be absent from a deployment, causing
-// the auth gate to silently open). Fails closed: no JWKS URL → no verified identity
-// → 401 on all authenticated actions (not open access).
-const AUTH_ENABLED: boolean = Boolean(CLERK_JWKS_URL);
+export const runtime = 'nodejs';
 
-type JWK = { kid?: string; kty: string; n: string; e: string; alg?: string; use?: string };
-type JWKSet = { keys: JWK[] };
+// ─── Result plumbing ──────────────────────────────────────────────────────────
 
-let jwksCache: JWKSet | null = null;
-let jwksCacheExpiry = 0;
+type Result = { status: number; body: unknown };
 
-async function fetchJwks(): Promise<JWKSet> {
-  if (jwksCache && Date.now() < jwksCacheExpiry) return jwksCache;
-  const res = await fetch(CLERK_JWKS_URL!);
-  if (!res.ok) throw new Error('Failed to fetch JWKS');
-  jwksCache = (await res.json()) as JWKSet;
-  jwksCacheExpiry = Date.now() + 5 * 60 * 1000; // 5 min
-  return jwksCache;
-}
+const ok = (body: unknown): Result => ({ status: 200, body });
+const fail = (status: number, error: string): Result => ({ status, body: { error } });
+const badRequest = (error: string) => fail(400, error);
+const notFound = () => fail(404, 'Not found');
 
-// Only RS256 is acceptable — reject algorithm confusion attacks
-const ALLOWED_JWT_ALGORITHMS = new Set(['RS256']);
+/** Logs the database error and returns a generic message. */
+const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
+  console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
+  if (error?.code === '23505') return fail(409, 'Conflicting record');
+  if (error?.code === '23503') return fail(409, 'Record is still referenced');
+  return fail(500, 'Database request failed');
+};
 
-async function verifyClerkToken(token: string): Promise<string | null> {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString()) as { kid?: string; alg?: string };
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as { sub?: string; exp?: number; nbf?: number; iss?: string };
-
-    // Reject tokens using unexpected algorithms (algorithm confusion attack prevention)
-    if (!header.alg || !ALLOWED_JWT_ALGORITHMS.has(header.alg)) return null;
-
-    // Validate expiry — require the claim to be present
-    if (!payload.exp || Date.now() / 1000 > payload.exp) return null;
-
-    // Reject tokens not yet valid (nbf = not before)
-    if (payload.nbf && Date.now() / 1000 < payload.nbf) return null;
-
-    const jwks = await fetchJwks();
-    const jwk = (header.kid ? jwks.keys.find(k => k.kid === header.kid) : jwks.keys[0]);
-    if (!jwk) return null;
-    const publicKey = createPublicKey({ key: jwk as unknown as CryptoJWK, format: 'jwk' });
-    const verifier = createVerify('RSA-SHA256');
-    verifier.update(`${parts[0]}.${parts[1]}`);
-    const valid = verifier.verify(publicKey, parts[2], 'base64url');
-    return valid ? (payload.sub ?? null) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthorizedAccountId(request: Request): Promise<string | null> {
-  if (!AUTH_ENABLED) return null;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  return verifyClerkToken(auth.slice(7));
-}
-
-const roundToInt = (value: number) => Math.max(0, Math.round(value));
-
-const buildKey = (item: ForecastFilters & { date: string; role: string }) => `${item.date}::${item.role}`;
-
-const getServiceClient = (): SupabaseClient => {
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing service-role Supabase credentials');
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
+const getServiceClient = (): SupabaseClient | null => {
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { 'x-application-name': 'horario-forecast-admin' } },
+    global: { headers: { 'x-application-name': 'horario-secure-proxy' } },
   });
 };
 
-type HistoricalShift = {
-  date: string;
-  role: string;
-  hours?: number;
-  worker_id?: string;
+// ─── Validators ───────────────────────────────────────────────────────────────
+
+const isHHMM = (v: unknown): v is string =>
+  typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+
+const isDayOfWeek = (v: unknown): v is string =>
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(v as string);
+
+const isShiftStatus = (v: unknown): v is 'Draft' | 'Published' =>
+  v === 'Draft' || v === 'Published';
+
+const isISODate = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+
+const isNonEmptyString = (v: unknown, max = 200): v is string =>
+  typeof v === 'string' && v.trim().length > 0 && v.length <= max;
+
+const isUuid = (v: unknown): v is string =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+// ─── Tenant-scoped write helpers ──────────────────────────────────────────────
+
+/**
+ * Updates the caller's row when `id` names one, otherwise inserts. Never
+ * touches another tenant's row: the update matches id AND account_id, and an
+ * insert reusing another tenant's id fails on the primary key.
+ */
+async function updateOrInsert<Row>(
+  client: SupabaseClient,
+  table: string,
+  ctx: AuthContext,
+  id: string | undefined,
+  values: Record<string, unknown>,
+  columns: string,
+): Promise<{ row: Row } | { error: Result }> {
+  if (id !== undefined) {
+    if (!isUuid(id)) return { error: badRequest('id must be a UUID') };
+    const { data, error } = await client
+      .from(table)
+      .update(values)
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .select(columns)
+      .maybeSingle();
+    if (error) return { error: dbFailure(`update ${table}`, error) };
+    if (data) return { row: data as Row };
+  }
+
+  const insertValues = { ...values, account_id: ctx.accountId, ...(id !== undefined ? { id } : {}) };
+  const { data, error } = await client.from(table).insert(insertValues).select(columns).single();
+  if (error) return { error: dbFailure(`insert ${table}`, error) };
+  return { row: data as Row };
+}
+
+async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from(table)
+    .delete()
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .select('id');
+  if (error) return dbFailure(`delete ${table}`, error);
+  return (data ?? []).length ? ok({ success: true }) : notFound();
+}
+
+async function updateOwned(
+  client: SupabaseClient,
+  table: string,
+  ctx: AuthContext,
+  id: unknown,
+  values: Record<string, unknown>,
+): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from(table)
+    .update(values)
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .select('id');
+  if (error) return dbFailure(`update ${table}`, error);
+  return (data ?? []).length ? ok({ success: true }) : notFound();
+}
+
+/** True when every id exists in `table` for the caller's tenant. */
+async function ownsAll(client: SupabaseClient, table: string, ctx: AuthContext, ids: string[]): Promise<boolean | Result> {
+  const unique = Array.from(new Set(ids));
+  if (!unique.every(isUuid)) return badRequest('referenced id must be a UUID');
+  const { data, error } = await client
+    .from(table)
+    .select('id')
+    .eq('account_id', ctx.accountId)
+    .in('id', unique);
+  if (error) return dbFailure(`ownership check ${table}`, error);
+  return (data ?? []).length === unique.length;
+}
+
+// ─── Forecasting ──────────────────────────────────────────────────────────────
+
+type HistoricalShift = { date: string; role: string; hours?: number; worker_id?: string };
+type ExternalSignal = { date: string; role?: string; signal_type?: string; weight?: number };
+
+const roundToInt = (value: number) => Math.max(0, Math.round(value));
+const buildKey = (item: { date: string; role: string }) => `${item.date}::${item.role}`;
+
+const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
+  if (!isRecord(filters)) return undefined;
+  const result: ForecastFilters = {};
+  if (isISODate(filters.date)) result.date = filters.date;
+  if (isNonEmptyString(filters.role, 100)) result.role = filters.role;
+  return result;
 };
 
-type ExternalSignal = {
-  date: string;
-  role?: string;
-  signal_type?: string;
-  weight?: number;
-};
-
-const selectFilters = (filters?: ForecastFilters) => {
-  if (!filters) return undefined;
-  const payload: ForecastFilters = {};
-  if (filters.date) payload.date = filters.date;
-  if (filters.role) payload.role = filters.role;
-  return payload;
-};
-
-const fetchHistoricalShifts = async (client: SupabaseClient, filters?: ForecastFilters): Promise<HistoricalShift[]> => {
-  const query = client
+const fetchHistoricalShifts = async (client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters) => {
+  let query = client
     .from('shifts')
     .select('date, role, worker_id, hours')
+    .eq('account_id', ctx.accountId)
     .order('date', { ascending: true })
     .limit(500);
-
-  if (filters?.date) {
-    query.gte('date', filters.date).lte('date', filters.date);
-  }
-  if (filters?.role) {
-    query.eq('role', filters.role);
-  }
-
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
   const { data, error } = await query;
   if (error) {
-    console.warn('Unable to fetch historical shifts', error.message);
-    return [];
+    console.warn('[secure-proxy] historical shifts unavailable:', error.message);
+    return [] as HistoricalShift[];
   }
-
-  return (data ?? []).map((shift) => ({
-    date: shift.date,
-    role: shift.role,
-    hours: shift.hours ?? 8,
-    worker_id: shift.worker_id,
-  }));
+  return (data ?? []).map((s) => ({ date: s.date, role: s.role, hours: s.hours ?? 8, worker_id: s.worker_id }));
 };
 
-const fetchExternalSignals = async (client: SupabaseClient, filters?: ForecastFilters): Promise<ExternalSignal[]> => {
-  const query = client
+const fetchExternalSignals = async (client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters) => {
+  let query = client
     .from('external_signals')
     .select('date, role, signal_type, weight')
+    .eq('account_id', ctx.accountId)
     .order('date', { ascending: true })
     .limit(200);
-
-  if (filters?.date) {
-    query.eq('date', filters.date);
-  }
-  if (filters?.role) {
-    query.eq('role', filters.role);
-  }
-
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
   const { data, error } = await query;
   if (error) {
-    console.warn('Unable to fetch external signals', error.message);
-    return [];
+    console.warn('[secure-proxy] external signals unavailable:', error.message);
+    return [] as ExternalSignal[];
   }
-
-  return data ?? [];
+  return (data ?? []) as ExternalSignal[];
 };
 
 const fetchExistingTargets = async (
   client: SupabaseClient,
-  filters?: ForecastFilters
+  ctx: AuthContext,
+  filters?: ForecastFilters,
 ): Promise<DemandForecast[]> => {
-  const query = client
+  let query = client
     .from('demand_targets')
     .select('date, role, required, notes, confidence, lower_bound, upper_bound, source')
+    .eq('account_id', ctx.accountId)
     .order('date', { ascending: true })
     .limit(500);
-
-  if (filters?.date) {
-    query.eq('date', filters.date);
-  }
-  if (filters?.role) {
-    query.eq('role', filters.role);
-  }
-
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
   const { data, error } = await query;
   if (error) {
-    console.warn('Unable to fetch demand targets', error.message);
+    console.warn('[secure-proxy] demand targets unavailable:', error.message);
     return [];
   }
-
   return (data ?? []).map((row) => ({
     date: row.date,
     role: row.role,
@@ -198,79 +238,46 @@ const fetchExistingTargets = async (
   }));
 };
 
-const persistForecasts = async (client: SupabaseClient, forecasts: DemandForecast[]) => {
-  if (!forecasts.length) return;
-  const payload = forecasts.map((forecast) => ({
-    date: forecast.date,
-    role: forecast.role,
-    required: forecast.required,
-    notes: forecast.notes,
-    confidence: forecast.confidence,
-    lower_bound: forecast.lowerBound,
-    upper_bound: forecast.upperBound,
-    source: forecast.source ?? 'model',
-  }));
+const toTargetRow = (ctx: AuthContext, t: DemandForecast, defaultSource: 'model' | 'override') => ({
+  account_id: ctx.accountId,
+  date: t.date,
+  role: t.role,
+  required: t.required,
+  notes: t.notes,
+  confidence: t.confidence,
+  lower_bound: t.lowerBound,
+  upper_bound: t.upperBound,
+  source: t.source ?? defaultSource,
+});
 
-  const { error } = await client.from('demand_targets').upsert(payload, { onConflict: 'date,role' });
-  if (error) {
-    console.warn('Unable to persist demand targets', error.message);
-  }
-};
-
-type ForecastApiOutcome = {
-  forecasts: DemandForecast[];
-  attempted: boolean;
-  failed: boolean;
-  failureReason?: string;
-};
-
-const callForecastApi = async (inputs: {
-  shifts: HistoricalShift[];
-  signals: ExternalSignal[];
-  filters?: ForecastFilters;
-}): Promise<ForecastApiOutcome> => {
-  if (!FORECAST_API_URL) {
-    return { forecasts: [], attempted: false, failed: false };
-  }
-
+const callForecastApi = async (inputs: { shifts: HistoricalShift[]; signals: ExternalSignal[]; filters?: ForecastFilters }) => {
+  if (!FORECAST_API_URL) return { forecasts: [] as DemandForecast[], attempted: false, failed: false };
   try {
     const response = await fetch(FORECAST_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(inputs),
     });
-
     if (!response.ok) {
-      const failureReason = `Forecast API responded with status ${response.status}`;
-      console.warn(failureReason);
-      return { forecasts: [], attempted: true, failed: true, failureReason };
+      console.warn(`[secure-proxy] forecast API responded with status ${response.status}`);
+      return { forecasts: [] as DemandForecast[], attempted: true, failed: true };
     }
-
     const payload = (await response.json()) as DemandForecast[];
-    const normalized = payload.map((item) => ({
-      ...item,
-      required: Number(item.required ?? 0),
-      source: item.source ?? 'model',
-    }));
-
-    return { forecasts: normalized, attempted: true, failed: false };
+    const forecasts = (Array.isArray(payload) ? payload : [])
+      .filter((item) => isISODate(item?.date) && isNonEmptyString(item?.role, 100))
+      .map((item) => ({ ...item, required: roundToInt(Number(item.required ?? 0)), source: item.source ?? 'model' }));
+    return { forecasts, attempted: true, failed: false };
   } catch (error) {
-    const failureReason = error instanceof Error ? error.message : 'Unknown error';
-    console.warn('Forecast API call failed', error);
-    return { forecasts: [], attempted: true, failed: true, failureReason };
+    console.warn('[secure-proxy] forecast API call failed', error);
+    return { forecasts: [] as DemandForecast[], attempted: true, failed: true };
   }
 };
 
-const computeDailyAverages = (
-  shifts: HistoricalShift[],
-  signals: ExternalSignal[],
-  filters?: ForecastFilters
-): DemandForecast[] => {
+const computeDailyAverages = (shifts: HistoricalShift[], signals: ExternalSignal[], filters?: ForecastFilters): DemandForecast[] => {
   const grouped = shifts.reduce<Record<string, number[]>>((acc, shift) => {
     if (filters?.role && shift.role !== filters.role) return acc;
-    const key = buildKey({ date: shift.date, role: shift.role });
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(shift.hours ?? 8);
+    const key = buildKey(shift);
+    (acc[key] ??= []).push(shift.hours ?? 8);
     return acc;
   }, {});
 
@@ -282,30 +289,19 @@ const computeDailyAverages = (
     return acc;
   }, {});
 
-  const keys = new Set<string>();
-  Object.keys(grouped).forEach((key) => keys.add(key));
-  Object.keys(signalMap).forEach((key) => keys.add(key));
-  if (filters?.date && filters?.role) {
-    keys.add(buildKey({ date: filters.date, role: filters.role }));
-  }
+  const keys = new Set<string>([...Object.keys(grouped), ...Object.keys(signalMap)]);
+  if (filters?.date && filters?.role) keys.add(buildKey({ date: filters.date, role: filters.role }));
 
   const forecasts: DemandForecast[] = [];
-
   keys.forEach((key) => {
     const [date, ...roleParts] = key.split('::');
     const role = roleParts.join('::');
     const samples = grouped[key] ?? [];
-    const mean = samples.length
-      ? samples.reduce((sum, value) => sum + value, 0) / samples.length
-      : 4;
-    const variance = samples.length
-      ? samples.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / samples.length
-      : 1.5;
+    const mean = samples.length ? samples.reduce((s, v) => s + v, 0) / samples.length : 4;
+    const variance = samples.length ? samples.reduce((s, v) => s + (v - mean) ** 2, 0) / samples.length : 1.5;
     const stdDev = Math.sqrt(variance);
-
     const signalBoost = signalMap[key] ?? signalMap[buildKey({ date, role: 'global' })] ?? 0;
     const required = roundToInt(mean + signalBoost);
-
     forecasts.push({
       date,
       role,
@@ -316,21 +312,10 @@ const computeDailyAverages = (
       source: 'model',
     });
   });
-
   return forecasts.sort((a, b) => a.date.localeCompare(b.date));
 };
 
-const mergeForecasts = (forecasts: DemandForecast[], overrides: DemandForecast[] = []) => {
-  const lookup = new Map<string, DemandForecast>();
-  forecasts.forEach((forecast) => lookup.set(buildKey(forecast), forecast));
-  overrides.forEach((override) => lookup.set(buildKey(override), override));
-  return Array.from(lookup.values());
-};
-
-const forecastWithServiceRole = async (
-  client: SupabaseClient,
-  filters?: ForecastFilters
-): Promise<ForecastGenerationResult> => {
+async function generateForecast(client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters): Promise<ForecastGenerationResult> {
   const metadata: ForecastGenerationMetadata = {
     hasHistorical: false,
     hasExternalSignals: false,
@@ -342,151 +327,105 @@ const forecastWithServiceRole = async (
     fallbackReason: undefined,
   };
 
-  const [shifts, signals, storedOverrides] = await Promise.all([
-    fetchHistoricalShifts(client, filters),
-    fetchExternalSignals(client, filters),
-    fetchExistingTargets(client, filters),
+  const [shifts, signals, stored] = await Promise.all([
+    fetchHistoricalShifts(client, ctx, filters),
+    fetchExternalSignals(client, ctx, filters),
+    fetchExistingTargets(client, ctx, filters),
   ]);
-
   metadata.hasHistorical = shifts.length > 0;
   metadata.hasExternalSignals = signals.length > 0;
-  metadata.hasExistingTargets = storedOverrides.length > 0;
+  metadata.hasExistingTargets = stored.length > 0;
 
-  const apiOutcome = await callForecastApi({ shifts, signals, filters: selectFilters(filters) });
-  metadata.usedApi = apiOutcome.forecasts.length > 0;
-  metadata.apiCallFailed = apiOutcome.failed;
-
-  const localForecasts = metadata.usedApi ? apiOutcome.forecasts : computeDailyAverages(shifts, signals, filters);
-
+  const api = await callForecastApi({ shifts, signals, filters });
+  metadata.usedApi = api.forecasts.length > 0;
+  metadata.apiCallFailed = api.failed;
   metadata.usedFallback = !metadata.usedApi;
-
   if (metadata.usedFallback) {
-    if (!metadata.apiAvailable) {
-      metadata.fallbackReason = 'Forecast API is not configured; using local averages.';
-    } else if (apiOutcome.failed) {
-      metadata.fallbackReason = 'Forecast API request failed; using local averages.';
-    } else if (apiOutcome.attempted) {
-      metadata.fallbackReason = 'Forecast API returned no data; using local averages.';
-    } else {
-      metadata.fallbackReason = 'Using local averages to generate forecasts.';
-    }
+    metadata.fallbackReason = !metadata.apiAvailable
+      ? 'Forecast API is not configured; using local averages.'
+      : api.failed
+        ? 'Forecast API request failed; using local averages.'
+        : 'Forecast API returned no data; using local averages.';
   }
 
-  const merged = mergeForecasts(localForecasts, storedOverrides.filter((t) => t.source === 'override'));
-  await persistForecasts(client, merged.filter((forecast) => forecast.source !== 'override'));
+  const generated = metadata.usedApi ? api.forecasts : computeDailyAverages(shifts, signals, filters);
+  const lookup = new Map<string, DemandForecast>();
+  generated.forEach((f) => lookup.set(buildKey(f), f));
+  stored.filter((t) => t.source === 'override').forEach((o) => lookup.set(buildKey(o), o));
+  const merged = Array.from(lookup.values());
 
+  const modelRows = merged.filter((f) => f.source !== 'override').map((f) => toTargetRow(ctx, f, 'model'));
+  if (modelRows.length) {
+    const { error } = await client.from('demand_targets').upsert(modelRows, { onConflict: 'account_id,date,role' });
+    if (error) console.warn('[secure-proxy] unable to persist demand targets:', error.message);
+  }
   return { forecasts: merged, metadata };
-};
-
-const upsertTargets = async (client: SupabaseClient, targets: DemandForecast[]) => {
-  if (!targets.length) return { success: true, targets: [] } as const;
-
-  const payload = targets.map((target) => ({
-    date: target.date,
-    role: target.role,
-    required: target.required,
-    notes: target.notes,
-    confidence: target.confidence,
-    lower_bound: target.lowerBound,
-    upper_bound: target.upperBound,
-    source: target.source ?? 'override',
-  }));
-
-  const { error } = await client.from('demand_targets').upsert(payload, { onConflict: 'date,role' });
-  if (error) {
-    return { success: false, error: error.message, targets: [] } as const;
-  }
-
-  return { success: true, targets } as const;
-};
-
-const upsertOnboarding = async (client: SupabaseClient, accountId: string, flags: OnboardingProgress, userId?: string | null) => {
-  const payload = {
-    account_id: accountId,
-    user_id: userId ?? null,
-    workers_completed: flags.workers,
-    templates_completed: flags.templates,
-    forecast_completed: flags.forecast,
-  };
-
-  const { error } = await client
-    .from('onboarding_progress')
-    .upsert(payload, { onConflict: 'account_id,user_id' })
-    .select('workers_completed, templates_completed, forecast_completed')
-    .single();
-
-  if (error) {
-    return { success: false, error: error.message, progress: null } as const;
-  }
-
-  return { success: true, progress: flags } as const;
-};
-
-// Allowed origins for CORS. Wildcard is intentionally avoided — each origin
-// is echoed back only when it matches, preventing cross-origin data leaks.
-const ALLOWED_ORIGINS = new Set(
-  [
-    process.env.EXPO_PUBLIC_APP_ORIGIN,         // e.g. https://horario.app
-    process.env.EXPO_PUBLIC_SECURE_PROXY_URL
-      ? new URL(process.env.EXPO_PUBLIC_SECURE_PROXY_URL).origin
-      : undefined,
-    'http://localhost:8081',
-    'http://localhost:3000',
-  ].filter((o): o is string => Boolean(o)),
-);
-
-function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
-  const origin =
-    requestOrigin && ALLOWED_ORIGINS.has(requestOrigin) ? requestOrigin : 'null';
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    Vary: 'Origin',
-  };
 }
 
-const buildErrorResponse = (message: string, status = 500, origin: string | null = null) =>
-  new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) },
-  });
+async function upsertTargets(client: SupabaseClient, ctx: AuthContext, targets: unknown): Promise<Result> {
+  if (!Array.isArray(targets)) return badRequest('targets must be an array');
+  if (targets.length > 500) return badRequest('Maximum 500 targets per request');
+  const valid: DemandForecast[] = [];
+  for (const t of targets) {
+    if (!isRecord(t) || !isISODate(t.date) || !isNonEmptyString(t.role, 100)) return badRequest('Each target needs date and role');
+    const required = Number(t.required);
+    if (!Number.isFinite(required) || required < 0 || required > 10_000) return badRequest('required must be a number between 0 and 10000');
+    valid.push({ ...(t as unknown as DemandForecast), required: Math.round(required) });
+  }
+  if (!valid.length) return ok({ success: true, targets: [] });
+  const { error } = await client
+    .from('demand_targets')
+    .upsert(valid.map((t) => toTargetRow(ctx, t, 'override')), { onConflict: 'account_id,date,role' });
+  if (error) return dbFailure('upsert demand_targets', error);
+  return ok({ success: true, targets: valid });
+}
 
-const jsonOk = (body: unknown, origin: string | null = null) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) } });
+// ─── Onboarding ───────────────────────────────────────────────────────────────
 
-// When auth is enabled, authorizedAccountId is the verified JWT sub.
-// When disabled (dev), fall back to the account ID from the request body.
-const resolveAccountId = (authorizedId: string | null, bodyId: string): string =>
-  authorizedId ?? bodyId;
+const ONBOARDING_COLUMNS = 'workers_completed, templates_completed, forecast_completed';
 
-// ─── Shared validators ────────────────────────────────────────────────────────
+const rowToOnboarding = (row: Record<string, unknown>): OnboardingProgress => ({
+  workers: Boolean(row.workers_completed),
+  templates: Boolean(row.templates_completed),
+  forecast: Boolean(row.forecast_completed),
+});
 
-const isHHMM = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
+async function getOnboarding(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  const { data, error } = await client
+    .from('onboarding_progress')
+    .select(ONBOARDING_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .eq('user_id', ctx.userId)
+    .maybeSingle();
+  if (error) return dbFailure('select onboarding_progress', error);
+  return ok({ progress: data ? rowToOnboarding(data) : null });
+}
 
-const isDayOfWeek = (v: unknown): v is string =>
-  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(v as string);
+async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags: unknown): Promise<Result> {
+  if (!isRecord(flags)) return badRequest('Missing onboarding payload');
+  const progress: OnboardingProgress = {
+    workers: Boolean(flags.workers),
+    templates: Boolean(flags.templates),
+    forecast: Boolean(flags.forecast),
+  };
+  const { error } = await client.from('onboarding_progress').upsert(
+    {
+      account_id: ctx.accountId,
+      user_id: ctx.userId,
+      workers_completed: progress.workers,
+      templates_completed: progress.templates,
+      forecast_completed: progress.forecast,
+    },
+    { onConflict: 'account_id,user_id' },
+  );
+  if (error) return dbFailure('upsert onboarding_progress', error);
+  return ok({ success: true, progress });
+}
 
-const isShiftStatus = (v: unknown): v is 'Draft' | 'Published' =>
-  v === 'Draft' || v === 'Published';
+// ─── Workers ──────────────────────────────────────────────────────────────────
 
-const isISODate = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-
-const isNonEmptyString = (v: unknown, max = 200): v is string =>
-  typeof v === 'string' && v.trim().length > 0 && v.length <= max;
-
-// ─── Workers ─────────────────────────────────────────────────────────────────
-
-type WorkerRow = {
-  id: string;
-  account_id: string;
-  name: string;
-  role: string;
-  skills: string[];
-  created_at?: string;
-};
+const WORKER_COLUMNS = 'id, account_id, name, role, skills, created_at';
+type WorkerRow = { id: string; account_id: string; name: string; role: string; skills: string[] | null; created_at?: string };
 
 const rowToWorker = (row: WorkerRow) => ({
   id: row.id,
@@ -497,58 +436,36 @@ const rowToWorker = (row: WorkerRow) => ({
   createdAt: row.created_at,
 });
 
-const dbListWorkers = async (client: SupabaseClient, accountId: string) => {
+async function listWorkers(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const { data, error } = await client
     .from('workers')
-    .select('id, account_id, name, role, skills, created_at')
-    .eq('account_id', accountId)
+    .select(WORKER_COLUMNS)
+    .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
     .limit(500);
-  if (error) return { success: false as const, error: error.message, workers: [] };
-  return { success: true as const, workers: (data ?? []).map(rowToWorker) };
-};
+  if (error) return dbFailure('list workers', error);
+  return ok({ workers: (data as WorkerRow[]).map(rowToWorker) });
+}
 
-const dbUpsertWorker = async (
-  client: SupabaseClient,
-  worker: { id?: string; accountId: string; name: string; role: string; skills?: string[] }
-) => {
-  if (!isNonEmptyString(worker.name, 100)) return { success: false as const, error: 'name is required (max 100 chars)' };
-  if (!isNonEmptyString(worker.role, 100)) return { success: false as const, error: 'role is required (max 100 chars)' };
-  if (!isNonEmptyString(worker.accountId)) return { success: false as const, error: 'accountId is required' };
+async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown): Promise<Result> {
+  if (!isRecord(worker)) return badRequest('worker is required');
+  if (!isNonEmptyString(worker.name, 100)) return badRequest('name is required (max 100 chars)');
+  if (!isNonEmptyString(worker.role, 100)) return badRequest('role is required (max 100 chars)');
+  const skills = Array.isArray(worker.skills) ? worker.skills : [];
+  if (skills.length > 50 || !skills.every((s) => isNonEmptyString(s, 100))) return badRequest('skills must be up to 50 short strings');
 
-  const payload: Record<string, unknown> = {
-    account_id: worker.accountId,
-    name: worker.name.trim(),
-    role: worker.role.trim(),
-    skills: worker.skills ?? [],
-  };
-  if (worker.id) payload.id = worker.id;
+  const result = await updateOrInsert<WorkerRow>(
+    client, 'workers', ctx, worker.id as string | undefined,
+    { name: worker.name.trim(), role: worker.role.trim(), skills },
+    WORKER_COLUMNS,
+  );
+  return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });
+}
 
-  const { data, error } = await client
-    .from('workers')
-    .upsert(payload, { onConflict: 'id' })
-    .select('id, account_id, name, role, skills, created_at')
-    .single();
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, worker: rowToWorker(data as WorkerRow) };
-};
+// ─── Worker availability ──────────────────────────────────────────────────────
 
-const dbDeleteWorker = async (client: SupabaseClient, id: string) => {
-  const { error } = await client.from('workers').delete().eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
-
-// ─── Worker Availability ──────────────────────────────────────────────────────
-
-type AvailabilityRow = {
-  id: string;
-  account_id: string;
-  worker_id: string;
-  day_of_week: string;
-  from_time: string;
-  to_time: string;
-};
+const AVAILABILITY_COLUMNS = 'id, account_id, worker_id, day_of_week, from_time, to_time';
+type AvailabilityRow = { id: string; account_id: string; worker_id: string; day_of_week: string; from_time: string; to_time: string };
 
 const rowToAvailability = (row: AvailabilityRow) => ({
   id: row.id,
@@ -559,62 +476,51 @@ const rowToAvailability = (row: AvailabilityRow) => ({
   toTime: row.to_time,
 });
 
-const dbUpsertAvailability = async (
-  client: SupabaseClient,
-  av: { id?: string; accountId: string; workerId: string; dayOfWeek: string; fromTime: string; toTime: string }
-) => {
-  if (!isDayOfWeek(av.dayOfWeek)) return { success: false as const, error: 'dayOfWeek must be Mon–Sun' };
-  if (!isHHMM(av.fromTime)) return { success: false as const, error: 'fromTime must be HH:MM' };
-  if (!isHHMM(av.toTime)) return { success: false as const, error: 'toTime must be HH:MM' };
-  if (av.fromTime >= av.toTime) return { success: false as const, error: 'fromTime must be earlier than toTime' };
-
-  const payload: Record<string, unknown> = {
-    account_id: av.accountId,
-    worker_id: av.workerId,
-    day_of_week: av.dayOfWeek,
-    from_time: av.fromTime,
-    to_time: av.toTime,
-  };
-  if (av.id) payload.id = av.id;
-
+async function listAvailability(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const { data, error } = await client
     .from('worker_availability')
-    .upsert(payload, { onConflict: 'worker_id,day_of_week,from_time' })
-    .select('id, account_id, worker_id, day_of_week, from_time, to_time')
-    .single();
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, availability: rowToAvailability(data as AvailabilityRow) };
-};
-
-const dbDeleteAvailability = async (client: SupabaseClient, id: string) => {
-  const { error } = await client.from('worker_availability').delete().eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
-
-const dbListWorkerAvailability = async (client: SupabaseClient, accountId: string) => {
-  const { data, error } = await client
-    .from('worker_availability')
-    .select('id, account_id, worker_id, day_of_week, from_time, to_time')
-    .eq('account_id', accountId)
+    .select(AVAILABILITY_COLUMNS)
+    .eq('account_id', ctx.accountId)
     .order('worker_id', { ascending: true })
     .limit(2000);
-  if (error) return { success: false as const, error: error.message, availabilities: [] };
-  return { success: true as const, availabilities: (data ?? []).map(rowToAvailability) };
-};
+  if (error) return dbFailure('list worker_availability', error);
+  return ok({ availabilities: (data as AvailabilityRow[]).map(rowToAvailability) });
+}
 
-// ─── Shift Templates ──────────────────────────────────────────────────────────
+async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: unknown): Promise<Result> {
+  if (!isRecord(av)) return badRequest('availability is required');
+  if (!isUuid(av.workerId)) return badRequest('workerId must be a UUID');
+  if (!isDayOfWeek(av.dayOfWeek)) return badRequest('dayOfWeek must be Mon–Sun');
+  if (!isHHMM(av.fromTime)) return badRequest('fromTime must be HH:MM');
+  if (!isHHMM(av.toTime)) return badRequest('toTime must be HH:MM');
+  // An earlier end time means the window ends the next day.
+  if (av.fromTime === av.toTime) return badRequest('fromTime and toTime must differ');
 
-type TemplateRow = {
-  id: string;
-  account_id: string;
-  name: string;
-  role: string;
-  start_time: string;
-  end_time: string;
-  coverage: number;
-  created_at?: string;
-};
+  const owns = await ownsAll(client, 'workers', ctx, [av.workerId]);
+  if (owns !== true) return owns === false ? notFound() : owns;
+
+  const values = { worker_id: av.workerId, day_of_week: av.dayOfWeek, from_time: av.fromTime, to_time: av.toTime };
+
+  if (av.id !== undefined) {
+    const result = await updateOrInsert<AvailabilityRow>(client, 'worker_availability', ctx, av.id as string, values, AVAILABILITY_COLUMNS);
+    return 'error' in result ? result.error : ok({ success: true, availability: rowToAvailability(result.row) });
+  }
+
+  // No id: one slot per worker/day/start. The worker is the caller's, so a
+  // conflicting slot is too.
+  const { data, error } = await client
+    .from('worker_availability')
+    .upsert({ ...values, account_id: ctx.accountId }, { onConflict: 'worker_id,day_of_week,from_time' })
+    .select(AVAILABILITY_COLUMNS)
+    .single();
+  if (error) return dbFailure('upsert worker_availability', error);
+  return ok({ success: true, availability: rowToAvailability(data as AvailabilityRow) });
+}
+
+// ─── Shift templates ──────────────────────────────────────────────────────────
+
+const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at';
+type TemplateRow = { id: string; account_id: string; name: string; role: string; start_time: string; end_time: string; coverage: number; created_at?: string };
 
 const rowToTemplate = (row: TemplateRow) => ({
   id: row.id,
@@ -627,66 +533,43 @@ const rowToTemplate = (row: TemplateRow) => ({
   createdAt: row.created_at,
 });
 
-const dbListShiftTemplates = async (client: SupabaseClient, accountId: string) => {
+async function listTemplates(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const { data, error } = await client
     .from('shift_templates')
-    .select('id, account_id, name, role, start_time, end_time, coverage, created_at')
-    .eq('account_id', accountId)
+    .select(TEMPLATE_COLUMNS)
+    .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
     .limit(500);
-  if (error) return { success: false as const, error: error.message, templates: [] };
-  return { success: true as const, templates: (data ?? []).map(rowToTemplate) };
-};
+  if (error) return dbFailure('list shift_templates', error);
+  return ok({ templates: (data as TemplateRow[]).map(rowToTemplate) });
+}
 
-const dbUpsertShiftTemplate = async (
-  client: SupabaseClient,
-  tmpl: { id?: string; accountId: string; name: string; role: string; startTime: string; endTime: string; coverage: number }
-) => {
-  if (!isNonEmptyString(tmpl.name, 100)) return { success: false as const, error: 'name is required (max 100 chars)' };
-  if (!isNonEmptyString(tmpl.role, 100)) return { success: false as const, error: 'role is required (max 100 chars)' };
-  if (!isHHMM(tmpl.startTime)) return { success: false as const, error: 'startTime must be HH:MM' };
-  if (!isHHMM(tmpl.endTime)) return { success: false as const, error: 'endTime must be HH:MM' };
-  if (tmpl.startTime >= tmpl.endTime) return { success: false as const, error: 'startTime must be before endTime' };
-  if (!Number.isInteger(tmpl.coverage) || tmpl.coverage < 1) return { success: false as const, error: 'coverage must be >= 1' };
+async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown): Promise<Result> {
+  if (!isRecord(tmpl)) return badRequest('template is required');
+  if (!isNonEmptyString(tmpl.name, 100)) return badRequest('name is required (max 100 chars)');
+  if (!isNonEmptyString(tmpl.role, 100)) return badRequest('role is required (max 100 chars)');
+  if (!isHHMM(tmpl.startTime)) return badRequest('startTime must be HH:MM');
+  if (!isHHMM(tmpl.endTime)) return badRequest('endTime must be HH:MM');
+  // An earlier end time is an overnight shift.
+  if (tmpl.startTime === tmpl.endTime) return badRequest('startTime and endTime must differ');
+  if (!Number.isInteger(tmpl.coverage) || (tmpl.coverage as number) < 1 || (tmpl.coverage as number) > 500) {
+    return badRequest('coverage must be an integer between 1 and 500');
+  }
 
-  const payload: Record<string, unknown> = {
-    account_id: tmpl.accountId,
-    name: tmpl.name.trim(),
-    role: tmpl.role.trim(),
-    start_time: tmpl.startTime,
-    end_time: tmpl.endTime,
-    coverage: tmpl.coverage,
-  };
-  if (tmpl.id) payload.id = tmpl.id;
-
-  const { data, error } = await client
-    .from('shift_templates')
-    .upsert(payload, { onConflict: 'id' })
-    .select('id, account_id, name, role, start_time, end_time, coverage, created_at')
-    .single();
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, template: rowToTemplate(data as TemplateRow) };
-};
-
-const dbDeleteShiftTemplate = async (client: SupabaseClient, id: string) => {
-  const { error } = await client.from('shift_templates').delete().eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
+  const result = await updateOrInsert<TemplateRow>(
+    client, 'shift_templates', ctx, tmpl.id as string | undefined,
+    { name: tmpl.name.trim(), role: tmpl.role.trim(), start_time: tmpl.startTime, end_time: tmpl.endTime, coverage: tmpl.coverage },
+    TEMPLATE_COLUMNS,
+  );
+  return 'error' in result ? result.error : ok({ success: true, template: rowToTemplate(result.row) });
+}
 
 // ─── Roster ───────────────────────────────────────────────────────────────────
 
+const ROSTER_COLUMNS = 'id, account_id, date, worker_id, template_id, location, status, notified, created_at, updated_at';
 type RosterRow = {
-  id: string;
-  account_id: string;
-  date: string;
-  worker_id: string;
-  template_id: string;
-  location: string;
-  status: string;
-  notified: boolean;
-  created_at?: string;
-  updated_at?: string;
+  id: string; account_id: string; date: string; worker_id: string; template_id: string;
+  location: string | null; status: string; notified: boolean; created_at?: string; updated_at?: string;
 };
 
 const rowToRosterShift = (row: RosterRow) => ({
@@ -702,511 +585,278 @@ const rowToRosterShift = (row: RosterRow) => ({
   updatedAt: row.updated_at,
 });
 
-const dbListRoster = async (
-  client: SupabaseClient,
-  accountId: string,
-  fromDate?: string,
-  toDate?: string
-) => {
-  const query = client
+async function listRoster(client: SupabaseClient, ctx: AuthContext, fromDate: unknown, toDate: unknown): Promise<Result> {
+  if (fromDate !== undefined && !isISODate(fromDate)) return badRequest('fromDate must be YYYY-MM-DD');
+  if (toDate !== undefined && !isISODate(toDate)) return badRequest('toDate must be YYYY-MM-DD');
+  let query = client
     .from('roster')
-    .select('id, account_id, date, worker_id, template_id, location, status, notified, created_at, updated_at')
-    .eq('account_id', accountId)
+    .select(ROSTER_COLUMNS)
+    .eq('account_id', ctx.accountId)
     .order('date', { ascending: true })
     .limit(500);
-
-  if (fromDate) query.gte('date', fromDate);
-  if (toDate) query.lte('date', toDate);
-
+  if (fromDate) query = query.gte('date', fromDate);
+  if (toDate) query = query.lte('date', toDate);
   const { data, error } = await query;
-  if (error) return { success: false as const, error: error.message, shifts: [] };
-  return { success: true as const, shifts: (data ?? []).map(rowToRosterShift) };
-};
+  if (error) return dbFailure('list roster', error);
+  return ok({ shifts: (data as RosterRow[]).map(rowToRosterShift) });
+}
 
-const dbUpsertRosterShift = async (
-  client: SupabaseClient,
-  shift: { id?: string; accountId: string; date: string; workerId: string; templateId: string; location?: string; status?: string; notified?: boolean }
-) => {
-  if (!isISODate(shift.date)) return { success: false as const, error: 'date must be YYYY-MM-DD' };
-  if (!isNonEmptyString(shift.workerId)) return { success: false as const, error: 'workerId is required' };
-  if (!isNonEmptyString(shift.templateId)) return { success: false as const, error: 'templateId is required' };
-  if (shift.status && !isShiftStatus(shift.status)) return { success: false as const, error: 'status must be Draft or Published' };
+async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
+  if (!isRecord(shift)) return badRequest('shift is required');
+  if (!isISODate(shift.date)) return badRequest('date must be YYYY-MM-DD');
+  if (!isUuid(shift.workerId)) return badRequest('workerId must be a UUID');
+  if (!isUuid(shift.templateId)) return badRequest('templateId must be a UUID');
+  if (shift.status !== undefined && !isShiftStatus(shift.status)) return badRequest('status must be Draft or Published');
+  if (shift.location !== undefined && typeof shift.location !== 'string') return badRequest('location must be a string');
 
-  const payload: Record<string, unknown> = {
-    account_id: shift.accountId,
-    date: shift.date,
-    worker_id: shift.workerId,
-    template_id: shift.templateId,
-    location: (shift.location ?? '').slice(0, 200),
-    status: shift.status ?? 'Draft',
-    notified: shift.notified ?? false,
-  };
-  if (shift.id) payload.id = shift.id;
+  const [ownsWorker, ownsTemplate] = await Promise.all([
+    ownsAll(client, 'workers', ctx, [shift.workerId]),
+    ownsAll(client, 'shift_templates', ctx, [shift.templateId]),
+  ]);
+  if (ownsWorker !== true) return ownsWorker === false ? notFound() : ownsWorker;
+  if (ownsTemplate !== true) return ownsTemplate === false ? notFound() : ownsTemplate;
 
-  const { data, error } = await client
-    .from('roster')
-    .upsert(payload, { onConflict: 'id' })
-    .select('id, account_id, date, worker_id, template_id, location, status, notified, created_at, updated_at')
-    .single();
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, shift: rowToRosterShift(data as RosterRow) };
-};
-
-const dbUpdateShiftStatus = async (client: SupabaseClient, id: string, status: string) => {
-  if (!isShiftStatus(status)) return { success: false as const, error: 'status must be Draft or Published' };
-  const { error } = await client.from('roster').update({ status }).eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
-
-const dbMarkShiftNotified = async (client: SupabaseClient, id: string) => {
-  const { error } = await client.from('roster').update({ notified: true }).eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
-
-const dbDeleteRosterShift = async (client: SupabaseClient, id: string) => {
-  const { error } = await client.from('roster').delete().eq('id', id);
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const };
-};
+  const result = await updateOrInsert<RosterRow>(
+    client, 'roster', ctx, shift.id as string | undefined,
+    {
+      date: shift.date,
+      worker_id: shift.workerId,
+      template_id: shift.templateId,
+      location: ((shift.location as string | undefined) ?? '').slice(0, 200),
+      status: shift.status ?? 'Draft',
+      notified: shift.notified === true,
+    },
+    ROSTER_COLUMNS,
+  );
+  return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
 
 const FREE_AUTO_ASSIGN_LIMIT = 1;
 
-type UsageLimitRow = {
-  user_id: string;
-  account_id: string;
-  auto_assign_count: number;
-};
-
-const dbGetUsageLimit = async (client: SupabaseClient, userId: string, accountId: string) => {
+async function getUsageLimit(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const { data, error } = await client
     .from('usage_limits')
-    .select('user_id, account_id, auto_assign_count')
-    .eq('user_id', userId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-  if (error) return { success: false as const, error: error.message };
-  const count = (data as UsageLimitRow | null)?.auto_assign_count ?? 0;
-  return { success: true as const, count, canAutoAssign: count < FREE_AUTO_ASSIGN_LIMIT };
-};
-
-const dbIncrementAutoAssign = async (client: SupabaseClient, userId: string, accountId: string) => {
-  if (!isNonEmptyString(userId, 200) || !isNonEmptyString(accountId, 200)) {
-    return { success: false as const, error: 'userId and accountId are required' };
-  }
-  const { data, error } = await client
-    .from('usage_limits')
-    .upsert(
-      { user_id: userId, account_id: accountId, auto_assign_count: 1 },
-      { onConflict: 'user_id,account_id', ignoreDuplicates: false }
-    )
     .select('auto_assign_count')
+    .eq('user_id', ctx.userId)
+    .eq('account_id', ctx.accountId)
     .maybeSingle();
+  if (error) return dbFailure('select usage_limits', error);
+  const count = (data as { auto_assign_count?: number } | null)?.auto_assign_count ?? 0;
+  return ok({ count, canAutoAssign: count < FREE_AUTO_ASSIGN_LIMIT });
+}
 
-  if (error) {
-    const { data: existing } = await client
-      .from('usage_limits')
-      .select('auto_assign_count')
-      .eq('user_id', userId)
-      .eq('account_id', accountId)
-      .maybeSingle();
-    const currentCount = (existing as UsageLimitRow | null)?.auto_assign_count ?? 0;
-    const { error: updateError } = await client
-      .from('usage_limits')
-      .update({ auto_assign_count: currentCount + 1 })
-      .eq('user_id', userId)
-      .eq('account_id', accountId);
-    if (updateError) return { success: false as const, error: updateError.message };
-    return { success: true as const, count: currentCount + 1 };
+async function incrementAutoAssign(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  const { data, error } = await client.rpc('increment_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId });
+  if (error) return dbFailure('increment_auto_assign', error);
+  return ok({ success: true, count: Number(data ?? 0) });
+}
+
+// ─── POS sales ────────────────────────────────────────────────────────────────
+
+async function uploadPosSales(client: SupabaseClient, ctx: AuthContext, rows: unknown): Promise<Result> {
+  if (!Array.isArray(rows) || rows.length === 0) return badRequest('rows must be a non-empty array');
+  if (rows.length > 1000) return badRequest('Maximum 1000 rows per upload');
+  const clean = [];
+  for (const [index, r] of rows.entries()) {
+    const revenue = isRecord(r) ? Number(r.revenue) : NaN;
+    if (!isRecord(r) || !isISODate(r.date) || !Number.isFinite(revenue) || revenue < 0 || revenue > 1e10) {
+      return badRequest(`Invalid row ${index + 1}: needs a YYYY-MM-DD date and a non-negative revenue`);
+    }
+    const covers = r.covers == null ? null : Number(r.covers);
+    if (covers !== null && (!Number.isInteger(covers) || covers < 0)) return badRequest(`Invalid covers in row ${index + 1}`);
+    clean.push({
+      account_id: ctx.accountId,
+      date: r.date,
+      revenue,
+      covers,
+      notes: typeof r.notes === 'string' ? r.notes.slice(0, 500) : null,
+      source: r.source === 'manual' ? 'manual' : 'upload',
+    });
   }
+  const { error } = await client.from('pos_sales').upsert(clean, { onConflict: 'account_id,date' });
+  if (error) return dbFailure('upsert pos_sales', error);
+  return ok({ inserted: clean.length });
+}
 
-  const newCount = (data as UsageLimitRow | null)?.auto_assign_count ?? 1;
-  return { success: true as const, count: newCount };
-};
-
-// ─── POS sales DB helpers ─────────────────────────────────────────────────────
-
-const VALID_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-const dbUploadPosSales = async (
-  client: SupabaseClient,
-  accountId: string,
-  rows: PosRow[],
-): Promise<{ success: true; inserted: number } | { success: false; error: string }> => {
-  if (!accountId) return { success: false, error: 'accountId is required' };
-  if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'rows must be a non-empty array' };
-  if (rows.length > 1000) return { success: false, error: 'Maximum 1000 rows per upload' };
-
-  const invalidRow = rows.find(
-    (r) => !VALID_DATE_RE.test(r.date) || typeof r.revenue !== 'number' || r.revenue < 0,
-  );
-  if (invalidRow) {
-    return { success: false, error: `Invalid row: date=${invalidRow.date} revenue=${invalidRow.revenue}` };
-  }
-
-  const upsertRows = rows.map((r) => ({
-    account_id: accountId,
-    date: r.date,
-    revenue: r.revenue,
-    covers: r.covers ?? null,
-    notes: r.notes ?? null,
-    source: r.source ?? 'upload',
-  }));
-
-  const { error } = await client
-    .from('pos_sales')
-    .upsert(upsertRows, { onConflict: 'account_id,date' });
-
-  if (error) return { success: false, error: error.message };
-  return { success: true, inserted: rows.length };
-};
-
-const dbListPosSales = async (
-  client: SupabaseClient,
-  accountId: string,
-  limit = 90,
-  offset = 0,
-): Promise<{ success: true; rows: unknown[]; total: number } | { success: false; error: string }> => {
-  if (!accountId) return { success: false, error: 'accountId is required' };
-  const safeLimit = Math.min(Math.max(1, limit), 365);
-  const safeOffset = Math.max(0, offset);
-
+async function listPosSales(client: SupabaseClient, ctx: AuthContext, limit: unknown, offset: unknown): Promise<Result> {
+  const safeLimit = Math.min(Math.max(1, Number.isInteger(limit) ? (limit as number) : 90), 365);
+  const safeOffset = Math.max(0, Number.isInteger(offset) ? (offset as number) : 0);
   const { data, error, count } = await client
     .from('pos_sales')
     .select('id, account_id, date, revenue, covers, notes, source, created_at', { count: 'exact' })
-    .eq('account_id', accountId)
+    .eq('account_id', ctx.accountId)
     .order('date', { ascending: false })
     .range(safeOffset, safeOffset + safeLimit - 1);
+  if (error) return dbFailure('list pos_sales', error);
+  return ok({ rows: data ?? [], total: count ?? 0 });
+}
 
-  if (error) return { success: false, error: error.message };
-  return { success: true, rows: data ?? [], total: count ?? 0 };
-};
+// ─── Subscriptions ────────────────────────────────────────────────────────────
+// Only reads and the user's own cancel request live here. Plan changes are
+// written exclusively by signature-verified payment webhooks (not yet built);
+// no client-callable action can change a tier.
 
-// ─── Subscription DB helper ───────────────────────────────────────────────────
-
-function dbRowToSubscription(row: Record<string, unknown>) {
+function rowToSubscription(row: Record<string, unknown>) {
   return {
-    id: row['id'],
-    accountId: row['account_id'],
-    tier: row['tier'] ?? 'free',
-    status: row['status'] ?? 'active',
-    stripeCustomerId: row['stripe_customer_id'] ?? null,
-    stripeSubscriptionId: row['stripe_subscription_id'] ?? null,
-    stripePriceId: row['stripe_price_id'] ?? null,
-    culqiCustomerId: row['culqi_customer_id'] ?? null,
-    currentPeriodStart: row['current_period_start'] ?? null,
-    currentPeriodEnd: row['current_period_end'] ?? null,
-    cancelAtPeriodEnd: Boolean(row['cancel_at_period_end']),
-    trialEndsAt: row['trial_ends_at'] ?? null,
-    paymentProvider: row['payment_provider'] ?? null,
-    billingInterval: row['billing_interval'] ?? 'month',
-    countryCode: row['country_code'] ?? 'PE',
-    createdAt: row['created_at'],
-    updatedAt: row['updated_at'],
+    id: row.id,
+    accountId: row.account_id,
+    tier: row.tier ?? 'free',
+    status: row.status ?? 'active',
+    stripeCustomerId: row.stripe_customer_id ?? null,
+    stripeSubscriptionId: row.stripe_subscription_id ?? null,
+    stripePriceId: row.stripe_price_id ?? null,
+    currentPeriodStart: row.current_period_start ?? null,
+    currentPeriodEnd: row.current_period_end ?? null,
+    cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+    trialEndsAt: row.trial_ends_at ?? null,
+    paymentProvider: row.payment_provider ?? null,
+    billingInterval: row.billing_interval ?? 'month',
+    countryCode: row.country_code ?? 'PE',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-// ─── ProxyRequest union ───────────────────────────────────────────────────────
+async function getSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  const { data, error } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).maybeSingle();
+  if (error) return dbFailure('select subscriptions', error);
+  if (data) return ok({ subscription: rowToSubscription(data) });
 
-type ProxyRequest =
-  | { action: 'forecast'; filters?: ForecastFilters }
-  | { action: 'status'; filters?: ForecastFilters }
-  | { action: 'loadTargets'; filters?: ForecastFilters }
-  | { action: 'upsertTargets'; targets: DemandForecast[] }
-  | { action: 'upsertOnboarding'; accountId: string; flags: OnboardingProgress; userId?: string | null }
-  | { action: 'listWorkers'; accountId: string }
-  | { action: 'upsertWorker'; worker: Record<string, unknown> }
-  | { action: 'deleteWorker'; id: string }
-  | { action: 'listWorkerAvailability'; accountId: string }
-  | { action: 'upsertAvailability'; availability: Record<string, unknown> }
-  | { action: 'deleteAvailability'; id: string }
-  | { action: 'listShiftTemplates'; accountId: string }
-  | { action: 'upsertShiftTemplate'; template: Record<string, unknown> }
-  | { action: 'deleteShiftTemplate'; id: string }
-  | { action: 'listRoster'; accountId: string; fromDate?: string; toDate?: string }
-  | { action: 'upsertRosterShift'; shift: Record<string, unknown> }
-  | { action: 'updateShiftStatus'; id: string; status: string }
-  | { action: 'markShiftNotified'; id: string }
-  | { action: 'deleteRosterShift'; id: string }
-  | { action: 'getUsageLimit'; userId: string; accountId: string }
-  | { action: 'incrementAutoAssign'; userId: string; accountId: string }
-  | { action: 'uploadPosSales'; accountId: string; rows: PosRow[] }
-  | { action: 'listPosSales'; accountId: string; limit?: number; offset?: number }
-  // ── Subscription / billing ──────────────────────────────────────────────
-  | { action: 'getSubscription'; accountId: string }
-  | { action: 'upsertSubscription'; accountId: string; subscription: Record<string, unknown> }
-  | { action: 'createCheckoutSession'; accountId: string; tier: string; billingInterval: string; countryCode: string; successUrl: string; cancelUrl: string }
-  | { action: 'createBillingPortalSession'; accountId: string; returnUrl: string }
-  | { action: 'cancelSubscription'; accountId: string }
-  | { action: 'stripeWebhook'; payload: string; signature: string }
-  | { action: 'culqiWebhook'; payload: Record<string, unknown> };
+  // First read provisions the free tier. ignoreDuplicates makes concurrent
+  // first reads safe.
+  const { error: insertErr } = await client
+    .from('subscriptions')
+    .upsert({ account_id: ctx.accountId, tier: 'free', status: 'active' }, { onConflict: 'account_id', ignoreDuplicates: true });
+  if (insertErr) return dbFailure('provision subscriptions', insertErr);
+  const { data: created, error: reread } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).single();
+  if (reread) return dbFailure('select subscriptions', reread);
+  return ok({ subscription: rowToSubscription(created) });
+}
 
-type PosRow = {
-  date: string;
-  revenue: number;
-  covers?: number | null;
-  notes?: string | null;
-  source: 'upload' | 'manual';
-};
+async function cancelSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  const { error } = await client.from('subscriptions').update({ cancel_at_period_end: true }).eq('account_id', ctx.accountId);
+  if (error) return dbFailure('cancel subscription', error);
+  return ok({ success: true });
+}
 
-export const runtime = 'nodejs';
+const paymentsNotConfigured = () => fail(501, 'Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md');
 
-export async function POST(request: Request) {
-  const origin = request.headers.get('origin');
-  // Origin-bound helpers so every response carries the correct CORS header
-  // without threading `origin` through every call site manually.
-  const err = (msg: string, status = 500) => buildErrorResponse(msg, status, origin);
-  const ok  = (body: unknown)             => jsonOk(body, origin);
-  const corsH = getCorsHeaders(origin);
+// ─── Dispatcher ───────────────────────────────────────────────────────────────
 
-  let client: SupabaseClient;
-  try {
-    client = getServiceClient();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to initialize service client';
-    return err(message, 500);
-  }
-
-  // Verify Clerk JWT when auth is enabled; extract sub as authoritative accountId.
-  const authorizedAccountId = await getAuthorizedAccountId(request);
-  if (AUTH_ENABLED && !authorizedAccountId) {
-    return err('Unauthorized', 401);
-  }
-
-  let payload: ProxyRequest;
-  try {
-    payload = (await request.json()) as ProxyRequest;
-  } catch {
-    return err('Invalid request payload', 400);
-  }
-
-  try {
-    switch (payload.action) {
-      case 'forecast': {
-        const result = await forecastWithServiceRole(client, payload.filters);
-        return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
-      }
-      case 'status': {
-        const status: ForecastGenerationMetadata = {
-          hasHistorical: false,
-          hasExternalSignals: false,
-          hasExistingTargets: false,
-          apiAvailable: Boolean(FORECAST_API_URL),
-          usedApi: false,
-          usedFallback: false,
-          apiCallFailed: false,
-          fallbackReason: undefined,
-        };
-        const [historical, signals, existingTargets] = await Promise.all([
-          fetchHistoricalShifts(client, payload.filters),
-          fetchExternalSignals(client, payload.filters),
-          fetchExistingTargets(client, payload.filters),
-        ]);
-        status.hasHistorical = historical.length > 0;
-        status.hasExternalSignals = signals.length > 0;
-        status.hasExistingTargets = existingTargets.length > 0;
-        return new Response(JSON.stringify(status), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
-      }
-      case 'upsertTargets': {
-        const targets = payload.targets?.map((target) => ({ ...target, required: Number(target.required) })) ?? [];
-        const result = await upsertTargets(client, targets);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...corsH } });
-      }
-      case 'loadTargets': {
-        const targets = await fetchExistingTargets(client, payload.filters);
-        return new Response(JSON.stringify({ targets }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsH } });
-      }
-      case 'upsertOnboarding': {
-        const acctId = resolveAccountId(authorizedAccountId, payload.accountId);
-        if (!acctId || !payload.flags) return err('Missing onboarding payload', 400);
-        const result = await upsertOnboarding(client, acctId, payload.flags, payload.userId);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { 'Content-Type': 'application/json', ...corsH } });
-      }
-      case 'listWorkers': {
-        const result = await dbListWorkers(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? ok({ workers: result.workers }) : err(result.error, 400);
-      }
-      case 'upsertWorker': {
-        const worker = { ...payload.worker as Parameters<typeof dbUpsertWorker>[1], accountId: resolveAccountId(authorizedAccountId, (payload.worker as Record<string, unknown>).accountId as string) };
-        const result = await dbUpsertWorker(client, worker);
-        return result.success ? ok({ success: true, worker: result.worker }) : err(result.error, 400);
-      }
-      case 'deleteWorker': {
-        const result = await dbDeleteWorker(client, payload.id);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'listWorkerAvailability': {
-        const result = await dbListWorkerAvailability(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? ok({ availabilities: result.availabilities }) : err(result.error, 400);
-      }
-      case 'upsertAvailability': {
-        const av = { ...payload.availability as Parameters<typeof dbUpsertAvailability>[1], accountId: resolveAccountId(authorizedAccountId, (payload.availability as Record<string, unknown>).accountId as string) };
-        const result = await dbUpsertAvailability(client, av);
-        return result.success ? ok({ success: true, availability: result.availability }) : err(result.error, 400);
-      }
-      case 'deleteAvailability': {
-        const result = await dbDeleteAvailability(client, payload.id);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'listShiftTemplates': {
-        const result = await dbListShiftTemplates(client, resolveAccountId(authorizedAccountId, payload.accountId));
-        return result.success ? ok({ templates: result.templates }) : err(result.error, 400);
-      }
-      case 'upsertShiftTemplate': {
-        const tmpl = { ...payload.template as Parameters<typeof dbUpsertShiftTemplate>[1], accountId: resolveAccountId(authorizedAccountId, (payload.template as Record<string, unknown>).accountId as string) };
-        const result = await dbUpsertShiftTemplate(client, tmpl);
-        return result.success ? ok({ success: true, template: result.template }) : err(result.error, 400);
-      }
-      case 'deleteShiftTemplate': {
-        const result = await dbDeleteShiftTemplate(client, payload.id);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'listRoster': {
-        const result = await dbListRoster(client, resolveAccountId(authorizedAccountId, payload.accountId), payload.fromDate, payload.toDate);
-        return result.success ? ok({ shifts: result.shifts }) : err(result.error, 400);
-      }
-      case 'upsertRosterShift': {
-        const shift = { ...payload.shift as Parameters<typeof dbUpsertRosterShift>[1], accountId: resolveAccountId(authorizedAccountId, (payload.shift as Record<string, unknown>).accountId as string) };
-        const result = await dbUpsertRosterShift(client, shift);
-        return result.success ? ok({ success: true, shift: result.shift }) : err(result.error, 400);
-      }
-      case 'updateShiftStatus': {
-        const result = await dbUpdateShiftStatus(client, payload.id, payload.status);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'markShiftNotified': {
-        const result = await dbMarkShiftNotified(client, payload.id);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'deleteRosterShift': {
-        const result = await dbDeleteRosterShift(client, payload.id);
-        return result.success ? ok({ success: true }) : err(result.error, 400);
-      }
-      case 'getUsageLimit': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        const uid = resolveAccountId(authorizedAccountId, payload.userId);
-        const result = await dbGetUsageLimit(client, uid, acct);
-        return result.success
-          ? ok({ count: result.count, canAutoAssign: result.canAutoAssign })
-          : err(result.error, 400);
-      }
-      case 'incrementAutoAssign': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        const uid = resolveAccountId(authorizedAccountId, payload.userId);
-        const result = await dbIncrementAutoAssign(client, uid, acct);
-        return result.success
-          ? ok({ success: true, count: result.count })
-          : err(result.error, 400);
-      }
-      case 'uploadPosSales': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        const result = await dbUploadPosSales(client, acct, payload.rows);
-        return result.success
-          ? ok({ inserted: result.inserted })
-          : err(result.error, 400);
-      }
-      case 'listPosSales': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        const result = await dbListPosSales(client, acct, payload.limit, payload.offset);
-        return result.success
-          ? ok({ rows: result.rows, total: result.total })
-          : err(result.error, 400);
-      }
-
-      // ── Subscription / billing ────────────────────────────────────────────
-      case 'getSubscription': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        if (!acct) return err('accountId required', 400);
-        const { data, error: sbErr } = await client
-          .from('subscriptions')
-          .select('*')
-          .eq('account_id', acct)
-          .maybeSingle();
-        if (sbErr) return err(sbErr.message, 500);
-        if (!data) {
-          // Auto-provision free tier row on first read
-          const { data: inserted, error: insertErr } = await client
-            .from('subscriptions')
-            .insert({ account_id: acct, tier: 'free', status: 'active' })
-            .select()
-            .single();
-          if (insertErr) return err(insertErr.message, 500);
-          return ok({ subscription: dbRowToSubscription(inserted) });
-        }
-        return ok({ subscription: dbRowToSubscription(data) });
-      }
-
-      case 'upsertSubscription': {
-        // Internal use only — called by webhook handlers
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        if (!acct) return err('accountId required', 400);
-        const { error: sbErr } = await client
-          .from('subscriptions')
-          .upsert({ account_id: acct, ...payload.subscription }, { onConflict: 'account_id' });
-        if (sbErr) return err(sbErr.message, 500);
-        return ok({ success: true });
-      }
-
-      case 'createCheckoutSession': {
-        // TODO: Integrate Stripe SDK here.
-        // 1. Create or retrieve Stripe customer for payload.accountId
-        // 2. Look up price ID from STRIPE_*_PRICE_ID env vars based on payload.tier + payload.billingInterval
-        // 3. Create Stripe Checkout Session with success_url/cancel_url
-        // 4. Return { checkoutUrl, provider: 'stripe' }
-        //
-        // For Culqi (Peru, countryCode === 'PE'):
-        // 1. Create Culqi charge token link
-        // 2. Return { checkoutUrl, provider: 'culqi' }
-        //
-        // This stub returns a placeholder until Stripe/Culqi SDKs are installed.
-        return err('Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md', 501);
-      }
-
-      case 'createBillingPortalSession': {
-        // TODO: Create Stripe billing portal session for customer linked to payload.accountId
-        return err('Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md', 501);
-      }
-
-      case 'cancelSubscription': {
-        const acct = resolveAccountId(authorizedAccountId, payload.accountId);
-        if (!acct) return err('accountId required', 400);
-        // TODO: Cancel Stripe subscription with cancel_at_period_end: true
-        // For now, just mark as cancelled in DB
-        const { error: sbErr } = await client
-          .from('subscriptions')
-          .update({ cancel_at_period_end: true })
-          .eq('account_id', acct);
-        if (sbErr) return err(sbErr.message, 500);
-        return ok({ success: true });
-      }
-
-      case 'stripeWebhook': {
-        // TODO: Verify Stripe webhook signature using STRIPE_WEBHOOK_SECRET env var
-        // Parse event type and update subscriptions table + Clerk publicMetadata accordingly
-        // Events to handle: checkout.session.completed, customer.subscription.updated,
-        //                   customer.subscription.deleted, invoice.payment_failed
-        return ok({ received: true });
-      }
-
-      case 'culqiWebhook': {
-        // TODO: Verify Culqi webhook signature and update subscription on payment success
-        return ok({ received: true });
-      }
-
-      default:
-        return err('Unsupported action', 400);
+async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  switch (p.action) {
+    case 'forecast':
+      return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
+    case 'status': {
+      const filters = cleanFilters(p.filters);
+      const [historical, signals, targets] = await Promise.all([
+        fetchHistoricalShifts(client, ctx, filters),
+        fetchExternalSignals(client, ctx, filters),
+        fetchExistingTargets(client, ctx, filters),
+      ]);
+      const status: ForecastGenerationMetadata = {
+        hasHistorical: historical.length > 0,
+        hasExternalSignals: signals.length > 0,
+        hasExistingTargets: targets.length > 0,
+        apiAvailable: Boolean(FORECAST_API_URL),
+        usedApi: false,
+        usedFallback: false,
+        apiCallFailed: false,
+        fallbackReason: undefined,
+      };
+      return ok(status);
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Secure proxy request failed', error);
-    return err(message, 500);
+    case 'loadTargets':
+      return ok({ targets: await fetchExistingTargets(client, ctx, cleanFilters(p.filters)) });
+    case 'upsertTargets':
+      return upsertTargets(client, ctx, p.targets);
+    case 'getOnboarding':
+      return getOnboarding(client, ctx);
+    case 'upsertOnboarding':
+      return upsertOnboarding(client, ctx, p.flags);
+    case 'listWorkers':
+      return listWorkers(client, ctx);
+    case 'upsertWorker':
+      return upsertWorker(client, ctx, p.worker);
+    case 'deleteWorker':
+      return deleteOwned(client, 'workers', ctx, p.id);
+    case 'listWorkerAvailability':
+      return listAvailability(client, ctx);
+    case 'upsertAvailability':
+      return upsertAvailability(client, ctx, p.availability);
+    case 'deleteAvailability':
+      return deleteOwned(client, 'worker_availability', ctx, p.id);
+    case 'listShiftTemplates':
+      return listTemplates(client, ctx);
+    case 'upsertShiftTemplate':
+      return upsertTemplate(client, ctx, p.template);
+    case 'deleteShiftTemplate':
+      return deleteOwned(client, 'shift_templates', ctx, p.id);
+    case 'listRoster':
+      return listRoster(client, ctx, p.fromDate, p.toDate);
+    case 'upsertRosterShift':
+      return upsertRosterShift(client, ctx, p.shift);
+    case 'updateShiftStatus':
+      return isShiftStatus(p.status)
+        ? updateOwned(client, 'roster', ctx, p.id, { status: p.status })
+        : badRequest('status must be Draft or Published');
+    case 'markShiftNotified':
+      return updateOwned(client, 'roster', ctx, p.id, { notified: true });
+    case 'deleteRosterShift':
+      return deleteOwned(client, 'roster', ctx, p.id);
+    case 'getUsageLimit':
+      return getUsageLimit(client, ctx);
+    case 'incrementAutoAssign':
+      return incrementAutoAssign(client, ctx);
+    case 'uploadPosSales':
+      return uploadPosSales(client, ctx, p.rows);
+    case 'listPosSales':
+      return listPosSales(client, ctx, p.limit, p.offset);
+    case 'getSubscription':
+      return getSubscription(client, ctx);
+    case 'cancelSubscription':
+      return cancelSubscription(client, ctx);
+    case 'createCheckoutSession':
+    case 'createBillingPortalSession':
+      return paymentsNotConfigured();
+    default:
+      return badRequest('Unsupported action');
   }
 }
 
-export function OPTIONS(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const origin = request.headers.get('origin');
-  return new Response(null, { status: 204, headers: getCorsHeaders(origin) });
+  const respond = (r: Result) => jsonResponse(r.body, r.status, origin);
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return respond(badRequest('Invalid request payload'));
+  }
+  if (!isRecord(payload) || typeof payload.action !== 'string') {
+    return respond(badRequest('Missing action'));
+  }
+
+  const auth = await authenticate(request);
+  if (!auth.ok) return respond(fail(auth.status, auth.error));
+
+  const client = getServiceClient();
+  if (!client) {
+    console.error('[secure-proxy] Supabase service credentials are not configured');
+    return respond(fail(503, 'Database is not configured'));
+  }
+
+  try {
+    return respond(await dispatch(client, auth.ctx, payload));
+  } catch (error) {
+    console.error('[secure-proxy] request failed', error);
+    return respond(fail(500, 'Request failed'));
+  }
+}
+
+export function OPTIONS(request: Request): Response {
+  return optionsResponse(request.headers.get('origin'));
 }

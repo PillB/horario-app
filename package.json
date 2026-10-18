@@ -11,7 +11,9 @@
     "build": "expo export --platform web",
     "lint": "expo lint",
     "test": "jest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:integration": "jest --runInBand server/__tests__/proxyTenantIsolation.integration.test.ts",
+    "test:db": "supabase test db"
   },
   "dependencies": {
     "@clerk/expo": "^3.1.5",
@@ -68,13 +70,17 @@
     "preset": "jest-expo",
     "testPathIgnorePatterns": [
       "<rootDir>/node_modules/",
-      "<rootDir>/e2e/"
+      "<rootDir>/e2e/",
+      "<rootDir>/.claude/"
     ],
     "moduleNameMapper": {
       "^@/(.*)": "<rootDir>/$1",
       "^@react-native-async-storage/async-storage$": "@react-native-async-storage/async-storage/jest/async-storage-mock",
       "^expo/src/winter(.*)?$": "<rootDir>/__mocks__/emptyMock.js"
-    }
+    },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/"
+    ]
   },
   "lint-staged": {
     "*": "secretlint",

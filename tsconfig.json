@@ -19,6 +19,8 @@
     "**/__tests__/**",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "e2e/**"
+    "e2e/**",
+    "server/testUtils/**",
+    ".claude/**"
   ]
 }

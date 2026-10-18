@@ -6,6 +6,39 @@
 
 ---
 
+### CHG-068 — 2026-10-18 UTC
+**Type:** SECURITY (tenant isolation in the API and the database; fail-closed auth)
+
+**Fixes QA red-team findings S1–S6** (`/mnt/project-files/qa/redteam-baseline-2026-10-18.md`).
+
+**Server (`app/api/secure-proxy+api.ts`, rewritten; new `server/`):**
+- `server/proxyAuth.ts`: Clerk token verification (RS256 only, exp/nbf with 5 s skew, required `sub`, issuer = JWKS origin or `CLERK_ISSUER`, optional `azp` allow-list via `CLERK_AUTHORIZED_PARTIES`, `kid` required when the key set has more than one key). Tenant = `o.id` / `org_id` / `sub`, matching `private.current_account_id()`. Fails closed with 503 when `CLERK_JWKS_URL` is unset; `HORARIO_INSECURE_DEV_AUTH=1` gives a fixed dev tenant only when `NODE_ENV !== 'production'`.
+- Every action scoped by the verified tenant; body `accountId`/`userId` ignored. Updates/deletes match `id AND account_id` and return 404 when nothing matched. Client-generated ids: update own row, else insert (a clash with another tenant's id fails with 409, never overwrites). Roster and availability writes verify the referenced worker/template belong to the caller.
+- Removed `upsertSubscription`, `stripeWebhook`, `culqiWebhook` (no client action can change a plan; webhooks need their own verified route). Checkout/portal return 501.
+- Forecast, targets and status queries scoped by tenant; targets upsert on `(account_id, date, role)`.
+- New `getOnboarding` action; `services/onboardingProgress.ts` reads through the proxy (anon reads are gone).
+- Atomic usage counter (`increment_auto_assign` RPC) replaces the upsert that always reset the count to 1.
+- DB error details are logged, never returned (generic 409/500). `Cache-Control: no-store` on responses. Localhost CORS origins only outside production.
+- Overnight templates/availability accepted (end < start); zero-length rejected.
+- `app/api/referrals+api.ts`: shared auth (no `'local-user'` fallback, no public-env auth switch), real column names, one reusable pending code per referrer, atomic `redeem_referral` RPC, uniform error for invalid codes. Deleted unused `services/referralService.ts` (anon reads of non-existent columns).
+
+**Database:**
+- `20261018000001_tenant_isolation.sql`: `private.current_account_id()`; `account_id` on `shifts`, `external_signals`, `demand_targets` (NOT VALID not-null check keeps legacy rows unreachable instead of deleting them); `demand_targets` unique `(account_id, date, role)`; every policy on 13 tables dropped and replaced by one `authenticated` SELECT-own-tenant policy; anon privileges revoked; direct writes revoked from `authenticated`; overnight windows allowed; `increment_auto_assign()` (service_role only).
+- `20261018000002_referrals_alignment.sql`: `channel`, `max_redemptions`, `redemption_count`; `redeem_referral()` (service_role only).
+- `supabase/config.toml` (from `supabase init`) so `supabase start` / `supabase test db` work locally and in CI.
+
+**Tests:**
+- `supabase/tests/database/tenant_isolation.test.sql`: 41 pgTAP tests (anon denied on 10 tables, tenant A/B read isolation incl. org claims, direct writes denied, tier change denied, overnight constraint, counter and redeem semantics).
+- `server/__tests__/proxyAuth.test.ts`: 25 tests with real RSA signing (13 rejection cases incl. alg none/HS256, foreign key, wrong iss, tampered payload; azp; fail-closed; dev mode refused in production; JWKS cache).
+- `server/__tests__/proxyTenantIsolation.integration.test.ts`: 12 tests against a real local Supabase (`npm run test:integration`); skipped in plain `npm test`.
+- Removed `services/__tests__/secureProxy.test.ts` (mocked `crypto`, tested the old behaviour).
+
+**Verified:** `supabase test db` 41/41; integration 12/12 against local Supabase; `npm test` 362 passed, 12 skipped; `tsc` 0 errors; lint 0 errors.
+
+**New env vars (server only):** `CLERK_ISSUER` (optional), `CLERK_AUTHORIZED_PARTIES` (optional), `HORARIO_INSECURE_DEV_AUTH`, `HORARIO_DEV_ACCOUNT_ID` (local dev only).
+
+---
+
 ### [SUMMARY] — 2026-10-18 01:10 UTC
 **Last CHG completed:** CHG-066
 **Current state:** Production-readiness plan agreed with Pablo (4 steps, PR review per step). Step 1 audit done: gap report at /mnt/project-files/plan/step1-gap-report.md (project shared folder), QA red-team baseline at /mnt/project-files/qa/redteam-baseline-2026-10-18.md. Step 2 (hardening) in progress on branch claude/project-thread-80h0k5.

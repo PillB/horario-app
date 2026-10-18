@@ -43,13 +43,12 @@ export function setTokenProvider(fn: (options?: GetTokenOptions) => Promise<stri
 /**
  * Returns the current Clerk session token by invoking the stored provider.
  *
- * Pass `template: 'supabase'` to get a Supabase-compatible JWT (requires a
- * "supabase" JWT template configured in the Clerk dashboard). Without a
- * template the standard Clerk session token is returned — valid for
- * server-side JWKS verification but may lack the `role: 'authenticated'`
- * claim expected by some Supabase RLS policies.
+ * Use the default session token. The server proxy verifies it against Clerk's
+ * JWKS, and Supabase accepts it directly through its native Clerk third-party
+ * auth integration. Clerk's "supabase" JWT template is deprecated (April 2025)
+ * and is not needed; `template` remains only for other custom templates.
  *
- * @param template  Optional Clerk JWT template name (e.g. 'supabase').
+ * @param template  Optional Clerk JWT template name.
  * @returns A promise that resolves to the session token string, or `null`
  *          when auth is disabled, no provider is set, or the user is signed out.
  */

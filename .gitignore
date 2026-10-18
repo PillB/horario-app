@@ -43,3 +43,6 @@ app-example
 .playwright-auth/
 playwright-report/
 test-results/
+
+# Local agent worktrees
+.claude/worktrees/

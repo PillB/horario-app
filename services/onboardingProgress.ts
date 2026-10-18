@@ -1,4 +1,3 @@
-import { getSupabaseClient } from './supabaseClient';
 import { getSessionToken } from '@/services/authToken';
 
 export type OnboardingProgress = {
@@ -7,102 +6,55 @@ export type OnboardingProgress = {
   forecast: boolean;
 };
 
-type OnboardingRow = {
-  workers_completed?: boolean | null;
-  templates_completed?: boolean | null;
-  forecast_completed?: boolean | null;
-};
+const proxyUrl = () => process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyQuery = any;
+/**
+ * Both reads and writes go through the secure proxy, which scopes them to the
+ * signed-in user and tenant. `accountId` is only consulted by the proxy's
+ * local insecure dev mode; with auth configured the server ignores it.
+ */
+const postToProxy = async <T>(body: Record<string, unknown>): Promise<T | null> => {
+  const token = await getSessionToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
 
-const TABLE_NAME = 'onboarding_progress';
-
-const applyUserFilter = (
-  query: AnyQuery,
-  userId?: string | null
-) => {
-  if (userId) {
-    return query.eq('user_id', userId);
+  const response = await fetch(proxyUrl(), { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({ error: 'Unknown error' }));
+    console.warn(`Onboarding ${String(body.action)} failed`, payload?.error ?? response.status);
+    return null;
   }
-
-  return query.is('user_id', null);
+  return (await response.json()) as T;
 };
 
 export const fetchOnboardingProgress = async (
   accountId: string,
-  userId?: string | null
+  // Kept for call-site compatibility; the server uses the signed-in user.
+  _userId?: string | null,
 ): Promise<OnboardingProgress | null> => {
-  const client = getSupabaseClient();
-  if (!client) return null;
-
-  const baseQuery = client
-    .from(TABLE_NAME)
-    .select('workers_completed, templates_completed, forecast_completed')
-    .eq('account_id', accountId)
-    .limit(1);
-
-  const query = applyUserFilter(baseQuery, userId);
-  const { data, error } = await query.maybeSingle();
-
-  if (error) {
-    console.warn('Unable to load onboarding progress', error.message);
+  try {
+    const result = await postToProxy<{ progress: OnboardingProgress | null }>({ action: 'getOnboarding', accountId });
+    return result?.progress ?? null;
+  } catch (error) {
+    console.warn('Unable to load onboarding progress', error instanceof Error ? error.message : error);
     return null;
   }
-
-  if (!data) return null;
-
-  const normalize = (row: OnboardingRow): OnboardingProgress => ({
-    workers: Boolean(row.workers_completed),
-    templates: Boolean(row.templates_completed),
-    forecast: Boolean(row.forecast_completed),
-  });
-
-  return normalize(data as OnboardingRow);
 };
 
 export const upsertOnboardingProgress = async (
   accountId: string,
   flags: OnboardingProgress,
-  userId?: string | null
-) => {
+  _userId?: string | null,
+): Promise<OnboardingProgress | null> => {
   try {
-    const token = await getSessionToken();
-
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ action: 'upsertOnboarding', accountId, flags, userId }),
+    const result = await postToProxy<{ success: boolean; progress: OnboardingProgress | null }>({
+      action: 'upsertOnboarding',
+      accountId,
+      flags,
     });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ error: 'Unknown error' }));
-      const message = payload?.error ?? `Secure proxy responded with status ${response.status}`;
-      console.warn('Unable to persist onboarding progress', message);
-      return null;
-    }
-
-    const { success, progress, error } = (await response.json()) as {
-      success: boolean;
-      progress: OnboardingProgress | null;
-      error?: string;
-    };
-
-    if (!success || !progress) {
-      const message = error ?? 'Unable to persist onboarding progress';
-      console.warn(message);
-      return null;
-    }
-
-    return progress;
+    return result?.success ? result.progress : null;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to persist onboarding progress';
-    console.warn(message);
+    console.warn('Unable to persist onboarding progress', error instanceof Error ? error.message : error);
     return null;
   }
 };
