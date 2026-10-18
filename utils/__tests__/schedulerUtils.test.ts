@@ -7,6 +7,7 @@ import {
   normalizeDay,
   parseTimeToMinutes,
   windowsOverlap,
+  normalizeWindow,
   getTemplateWindow,
   defaultTimezoneOffsetMinutes,
 } from '../schedulerUtils';
@@ -108,6 +109,31 @@ describe('windowsOverlap', () => {
   });
   it('does not flag non-overlapping windows', () => {
     expect(windowsOverlap({ startMinutes: 0, endMinutes: 300 }, { startMinutes: 600, endMinutes: 900 })).toBe(false);
+  });
+  // A4 regression: windows crossing midnight
+  it('detects overlap between an overnight window and a late-evening window', () => {
+    // 22:00–06:00 vs 23:00–23:30
+    expect(windowsOverlap({ startMinutes: 1320, endMinutes: 360 }, { startMinutes: 1380, endMinutes: 1410 })).toBe(true);
+  });
+  it('detects overlap between two overnight windows', () => {
+    // 22:00–06:00 vs 23:00–01:00
+    expect(windowsOverlap({ startMinutes: 1320, endMinutes: 360 }, { startMinutes: 1380, endMinutes: 60 })).toBe(true);
+  });
+  it('does not flag a window ending at midnight and one starting right after it on the same day', () => {
+    // 08:00–16:00 vs 16:00–00:00 (touching)
+    expect(windowsOverlap({ startMinutes: 480, endMinutes: 960 }, { startMinutes: 960, endMinutes: 0 })).toBe(false);
+  });
+});
+
+describe('normalizeWindow', () => {
+  it('leaves a same-day window untouched', () => {
+    expect(normalizeWindow({ startMinutes: 540, endMinutes: 1020 })).toEqual({ startMinutes: 540, endMinutes: 1020 });
+  });
+  it('extends an overnight window into the next day', () => {
+    expect(normalizeWindow({ startMinutes: 1320, endMinutes: 360 })).toEqual({ startMinutes: 1320, endMinutes: 1800 });
+  });
+  it('treats an end of 00:00 as midnight of the next day', () => {
+    expect(normalizeWindow({ startMinutes: 960, endMinutes: 0 })).toEqual({ startMinutes: 960, endMinutes: 1440 });
   });
 });
 

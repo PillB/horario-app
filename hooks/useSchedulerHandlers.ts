@@ -38,6 +38,7 @@ import {
 import {
   assignShifts,
   type AssignedShift,
+  type CoverageShortfall,
 } from '@/services/shiftAssigner';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
@@ -137,6 +138,8 @@ export function useSchedulerHandlers() {
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
   const [autoAssignSuggestions, setAutoAssignSuggestions] = useState<AssignedShift[] | null>(null);
+  /** Templates the last auto-assign run could not fully cover (null = no run / cleared). */
+  const [autoAssignShortfalls, setAutoAssignShortfalls] = useState<CoverageShortfall[] | null>(null);
   const [autoAssignApplying, setAutoAssignApplying] = useState(false);
 
   // ── Section layout offsets (for scroll-to-section) ────────────────────────
@@ -983,7 +986,10 @@ export function useSchedulerHandlers() {
       existingRoster: roster,
       timezoneOffsetMinutes: businessTimezoneOffsetMinutes,
     });
+    // Every under-covered template (partial or none) is surfaced, not only empty ones.
+    setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {
+      setAutoAssignSuggestions(null);
       showActionBanner(
         result.unassigned.length > 0
           ? `Auto-assign: no valid assignments found. ${result.unassigned[0].reason}`
@@ -994,10 +1000,15 @@ export function useSchedulerHandlers() {
     }
     setAutoAssignSuggestions(result.assignments);
     showActionBanner(
-      `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
+      result.unassigned.length > 0
+        ? t('scheduler.shifts.partialCoverageBanner', {
+            n: String(result.assignments.length),
+            missing: String(result.unassigned.reduce((sum, s) => sum + s.missing, 0)),
+          })
+        : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
       'info'
     );
-  }, [businessTimezoneOffsetMinutes, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, workers]);
+  }, [businessTimezoneOffsetMinutes, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
@@ -1016,6 +1027,7 @@ export function useSchedulerHandlers() {
       if (result.success) successCount += 1;
     }
     setAutoAssignSuggestions(null);
+    setAutoAssignShortfalls(null);
     setAutoAssignApplying(false);
     if (successCount > 0) {
       // Record freemium usage after at least one shift was successfully applied
@@ -1211,6 +1223,7 @@ export function useSchedulerHandlers() {
 
     // Auto-assign state
     autoAssignSuggestions,
+    autoAssignShortfalls,
     autoAssignApplying,
 
     // Usage / freemium

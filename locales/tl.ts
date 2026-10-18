@@ -307,6 +307,16 @@ export const tl = {
       applyingButton: 'Inilalapat…',
       suggestions: '{n} mungkahi sa pag-assign ang handa na',
       suggestionItem: '{worker} → {template} sa {date}',
+      partialCoverageBanner: 'Nakahanap ang auto-assign ng {n} mungkahi, pero {missing} puwesto ang hindi mapunan. Suriin ang mga kakulangan sa ibaba, saka i-click ang "Ilapat ang mga mungkahi".',
+      shortfallTitle: '{n} shift ang hindi lubos na napunan',
+      shortfallItem: '{template} sa {date}: {assigned}/{required} naka-assign, kulang ng {missing} — {reason}',
+      shortfallReasons: {
+        no_role_match: 'walang manggagawang may ganitong tungkulin',
+        no_availability: 'walang manggagawang may ganitong tungkulin ang available sa buong shift',
+        overlap: 'lahat ng karapat-dapat na manggagawa ay may kasabay nang shift',
+        max_hours: 'lahat ng karapat-dapat na manggagawa ay lalampas sa limitasyon ng oras kada araw o kada linggo',
+        min_rest: 'lahat ng karapat-dapat na manggagawa ay lalabag sa pinakamababang pahinga sa pagitan ng mga shift',
+      },
       tooltip: '📋 Kapag mayroon ka nang mga manggagawa at template, lumikha ng mga indibidwal na shift dito. Ilagay ang petsa, piliin ang manggagawa at template, pagkatapos ay i-save. O gamitin ang Auto-assign para punan ang lahat ng template sa isang tap — iginagalang nito ang availability, pagtutugma ng tungkulin, at pagkakapantay-pantay.',
     },
 

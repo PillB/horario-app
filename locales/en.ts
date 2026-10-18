@@ -322,6 +322,16 @@ export const en = {
       applyingButton: 'Applying…',
       suggestions: '{n} assignment suggestion(s) ready',
       suggestionItem: '{worker} → {template} on {date}',
+      partialCoverageBanner: 'Auto-assign found {n} suggestion(s), but {missing} slot(s) could not be filled. Review the gaps below, then click "Apply suggestions".',
+      shortfallTitle: '{n} shift(s) not fully covered',
+      shortfallItem: '{template} on {date}: {assigned}/{required} assigned, {missing} missing — {reason}',
+      shortfallReasons: {
+        no_role_match: 'no worker has this role',
+        no_availability: 'no worker with this role is available for the whole shift',
+        overlap: 'all eligible workers already have an overlapping shift',
+        max_hours: 'all eligible workers would exceed the daily or weekly hour limit',
+        min_rest: 'all eligible workers would break the minimum rest between shifts',
+      },
       tooltip: '📋 Once you have workers and templates, create individual shifts here. Enter the date, pick the worker and template, then save. Or use Auto-assign to fill all templates in one tap — it respects availability, role match, and fairness.',
     },
 

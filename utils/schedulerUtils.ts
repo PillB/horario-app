@@ -89,11 +89,40 @@ export const getTemplateWindow = (
   endMinutes: parseTimeToMinutes(template.end),
 });
 
+export const MINUTES_PER_DAY = 1440;
+
+/**
+ * Normalises a same-start-day window so that overnight windows are contiguous:
+ * when `endMinutes <= startMinutes` the window ends on the following day, so
+ * `endMinutes` is shifted by 24h (e.g. 22:00–06:00 → 1320–1800, 16:00–00:00 → 960–1440).
+ * A window with equal start and end is treated as a full 24h window, matching the
+ * duration rule used for shift hours.
+ */
+export const normalizeWindow = (window: {
+  startMinutes: number;
+  endMinutes: number;
+}): { startMinutes: number; endMinutes: number } => ({
+  startMinutes: window.startMinutes,
+  endMinutes:
+    window.endMinutes <= window.startMinutes
+      ? window.endMinutes + MINUTES_PER_DAY
+      : window.endMinutes,
+});
+
+/**
+ * Returns true when two windows that START ON THE SAME DAY overlap (half-open
+ * intervals, so touching windows such as 08:00–16:00 and 16:00–00:00 do not overlap).
+ * Overnight windows (end <= start) are normalised first, so 22:00–06:00 overlaps 23:00–01:00.
+ * Windows starting on different days must be compared with absolute timestamps instead.
+ */
 export const windowsOverlap = (
   first: { startMinutes: number; endMinutes: number },
   second: { startMinutes: number; endMinutes: number }
-): boolean =>
-  first.startMinutes < second.endMinutes && second.startMinutes < first.endMinutes;
+): boolean => {
+  const a = normalizeWindow(first);
+  const b = normalizeWindow(second);
+  return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
+};
 
 // ─── ISO date helper ──────────────────────────────────────────────────────────
 

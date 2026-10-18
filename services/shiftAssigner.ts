@@ -4,31 +4,51 @@
  * Hard constraints (must satisfy — assignment is rejected if violated):
  *   1. Worker role must match template role
  *   2. Worker availability must fully cover the template window on the shift date
- *   3. No time overlap with other shifts assigned to the same worker on the same date
- *      (including shifts already present in existingRoster)
+ *      (overnight windows supported, see "Time model" below)
+ *   3. No time overlap with any other shift of the same worker, including shifts in
+ *      existingRoster and shifts on the previous/next day that cross midnight
  *   4. (optional) Max daily hours per worker must not be exceeded
  *   5. (optional) Max weekly hours per worker (ISO week Mon–Sun) must not be exceeded
  *   6. (optional) Minimum rest hours between consecutive shifts must be observed
+ *
+ * Time model:
+ *   - Every shift is converted to an absolute interval [start, end) in minutes on a
+ *     continuous business-local timeline (day index × 1440 + minutes). A template whose
+ *     end is <= its start is an overnight shift ending on the following day
+ *     (22:00–06:00 on Mon runs Mon 22:00 → Tue 06:00; 16:00–00:00 ends at Tue 00:00).
+ *     DST transitions are ignored (every day is 24h).
+ *   - Availability slots use the same rule (Mon 22:00–06:00 runs into Tuesday). A slot
+ *     ending at 23:59 is treated as ending at 24:00, because time inputs cannot express
+ *     24:00. Slots from the previous, same and next weekday are merged when they touch,
+ *     so Mon 18:00–23:59 + Tue 00:00–08:00 covers a Mon 22:00–06:00 shift.
+ *   - Overlap and minimum rest are computed on absolute intervals, so they work across
+ *     day boundaries and look at shifts on any date (not only the target date).
+ *   - Hours attribution: a shift's full duration counts toward the day (and ISO week)
+ *     on which it STARTS. A Sun 22:00–Mon 06:00 shift is 8h on Sunday and in Sunday's week.
  *
  * Soft scoring (higher = preferred):
  *   - Fairness: workers with fewer total assigned hours are preferred
  *     Score contribution: 1 / (1 + existingHoursForWorker)
  *
  * Algorithm:
- *   1. Build a priority queue of (template, worker) pairs sorted by score desc
- *   2. Greedy first-fit: assign best-scored eligible pair, marking worker+slot as used
- *   3. 2-opt local swap: try swapping any two assignments to see if fairness improves
+ *   1. Greedy first-fit: for each template slot, assign the best-scored eligible worker
+ *   2. 2-opt local swap: try swapping the workers of any two assignments to improve
+ *      fairness. Every swap is re-validated against ALL hard constraints using the true
+ *      resulting roster (existing roster + every other current assignment).
+ *   3. Refill: try again to fill slots still open after swapping.
+ *   4. Report every template whose coverage is not met, with a reason code.
  *
  * Pure function — no side effects, no React imports.
  */
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
+  MINUTES_PER_DAY,
   defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   getWeekdayFromDate,
+  normalizeWindow,
   parseTimeToMinutes,
-  windowsOverlap,
 } from '@/utils/schedulerUtils';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -38,11 +58,11 @@ import {
  * All limits are inclusive upper bounds; omit a field to disable that check.
  */
 export type LaborConstraints = {
-  /** Maximum hours a worker may work in a single calendar day (e.g. 10). */
+  /** Maximum hours a worker may work per day, counting each shift on its start date (e.g. 10). */
   maxDailyHours?: number;
-  /** Maximum hours a worker may work in an ISO calendar week Mon–Sun (e.g. 48). */
+  /** Maximum hours a worker may work in an ISO calendar week Mon–Sun, by shift start date (e.g. 48). */
   maxWeeklyHours?: number;
-  /** Minimum rest hours required between the end of one shift and the start of the next (e.g. 8). */
+  /** Minimum rest hours required between the end of one shift and the start of the next (e.g. 12). */
   minRestHoursBetweenShifts?: number;
 };
 
@@ -52,9 +72,10 @@ export type AssignmentInput = {
   /** Shift templates to be assigned on this date. */
   templates: ShiftTemplate[];
   /**
-   * Full template catalog used to look up shift durations for existingRoster entries.
-   * If omitted, falls back to `templates`. Pass all known templates when existingRoster
-   * contains shifts whose templates are not in the current day's `templates` list.
+   * Full template catalog used to resolve existingRoster entries. `templates` is always
+   * merged in, so passing only the catalog of other templates is fine. Pass all known
+   * templates when existingRoster contains shifts whose templates are not in `templates`,
+   * otherwise those shifts cannot be checked for overlap, hours or rest.
    */
   templateCatalog?: ShiftTemplate[];
   workers: Worker[];
@@ -72,70 +93,68 @@ export type AssignedShift = {
   workerId: string;
 };
 
-export type UnassignedTemplate = {
+/**
+ * Why a slot could not be filled. Determined by filtering the workforce through the
+ * hard constraints in order (role → availability → overlap → max hours → min rest);
+ * the code names the stage at which the last remaining candidate was eliminated.
+ */
+export type ShortfallReasonCode =
+  | 'no_role_match'
+  | 'no_availability'
+  | 'overlap'
+  | 'max_hours'
+  | 'min_rest';
+
+/** A template whose coverage requirement was not fully met on `date`. */
+export type CoverageShortfall = {
   templateId: string;
+  date: string;
+  /** Number of workers the template needs. */
+  required: number;
+  /** Number of workers assigned to it by this run. */
+  assigned: number;
+  /** required − assigned (always ≥ 1). */
+  missing: number;
+  reasonCode: ShortfallReasonCode;
+  /** English, human-readable explanation (for logs/banners; UI should localise `reasonCode`). */
   reason: string;
 };
 
 export type AssignmentResult = {
   assignments: AssignedShift[];
-  unassigned: UnassignedTemplate[];
+  /** Every template that is under-covered (partially or fully). Empty when all coverage is met. */
+  unassigned: CoverageShortfall[];
 };
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+// ─── Internal types ───────────────────────────────────────────────────────────
 
-/** Returns the total scheduled hours for a worker across all shifts in a list. */
-const totalHoursForWorker = (workerId: string, shifts: Shift[], templates: ShiftTemplate[]): number =>
-  shifts.reduce((total, shift) => {
-    if (shift.workerId !== workerId) return total;
-    const template = templates.find((t) => t.id === shift.templateId);
-    if (!template) return total;
-    const { startMinutes, endMinutes } = getTemplateWindow(template);
-    // Handle overnight shifts (end < start, e.g. 16:00–00:00)
-    const hours =
-      endMinutes > startMinutes
-        ? (endMinutes - startMinutes) / 60
-        : (endMinutes + 1440 - startMinutes) / 60;
-    return total + hours;
-  }, 0);
-
-/** Returns true when the worker's availability covers the template window on the given date. */
-const workerCoversTemplate = (
-  worker: Worker,
-  template: ShiftTemplate,
-  date: string,
-  tzOffset: number
-): boolean => {
-  const weekdayLabel = getWeekdayFromDate(date, tzOffset);
-  if (!weekdayLabel) return false;
-
-  const { startMinutes: tmplStart, endMinutes: tmplEnd } = getTemplateWindow(template);
-
-  return worker.availability.some((slot) => {
-    if (slot.day !== weekdayLabel) return false;
-    const slotStart = parseTimeToMinutes(slot.from);
-    const slotEnd = parseTimeToMinutes(slot.to);
-    return slotStart <= tmplStart && slotEnd >= tmplEnd;
-  });
+/** A roster entry resolved to an absolute interval on the business-local timeline. */
+type Entry = {
+  workerId: string;
+  templateId: string;
+  date: string;
+  /** Absolute start, in minutes since 1970-01-01 00:00 (business-local wall clock). */
+  start: number;
+  /** Absolute end (exclusive). */
+  end: number;
 };
 
-/** Returns true when adding this template window to the worker's day would overlap
- *  with any existing committed window (from existingRoster + already-assigned templates). */
-const hasTimeOverlap = (
-  workerId: string,
-  newTemplate: ShiftTemplate,
-  date: string,
-  allShifts: Shift[],
-  allTemplates: ShiftTemplate[]
-): boolean => {
-  const newWindow = getTemplateWindow(newTemplate);
-  return allShifts.some((shift) => {
-    if (shift.workerId !== workerId || shift.date !== date) return false;
-    const existingTemplate = allTemplates.find((t) => t.id === shift.templateId);
-    if (!existingTemplate) return false;
-    return windowsOverlap(getTemplateWindow(existingTemplate), newWindow);
-  });
-};
+type Interval = { start: number; end: number };
+
+const REASON_ORDER: ShortfallReasonCode[] = [
+  'no_role_match',
+  'no_availability',
+  'overlap',
+  'max_hours',
+  'min_rest',
+];
+
+// ─── Time helpers ─────────────────────────────────────────────────────────────
+
+const MS_PER_DAY = 86_400_000;
+
+/** Day number of an ISO date on a continuous calendar (no timezone/DST effects). */
+const dayIndex = (date: string): number => Math.round(Date.parse(`${date}T00:00:00Z`) / MS_PER_DAY);
 
 /** Returns an ISO date string offset by `days` from the given ISO date. */
 const offsetDate = (date: string, days: number): string => {
@@ -144,8 +163,33 @@ const offsetDate = (date: string, days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Absolute interval of `template` when it starts on `date`. */
+const shiftInterval = (template: ShiftTemplate, date: string): Interval => {
+  const w = normalizeWindow(getTemplateWindow(template));
+  const base = dayIndex(date) * MINUTES_PER_DAY;
+  return { start: base + w.startMinutes, end: base + w.endMinutes };
+};
+
+/** Duration of a template in minutes (overnight-aware). */
+const shiftMinutes = (template: ShiftTemplate): number => {
+  const w = normalizeWindow(getTemplateWindow(template));
+  return w.endMinutes - w.startMinutes;
+};
+
+const entryMinutes = (e: Entry): number => e.end - e.start;
+
+/** Absolute interval of an availability slot on `date` (23:59 = end of day, end <= start wraps). */
+const availabilityInterval = (from: string, to: string, date: string): Interval => {
+  const start = parseTimeToMinutes(from);
+  const rawEnd = parseTimeToMinutes(to);
+  const end = rawEnd === MINUTES_PER_DAY - 1 ? MINUTES_PER_DAY : rawEnd;
+  const w = normalizeWindow({ startMinutes: start, endMinutes: end });
+  const base = dayIndex(date) * MINUTES_PER_DAY;
+  return { start: base + w.startMinutes, end: base + w.endMinutes };
+};
+
 /**
- * Returns the Monday and Sunday (inclusive) of the ISO calendar week containing `date`.
+ * Returns the ISO week bounds (Monday and Sunday, inclusive) of the week containing `date`.
  * Exported for unit testing.
  */
 export const getWeekBounds = (date: string): { weekStart: string; weekEnd: string } => {
@@ -162,140 +206,89 @@ export const getWeekBounds = (date: string): { weekStart: string; weekEnd: strin
   };
 };
 
-/** Total scheduled hours for a worker on a specific calendar date. */
-const dailyHoursForWorker = (
-  workerId: string,
-  date: string,
-  shifts: Shift[],
-  templates: ShiftTemplate[]
-): number =>
-  shifts.reduce((total, shift) => {
-    if (shift.workerId !== workerId || shift.date !== date) return total;
-    const template = templates.find((t) => t.id === shift.templateId);
-    return template ? total + getShiftHours(template, templates) : total;
-  }, 0);
-
-/** Total scheduled hours for a worker within an ISO week (weekStart–weekEnd inclusive). */
-const weeklyHoursForWorker = (
-  workerId: string,
-  weekStart: string,
-  weekEnd: string,
-  shifts: Shift[],
-  templates: ShiftTemplate[]
-): number =>
-  shifts.reduce((total, shift) => {
-    if (shift.workerId !== workerId) return total;
-    if (shift.date < weekStart || shift.date > weekEnd) return total;
-    const template = templates.find((t) => t.id === shift.templateId);
-    return template ? total + getShiftHours(template, templates) : total;
-  }, 0);
-
-/**
- * Returns true when adding `newTemplate` to `workerId` on `date` would push their
- * daily total above `maxDailyHours`.
- */
-const exceedsDailyHours = (
-  workerId: string,
-  newTemplate: ShiftTemplate,
-  date: string,
-  allShifts: Shift[],
-  allTemplates: ShiftTemplate[],
-  maxDailyHours: number
-): boolean => {
-  const existing = dailyHoursForWorker(workerId, date, allShifts, allTemplates);
-  return existing + getShiftHours(newTemplate, allTemplates) > maxDailyHours;
+/** Coverage requirement of a template (non-finite or < 1 counts as 1). */
+export const requiredSlots = (template: ShiftTemplate): number => {
+  const raw = template.coverage;
+  return Number.isFinite(raw) && raw >= 1 ? Math.round(raw) : 1;
 };
 
-/**
- * Returns true when adding `newTemplate` to `workerId` on `date` would push their
- * weekly total above `maxWeeklyHours`.
- */
-const exceedsWeeklyHours = (
-  workerId: string,
-  newTemplate: ShiftTemplate,
-  date: string,
-  allShifts: Shift[],
-  allTemplates: ShiftTemplate[],
-  maxWeeklyHours: number
-): boolean => {
-  const { weekStart, weekEnd } = getWeekBounds(date);
-  const existing = weeklyHoursForWorker(workerId, weekStart, weekEnd, allShifts, allTemplates);
-  return existing + getShiftHours(newTemplate, allTemplates) > maxWeeklyHours;
+// ─── Constraint checks ────────────────────────────────────────────────────────
+
+type CheckContext = {
+  date: string;
+  /** The previous, target and next date with their weekday labels (null when invalid). */
+  days: { date: string; label: string | null }[];
+  constraints?: LaborConstraints;
 };
 
-/**
- * Returns true when the gap between `newTemplate` and any existing shift for `workerId`
- * on the same or adjacent dates is shorter than `minRestHours`.
- *
- * Converts all windows to "minutes relative to midnight of `date`" so cross-midnight
- * gaps (e.g. shift ending 23:00 yesterday, new shift starting 06:00 today) are correctly
- * compared. Overnight shifts (endMinutes < startMinutes) are not supported and are skipped.
- */
-const violatesMinRest = (
-  workerId: string,
-  newTemplate: ShiftTemplate,
-  date: string,
-  allShifts: Shift[],
-  allTemplates: ShiftTemplate[],
-  minRestHours: number
-): boolean => {
-  const minRestMinutes = minRestHours * 60;
-  const newWindow = getTemplateWindow(newTemplate);
-  // Skip overnight templates for min-rest purposes (end < start would make arithmetic ambiguous)
-  if (newWindow.endMinutes <= newWindow.startMinutes) return false;
-
-  const prevDate = offsetDate(date, -1);
-  const nextDate = offsetDate(date, 1);
-
-  for (const shift of allShifts) {
-    if (shift.workerId !== workerId) continue;
-    if (shift.date !== prevDate && shift.date !== date && shift.date !== nextDate) continue;
-
-    const tmpl = allTemplates.find((t) => t.id === shift.templateId);
-    if (!tmpl) continue;
-    const w = getTemplateWindow(tmpl);
-    if (w.endMinutes <= w.startMinutes) continue; // skip overnight existing shifts too
-
-    // Offset shift window to minutes relative to midnight of `date`
-    const dayOffset = shift.date === prevDate ? -1440 : shift.date === nextDate ? 1440 : 0;
-    const shiftStart = w.startMinutes + dayOffset;
-    const shiftEnd = w.endMinutes + dayOffset;
-
-    // Gap when new shift follows the existing shift
-    if (shiftEnd <= newWindow.startMinutes && newWindow.startMinutes - shiftEnd < minRestMinutes) {
-      return true;
-    }
-    // Gap when new shift precedes the existing shift
-    if (newWindow.endMinutes <= shiftStart && shiftStart - newWindow.endMinutes < minRestMinutes) {
-      return true;
+/** Returns true when the worker's availability covers `interval` (a shift starting on ctx.date). */
+const workerCoversInterval = (worker: Worker, interval: Interval, ctx: CheckContext): boolean => {
+  const slots: Interval[] = [];
+  for (const { date: day, label } of ctx.days) {
+    if (!label) continue;
+    for (const slot of worker.availability) {
+      if (slot.day === label) slots.push(availabilityInterval(slot.from, slot.to, day));
     }
   }
-
+  if (slots.length === 0) return false;
+  slots.sort((a, b) => a.start - b.start);
+  // Merge overlapping / touching slots, then look for one that contains the interval.
+  let current = { ...slots[0] };
+  for (let i = 1; i <= slots.length; i++) {
+    const next = slots[i];
+    if (next && next.start <= current.end) {
+      current.end = Math.max(current.end, next.end);
+      continue;
+    }
+    if (current.start <= interval.start && current.end >= interval.end) return true;
+    if (next) current = { ...next };
+  }
   return false;
 };
 
-/** Returns true if `workerId` passes all active labor-law constraints for `newTemplate` on `date`. */
-const passesConstraints = (
-  workerId: string,
-  newTemplate: ShiftTemplate,
-  date: string,
-  allShifts: Shift[],
-  allTemplates: ShiftTemplate[],
-  constraints: LaborConstraints
-): boolean => {
-  if (
-    constraints.maxDailyHours !== undefined &&
-    exceedsDailyHours(workerId, newTemplate, date, allShifts, allTemplates, constraints.maxDailyHours)
-  ) return false;
-  if (
-    constraints.maxWeeklyHours !== undefined &&
-    exceedsWeeklyHours(workerId, newTemplate, date, allShifts, allTemplates, constraints.maxWeeklyHours)
-  ) return false;
-  if (
-    constraints.minRestHoursBetweenShifts !== undefined &&
-    violatesMinRest(workerId, newTemplate, date, allShifts, allTemplates, constraints.minRestHoursBetweenShifts)
-  ) return false;
-  return true;
+/**
+ * Checks every hard constraint for putting `worker` on `template` on `ctx.date`, given
+ * all OTHER roster entries (`others`). Returns null when eligible, otherwise the code of
+ * the first failing constraint (in REASON_ORDER).
+ */
+const checkEligibility = (
+  worker: Worker,
+  template: ShiftTemplate,
+  others: Entry[],
+  ctx: CheckContext
+): ShortfallReasonCode | null => {
+  if (worker.role !== template.role) return 'no_role_match';
+
+  const interval = shiftInterval(template, ctx.date);
+  if (!workerCoversInterval(worker, interval, ctx)) return 'no_availability';
+
+  const mine = others.filter((e) => e.workerId === worker.id);
+  if (mine.some((e) => e.start < interval.end && interval.start < e.end)) return 'overlap';
+
+  const constraints = ctx.constraints;
+  if (!constraints) return null;
+
+  const newMinutes = interval.end - interval.start;
+  if (constraints.maxDailyHours !== undefined) {
+    const daily = mine.reduce((sum, e) => (e.date === ctx.date ? sum + entryMinutes(e) : sum), 0);
+    if (daily + newMinutes > constraints.maxDailyHours * 60) return 'max_hours';
+  }
+  if (constraints.maxWeeklyHours !== undefined) {
+    const { weekStart, weekEnd } = getWeekBounds(ctx.date);
+    const weekly = mine.reduce(
+      (sum, e) => (e.date >= weekStart && e.date <= weekEnd ? sum + entryMinutes(e) : sum),
+      0
+    );
+    if (weekly + newMinutes > constraints.maxWeeklyHours * 60) return 'max_hours';
+  }
+  if (constraints.minRestHoursBetweenShifts !== undefined) {
+    const minRest = constraints.minRestHoursBetweenShifts * 60;
+    // Gap between two non-overlapping intervals, whichever comes first.
+    if (mine.some((e) => Math.max(interval.start - e.end, e.start - interval.end) < minRest)) {
+      return 'min_rest';
+    }
+  }
+  return null;
 };
 
 /** Fairness score: workers with fewer hours get a higher score. */
@@ -307,186 +300,181 @@ const fairnessScore = (workerId: string, accumulatedHours: Map<string, number>):
 export function assignShifts(input: AssignmentInput): AssignmentResult {
   const { date, templates, workers, existingRoster, constraints } = input;
   const tzOffset = input.timezoneOffsetMinutes ?? defaultTimezoneOffsetMinutes;
-  // Use templateCatalog for historical lookups; fall back to templates for the current day
-  const catalog = input.templateCatalog ?? templates;
+  const ctx: CheckContext = {
+    date,
+    days: [-1, 0, 1].map((offset) => {
+      const day = offsetDate(date, offset);
+      return { date: day, label: getWeekdayFromDate(day, tzOffset) };
+    }),
+    constraints,
+  };
 
-  // Accumulated hours map (seeded from existingRoster for all workers)
+  // Template lookup: full catalog plus today's templates (A6 — existing shifts whose
+  // template is not in today's list must still be visible to every check).
+  const catalog = new Map<string, ShiftTemplate>();
+  for (const t of input.templateCatalog ?? []) catalog.set(t.id, t);
+  for (const t of templates) catalog.set(t.id, t);
+
+  const workerById = new Map(workers.map((w) => [w.id, w]));
+
+  // Existing roster resolved to absolute intervals. Entries whose template is unknown
+  // cannot be placed on the timeline and are ignored.
+  const existing: Entry[] = [];
+  for (const shift of existingRoster) {
+    const template = catalog.get(shift.templateId);
+    if (!template) continue;
+    existing.push({
+      workerId: shift.workerId,
+      templateId: shift.templateId,
+      date: shift.date,
+      ...shiftInterval(template, shift.date),
+    });
+  }
+
+  // Accumulated hours for fairness (seeded from the whole existing roster)
   const accumulatedHours = new Map<string, number>();
-  for (const worker of workers) {
-    accumulatedHours.set(
-      worker.id,
-      totalHoursForWorker(worker.id, existingRoster, catalog)
-    );
-  }
-
-  // Live roster for this date (grows as we assign)
-  const liveRoster: Shift[] = [...existingRoster];
-
-  const assignments: AssignedShift[] = [];
-  const unassigned: UnassignedTemplate[] = [];
-
-  for (const template of templates) {
-    const rawCoverage = template.coverage;
-    const slotsNeeded = (Number.isFinite(rawCoverage) && rawCoverage >= 1) ? Math.round(rawCoverage) : 1;
-    const { startMinutes, endMinutes } = getTemplateWindow(template);
-    const hours =
-      endMinutes > startMinutes
-        ? (endMinutes - startMinutes) / 60
-        : (endMinutes + 1440 - startMinutes) / 60;
-
-    let slotsAssigned = 0;
-
-    for (let slot = 0; slot < slotsNeeded; slot++) {
-      // Find all eligible workers for this slot (excludes already-assigned workers via liveRoster overlap check)
-      const candidates = workers.filter((worker) => {
-        if (worker.role !== template.role) return false;
-        if (!workerCoversTemplate(worker, template, date, tzOffset)) return false;
-        if (hasTimeOverlap(worker.id, template, date, liveRoster, templates)) return false;
-        if (constraints && !passesConstraints(worker.id, template, date, liveRoster, catalog, constraints)) return false;
-        return true;
-      });
-
-      if (candidates.length === 0) break; // no more eligible workers for this template
-
-      // Score and sort candidates (highest score first)
-      const scored = candidates.map((worker) => ({
-        worker,
-        score: fairnessScore(worker.id, accumulatedHours),
-      }));
-      scored.sort((a, b) => b.score - a.score);
-
-      const best = scored[0].worker;
-
-      // Commit assignment
-      assignments.push({ date, templateId: template.id, workerId: best.id });
-      accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + hours);
-
-      // Record in live roster for overlap checks on subsequent slots/templates
-      liveRoster.push({
-        id: `new::${date}::${template.id}::${best.id}`,
-        date,
-        workerId: best.id,
-        templateId: template.id,
-        location: 'HQ',
-        status: 'Draft',
-        notified: false,
-      });
-
-      slotsAssigned++;
-    }
-
-    if (slotsAssigned === 0) {
-      unassigned.push({
-        templateId: template.id,
-        reason: noAssignmentReason(template, workers, date, liveRoster, catalog, tzOffset, constraints),
-      });
+  for (const worker of workers) accumulatedHours.set(worker.id, 0);
+  for (const e of existing) {
+    if (accumulatedHours.has(e.workerId)) {
+      accumulatedHours.set(e.workerId, (accumulatedHours.get(e.workerId) ?? 0) + entryMinutes(e) / 60);
     }
   }
 
-  // ── 2-opt local swap improvement ──────────────────────────────────────────
-  // Try swapping any two assignments to improve fairness.
+  // New assignments made by this run (single source of truth for the live roster).
+  const assigned: Entry[] = [];
+  const allEntries = (): Entry[] => existing.concat(assigned);
+  const countFor = (templateId: string): number =>
+    assigned.reduce((n, e) => (e.templateId === templateId ? n + 1 : n), 0);
+
+  /** Fills open slots of `template` with the fairest eligible workers. */
+  const fillTemplate = (template: ShiftTemplate): void => {
+    const needed = requiredSlots(template);
+    while (countFor(template.id) < needed) {
+      const roster = allEntries();
+      let best: Worker | null = null;
+      let bestScore = -Infinity;
+      for (const worker of workers) {
+        if (checkEligibility(worker, template, roster, ctx) !== null) continue;
+        const score = fairnessScore(worker.id, accumulatedHours);
+        if (score > bestScore) {
+          best = worker;
+          bestScore = score;
+        }
+      }
+      if (!best) return;
+      assigned.push({ workerId: best.id, templateId: template.id, date, ...shiftInterval(template, date) });
+      accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + shiftMinutes(template) / 60);
+    }
+  };
+
+  // ── 1. Greedy fill ────────────────────────────────────────────────────────
+  for (const template of templates) fillTemplate(template);
+
+  // ── 2. 2-opt local swap improvement ───────────────────────────────────────
+  // Swap the workers of two assignments when it improves fairness AND both resulting
+  // assignments satisfy every hard constraint against the true resulting roster.
+  // Each applied swap strictly increases the total fairness score, so this terminates.
   let improved = true;
   while (improved) {
     improved = false;
-    for (let i = 0; i < assignments.length; i++) {
-      for (let j = i + 1; j < assignments.length; j++) {
-        const a = assignments[i];
-        const b = assignments[j];
+    for (let i = 0; i < assigned.length; i++) {
+      for (let j = i + 1; j < assigned.length; j++) {
+        const a = assigned[i];
+        const b = assigned[j];
+        if (a.workerId === b.workerId || a.templateId === b.templateId) continue;
 
-        const templateA = templates.find((t) => t.id === a.templateId)!;
-        const templateB = templates.find((t) => t.id === b.templateId)!;
-        const workerA = workers.find((w) => w.id === a.workerId)!;
-        const workerB = workers.find((w) => w.id === b.workerId)!;
-
+        const templateA = catalog.get(a.templateId);
+        const templateB = catalog.get(b.templateId);
+        const workerA = workerById.get(a.workerId);
+        const workerB = workerById.get(b.workerId);
         if (!templateA || !templateB || !workerA || !workerB) continue;
-        // Can only swap if roles match the swapped templates
-        if (workerA.role !== templateB.role || workerB.role !== templateA.role) continue;
 
-        // Build roster without these two assignments
-        const rosterWithoutBoth = liveRoster.filter(
-          (s) =>
-            !(s.workerId === a.workerId && s.templateId === a.templateId && s.date === a.date) &&
-            !(s.workerId === b.workerId && s.templateId === b.templateId && s.date === b.date)
-        );
-
-        // Check if workerA can cover templateB and workerB can cover templateA after swap
-        const canSwap =
-          workerCoversTemplate(workerA, templateB, date, tzOffset) &&
-          !hasTimeOverlap(workerA.id, templateB, date, rosterWithoutBoth, templates) &&
-          (!constraints || passesConstraints(workerA.id, templateB, date, rosterWithoutBoth, catalog, constraints)) &&
-          workerCoversTemplate(workerB, templateA, date, tzOffset) &&
-          !hasTimeOverlap(workerB.id, templateA, date, rosterWithoutBoth, templates) &&
-          (!constraints || passesConstraints(workerB.id, templateA, date, rosterWithoutBoth, catalog, constraints));
-
-        if (!canSwap) continue;
-
-        // Evaluate if swap improves total fairness score
-        const currentScore =
-          fairnessScore(a.workerId, accumulatedHours) +
-          fairnessScore(b.workerId, accumulatedHours);
-
-        // Temporarily swap hours
-        const hoursA = getShiftHours(templateA, templates);
-        const hoursB = getShiftHours(templateB, templates);
+        const hoursA = shiftMinutes(templateA) / 60;
+        const hoursB = shiftMinutes(templateB) / 60;
         const swappedHours = new Map(accumulatedHours);
         swappedHours.set(a.workerId, (swappedHours.get(a.workerId) ?? 0) - hoursA + hoursB);
         swappedHours.set(b.workerId, (swappedHours.get(b.workerId) ?? 0) - hoursB + hoursA);
 
+        const currentScore =
+          fairnessScore(a.workerId, accumulatedHours) + fairnessScore(b.workerId, accumulatedHours);
         const swappedScore =
           fairnessScore(a.workerId, swappedHours) + fairnessScore(b.workerId, swappedHours);
+        if (swappedScore <= currentScore + 0.001) continue;
 
-        if (swappedScore > currentScore + 0.001) {
-          // Apply swap
-          assignments[i] = { ...a, workerId: b.workerId };
-          assignments[j] = { ...b, workerId: a.workerId };
-          accumulatedHours.set(a.workerId, swappedHours.get(a.workerId)!);
-          accumulatedHours.set(b.workerId, swappedHours.get(b.workerId)!);
-          improved = true;
-        }
+        // The resulting roster minus the two swapped slots. Worker A's and worker B's
+        // constraints only depend on their own shifts, so each new slot is validated
+        // against this roster independently.
+        const rest = existing.concat(assigned.filter((_, k) => k !== i && k !== j));
+        if (checkEligibility(workerA, templateB, rest, ctx) !== null) continue;
+        if (checkEligibility(workerB, templateA, rest, ctx) !== null) continue;
+
+        assigned[i] = { ...a, workerId: b.workerId };
+        assigned[j] = { ...b, workerId: a.workerId };
+        accumulatedHours.set(a.workerId, swappedHours.get(a.workerId) ?? 0);
+        accumulatedHours.set(b.workerId, swappedHours.get(b.workerId) ?? 0);
+        improved = true;
       }
     }
   }
 
-  return { assignments, unassigned };
-}
+  // ── 3. Refill slots that may have become fillable after swaps ─────────────
+  for (const template of templates) fillTemplate(template);
 
-// ─── Helper: shift hours ──────────────────────────────────────────────────────
-
-function getShiftHours(template: ShiftTemplate, _templates: ShiftTemplate[]): number {
-  const { startMinutes, endMinutes } = getTemplateWindow(template);
-  return endMinutes > startMinutes
-    ? (endMinutes - startMinutes) / 60
-    : (endMinutes + 1440 - startMinutes) / 60;
-}
-
-// ─── Helper: human-readable reason for no assignment ─────────────────────────
-
-function noAssignmentReason(
-  template: ShiftTemplate,
-  workers: Worker[],
-  date: string,
-  liveRoster: Shift[],
-  templates: ShiftTemplate[],
-  tzOffset: number,
-  constraints?: LaborConstraints
-): string {
-  const roleMatches = workers.filter((w) => w.role === template.role);
-  if (roleMatches.length === 0)
-    return `No workers with role "${template.role}" are registered.`;
-
-  const available = roleMatches.filter((w) =>
-    workerCoversTemplate(w, template, date, tzOffset)
-  );
-  if (available.length === 0)
-    return `No "${template.role}" workers have availability covering ${template.start}–${template.end} on this day.`;
-
-  if (constraints) {
-    const passConstraint = available.filter((w) =>
-      passesConstraints(w.id, template, date, liveRoster, templates, constraints)
-    );
-    if (passConstraint.length === 0)
-      return `All eligible "${template.role}" workers would exceed labor-law limits (daily/weekly hours or minimum rest).`;
+  // ── 4. Shortfall report ───────────────────────────────────────────────────
+  const finalRoster = allEntries();
+  const unassigned: CoverageShortfall[] = [];
+  for (const template of templates) {
+    const required = requiredSlots(template);
+    const count = countFor(template.id);
+    if (count >= required) continue;
+    const reasonCode = shortfallReason(template, workers, finalRoster, ctx);
+    unassigned.push({
+      templateId: template.id,
+      date,
+      required,
+      assigned: count,
+      missing: required - count,
+      reasonCode,
+      reason: describeReason(reasonCode, template, date),
+    });
   }
 
-  return `All eligible "${template.role}" workers have a conflicting shift on ${date}.`;
+  return {
+    assignments: assigned.map((e) => ({ date: e.date, templateId: e.templateId, workerId: e.workerId })),
+    unassigned,
+  };
+}
+
+// ─── Helper: reason for a shortfall ───────────────────────────────────────────
+
+/** The furthest constraint stage any worker reached before being rejected. */
+function shortfallReason(
+  template: ShiftTemplate,
+  workers: Worker[],
+  roster: Entry[],
+  ctx: CheckContext
+): ShortfallReasonCode {
+  let furthest = 0;
+  for (const worker of workers) {
+    const code = checkEligibility(worker, template, roster, ctx);
+    // A null code cannot happen after fillTemplate; treat it as the last stage defensively.
+    const stage = code === null ? REASON_ORDER.length - 1 : REASON_ORDER.indexOf(code);
+    furthest = Math.max(furthest, stage);
+  }
+  return REASON_ORDER[furthest];
+}
+
+function describeReason(code: ShortfallReasonCode, template: ShiftTemplate, date: string): string {
+  switch (code) {
+    case 'no_role_match':
+      return `No workers with role "${template.role}" are registered.`;
+    case 'no_availability':
+      return `No "${template.role}" workers have availability covering ${template.start}–${template.end} on this day.`;
+    case 'overlap':
+      return `All eligible "${template.role}" workers have a conflicting shift on ${date}.`;
+    case 'max_hours':
+      return `All eligible "${template.role}" workers would exceed labor-law hour limits (daily or weekly).`;
+    case 'min_rest':
+      return `All eligible "${template.role}" workers would break the labor-law minimum rest between shifts.`;
+  }
 }

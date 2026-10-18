@@ -318,6 +318,16 @@ export const fr = {
       applyingButton: 'Application…',
       suggestions: "{n} suggestion(s) d'affectation prête(s)",
       suggestionItem: '{worker} → {template} le {date}',
+      partialCoverageBanner: "L'affectation automatique a trouvé {n} suggestion(s), mais {missing} poste(s) n'ont pas pu être pourvus. Vérifiez les manques ci-dessous, puis cliquez sur « Appliquer les suggestions ».",
+      shortfallTitle: '{n} quart(s) non entièrement couvert(s)',
+      shortfallItem: '{template} le {date} : {assigned}/{required} affecté(s), {missing} manquant(s) — {reason}',
+      shortfallReasons: {
+        no_role_match: "aucun employé n'a ce rôle",
+        no_availability: "aucun employé ayant ce rôle n'est disponible pendant tout le quart",
+        overlap: 'tous les employés éligibles ont déjà un quart qui se chevauche',
+        max_hours: "tous les employés éligibles dépasseraient la limite d'heures quotidienne ou hebdomadaire",
+        min_rest: 'tous les employés éligibles ne respecteraient pas le repos minimum entre deux quarts',
+      },
       tooltip: "📋 Une fois que vous avez des employés et des modèles, créez des équipes individuelles ici. Saisissez la date, choisissez l'employé et le modèle, puis enregistrez. Ou utilisez l'affectation automatique pour remplir tous les modèles en un seul appui — elle respecte les disponibilités, la correspondance de rôle et l'équité.",
     },
 
