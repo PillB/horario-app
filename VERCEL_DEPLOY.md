@@ -108,81 +108,32 @@ export async function POST(request: Request): Promise<Response> {
 
 ---
 
-### 1.5 Confirm vercel.json at repo root — EXACT configuration required
+### 1.5 Confirm `api/index.ts` and `vercel.json` follow the official Expo guide
 
-> **Important:** Expo Router v5 with `"output": "server"` produces **pre-rendered HTML files**,
-> not a dynamic SSR handler (`__root__.js`). Each page needs an explicit Vercel route pointing
-> to its HTML file. Client-side JS bundles land in `dist/client/`, pre-rendered HTML in
-> `dist/server/`. Vercel must be told about both.
+This repo uses the official Expo Router server-output setup for Vercel on SDK 53
+(https://docs.expo.dev/router/reference/api-routes/, "Vercel"):
 
-**Verified `dist/` structure** (after `npx expo export --platform web`):
+- `api/index.ts` at the **repo root** wraps `createRequestHandler` from
+  `@expo/server/adapter/vercel` (pinned to `0.6.2`, the SDK 53 version) with
+  `build: dist/server`.
+- `vercel.json` builds with `expo export -p web`, publishes `dist/client` as static
+  files, bundles `dist/server/**` into the `api/index.ts` function
+  (`@vercel/node@5.1.8`) and rewrites `/(.*)` to `/api/index`.
 
-```
-dist/
-  client/
-    _expo/static/js/web/*.js     ← client JS bundles
-    assets/…                     ← fonts, images
-    favicon.ico
-  server/
-    _expo/
-      functions/
-        api/
-          secure-proxy+api.js    ← ONLY serverless function (note +api suffix)
-      routes.json                ← Expo Router route manifest
-    (tabs)/index.html            ← pre-rendered home page
-    (tabs)/explore.html
-    (tabs)/scheduler.html
-    (auth)/sign-in.html
-    (auth)/sign-up.html
-    _sitemap.html
-    +not-found.html
-```
+Vercel serves a request from `dist/client` when the file exists (`/_expo/static/*`,
+`/assets/*`, `/favicon.ico`); everything else goes to the function, which matches it
+against `dist/server/_expo/routes.json`: HTML pages (`/`, `/scheduler`, `/explore`,
+`/profile`, `/diagnostics`, `/sign-in`, `/sign-up`), API routes (`/api/*`), and a
+404 with the `+not-found` page for anything unknown. **New pages and API routes need
+no `vercel.json` change.**
 
-> **There is NO `__root__.js`.** If your `vercel.json` has a catch-all route pointing to
-> `__root__.js`, every page request will 404.
+`vercel.json` also sets the security headers (CSP, `X-Frame-Options`, etc.) on every
+path, `no-store` on `/api/*`, `must-revalidate` on pages and `immutable` on hashed
+static assets.
 
-The correct `vercel.json` (route regex patterns derived directly from
-`dist/server/_expo/routes.json`):
-
-```json
-{
-  "version": 2,
-  "framework": null,
-  "buildCommand": "npx expo export --platform web",
-  "outputDirectory": "dist",
-  "functions": {
-    "dist/server/_expo/functions/**/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
-  "routes": [
-    { "src": "/_expo/static/(.*)", "dest": "/client/_expo/static/$1" },
-    { "src": "/assets/(.*)",       "dest": "/client/assets/$1" },
-    { "src": "/favicon.ico",       "dest": "/client/favicon.ico" },
-    { "src": "^/api/secure\\-proxy(?:/)?$", "dest": "/server/_expo/functions/api/secure-proxy+api.js" },
-    { "src": "^/_sitemap(?:/)?$",                              "dest": "/server/_sitemap.html" },
-    { "src": "^(?:/\\(tabs\\))?(?:/)?$",                       "dest": "/server/(tabs)/index.html" },
-    { "src": "^(?:/\\(tabs\\))?/scheduler(?:/)?$",             "dest": "/server/(tabs)/scheduler.html" },
-    { "src": "^(?:/\\(tabs\\))?/explore(?:/)?$",               "dest": "/server/(tabs)/explore.html" },
-    { "src": "^(?:/\\(auth\\))?/sign\\-in(?:/)?$",             "dest": "/server/(auth)/sign-in.html" },
-    { "src": "^(?:/\\(auth\\))?/sign\\-up(?:/)?$",             "dest": "/server/(auth)/sign-up.html" },
-    { "src": "/(.*)",                                          "dest": "/server/+not-found.html" }
-  ]
-}
-```
-
-Route design notes:
-- `src` regex patterns copied verbatim from `dist/server/_expo/routes.json` → `namedRegex` field.
-- `dest` for static assets adds `client/` prefix (where Expo puts the JS/asset bundles).
-- `dest` for API route ends with `+api.js` — Expo Router keeps this suffix in the filename.
-- `dest` for pages points to pre-rendered HTML in `server/`. Parentheses in directory names
-  (`(tabs)`, `(auth)`) are valid filesystem characters and work correctly in Vercel `dest` paths.
-- Catch-all (`/(.*))` routes to `+not-found.html`, not `__root__.js`.
-
-When you add new pages, also add a new route entry for them (run `expo export` locally, read
-`dist/server/_expo/routes.json`, and add matching entries to `vercel.json`).
-
-- [ ] `vercel.json` matches the template above exactly
+- [ ] `api/index.ts` exists at the repo root
+- [ ] `vercel.json` has `"outputDirectory": "dist/client"` and the single `/api/index` rewrite
+- [ ] No per-route rewrites into `dist/server` and no `app/api/*` entries under `functions`
 - [ ] No conflicting `next.config.*` file in repo root
 
 ---
@@ -190,30 +141,18 @@ When you add new pages, also add a new route entry for them (run `expo export` l
 ### 1.6 Run a local production build and smoke test
 
 ```bash
-npx expo export --platform web
-# Should complete with exit code 0 and produce dist/
+npx expo export -p web       # must exit 0 and produce dist/client + dist/server
+npx expo serve               # official local server for the export (port 8081)
 
-ls dist/
-# → client/   server/
-
-ls dist/server/
-# → (auth)/  (tabs)/  +not-found.html  _expo/  _sitemap.html
-
-ls dist/server/_expo/functions/api/
-# → secure-proxy+api.js   secure-proxy+api.js.map
-
-ls dist/client/_expo/static/js/web/
-# → entry-*.js   *.js   (locale chunk bundles)
+curl -i http://localhost:8081/scheduler      # 200 HTML
+curl -i http://localhost:8081/api/health     # 200 JSON
+curl -i http://localhost:8081/does-not-exist # 404
 ```
 
-> **Do NOT look for `__root__.js`** — it does not exist in Expo Router v5 static-server mode.
-> Pages are pre-rendered at build time, not on every request.
-
 - [ ] Build exits with code 0
-- [ ] `dist/server/` and `dist/client/` both present
-- [ ] `dist/server/_expo/functions/api/secure-proxy+api.js` exists
-- [ ] `dist/server/(tabs)/index.html` exists (and other page HTML files)
-- [ ] `dist/server/_expo/routes.json` exists (route manifest for vercel.json route derivation)
+- [ ] `dist/client/` and `dist/server/` both present
+- [ ] `dist/server/_expo/routes.json` exists
+- [ ] Pages, `/api/health` and the 404 respond as above
 
 ---
 
@@ -298,17 +237,8 @@ In the **Configure Project** screen (or **Settings → General → Framework Pre
 
 1. Click the **Framework Preset** dropdown
 2. Select **Other**
-3. Set **Build Command** to:
-
-   ```
-   npx expo export --platform web
-   ```
-
-4. Set **Output Directory** to:
-
-   ```
-   dist
-   ```
+3. Leave **Build Command** and **Output Directory** unset: `vercel.json` sets them
+   (`expo export -p web` and `dist/client`) and overrides the dashboard.
 
 5. Set **Install Command** to (leave default or set explicitly):
 
@@ -320,8 +250,7 @@ In the **Configure Project** screen (or **Settings → General → Framework Pre
    - Path: **Settings → General → Node.js Version**
 
 - [ ] Framework = Other
-- [ ] Build command = `npx expo export --platform web`
-- [ ] Output directory = `dist`
+- [ ] Build command / output directory come from `vercel.json`
 - [ ] Node.js version = 20.x
 
 ---
@@ -348,12 +277,17 @@ Add ALL of the following. For each:
 | `CLERK_JWKS_URL` | `https://your-instance.clerk.accounts.dev/.well-known/jwks.json` | Production, Preview |
 | `EXPO_PUBLIC_SECURE_PROXY_URL` | `https://app.yourdomain.com/api/secure-proxy` | Production |
 | `EXPO_PUBLIC_SECURE_PROXY_URL` | `https://[your-preview-slug].vercel.app/api/secure-proxy` | Preview |
+| `EXPO_PUBLIC_APP_ENV` | `production` | Production |
+| `EXPO_PUBLIC_APP_ENV` | `preview` | Preview |
 
 > **Important:** `EXPO_PUBLIC_*` variables are inlined into the client bundle at
 > build time. They are NOT secret. Never put secret keys in `EXPO_PUBLIC_*` names.
 >
 > `CLERK_SECRET_KEY`, `CLERK_JWKS_URL`, and `SUPABASE_SERVICE_ROLE_KEY` are server-only
 > — they are never sent to the browser, only available in API routes / server functions.
+>
+> `EXPO_PUBLIC_APP_ENV=production` hides the support Diagnostics tab and makes
+> `/diagnostics` redirect home. Set it only in the Production scope.
 >
 > `ANTHROPIC_API_KEY` stays in `.env.local` only (local batch scripts) — do not add to Vercel.
 
@@ -429,11 +363,10 @@ vercel --prod
 1. Go to **https://vercel.com/[team]/[project]/deployments**
 2. Click the latest deployment → **Build Logs**
 3. Watch for:
-   - [ ] `npx expo export --platform web` starts
+   - [ ] `expo export -p web` starts
    - [ ] No missing env var warnings (Expo warns if `EXPO_PUBLIC_*` vars are absent)
    - [ ] `Exporting...` completes successfully
-   - [ ] Build log shows `dist/server/` and `dist/client/` detected by Vercel
-   - [ ] Serverless functions detected (look for "Creating Serverless Functions…")
+   - [ ] One function, `api/index`, is created
    - [ ] Build status = **Ready** ✅
 
 Common build errors and fixes:
@@ -442,11 +375,10 @@ Common build errors and fixes:
 |-------|-----|
 | `Cannot find module '@clerk/expo/token-cache'` on web build | Apply Platform guard from §1.1 |
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not defined` | Check §3.3, redeploy |
-| `Output directory dist not found` | Check `vercel.json` outputDirectory = `"dist"` |
+| `Output directory dist/client not found` | `expo export -p web` failed earlier in the log; fix that error first |
 | Function size limit exceeded | Check for bundled node_modules in API route; use dynamic import |
-| **All pages return 404 after deploy** | `vercel.json` routes must target pre-rendered HTML files, not `__root__.js` (which does not exist). Regenerate routes from `dist/server/_expo/routes.json` namedRegex entries; see §1.5. |
-| **`/api/secure-proxy` returns 404** | `vercel.json` API route `dest` must end with `+api.js` — e.g. `/server/_expo/functions/api/secure-proxy+api.js`. |
-| **Blank page, JS errors in console** | Static asset paths may be wrong. Verify `/_expo/static/…` routes to `/client/_expo/static/…` (not directly to `/_expo/static/…`). |
+| **All pages return 404 or 500 after deploy** | Check `api/index.ts` exists at the repo root and `includeFiles` is `dist/server/**` (the function needs `dist/server/_expo/routes.json`) |
+| **Blank page, JS errors in console** | Check the CSP in `vercel.json` (browser console lists blocked URLs) and that `/_expo/static/...` returns 200 |
 
 ---
 
@@ -459,6 +391,10 @@ Common build errors and fixes:
 - [ ] Browser console: zero `CORS` errors
 - [ ] Browser console: zero `401 Unauthorized` errors from Clerk
 - [ ] Browser Network tab: `/_expo/static/js/web/entry-*.js` returns 200
+- [ ] Browser console: zero `Content-Security-Policy` violations
+- [ ] `curl https://app.yourdomain.com/api/health` returns
+      `{"status":"ok","environment":"production","commit":"<sha>","authConfigured":true,"databaseConfigured":true}`
+- [ ] `https://app.yourdomain.com/diagnostics` redirects to `/` (production build)
 
 ---
 
@@ -521,42 +457,14 @@ curl -X POST https://app.yourdomain.com/api/secure-proxy \
 
 ### 6.6 Troubleshoot 404s
 
-If pages are returning 404 after a successful build:
+If pages return 404 after a successful build:
 
-**Step 1 — Verify local dist structure**
-```bash
-npx expo export --platform web
-find dist -type f | sort
-```
-Compare the actual file paths against the `dest` values in `vercel.json`.
-
-**Step 2 — Check routes.json**
-```bash
-cat dist/server/_expo/routes.json
-```
-The `namedRegex` field for each route is the exact regex pattern to use as `src` in `vercel.json`.
-The `file` field tells you the filename in `dist/server/` to use as `dest`.
-
-**Step 3 — Verify vercel.json covers all pages**
-Every `htmlRoutes` entry in `routes.json` needs a corresponding `routes` entry in `vercel.json`.
-New pages added to the app will NOT be reachable on Vercel until `vercel.json` is updated.
-
-**Step 4 — Inspect deployed files**
-In the Vercel dashboard:
-1. Open the deployment → click **Source** (top right of build log)
-2. Browse the file tree to confirm `server/(tabs)/index.html` and `client/_expo/static/` exist
-
-**Step 5 — Check browser Network tab**
-Open DevTools → Network → reload the page. The first failing request reveals whether:
-- The HTML itself is 404 (routing issue — `vercel.json` routes are wrong)
-- The HTML loads but JS is 404 (static asset path issue — `client/` prefix missing)
-- The HTML and JS load but the app crashes (runtime error — check Console tab)
-
-**Step 6 — Common mistakes**
-
-| Mistake | Fix |
-|---------|-----|
-| `"dest": "/server/_expo/functions/__root__.js"` | Replace with explicit HTML routes from routes.json |
-| `"dest": "/server/_expo/functions/api/secure-proxy"` (missing +api.js) | Change to `secure-proxy+api.js` |
-| `"dest": "/_expo/static/$1"` (missing client/ prefix) | Change to `/client/_expo/static/$1` |
-| Routes added but vercel.json not committed/deployed | `git add vercel.json && git push` triggers a redeploy |
+1. Run `npx expo export -p web && npx expo serve` locally and request the same path.
+   If it 404s locally too, the route does not exist in `app/` (check
+   `dist/server/_expo/routes.json`).
+2. If it works locally but not on Vercel, open the deployment in the dashboard and
+   check **Functions** lists `api/index` and its logs show the request. A missing
+   function means `api/index.ts` or the `functions`/`rewrites` entries in
+   `vercel.json` were changed.
+3. A 404 only for `/_expo/static/...` means the deployment's static output is not
+   `dist/client` (check `outputDirectory`).

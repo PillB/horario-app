@@ -2,8 +2,9 @@
  * DiagnosticsScreen — Support Diagnostics
  *
  * Accessible to support staff and admins via a Settings / Profile deep-link.
- * This file intentionally does NOT register a visible tab entry; the tab bar
- * icon is omitted (navigation wiring is handled separately).
+ * Only available in non-production builds: when EXPO_PUBLIC_APP_ENV is
+ * `production` the tab is hidden (see `(tabs)/_layout.tsx`) and this route
+ * redirects to the home screen.
  *
  * Layout:
  *   - Screen title + subtitle
@@ -13,6 +14,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
+import { Redirect } from 'expo-router';
 import {
   Pressable,
   ScrollView,
@@ -27,10 +29,18 @@ import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { todayKey } from '@/utils/dateKeys';
+import { isDiagnosticsEnabled } from '@/utils/appEnv';
+
+// ─── Route ────────────────────────────────────────────────────────────────────
+
+export default function DiagnosticsRoute(): React.JSX.Element {
+  if (!isDiagnosticsEnabled()) return <Redirect href="/" />;
+  return <DiagnosticsScreen />;
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function DiagnosticsScreen(): React.JSX.Element {
+function DiagnosticsScreen(): React.JSX.Element {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
 

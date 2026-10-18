@@ -12,6 +12,7 @@ import { useT } from '@/contexts/LocaleContext';
 import { ThemedText } from '@/components/ThemedText';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { TourStep } from '@/components/TourStep';
+import { isDiagnosticsEnabled } from '@/utils/appEnv';
 
 // Auth gate only active when a valid Clerk publishable key is provided.
 const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
@@ -104,6 +105,11 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
             <IconSymbol size={28} name="person.crop.circle.fill" color={color} />
           ),
         }}
+      />
+      {/* Support diagnostics: hidden from the tab bar in production builds. */}
+      <Tabs.Screen
+        name="diagnostics"
+        options={{ href: isDiagnosticsEnabled() ? undefined : null }}
       />
     </Tabs>
   );
