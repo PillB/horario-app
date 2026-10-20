@@ -71,8 +71,8 @@ type Duty = {
   /** Work intervals (shift spans minus breaks). */
   work: Interval[];
   workedMs: number;
-  /** Break pieces: declared breaks plus gaps between merged shifts. */
-  breakPieces: number[];
+  /** Breaks: declared breaks (clipped to their shift) plus gaps between merged shifts. */
+  breaks: Interval[];
   overtimeHours: number;
   date: DateKey;
 };
@@ -110,16 +110,46 @@ const windowInstances = (span: Interval, window: TimeWindow, tz: string): Interv
 const msInWindow = (work: Interval[], window: TimeWindow, tz: string): number =>
   work.reduce((sum, w) => sum + windowInstances(w, window, tz).reduce((s, win) => s + overlap(w, win), 0), 0);
 
-const buildDuties = (shifts: LaborShift[], tz: string, mergeGapHours?: number): Duty[] => {
-  const sorted = [...shifts].sort((a, b) => a.start - b.start);
+/**
+ * Shifts closer together than this are one working day (a split shift, or a
+ * "jornada partida"), so daily rest applies after the day, not between its
+ * halves. Horario's default; the Netherlands defines it by law (8 h).
+ */
+export const DEFAULT_SPLIT_SHIFT_GAP_HOURS = 6;
+
+const MAX_SHIFT_MS = 24 * HOUR;
+
+/** Drops shifts that can't be evaluated, reporting each one, and flags overlaps. */
+const validShifts = (shifts: LaborShift[], emit: Emit): LaborShift[] => {
+  const valid: LaborShift[] = [];
+  for (const s of shifts) {
+    const ok = Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start && s.end - s.start <= MAX_SHIFT_MS;
+    if (ok) valid.push(s);
+    else emit({ rule: 'input.invalid', verdict: 'violation', shiftIds: [s.id], message: 'This shift has an invalid start or end time (or lasts more than 24 h) and was not checked.' });
+  }
+  valid.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < valid.length; i++) {
+    for (let j = i - 1; j >= 0 && valid[j].end > valid[i].start; j--) {
+      emit({ rule: 'shift.overlap', verdict: 'violation', shiftIds: [valid[j].id, valid[i].id], message: 'These shifts overlap: one worker can\'t work both.' });
+    }
+  }
+  return valid;
+};
+
+const buildDuties = (sorted: LaborShift[], tz: string, mergeGapHours: number): Duty[] => {
   const duties: Duty[] = [];
   for (const s of sorted) {
-    const work = subtract({ start: s.start, end: s.end }, s.breaks);
+    // Only the part of a declared break inside its shift counts.
+    const breaks = (s.breaks ?? [])
+      .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end))
+      .map((b) => ({ start: Math.max(b.start, s.start), end: Math.min(b.end, s.end) }))
+      .filter((b) => b.end > b.start);
+    const work = subtract({ start: s.start, end: s.end }, breaks);
     const workedMs = work.reduce((n, w) => n + (w.end - w.start), 0);
-    const breaks = (s.breaks ?? []).map((b) => b.end - b.start);
     const last = duties[duties.length - 1];
-    if (last && mergeGapHours !== undefined && s.start - last.end < mergeGapHours * HOUR) {
-      last.breakPieces.push(s.start - last.end, ...breaks);
+    if (last && s.start - last.end < mergeGapHours * HOUR) {
+      if (s.start > last.end) last.breaks.push({ start: last.end, end: s.start });
+      last.breaks.push(...breaks);
       last.shifts.push(s);
       last.end = Math.max(last.end, s.end);
       last.work.push(...work);
@@ -133,7 +163,7 @@ const buildDuties = (shifts: LaborShift[], tz: string, mergeGapHours?: number): 
       end: s.end,
       work,
       workedMs,
-      breakPieces: breaks,
+      breaks,
       overtimeHours: s.overtimeHours ?? 0,
       date: wallClockAt(s.start, tz).dateKey,
     });
@@ -179,7 +209,7 @@ export function evaluateShifts(ctx: EvaluationContext, worker: LaborWorker, shif
     emit({ rule: 'jurisdiction.baseline', verdict: 'review', shiftIds: [], message: pack.baselineOnly });
   }
 
-  const duties = buildDuties(shifts, tz, pack.dutyMergeGapHours);
+  const duties = buildDuties(validShifts(shifts, emit), tz, pack.dutyMergeGapHours ?? DEFAULT_SPLIT_SHIFT_GAP_HOURS);
   const ordinaryByDay = checkDaily(pack, ctx, worker, duties, emit);
   checkRest(pack, ctx, duties, emit);
   checkBreaks(pack, duties, emit);
@@ -224,14 +254,16 @@ const countedHours = (pack: RulePack, d: Duty, tz: string): number => {
   return (d.workedMs - nightMs) / HOUR + nightMs / MINUTE / n.hourMinutes;
 };
 
+type DayHours = { ordinary: number; overtime: number };
+
 /**
  * Daily limits apply to everything worked on one local day (a split shift's
  * two halves add up). Returns ordinary hours per day, for the weekly checks.
  */
-function checkDaily(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker, duties: Duty[], emit: Emit): Map<DateKey, number> {
+function checkDaily(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker, duties: Duty[], emit: Emit): Map<DateKey, DayHours> {
   const byDay = new Map<DateKey, Duty[]>();
   for (const d of duties) byDay.set(d.date, [...(byDay.get(d.date) ?? []), d]);
-  const ordinaryByDay = new Map<DateKey, number>();
+  const ordinaryByDay = new Map<DateKey, DayHours>();
 
   for (const [date, day] of byDay) {
     const shiftIds = day.flatMap(ids);
@@ -285,7 +317,7 @@ function checkDaily(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
       });
     }
     if (pack.spreadOfHours) checkSpread(pack.spreadOfHours, day, emit);
-    ordinaryByDay.set(date, ordinary);
+    ordinaryByDay.set(date, { ordinary, overtime });
   }
   return ordinaryByDay;
 }
@@ -313,6 +345,7 @@ function checkRest(pack: RulePack, ctx: EvaluationContext, duties: Duty[], emit:
     const next = duties[i];
     const gapH = (next.start - prev.end) / HOUR;
     const pair = [...ids(prev), ...ids(next)];
+    if (gapH < 0) continue; // reported as shift.overlap
 
     const rest = pack.restBetweenShifts;
     if (rest) {
@@ -380,7 +413,7 @@ function checkBreaks(pack: RulePack, duties: Duty[], emit: Emit) {
     if (rule) {
       const required = breakTriggerMinutes(rule.triggers, worked);
       const minBlock = (rule.minBlockMinutes ?? 0) * MINUTE;
-      const taken = d.breakPieces.filter((b) => b >= minBlock).reduce((n, b) => n + b, 0) / MINUTE;
+      const taken = d.breaks.map((b) => b.end - b.start).filter((b) => b >= minBlock).reduce((n, b) => n + b, 0) / MINUTE;
       if (required > 0 && taken < required - EPS) {
         emit({
           rule: 'breaks.minimum', verdict: rule.verdict ?? 'violation', shiftIds: ids(d), cite: rule.cite,
@@ -392,9 +425,7 @@ function checkBreaks(pack: RulePack, duties: Duty[], emit: Emit) {
     if (meal && worked > meal.byWorkHours + EPS) {
       const waived = worked <= meal.waivableIfWorkHoursLte + EPS && d.shifts.every((s) => s.mealWaiver);
       // The meal must start before the worker has done `byWorkHours` of work.
-      const timely = d.shifts
-        .flatMap((s) => s.breaks ?? [])
-        .some((b) => b.end - b.start >= meal.minMinutes * MINUTE && workBefore(d, b.start) <= meal.byWorkHours * HOUR + 1);
+      const timely = d.breaks.some((b) => b.end - b.start >= meal.minMinutes * MINUTE && workBefore(d, b.start) <= meal.byWorkHours * HOUR + 1);
       if (!waived && !timely) {
         emit({
           rule: 'breaks.mealDeadline', verdict: 'violation', shiftIds: ids(d), hours: meal.premiumHours, cite: meal.cite,
@@ -456,17 +487,21 @@ function checkNight(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
 // ─── Weekly limits, averages, weekly rest ────────────────────────────────────
 
 function checkWeekly(
-  pack: RulePack, ctx: EvaluationContext, worker: LaborWorker, duties: Duty[], ordinaryByDay: Map<DateKey, number>, startsOn: number, emit: Emit,
+  pack: RulePack, ctx: EvaluationContext, worker: LaborWorker, duties: Duty[], ordinaryByDay: Map<DateKey, DayHours>, startsOn: number, emit: Emit,
 ) {
-  const weeks = new Map<DateKey, { duties: Duty[]; ordinary: number; total: number }>();
+  const weeks = new Map<DateKey, { duties: Duty[]; ordinary: number; total: number; overtimeDays: number }>();
   for (const d of duties) {
     const key = weekStartOf(d.date, startsOn);
-    const w = weeks.get(key) ?? { duties: [], ordinary: 0, total: 0 };
+    const w = weeks.get(key) ?? { duties: [], ordinary: 0, total: 0, overtimeDays: 0 };
     w.duties.push(d);
     w.total += workedH(d);
     weeks.set(key, w);
   }
-  for (const [date, ordinary] of ordinaryByDay) weeks.get(weekStartOf(date, startsOn))!.ordinary += ordinary;
+  for (const [date, day] of ordinaryByDay) {
+    const w = weeks.get(weekStartOf(date, startsOn))!;
+    w.ordinary += day.ordinary;
+    if (day.overtime > EPS) w.overtimeDays += 1;
+  }
   const weekKeys = [...weeks.keys()].sort();
 
   for (const key of weekKeys) {
@@ -490,6 +525,13 @@ function checkWeekly(
           message: `${round2(w.ordinary - limit)} h above the ${limit} h weekly limit are overtime.`,
         });
       }
+    }
+    const otDays = pack.overtimeDaysPerWeekMax;
+    if (otDays && w.overtimeDays > otDays.days) {
+      emit({
+        rule: 'weekly.overtimeDays', verdict: 'violation', shiftIds, cite: otDays.cite,
+        message: `Overtime on ${w.overtimeDays} days this week; at most ${otDays.days} days are allowed.`,
+      });
     }
     if (pack.weeklyMax && w.total > pack.weeklyMax.hours + EPS) {
       emit({
@@ -635,7 +677,7 @@ function checkMinors(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker
     if (r.noOvertime && d.overtimeHours > 0) violation(r, [d], 'Young workers may not work overtime.');
     if (r.breaks) {
       const req = breakTriggerMinutes(r.breaks, h);
-      const taken = d.breakPieces.reduce((n, b) => n + b, 0) / MINUTE;
+      const taken = d.breaks.reduce((n, b) => n + (b.end - b.start), 0) / MINUTE;
       if (req > 0 && taken < req - EPS) violation(r, [d], `A young worker needs at least ${req} min of break for ${round2(h)} h of work.`);
     }
   }
@@ -653,9 +695,11 @@ function checkMinors(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker
     const k = weekStartOf(d.date, startsOn);
     byWeek.set(k, [...(byWeek.get(k) ?? []), d]);
   }
-  for (const [key, list] of byWeek) {
-    const r = ruleFor(list[0].date);
-    if (!r) continue;
+  for (const [key, all] of byWeek) {
+    // Only hours worked while still a minor count toward the young-worker caps.
+    const list = all.filter((d) => ruleFor(d.date));
+    if (!list.length) continue;
+    const r = ruleFor(list[0].date)!;
     const total = list.reduce((n, d) => n + workedH(d), 0);
     const weekDays = Array.from({ length: 7 }, (_, i) => addDaysToKey(key, i));
     const schoolWeek = weekDays.some((k) => school.has(k));

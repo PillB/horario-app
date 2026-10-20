@@ -225,7 +225,9 @@ export const AMERICAS: Record<string, RulePack> = {
     code: 'PE',
     currency: 'PEN',
     // No general statutory minimum rest between shifts was found, so short
-    // rest is advisory only (QA case PE-01).
+    // rest is advisory only (QA case PE-01), and shifts are never merged into
+    // one working day: the warning must show.
+    dutyMergeGapHours: 0,
     restBetweenShifts: { minHours: 8, verdict: 'warning', cite: { source: 'No statutory minimum verified (QA golden PE-01)', confidence: 'low' } },
     dailyOrdinaryMax: { hours: 8, excess: 'overtime', cite: { source: 'Constitución art. 25; D.S. 007-2002-TR', confidence: 'high' } },
     weeklyOrdinaryMax: { hours: 48, cite: { source: 'Constitución art. 25', confidence: 'high' } },
@@ -258,6 +260,7 @@ export const AMERICAS: Record<string, RulePack> = {
       cite: { source: 'LFT art. 59 + transitorio 2º (DOF 2026-05-01)', url: 'https://www.diputados.gob.mx/LeyesBiblio/ref/lft/LFT_ref52_01may26.pdf', confidence: 'high' },
     },
     dailyOvertimeMax: { hours: 4, cite: { source: 'LFT art. 66', confidence: 'high' } },
+    overtimeDaysPerWeekMax: { days: 4, cite: { source: 'LFT art. 66 (≤ 4 days a week, DOF 2026-05-01)', confidence: 'high' } },
     dailyTotalMax: { hours: 12, cite: { source: 'LFT art. 68 (ordinary + overtime ≤ 12 h/day)', confidence: 'high' } },
     breaks: { triggers: [{ afterHours: 0, minMinutes: 30 }], verdict: 'warning', cite: { source: 'LFT art. 63 (≥ 30 min in a continuous shift)', confidence: 'high' } },
     weeklyRest: { minHours: 24, cite: { source: 'LFT art. 69', confidence: 'high' } },
@@ -265,7 +268,10 @@ export const AMERICAS: Record<string, RulePack> = {
   CO: {
     code: 'CO',
     currency: 'COP',
-    dailyOrdinaryMax: { hours: 8, excess: 'overtime', cite: { source: 'CST art. 161', confidence: 'medium' } },
+    dailyOrdinaryMax: {
+      hours: 8, excess: 'overtime',
+      cite: { source: 'CST art. 161. A jornada flexible agreement (lit. c) allows 4-10 ordinary hours a day; record it as a location override.', confidence: 'medium' },
+    },
     weeklyOrdinaryMax: {
       hours: [
         { from: '1970-01-01', value: 48 },

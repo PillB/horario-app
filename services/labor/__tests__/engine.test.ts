@@ -133,3 +133,71 @@ describe('engine', () => {
     expect(new Set(findings.map((f) => f.workerId))).toEqual(new Set(['a']));
   });
 });
+
+describe('QA adversarial regressions', () => {
+  const restViolations = (r: ReturnType<typeof evaluateShifts>) =>
+    r.findings.filter((f) => f.rule === 'rest.betweenShifts' && f.verdict === 'violation');
+
+  it('ES-SPLIT-01: a split shift on one day is one working day, not a rest violation', () => {
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [
+      shift('2026-11-02', '10:00', '14:00'),
+      shift('2026-11-02', '17:00', '21:00'),
+    ]);
+    expect(restViolations(r)).toHaveLength(0);
+    expect(r.findings.some((f) => f.rule === 'daily.ordinaryMax')).toBe(false);
+  });
+
+  it('ES-SPLIT-02: a split shift across midnight is one working day', () => {
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [
+      shift('2026-11-02', '20:00', '23:30'),
+      shift('2026-11-03', '00:30', '04:00'),
+    ]);
+    expect(restViolations(r)).toHaveLength(0);
+  });
+
+  it('still flags short rest between two separate working days', () => {
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [
+      shift('2026-11-02', '14:00', '22:00'),
+      shift('2026-11-03', '06:00', '12:00'),
+    ]);
+    expect(restViolations(r)).toHaveLength(1);
+  });
+
+  it('counts only the days worked as a minor toward the minor weekly cap', () => {
+    const tz = 'Europe/Berlin';
+    const week = [0, 1, 2, 3, 4, 5].map((d) => shift(addDaysToKey('2026-10-19', d), '08:00', '16:00', tz));
+    const weeklyMinor = (birthDate: string) => evaluateShifts({ jurisdiction: 'DE', timeZone: tz }, { id: 'w', birthDate }, week)
+      .findings.filter((f) => f.rule === 'minors' && f.message.includes('weekly limit for this young worker'));
+    // Turns 18 on Thursday: only Mon to Wed (24 h) count, under the 40 h cap.
+    expect(weeklyMinor('2008-10-22')).toHaveLength(0);
+    expect(weeklyMinor('2009-10-22')).toHaveLength(1);
+  });
+
+  it('ignores breaks outside the shift', () => {
+    const outside = shift('2026-11-02', '08:00', '17:00', TZ, { breaks: [zonedShiftSpan('2026-11-02', '18:00', '20:00', TZ)] });
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [outside]);
+    expect(r.findings.some((f) => f.rule === 'breaks.minimum')).toBe(true);
+    expect(r.findings.some((f) => f.rule === 'daily.ordinaryMax')).toBe(false);
+  });
+
+  it('reports invalid shifts without throwing and flags overlaps', () => {
+    const bad: LaborShift[] = [
+      { id: 'inv', start: Date.UTC(2026, 10, 2, 10), end: Date.UTC(2026, 10, 2, 8) },
+      { id: 'nan', start: Number.NaN, end: Date.UTC(2026, 10, 2, 8) },
+    ];
+    const ok = [shift('2026-11-02', '08:00', '12:00'), shift('2026-11-02', '11:00', '14:00')];
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [...bad, ...ok]);
+    expect(r.findings.filter((f) => f.rule === 'input.invalid').map((f) => f.shiftIds[0]).sort()).toEqual(['inv', 'nan']);
+    expect(r.findings.filter((f) => f.rule === 'shift.overlap').map((f) => f.shiftIds)).toEqual([[ok[0].id, ok[1].id]]);
+  });
+
+  it('allows Mexican overtime on at most four days a week', () => {
+    const tz = 'America/Mexico_City';
+    const days = (count: number) => Array.from({ length: count }, (_, d) =>
+      shift(addDaysToKey('2030-01-07', d), '08:00', '17:00', tz, { overtimeHours: 1 }));
+    const otDays = (count: number) => evaluateShifts({ jurisdiction: 'MX', timeZone: tz }, { id: 'w' }, days(count))
+      .findings.filter((f) => f.rule === 'weekly.overtimeDays');
+    expect(otDays(4)).toHaveLength(0);
+    expect(otDays(5)).toHaveLength(1);
+  });
+});

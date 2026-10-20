@@ -6,6 +6,19 @@
 
 ---
 
+### CHG-080 — 2026-10-20 UTC
+**Type:** FIX (QA adversarial probes L1–L5 on the labor engine)
+
+- L1: shifts with a gap under `dutyMergeGapHours` (default 6 h, NL 8 h, PE 0) form one working day, so a Spanish split shift is no longer a rest violation; the gap counts as a break. Tests ES-SPLIT-01 (same day) and ES-SPLIT-02 (across midnight).
+- L2: minors' weekly caps count only the days the worker is a minor.
+- L3: breaks are clipped to their shift; a break outside it no longer reduces worked time.
+- L4: invalid shifts (NaN, end ≤ start, > 24 h) give `input.invalid` instead of throwing; overlapping shifts give `shift.overlap`.
+- L5: Mexico overtime on at most 4 days a week (`overtimeDaysPerWeekMax`); Colombia's cite notes that jornada flexible is a location override.
+
+**Tests:** labor 70 passed (7 new).
+
+---
+
 ### CHG-079 — 2026-10-20 UTC
 **Type:** FIX (QA review of the step 3 judgment calls)
 

@@ -212,11 +212,18 @@ export type RulePack = {
   /** Packs that are only a floor or a guess say so on every evaluation. */
   baselineOnly?: string;
   restBetweenShifts?: RestRule;
-  /** Netherlands: shifts with a gap shorter than this are one duty (dienst). */
+  /**
+   * Shifts with a gap shorter than this form one working day (split shift),
+   * so rest applies after the day. Default 6 h (Horario's); the Netherlands
+   * defines a dienst by an 8 h gap; Peru uses 0 (no merging) because its
+   * short-rest rule is advisory.
+   */
   dutyMergeGapHours?: number;
   dailyOrdinaryMax?: DailyOrdinaryRule;
   shiftClassification?: ShiftClassification;
   dailyOvertimeMax?: HoursCap;
+  /** Mexico (LFT 66): overtime on at most this many days per week. */
+  overtimeDaysPerWeekMax?: { days: number; cite: Cite };
   dailyTotalMax?: HoursCap & { verdict?: 'violation' | 'warning' };
   weeklyOrdinaryMax?: { hours: Dated<number>; cite: Cite };
   weeklyMax?: HoursCap & { verdict?: 'violation' | 'warning' };
