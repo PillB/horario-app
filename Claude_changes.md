@@ -6,6 +6,28 @@
 
 ---
 
+### CHG-078 — 2026-10-20 UTC
+**Type:** FEATURE (labor-rule engine and jurisdiction rule packs, step 3)
+
+- `services/labor/types.ts`: the rule-pack shape. Every section carries a citation and a confidence level; values can be effective-dated (`Dated<T>`).
+- `services/labor/engine.ts`: `evaluateShifts` / `evaluateRoster` return findings with a verdict (`violation` | `premium` | `warning` | `refusable` | `review`) plus an overtime pay breakdown.
+  - Checks: rest between shifts (Ontario 13 h exemption, Netherlands 14 h after a night duty), fair-workweek clopenings (consent and flat / inside-gap / whole-shift premiums, gated on coverage), daily ordinary, overtime and total maxima (Mexico shift kinds, Brazil 52.5 min night hour), split-shift merging (Netherlands dienst), breaks and the California meal deadline, night premiums and night-worker averages, weekly ordinary limits (a week that spans a dated change uses the stricter value and is flagged for review), rolling weekly averages with opt-out, weekly rest, notice (violation or refusable), minors (school days, windows, banned periods, industry exceptions), US/Canada overtime pay (daily, weekly, 7th day), and Australia's pay-by-the-clock rule.
+  - Durations are measured in elapsed time; time windows use the location's IANA zone. Daily limits sum every shift on the same local day.
+- `services/labor/packs/americas.ts`, `europe.ts`: US federal, CA, NY, OR, and the cities NYC, SF, LA, Berkeley, Emeryville, Seattle, Chicago, Evanston and Philadelphia; Canada federal, ON and QC; PE, MX, CO, CL, BR and AR; the EU floor, ES, FR, DE, IT, PT, NL, BE, IE, PL, GB and AU; plus a GENERIC fallback.
+  - Rules marked unverified in QA's golden file are left out.
+  - Peru's rest rule is a warning only.
+  - AU, PT, EU and GENERIC carry a review note.
+- Tests: `services/labor/__tests__/golden.test.ts` covers all 46 QA oracle cases (47 tests); `engine.test.ts` has 11 more. Both pass under TZ=Asia/Tokyo, America/Lima and UTC.
+
+---
+
+### CHG-075 — 2026-10-20 UTC
+**Type:** FEATURE (shared base for step 3)
+
+`utils/zonedTime.ts` converts between wall clock and instants for an IANA zone. A DST gap resolves to the instant after it; an overlap resolves to the earlier instant. `services/labor/jurisdictions.ts` holds the supported jurisdiction codes, resolves a confirmed place to the most specific pack (unlisted EU member states use the `EU` floor, other countries use `GENERIC`), and builds the rule chains.
+
+---
+
 ### [SUMMARY] — 2026-10-20 16:40 UTC
 **Last CHG completed:** CHG-074
 **Current state:** Step 2 (PR #52) is green, QA signed off, waiting on Pablo to merge. Step 3 starts: per-jurisdiction labor rules, country detection with per-location confirmation, IANA business time zones, then CP-SAT optimizer, server-side paywall and forecasting.
