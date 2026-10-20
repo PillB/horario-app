@@ -9,16 +9,10 @@
  * headers are absent (local dev) or malformed.
  */
 import { jsonResponse } from '@/server/http';
+import type { GeoHint } from '@/services/locationService';
 import { isValidTimeZone } from '@/utils/zonedTime';
 
 export const runtime = 'nodejs';
-
-export type GeoHint = {
-  ipCountry: string | null;
-  ipRegion: string | null;
-  ipCity: string | null;
-  ipTimeZone: string | null;
-};
 
 const COUNTRY_RE = /^[A-Z]{2}$/;
 const REGION_RE = /^[A-Z0-9]{1,3}$/;

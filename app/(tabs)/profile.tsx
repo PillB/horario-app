@@ -14,6 +14,8 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LocationsManager } from '@/components/locations/LocationsManager';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -328,6 +330,18 @@ export default function ProfileScreen() {
             )}
           </View>
         ) : null}
+      </ThemedView>
+
+      {/* ── Business locations ────────────────────────────────────────── */}
+      <ThemedView style={styles.card}>
+        <SectionHeader
+          title={t('locations.sectionTitle')}
+          subtitle={t('locations.sectionSubtitle')}
+          styles={styles}
+        />
+        <ErrorBoundary>
+          <LocationsManager accountId={accountId} />
+        </ErrorBoundary>
       </ThemedView>
 
       {/* ── Settings ──────────────────────────────────────────────────── */}

@@ -66,8 +66,12 @@ Not done: manual-assign overlap check (`validateShiftReadiness`, handler) still 
 1. `supabase/migrations/20261020000001_locations.sql`: `public.locations` (country / region / city codes, `jurisdiction_code`, `time_zone`, `industry` enum, headcount, locations count, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at`). Same RLS as CHG-068: anon revoked, authenticated SELECT own tenant only, writes via the proxy. Index on `account_id`. Idempotent (re-run checked).
 2. Proxy: `listLocations`, `upsertLocation`, `deleteLocation` (admin-only, in `MANAGER_ACTIONS`). `utils/locationValidation.ts` (shared with the client) requires `jurisdictionCode === resolveJurisdiction({country, region, city})`, `isValidTimeZone`, name 1–80, industry enum, city only with a region. `confirmed_by` = session user, `confirmed_at` = now; body `accountId` / `confirmedBy` ignored.
 3. `app/api/geo-hint+api.ts`: GET echoing validated `x-vercel-ip-country`, `-country-region`, `-city` (decoded), `-timezone`; all null when absent; `no-store`; no auth.
+4. Client: `services/locationService.ts`, `hooks/useLocations.ts` (request-id guard), `hooks/useJurisdictionSuggestion.ts` (country = IP ?? device region, both offered on conflict, zone = IP ?? device ?? pack default, `unknown` = ask).
+5. `components/locations/LocationSetupCard.tsx`: detected country pre-filled ("We think this location is in Peru…"), picker first when detection fails (pack countries + all 249 ISO countries, searchable, Intl.DisplayNames names with code fallback), region / city pickers with "Other", editable validated time zone, industry, approximate headcount, "Rules applied: Berkeley, California, United States", baseline note for GENERIC / EU. `LocationsManager.tsx` (list, add, edit, two-tap delete).
+6. Mounted on Home (only once the list loaded and is empty) and in a "Business locations" card on Profile. With no auth configured the list fails to load, so Home shows nothing and Profile shows a retry message.
+7. Strings in all 9 locales (`locations.*`). CLAUDE.md: tables list, data flow, feature row, key files.
 
-**Tests:** pgTAP 53/53 (9 new); integration 13/13 (1 new); unit tests for validation, geo-hint and the proxy's pre-database checks.
+**Tests:** jest 491 passed, 13 skipped (44 new across validation, geo-hint, proxy pre-DB checks, both hooks, card + manager); pgTAP 53/53 (9 new); integration 13/13 (1 new); tsc 0 errors; lint 0 errors (12 pre-existing warnings); web export bundles `/api/geo-hint`.
 
 ---
 

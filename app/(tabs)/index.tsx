@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
 import { PersonalizedFeed } from '@/components/PersonalizedFeed';
 import { ProfileAchievements } from '@/components/ProfileAchievements';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
@@ -12,6 +13,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
+import { useLocations } from '@/hooks/useLocations';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 import { useTeamInvite } from '@/hooks/useTeamInvite';
@@ -34,6 +36,8 @@ export default function HomeScreen() {
   const { tier } = useEthicalReward(streakCount);
   const { upcomingShifts, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
+  // First-run: ask where the business is until it has a confirmed location.
+  const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
   const styles = makeStyles(colors, colorScheme ?? 'light');
 
@@ -71,6 +75,12 @@ export default function HomeScreen() {
         </Pressable>
       </ThemedView>
       </TourStep>
+
+      {locationsLoaded && locations.length === 0 ? (
+        <ErrorBoundary>
+          <LocationSetupCard onSave={saveLocation} />
+        </ErrorBoundary>
+      ) : null}
 
       <TourStep target="week-stats">
       <ThemedView style={styles.card}>
