@@ -6,6 +6,46 @@
 
 ---
 
+### CHG-085 — 2026-10-20 UTC
+**Type:** FEATURE (exact ILP auto-assign with HiGHS, in a Web Worker, never worse than the greedy)
+
+1. **Solver package: `highs` 1.15.3** (npm, MIT, highs-js by lovasoa; bundles HiGHS 1.15.1). Pinned exactly; 1.15.4 came out 2026-10-16, too new. The README and `types.d.ts` say the WASM build is single-threaded ("built without native worker threads"); the glue has no `SharedArrayBuffer`, no pthreads and no `new Worker`, so it needs no cross-origin isolation. Sizes: `highs.wasm` 3.53 MB (1.22 MB gzip), JS glue 168 KB (39 KB gzip). glpk.js was the alternative and was not chosen: it is GPL-3.0.
+2. **Model** (`services/optimizer/assignmentModel.ts`). Binary x[w,s] for every (worker, slot) pair that passes the greedy's own single-shift check (`checkEligibility`, now exported with `buildCheckContext`, `buildCatalog`, `resolveRoster`, `timelineFor`, `shiftInterval`, `shortfallReason`, `describeReason`; the greedy's behaviour is unchanged). Rows:
+   - coverage Σx ≤ required;
+   - one row per maximal clique of a worker's slots that overlap or sit closer than the minimum rest (an interval graph on [start, end + rest));
+   - daily and ISO-weekly minutes minus the existing roster's.
+   - Rows that cannot bind are left out.
+   - Objective is lexicographic, in three stages: (1) maximize filled positions; (2) with coverage ≥ stage 1, minimize Σ over role groups of max |hours − group mean| (hours in the run's ISO weeks; linear because the mean is linear in x); (3) with spread ≤ stage 2 + 1 min, maximize continuity (2 for the same template on the same weekday in the existing roster, 1 for the same template). Workers have no preference fields, so continuity is the only soft preference.
+   - `OptimizeInput.dates` lets one model cover several days.
+3. **Run** (`services/optimizer/shiftOptimizer.ts`, `optimizeAssignments`): greedy first. Then the stages run with one budget (default 2 s, HiGHS `time_limit`); a stage that ends without an incumbent stops the chain. Each solver assignment is re-checked against every hard constraint (`solver.dropped` counts any dropped; the tests require 0). Slots that someone can still legally take are filled, and every shortfall gets the greedy's reason code. Greedy and each stage are scored by (coverage, spread, continuity) and the best is returned (ties go to the ILP). `solver.engine` / `fallbackReason` (`no_solver`, `solver_error`, `no_solution`, `greedy_better`, `timeout`, `worker_error`) say which won. `highsSolver.ts` uses the persistent model API, because the one-shot `solve()` returns zeros after a time limit whether or not it has an incumbent; `primal_solution_status` tells them apart.
+4. **Worker plumbing.**
+   - `solverWorker.ts` is the worker entry. `createSolverWorker.web.ts` starts it with `require.unstable_resolveWorker` (Expo SDK 53 Metro bundles it as `solverWorker-<hash>.js`); `new Worker(new URL(…, import.meta.url))` also bundles, but it leaves `import.meta` in the classic-script main bundle, which is a syntax error.
+   - `highs` is loaded with `require` so Metro takes its CommonJS build; the ESM build uses `import.meta.url`, also fatal in a classic worker.
+   - `metro.config.js` adds `wasm` to assetExts, so `require('highs/runtime')` is the WASM's URL.
+   - `createSolverWorker.ts` (native, Jest) returns null.
+   - `autoAssignClient.ts` (`runAutoAssign`) shares one worker. Timeout = budget + 8 s grace, then the worker is terminated and the greedy runs inline. An AbortSignal rejects with `AbortError` and terminates the worker; other runs waiting on it get the greedy. Crash or post errors fall back too. No Worker (native, old web) → greedy inline; HiGHS is not run on the main thread.
+5. **Callers.** `useAutoAssign.autoAssign`, `useDemandAwareSchedule.demandAwareAutoAssign` and the scheduler's `handleAutoAssign` (the button users press; the two hooks are not used by any screen) call `runAutoAssign`. Their signatures are unchanged. `handleAutoAssign` is now async: a newer run or unmount cancels the previous one, and an error shows a banner.
+6. **Benchmark:** `npm run bench:assign` (`scripts/benchmark/`, ignored by `npm test`). Node, one week (7 days), 3 roles, ES limits (9 h/day, 40 h/week, 12 h rest), two seeds per size:
+
+   | workers | positions | greedy filled / ms | ILP per day filled / total ms (worst day) | ILP whole week filled / ms |
+   |---|---|---|---|---|
+   | 10 | 70 | 41 / 18 · 44 / 34 | 42 / 108 (20) · 45 / 171 (37) | 42 / 102 · 45 / 114, optimal |
+   | 50 | 238 | 209 / 84 · 188 / 89 | 212 / 683 (257) · 191 / 904 (211) | 215 / 371 · 193 / 361, optimal |
+   | 150 | 658 | 633 / 820 · 637 / 685 | 643 / 5167 (2169) · 638 / 7990 (2196) | 653 / 2545 · 643 / 3029, optimal |
+
+   At 150 workers the per-day fairness stage sometimes reaches the 2 s limit; its incumbent is kept. One day fell back to the greedy (`greedy_better`) on fairness.
+
+**Bundle (web export, `--clear`, scratch copy):** entry 2,398,182 → 2,411,788 bytes (+13.6 KB, +4.5 KB gzip). New files, loaded only when auto-assign runs: `solverWorker-*.js` 126 KB (39 KB gzip) and `assets/node_modules/highs/build/highs.<hash>.wasm` 3.53 MB (1.22 MB gzip). `dist/client` 3.30 → 6.97 MB. Neither bundle contains `import.meta`. The exported worker bundle was run in a bare worker-like VM context (no Node globals, fetch served from `dist/client`): it fetched the WASM from its asset URL and returned the ILP schedule.
+
+**Not verified:** a real browser (no Chromium could be downloaded here); `expo start` dev mode (the worker URL comes from split-bundle paths and may not resolve in dev; the client then falls back to the greedy); Cloudflare's MIME type for `.wasm` (Emscripten falls back from streaming compile). The native export fails before this change (`services/analyticsTransport.ts` imports `timers`), so no native bundle was checked; the native path has no `highs` import.
+
+**Tests:** jest 732 passed, 14 skipped (68 more than before; 38 of them are the regression and time-zone suites run a second time by the fixtures test):
+- `shiftOptimizer.test.ts` (14): LP text (candidates, coverage, cliques with rest, hours rows, fairness rows); the first-fit trap (greedy 1/2, ILP 2/2, optimal); fairness; continuity; a week in one model; shortfall codes; fallbacks (no solver, WASM load failure, no incumbent, worse or broken solutions, budget).
+- `shiftOptimizer.fixtures.test.ts`: every fixture of the regression and time-zone suites through the ILP. Nothing is dropped, coverage is never below the greedy's, and when coverage is equal the shortfall codes are the same.
+- The fuzz file adds 600 ILP cases (fixed offset and DST zones) under the same reference invariants I1–I8. The ILP never covers less than the greedy and covered more in 4 cases. On 256 small cases the brute-force optimum is matched.
+- `autoAssignClient.test.ts` (10): a fake Worker running the real optimizer, worker reuse, native inline, creation failure, error reply, crash, timeout, abort, a waiting run after an abort, invalid input.
+- `autoAssignOptimizerPath.test.tsx` (3): the hooks use the client.
+- Also passes under TZ=Asia/Tokyo and America/Lima. tsc 0 errors; lint 0 errors (6 pre-existing warnings).
 ### CHG-086 — 2026-10-20 UTC
 **Type:** FEATURE (statistical demand forecaster, fitted in the client)
 

@@ -147,7 +147,7 @@ export type AssignmentResult = {
 // ─── Internal types ───────────────────────────────────────────────────────────
 
 /** A roster entry resolved to an absolute interval of elapsed time. */
-type Entry = {
+export type Entry = {
   workerId: string;
   templateId: string;
   /** Business-local start date (YYYY-MM-DD). */
@@ -158,7 +158,7 @@ type Entry = {
   end: number;
 };
 
-type Interval = { start: number; end: number };
+export type Interval = { start: number; end: number };
 
 const REASON_ORDER: ShortfallReasonCode[] = [
   'no_role_match',
@@ -182,7 +182,7 @@ const offsetDate = (date: string, days: number): string => addDaysToKey(date, da
  * Maps a business-local wall time (date key + minutes after its midnight, possibly
  * >= 1440 for the next day) to absolute elapsed minutes since the Unix epoch.
  */
-type Timeline = (date: string, minutes: number) => number;
+export type Timeline = (date: string, minutes: number) => number;
 
 /** Timeline for an IANA zone; conversions are cached for the run. */
 const zonedTimeline = (timeZone: string): Timeline => {
@@ -202,7 +202,7 @@ const zonedTimeline = (timeZone: string): Timeline => {
 const fixedOffsetTimeline: Timeline = (date, minutes) => dayIndex(date) * MINUTES_PER_DAY + minutes;
 
 /** Picks the timeline for an input: `timeZone`, else a given fixed offset, else the device zone. */
-const timelineFor = (input: AssignmentInput): Timeline => {
+export const timelineFor = (input: AssignmentInput): Timeline => {
   if (input.timeZone !== undefined) {
     if (!isValidTimeZone(input.timeZone)) throw new RangeError(`Invalid time zone: "${input.timeZone}"`);
     return zonedTimeline(input.timeZone);
@@ -212,7 +212,7 @@ const timelineFor = (input: AssignmentInput): Timeline => {
 };
 
 /** Absolute interval of `template` when it starts on `date`. */
-const shiftInterval = (template: ShiftTemplate, date: string, at: Timeline): Interval => {
+export const shiftInterval = (template: ShiftTemplate, date: string, at: Timeline): Interval => {
   const w = normalizeWindow(getTemplateWindow(template));
   return { start: at(date, w.startMinutes), end: at(date, w.endMinutes) };
 };
@@ -247,7 +247,7 @@ export const requiredSlots = (template: ShiftTemplate): number => {
 
 // ─── Constraint checks ────────────────────────────────────────────────────────
 
-type CheckContext = {
+export type CheckContext = {
   date: string;
   /** The previous, target and next date with their weekday labels (null when invalid). */
   days: { date: string; label: string | null }[];
@@ -286,7 +286,7 @@ const workerCoversInterval = (worker: Worker, interval: Interval, ctx: CheckCont
  * all OTHER roster entries (`others`). Returns null when eligible, otherwise the code of
  * the first failing constraint (in REASON_ORDER).
  */
-const checkEligibility = (
+export const checkEligibility = (
   worker: Worker,
   template: ShiftTemplate,
   others: Entry[],
@@ -326,6 +326,45 @@ const checkEligibility = (
   return null;
 };
 
+/** Check context for shifts starting on `date`: the previous, same and next local day. */
+export const buildCheckContext = (date: string, constraints: LaborConstraints | undefined, at: Timeline): CheckContext => ({
+  date,
+  // Weekday labels are a property of the business-local date key.
+  days: [-1, 0, 1].map((offset) => {
+    const day = offsetDate(date, offset);
+    return { date: day, label: getWeekdayFromDate(day) };
+  }),
+  constraints,
+  at,
+});
+
+/** Template lookup: the catalog plus the run's templates (which win on id clashes). */
+export const buildCatalog = (input: AssignmentInput): Map<string, ShiftTemplate> => {
+  const catalog = new Map<string, ShiftTemplate>();
+  for (const t of input.templateCatalog ?? []) catalog.set(t.id, t);
+  for (const t of input.templates) catalog.set(t.id, t);
+  return catalog;
+};
+
+/**
+ * Roster entries resolved to absolute intervals. Entries whose template is unknown
+ * cannot be placed on the timeline and are ignored.
+ */
+export const resolveRoster = (roster: Shift[], catalog: Map<string, ShiftTemplate>, at: Timeline): Entry[] => {
+  const entries: Entry[] = [];
+  for (const shift of roster) {
+    const template = catalog.get(shift.templateId);
+    if (!template) continue;
+    entries.push({
+      workerId: shift.workerId,
+      templateId: shift.templateId,
+      date: shift.date,
+      ...shiftInterval(template, shift.date, at),
+    });
+  }
+  return entries;
+};
+
 /** Fairness score: workers with fewer hours get a higher score. */
 const fairnessScore = (workerId: string, accumulatedHours: Map<string, number>): number =>
   1 / (1 + (accumulatedHours.get(workerId) ?? 0));
@@ -335,38 +374,16 @@ const fairnessScore = (workerId: string, accumulatedHours: Map<string, number>):
 export function assignShifts(input: AssignmentInput): AssignmentResult {
   const { date, templates, workers, existingRoster, constraints } = input;
   const at = timelineFor(input);
-  const ctx: CheckContext = {
-    date,
-    // Weekday labels are a property of the business-local date key.
-    days: [-1, 0, 1].map((offset) => {
-      const day = offsetDate(date, offset);
-      return { date: day, label: getWeekdayFromDate(day) };
-    }),
-    constraints,
-    at,
-  };
+  const ctx = buildCheckContext(date, constraints, at);
 
   // Template lookup: full catalog plus today's templates (A6 — existing shifts whose
   // template is not in today's list must still be visible to every check).
-  const catalog = new Map<string, ShiftTemplate>();
-  for (const t of input.templateCatalog ?? []) catalog.set(t.id, t);
-  for (const t of templates) catalog.set(t.id, t);
+  const catalog = buildCatalog(input);
 
   const workerById = new Map(workers.map((w) => [w.id, w]));
 
-  // Existing roster resolved to absolute intervals. Entries whose template is unknown
-  // cannot be placed on the timeline and are ignored.
-  const existing: Entry[] = [];
-  for (const shift of existingRoster) {
-    const template = catalog.get(shift.templateId);
-    if (!template) continue;
-    existing.push({
-      workerId: shift.workerId,
-      templateId: shift.templateId,
-      date: shift.date,
-      ...shiftInterval(template, shift.date, at),
-    });
-  }
+  // Existing roster resolved to absolute intervals.
+  const existing = resolveRoster(existingRoster, catalog, at);
 
   // Accumulated hours for fairness (seeded from the whole existing roster)
   const accumulatedHours = new Map<string, number>();
@@ -486,7 +503,7 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
 // ─── Helper: reason for a shortfall ───────────────────────────────────────────
 
 /** The furthest constraint stage any worker reached before being rejected. */
-function shortfallReason(
+export function shortfallReason(
   template: ShiftTemplate,
   workers: Worker[],
   roster: Entry[],
@@ -502,7 +519,7 @@ function shortfallReason(
   return REASON_ORDER[furthest];
 }
 
-function describeReason(code: ShortfallReasonCode, template: ShiftTemplate, date: string): string {
+export function describeReason(code: ShortfallReasonCode, template: ShiftTemplate, date: string): string {
   switch (code) {
     case 'no_role_match':
       return `No workers with role "${template.role}" are registered.`;

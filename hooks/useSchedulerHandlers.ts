@@ -41,10 +41,10 @@ import {
   upsertOnboardingProgress,
 } from '@/services/onboardingProgress';
 import {
-  assignShifts,
   type AssignedShift,
   type CoverageShortfall,
 } from '@/services/shiftAssigner';
+import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
@@ -199,6 +199,10 @@ export function useSchedulerHandlers() {
   const workerSectionRef = useRef<View>(null);
   const templateSectionRef = useRef<View>(null);
   const demandSectionRef = useRef<View>(null);
+  /** The running auto-assign: a newer run or unmount cancels it. */
+  const autoAssignRunRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => autoAssignRunRef.current?.abort(), []);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
   // Auto-assign has no location picker yet, so it uses the account's only
@@ -1014,9 +1018,9 @@ export function useSchedulerHandlers() {
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
 
-  /** Runs the greedy assigner for shiftForm.date and stores suggestions.
-   *  The user must call applyAutoAssign to commit them to the roster. */
-  const handleAutoAssign = useCallback(() => {
+  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for shiftForm.date
+   *  and stores suggestions. The user must call applyAutoAssign to commit them. */
+  const handleAutoAssign = useCallback(async () => {
     if (!canAutoAssign) {
       if (Platform.OS === 'web') {
         showActionBanner('Free limit reached. Upgrade to Pro for unlimited auto-assign.', 'error');
@@ -1036,14 +1040,29 @@ export function useSchedulerHandlers() {
     }
     // No business-level limits are configured in this screen yet; the law's apply.
     const settings = autoAssignSettings(date, autoAssignLocation);
-    const result = assignShifts({
-      date,
-      templates: shiftTemplates,
-      workers,
-      existingRoster: roster,
-      constraints: settings.constraints,
-      timeZone: settings.timeZone,
-    });
+    autoAssignRunRef.current?.abort();
+    const run = new AbortController();
+    autoAssignRunRef.current = run;
+    let result;
+    try {
+      result = await runAutoAssign(
+        {
+          date,
+          templates: shiftTemplates,
+          workers,
+          existingRoster: roster,
+          constraints: settings.constraints,
+          timeZone: settings.timeZone,
+        },
+        { signal: run.signal },
+      );
+    } catch (err) {
+      if (run.signal.aborted) return; // superseded by a newer run, or unmounted
+      showActionBanner(`Auto-assign failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      return;
+    } finally {
+      if (autoAssignRunRef.current === run) autoAssignRunRef.current = null;
+    }
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {

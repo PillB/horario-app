@@ -30,6 +30,7 @@
 | Lint | ESLint with eslint-config-expo |
 | Icons | @expo/vector-icons + expo-symbols |
 | Animations | react-native-reanimated 3, expo-haptics |
+| Auto-assign solver | HiGHS via npm `highs` 1.15.3 (MIT, single-threaded WebAssembly, web Worker only) |
 
 ---
 
@@ -104,7 +105,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
-| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; shifts placed in an IANA business time zone (`timeZone`), so hours and rest are elapsed time across DST — re-verified 2026-10-20; CP-SAT optimizer planned (step 3) |
+| Shift optimization algorithm | Working (web) / Partial (native) | Web: exact ILP (`services/optimizer/`, HiGHS 1.15 WASM, single-threaded) in a Web Worker, lexicographic coverage → fairness → continuity, 2 s budget, compared with the greedy and never worse; falls back to the greedy on no Worker / WASM failure / timeout (CHG-085). Native: greedy + 2-opt only (`services/shiftAssigner.ts`, no WebAssembly in Hermes). Both overnight-aware, IANA time zone, elapsed-time hours and rest, every shortfall reported with a reason — added 2026-10-20 (CHG-085). Not run in a real browser yet |
 | Analytics screen | Missing | explore.tsx is placeholder |
 | Labor-law constraint engine | Partial | Rule engine + jurisdiction packs (`services/labor/`). Scheduler shows findings for the visible roster week, grouped by verdict with citations and per-shift markers (`hooks/useCompliance.ts`, `components/scheduler/CompliancePanel.tsx`); a shift uses its roster entry's location, else the account's only location, else a set-up prompt. Auto-assign merges the location's legal hard limits with business limits and uses its IANA zone (`utils/autoAssignSettings.ts`) — re-verified 2026-10-20. No consent, publish time, breaks or school days fed to the engine yet |
 | Business locations / jurisdiction | Working | `locations` table + `listLocations` / `upsertLocation` / `deleteLocation` (admin) proxy actions; country detected from IP (`/api/geo-hint`) and device, always confirmed by the user; setup card on Home until a location exists, management on Profile — added 2026-10-20 (CHG-076) |
@@ -197,26 +198,19 @@ Location setup (components/locations/LocationSetupCard.tsx)
 ## 8. Scheduling / Optimization Domain Knowledge
 
 ### Current approach
-Manual assignment with client-side validation:
-- Role match (worker role must equal template role)
-- Availability coverage (worker's availability window must contain the template window)
-- No time overlap per worker per day
+Manual assignment with client-side validation, plus auto-assign (suggestions the manager applies):
 - Times are wall-clock times in the business IANA zone (`utils/zonedTime.ts`); durations, overlap and rest are measured in elapsed time (a 22:00–06:00 night is 9 h on a fall-back night, 7 h on spring-forward); weekdays and calendar days come from the local date key
+- **Hard constraints** (both engines, one definition: `checkEligibility` in `services/shiftAssigner.ts`): role match; availability covers the shift (overnight and split slots); no overlap with any shift of the worker; minimum rest between shifts; max daily hours (by start date) and ISO-weekly hours. Limits are the location's legal hard limits merged with the business's (`utils/autoAssignSettings.ts`, stricter wins).
+- **Greedy + 2-opt** (`assignShifts`): first-fit by fairness score, 2-opt swaps, refill. Runs inline; the only engine on native.
+- **ILP** (`services/optimizer/assignmentModel.ts`, CHG-085): binary x[w,s] for every (worker, slot) pair that passes the single-shift checks against the existing roster; coverage rows Σx ≤ required; per worker, one row per maximal clique of slots that overlap or are closer than the minimum rest (an interval graph on [start, end + rest)); daily and weekly hour rows in minutes. Objective is **lexicographic, solved as three stages**: (1) maximize filled positions; (2) with coverage fixed, minimize Σ over role groups of the largest |hours − group mean| (hours in the run's ISO weeks, existing + new; linear because the mean is linear); (3) with both fixed, maximize continuity (same template on the same weekday before = 2, same template = 1). Workers have no preference fields yet, so continuity is the only soft preference.
+- **Run** (`services/optimizer/shiftOptimizer.ts`): greedy first, then the ILP stages within a shared time budget (default 2 s); every solver assignment is re-checked, open slots any worker can still take are filled, shortfalls get the greedy's reason codes, and the best of greedy and ILP schedules by (coverage, spread, continuity) is returned. `solver.engine` / `fallbackReason` say which won and why.
+- **Where it runs** (`services/optimizer/autoAssignClient.ts`): web → a shared Web Worker (`solverWorker.ts`, bundled by Metro via `require.unstable_resolveWorker`; `highs` loaded with `require` to get its CommonJS build, because the ESM build's `import.meta` breaks classic scripts; the WASM is a Metro asset, `wasm` in `metro.config.js` assetExts). Client timeout = budget + 8 s grace, then terminate and run the greedy inline; AbortSignal cancels. Native or no Worker → greedy inline. `useAutoAssign`, `useDemandAwareSchedule` and the scheduler's `handleAutoAssign` all go through `runAutoAssign`.
+- **Bench**: `npm run bench:assign` (not in CI).
 
-### Target approach (future phases)
-Constraint-based auto-assignment using a greedy/heuristic engine:
-1. **Hard constraints** (must satisfy):
-   - Worker availability covers shift window
-   - Worker role matches template role
-   - No overlapping shifts per worker
-   - Max daily/weekly hours per worker
-   - Minimum rest time between shifts (labor law)
-2. **Soft constraints** (optimize for):
-   - Fairness (equal hours distribution)
-   - Worker preferences (day-of-week preferences)
-   - Skill matching (prefer workers with exact skill match)
-   - Continuity (prefer same worker for same recurring shift)
-3. **Algorithm**: Greedy first-fit descending by priority score, with local-search improvement (2-opt swap). Full ILP (Integer Linear Programming) deferred until scale demands it.
+### Next
+- Location picker for auto-assign (today only the account's only location applies).
+- Day-of-week preferences and skills once workers carry them; feed them into stage 3.
+- Week-at-once auto-assign in the UI (`OptimizeInput.dates` is supported by the model and the client).
 
 ---
 
@@ -254,6 +248,8 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 | `services/onboardingProgress.ts` | Onboarding persistence |
 | `hooks/useCompliance.ts` | Labor-rule findings for the visible roster week, per location |
 | `utils/autoAssignSettings.ts` | Legal + business constraints and time zone for an auto-assign run |
+| `services/optimizer/autoAssignClient.ts` | `runAutoAssign`: Web Worker ILP with timeout / cancel, greedy fallback |
+| `services/optimizer/assignmentModel.ts` | ILP model and LP text (HiGHS) for auto-assign |
 | `utils/workerLaborValidation.ts` | Worker labor attributes validation shared by client and proxy |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
 | `hooks/useStreak.ts` | Streak counter with AsyncStorage |

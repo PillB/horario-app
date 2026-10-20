@@ -20,12 +20,18 @@
  *       shortfall entry exists iff assigned < required, with consistent numbers
  *   I8  no open slot while some worker could still legally take it (greedy completeness)
  *
+ * The same invariants are checked on the ILP optimizer's output (CHG-085, real HiGHS),
+ * which must also cover at least as many positions as the greedy, and exactly as many
+ * as a brute-force search finds on small cases.
+ *
  * The suite runs twice: with the deprecated fixed offset (every day 24h), and with a
  * random IANA zone on dates around DST changes. In the zoned run the reference model
  * places wall times with `zonedToUtc` (tested on its own in utils/__tests__/zonedTime)
  * and measures everything in elapsed minutes.
  */
 import { assignShifts, type AssignmentInput, type AssignmentResult, type LaborConstraints } from '../shiftAssigner';
+import { createHighsSolver, type HighsModule } from '../optimizer/highsSolver';
+import { optimizeAssignments } from '../optimizer/shiftOptimizer';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import { getWeekdayFromDate } from '@/utils/schedulerUtils';
@@ -369,4 +375,71 @@ describe('assignShifts — property-based fuzz', () => {
     expect(dstLengthShifts).toBeGreaterThan(50);
     expect(failures.slice(0, 10)).toEqual([]);
   });
+});
+
+// ─── ILP optimizer (CHG-085) ─────────────────────────────────────────────────
+
+/** Most positions any legal schedule fills (depth-first search with the reference model). */
+const bruteForceCoverage = (input: AssignmentInput): number => {
+  const clock = clockOf(input);
+  const catalog = new Map((input.templateCatalog ?? input.templates).map((t) => [t.id, t]));
+  const existing: RefEntry[] = input.existingRoster.flatMap((s) => {
+    const t = catalog.get(s.templateId);
+    return t ? [{ workerId: s.workerId, date: s.date, ...absInterval(t, s.date, clock), isNew: false }] : [];
+  });
+  const positions = input.templates.flatMap((t) => Array.from({ length: requiredOf(t) }, () => t));
+  let best = 0;
+  const search = (i: number, entries: RefEntry[], filled: number, lastWorker: Map<string, number>): void => {
+    if (filled + (positions.length - i) <= best) return;
+    if (i === positions.length) {
+      best = filled;
+      return;
+    }
+    const t = positions[i];
+    const from = lastWorker.get(t.id) ?? 0; // positions of one template take workers in index order
+    input.workers.forEach((w, wi) => {
+      if (wi < from || !legal(w, t, input.date, entries, clock, input.constraints)) return;
+      const entry = { workerId: w.id, date: input.date, ...absInterval(t, input.date, clock), isNew: true };
+      search(i + 1, entries.concat(entry), filled + 1, new Map(lastWorker).set(t.id, wi + 1));
+    });
+    search(i + 1, entries, filled, lastWorker);
+  };
+  search(0, existing, 0, new Map());
+  return best;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const highs = createHighsSolver(require('highs') as () => Promise<HighsModule>);
+const ILP_CASES = 300;
+
+describe('optimizeAssignments (ILP) — property-based fuzz', () => {
+  it(`holds all invariants, never covers less than the greedy and matches brute force (${2 * ILP_CASES} cases)`, async () => {
+    const failures: string[] = [];
+    let better = 0;
+    let bruteChecked = 0;
+    for (let k = 1; k <= 2 * ILP_CASES; k++) {
+      const seed = k <= ILP_CASES ? k : 100_000 + k;
+      const input = generateCase(seed, k > ILP_CASES);
+      const result = await optimizeAssignments(input, { solver: highs, timeLimitMs: 5000 });
+      const errors = checkInvariants(input, result);
+      const greedy = assignShifts(input).assignments.length;
+      if (result.assignments.length < greedy) errors.push(`ILP covers ${result.assignments.length} < greedy ${greedy}`);
+      if (result.assignments.length > greedy) better++;
+      const positions = input.templates.reduce((sum, t) => sum + requiredOf(t), 0);
+      if (positions <= 6 && input.workers.length <= 5) {
+        bruteChecked++;
+        const optimum = bruteForceCoverage(input);
+        if (result.assignments.length !== optimum) errors.push(`ILP covers ${result.assignments.length}, optimum ${optimum}`);
+      }
+      if (result.solver.dropped > 0) errors.push(`the re-check dropped ${result.solver.dropped} solver assignments`);
+      if (result.solver.engine !== 'ilp' && result.solver.fallbackReason !== 'greedy_better') {
+        errors.push(`solver fell back: ${result.solver.fallbackReason} ${result.solver.error ?? ''}`);
+      }
+      if (errors.length > 0) failures.push(`seed ${seed}: ${errors.slice(0, 3).join('; ')}`);
+    }
+    // Sanity: the cases include ones the greedy gets wrong, and brute force ran.
+    expect(better).toBeGreaterThan(0);
+    expect(bruteChecked).toBeGreaterThan(ILP_CASES / 2);
+    expect(failures.slice(0, 10)).toEqual([]);
+  }, 120_000);
 });
