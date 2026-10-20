@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   sheetBackText: {
     fontSize: 15,
-    color: '#0D9488',
+    color: '#0F766E',
     fontWeight: '500',
     minWidth: 80,
   },

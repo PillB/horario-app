@@ -13,6 +13,8 @@ export const tl = {
     signOut: 'Mag-sign out',
     signOutA11y: 'Mag-sign out mula sa iyong account',
     languageSelector: 'Wika',
+    profile: 'Profile',
+    diagnostics: 'Diagnostics',
   },
 
   common: {

@@ -13,6 +13,8 @@ export const sw = {
     signOut: 'Toka',
     signOutA11y: 'Toka kwenye akaunti yako',
     languageSelector: 'Lugha',
+    profile: 'Wasifu',
+    diagnostics: 'Uchunguzi',
   },
 
   common: {

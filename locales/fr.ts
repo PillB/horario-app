@@ -20,6 +20,8 @@ export const fr = {
     signOut: 'Se déconnecter',
     signOutA11y: 'Se déconnecter de votre compte',
     languageSelector: 'Langue',
+    profile: 'Profil',
+    diagnostics: 'Diagnostic',
   },
 
   // ─── Common ────────────────────────────────────────────────────────────────

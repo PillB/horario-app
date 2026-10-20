@@ -25,6 +25,7 @@ import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { PageTitle } from '@/components/PageTitle';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ export default function AnalyticsScreen() {
 
   return (
     <ErrorBoundary onRetry={refresh}>
+      <PageTitle title={t('nav.analytics')} />
       <ScrollView
         contentContainerStyle={styles.container}
         accessibilityLabel={t('nav.analytics')}

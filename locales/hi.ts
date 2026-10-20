@@ -13,6 +13,8 @@ export const hi = {
     signOut: 'साइन आउट',
     signOutA11y: 'अपने खाते से साइन आउट करें',
     languageSelector: 'भाषा',
+    profile: 'प्रोफ़ाइल',
+    diagnostics: 'निदान',
   },
 
   common: {

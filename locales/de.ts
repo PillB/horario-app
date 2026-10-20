@@ -1,6 +1,6 @@
 export const de = {
   meta: { langCode: 'de', langName: 'German', langNameNative: 'Deutsch', flag: '🇩🇪' },
-  nav: { home: 'Startseite', scheduler: 'Dienstplan', analytics: 'Analyse', signOut: 'Abmelden', signOutA11y: 'Von Ihrem Konto abmelden', languageSelector: 'Sprache' },
+  nav: { home: 'Startseite', scheduler: 'Dienstplan', analytics: 'Analyse', signOut: 'Abmelden', signOutA11y: 'Von Ihrem Konto abmelden', languageSelector: 'Sprache', profile: 'Profil', diagnostics: 'Diagnose' },
   common: { save: 'Speichern', cancel: 'Abbrechen', dismiss: 'Schließen', retry: 'Erneut versuchen', add: 'Hinzufügen', done: 'Fertig', loading: 'Lädt…', tryAgain: 'Erneut versuchen', publish: 'Veröffentlichen', unpublish: 'Veröffentlichung aufheben', notify: 'Benachrichtigen', notified: 'Benachrichtigt', draft: 'Entwurf', published: 'Veröffentlicht', open: 'Öffnen', close: 'Schließen', apply: 'Anwenden', run: 'Ausführen', name: 'Name', role: 'Rolle', date: 'Datum', notes: 'Notizen', days: 'Tage', start: 'Beginn', end: 'Ende', from: 'Von', to: 'Bis', required: 'Erforderlich', coverage: 'Abdeckung', worker: 'Mitarbeiter', template: 'Vorlage', needed: '{n} benötigt', shortfall: 'Fehlstellen: {n}', scheduled: '{n} eingeplant', applying: 'Wird angewendet…', copyToClipboard: 'In Zwischenablage kopieren', copied: 'Kopiert!', auditLogEmpty: 'Noch keine Protokolleinträge vorhanden.', exportDiagnostics: 'Diagnose exportieren' },
   // ─── Timezone ──────────────────────────────────────────────────────────────
   timezone: {

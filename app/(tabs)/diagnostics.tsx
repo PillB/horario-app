@@ -23,11 +23,14 @@ import {
 } from 'react-native';
 
 import { DiagnosticsPanel } from '@/components/DiagnosticsPanel';
+import { PageTitle } from '@/components/PageTitle';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useHasMounted } from '@/hooks/useHasMounted';
+import { useT } from '@/contexts/LocaleContext';
 import { todayKey } from '@/utils/dateKeys';
 import { isDiagnosticsEnabled } from '@/utils/appEnv';
 
@@ -43,6 +46,10 @@ export default function DiagnosticsRoute(): React.JSX.Element {
 function DiagnosticsScreen(): React.JSX.Element {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const { t } = useT();
+  // Today's date comes from the viewer's clock: render it after mount so the
+  // static HTML (rendered at build time) hydrates without a mismatch.
+  const hasMounted = useHasMounted();
 
   // The panel owns its own hook instance for the list + inline controls.
   // This top-level instance drives the prominent CTA so the user gets
@@ -75,6 +82,7 @@ function DiagnosticsScreen(): React.JSX.Element {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: colors.background }]}>
+      <PageTitle title={t('nav.diagnostics')} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -125,6 +133,7 @@ function DiagnosticsScreen(): React.JSX.Element {
             onPress={handleCopyAll}
             accessibilityRole="button"
             accessibilityLabel="Copy all log entries to clipboard"
+            accessibilityHint="Copies the log so you can paste it into a support ticket"
             accessibilityState={{ busy: false }}
             style={({ pressed }) => [
               styles.ctaButton,
@@ -168,7 +177,7 @@ function DiagnosticsScreen(): React.JSX.Element {
             accessibilityRole="text"
           >
             Build: {process.env.EXPO_PUBLIC_APP_VERSION ?? 'development'} ·{' '}
-            {todayKey()}
+            {hasMounted ? todayKey() : ''}
           </ThemedText>
         </View>
       </ScrollView>

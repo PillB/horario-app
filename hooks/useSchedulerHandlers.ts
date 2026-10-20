@@ -124,6 +124,10 @@ export function useSchedulerHandlers() {
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
 
   // ── Form state ────────────────────────────────────────────────────────────
+  // Default dates are relative to the viewer's "today". They start empty and
+  // are filled in after mount: the web HTML is rendered at build time, and a
+  // date computed then would not match the client's first render (QA U3,
+  // React hydration error #418).
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
     day: 'Fri',
@@ -133,10 +137,10 @@ export function useSchedulerHandlers() {
   const [shiftForm, setShiftForm] = useState({
     workerId: 'W-01',
     templateId: 'morning',
-    date: isoDate(2),
+    date: '',
   });
   const [targetForm, setTargetForm] = useState({
-    date: isoDate(3),
+    date: '',
     role: 'Support',
     required: '3',
     notes: 'Weekend backlog',
@@ -152,7 +156,7 @@ export function useSchedulerHandlers() {
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
-    startDate: isoDate(0),
+    startDate: '',
     days: '7',
     homogeneousDemand: '4',
     shiftsPerDay: '2',
@@ -173,6 +177,12 @@ export function useSchedulerHandlers() {
   const [workerSectionOffset, setWorkerSectionOffset] = useState<number | null>(null);
   const [templateSectionOffset, setTemplateSectionOffset] = useState<number | null>(null);
   const [demandSectionOffset, setDemandSectionOffset] = useState<number | null>(null);
+
+  useEffect(() => {
+    setShiftForm((prev) => (prev.date ? prev : { ...prev, date: isoDate(2) }));
+    setTargetForm((prev) => (prev.date ? prev : { ...prev, date: isoDate(3) }));
+    setFallbackForm((prev) => (prev.startDate ? prev : { ...prev, startDate: isoDate(0) }));
+  }, []);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

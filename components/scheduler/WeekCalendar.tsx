@@ -897,7 +897,7 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textSecondary,
     },
     columnHeaderTextToday: {
-      color: colors.tint,
+      color: colors.tintText,
     },
 
     // ---- Coverage indicator (week view) ----

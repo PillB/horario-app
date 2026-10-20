@@ -22,6 +22,7 @@ import { useIdentity } from '@/contexts/IdentityContext';
 import { TourStep } from '@/components/TourStep';
 import { Colors, brand, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { PageTitle } from '@/components/PageTitle';
 
 export default function HomeScreen() {
   const { t } = useT();
@@ -43,6 +44,7 @@ export default function HomeScreen() {
 
   return (
     <>
+    <PageTitle title={t('nav.home')} />
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#0F766E', dark: '#134E4A' }}
       headerImage={
@@ -413,7 +415,7 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
       alignSelf: 'flex-start',
     },
     inviteButtonText: {
-      color: brand.primary,   // #0D9488 — 4.52:1 on white ✓ AA
+      color: colors.tintText, // light #0F766E 5.47:1 on white ✓ AA (#0D9488 was 3.74:1)
       fontWeight: '600',
       fontSize: 14,
     },

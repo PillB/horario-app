@@ -357,29 +357,39 @@ export const RosterSection = ({
   return (
     <SectionCard title={t('scheduler.roster.sectionTitle')}>
       {/* View mode toggle */}
-      <View style={local.toggleRow}>
+      <View
+        style={local.toggleRow}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={t('scheduler.roster.viewModeA11y')}
+      >
         <Pressable
           style={[local.toggleBtn, viewMode === 'list' && local.toggleBtnActive]}
           onPress={() => setViewMode('list')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: viewMode === 'list' }}
+          accessibilityRole="radio"
+          aria-checked={viewMode === 'list'}
+          accessibilityLabel={t('scheduler.roster.listView')}
+          accessibilityHint={t('scheduler.roster.listViewHint')}
+          testID="roster-view-list"
         >
           <ThemedText
             style={[local.toggleBtnText, viewMode === 'list' && local.toggleBtnTextActive]}
           >
-            {t('scheduler.roster.viewList')}
+            {t('scheduler.roster.listView')}
           </ThemedText>
         </Pressable>
         <Pressable
           style={[local.toggleBtn, viewMode === 'calendar' && local.toggleBtnActive]}
           onPress={() => setViewMode('calendar')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: viewMode === 'calendar' }}
+          accessibilityRole="radio"
+          aria-checked={viewMode === 'calendar'}
+          accessibilityLabel={t('scheduler.roster.calendarView')}
+          accessibilityHint={t('scheduler.roster.calendarViewHint')}
+          testID="roster-view-calendar"
         >
           <ThemedText
             style={[local.toggleBtnText, viewMode === 'calendar' && local.toggleBtnTextActive]}
           >
-            {t('scheduler.roster.viewCalendar')}
+            {t('scheduler.roster.calendarView')}
           </ThemedText>
         </Pressable>
       </View>
@@ -447,8 +457,8 @@ export const RosterSection = ({
                   ]}
                 >
                   {shift.status === 'Draft'
-                    ? t('scheduler.roster.draft')
-                    : t('scheduler.roster.published')}
+                    ? t('common.draft')
+                    : t('common.published')}
                 </ThemedText>
               </View>
             </View>

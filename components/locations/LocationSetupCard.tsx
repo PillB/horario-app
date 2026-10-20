@@ -83,7 +83,7 @@ function OptionChip({
       onPress={onPress}
       testID={testID}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      aria-checked={selected}
       accessibilityLabel={label}
       accessibilityHint={hint}
       style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.pressed]}
@@ -238,7 +238,11 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
         <View style={styles.notice}>
           <ThemedText style={styles.noticeText} testID="location-detect-message">{detectionMessage}</ThemedText>
           {suggestion?.status === 'conflict' && !countryPicked ? (
-            <View style={styles.chipRow}>
+            <View
+              style={styles.chipRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('locations.countryLabel')}
+            >
               {suggestion.choices.map((code) => (
                 <OptionChip
                   key={code}
@@ -286,7 +290,13 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
               accessibilityHint={t('locations.countrySearchPlaceholder')}
               autoCorrect={false}
             />
-            <ScrollView style={styles.pickerList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={styles.pickerList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('locations.countryLabel')}
+            >
               {filteredCountries.withRules.length ? (
                 <ThemedText style={styles.groupLabel}>{t('locations.countriesWithRules')}</ThemedText>
               ) : null}
@@ -312,7 +322,11 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
           {regions.length ? (
             <View style={styles.field}>
               <ThemedText style={styles.label}>{t('locations.regionLabel')}</ThemedText>
-              <View style={styles.chipRow}>
+              <View
+                style={styles.chipRow}
+                accessibilityRole="radiogroup"
+                accessibilityLabel={t('locations.regionLabel')}
+              >
                 {regions.map((r) => (
                   <OptionChip key={r.code} label={r.name} selected={region === r.region} onPress={() => pickRegion(r.region ?? null)} hint={t('locations.optionHint')} testID={`region-option-${r.region}`} styles={styles} />
                 ))}
@@ -325,7 +339,11 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
             <View style={styles.field}>
               <ThemedText style={styles.label}>{t('locations.cityLabel')}</ThemedText>
               <ThemedText style={styles.muted}>{t('locations.cityHelp')}</ThemedText>
-              <View style={styles.chipRow}>
+              <View
+                style={styles.chipRow}
+                accessibilityRole="radiogroup"
+                accessibilityLabel={t('locations.cityLabel')}
+              >
                 {cities.map((c) => (
                   <OptionChip key={c.code} label={c.name} selected={city === c.city} onPress={() => setCity(c.city ?? null)} hint={t('locations.optionHint')} testID={`city-option-${c.city}`} styles={styles} />
                 ))}
@@ -360,7 +378,11 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
 
           <View style={styles.field}>
             <ThemedText style={styles.label}>{t('locations.industryLabel')}</ThemedText>
-            <View style={styles.chipRow}>
+            <View
+              style={styles.chipRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('locations.industryLabel')}
+            >
               {INDUSTRIES.map((value) => (
                 <OptionChip key={value} label={t(`locations.industries.${value}`)} selected={industry === value} onPress={() => setIndustry(value)} hint={t('locations.optionHint')} testID={`industry-option-${value}`} styles={styles} />
               ))}
@@ -440,7 +462,7 @@ function CountryRow({
       onPress={() => onPress(code)}
       testID={`country-option-${code}`}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      aria-checked={selected}
       accessibilityLabel={t('locations.chooseCountryA11y', { country: label })}
       accessibilityHint={t('locations.chooseCountryHint')}
       style={({ pressed }) => [styles.countryRow, selected && styles.countryRowSelected, pressed && styles.pressed]}
@@ -475,7 +497,7 @@ const makeStyles = (colors: ThemeColors) =>
     label: { fontSize: 14, fontWeight: '600' },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     linkButton: { paddingVertical: 6, paddingHorizontal: 8, minHeight: 32, justifyContent: 'center' },
-    linkText: { color: colors.tint, fontWeight: '600', fontSize: 14 },
+    linkText: { color: colors.tintText, fontWeight: '600', fontSize: 14 },
     picker: { gap: 8 },
     input: {
       borderWidth: 1,

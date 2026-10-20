@@ -4,6 +4,7 @@ import { Pressable, TextInput } from 'react-native';
 
 import SchedulerScreen, { findCoveringAvailability, getWeekdayFromDate, ShiftTemplate, Worker } from '../scheduler';
 import { getSupabaseClient } from '@/services/supabaseClient';
+import { todayKey } from '@/utils/dateKeys';
 
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
@@ -202,5 +203,78 @@ describe('scheduler fallback quick setup', () => {
     // the "worker process has failed to exit gracefully" force-exit warning.
     act(() => { tree!.unmount(); });
     warnSpy.mockRestore();
+  });
+});
+
+describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    (global as unknown as { fetch: jest.Mock }).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    (getSupabaseClient as jest.Mock).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  async function renderScheduler(): Promise<renderer.ReactTestRenderer> {
+    let tree: renderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      tree = renderer.create(<SchedulerScreen />);
+    });
+    if (!tree) throw new Error('Failed to render SchedulerScreen');
+    return tree;
+  }
+
+  const radiosOf = (tree: renderer.ReactTestRenderer) =>
+    tree.root.findAllByType(Pressable).filter((node) => node.props.accessibilityRole === 'radio');
+
+  // U5: role="radio" needs aria-checked; accessibilityState never reaches the DOM on web.
+  it('gives every radio a name, a hint and a boolean aria-checked', async () => {
+    const tree = await renderScheduler();
+    const radios = radiosOf(tree);
+    expect(radios.length).toBeGreaterThanOrEqual(5);
+    for (const radio of radios) {
+      expect(typeof radio.props['aria-checked']).toBe('boolean');
+      expect(radio.props.accessibilityLabel).toBeTruthy();
+      expect(radio.props.accessibilityHint).toBeTruthy();
+    }
+    const modes = ['Homogeneous demand', 'Manual worker/shift counts', 'POS Import'];
+    const checkedModes = radios
+      .filter((r) => modes.includes(r.props.accessibilityLabel) && r.props['aria-checked'])
+      .map((r) => r.props.accessibilityLabel);
+    expect(checkedModes).toEqual(['Homogeneous demand']);
+    act(() => { tree.unmount(); });
+  });
+
+  // U6: the roster view toggle rendered two buttons with empty text.
+  it('names the roster view toggle and moves the checked state', async () => {
+    const tree = await renderScheduler();
+    const toggles = () =>
+      radiosOf(tree).filter((n) => String(n.props.testID ?? '').startsWith('roster-view-'));
+    const before = toggles();
+    expect(before.map((n) => n.props.accessibilityLabel)).toEqual(['List', 'Calendar']);
+    const checked = before.map((n) => n.props['aria-checked'] as boolean);
+    expect(checked.filter(Boolean)).toHaveLength(1);
+    const unchecked = before.find((n) => !n.props['aria-checked']);
+    await act(async () => {
+      unchecked?.props.onPress();
+    });
+    expect(toggles().map((n) => n.props['aria-checked'])).toEqual(checked.map((c) => !c));
+    act(() => { tree.unmount(); });
+  });
+
+  // U3: date defaults come from the client clock after mount, not the build.
+  it("fills the quick-setup start date with today's date after mount", async () => {
+    const tree = await renderScheduler();
+    const startDate = tree.root
+      .findAllByType(TextInput)
+      .find((node) => node.props.accessibilityLabel === 'Start date');
+    expect(startDate?.props.value).toBe(todayKey());
+    act(() => { tree.unmount(); });
   });
 });

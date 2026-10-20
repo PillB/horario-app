@@ -165,6 +165,6 @@ const makeStyles = (colors: ThemeColors) =>
       minHeight: 44,
       justifyContent: 'center',
     },
-    addButtonText: { color: colors.tint, fontWeight: '600', fontSize: 14 },
+    addButtonText: { color: colors.tintText, fontWeight: '600', fontSize: 14 },
     pressed: { opacity: 0.75 },
   });

@@ -13,6 +13,8 @@ export const zh = {
     signOut: '退出登录',
     signOutA11y: '退出您的账户',
     languageSelector: '语言',
+    profile: '个人资料',
+    diagnostics: '诊断',
   },
 
   common: {

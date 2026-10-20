@@ -13,6 +13,7 @@ import { useSignIn } from '@clerk/expo/legacy';
 import { Link, useRouter, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
+import { PageTitle } from '@/components/PageTitle';
 
 // ─── Clerk error-code → user-friendly message map ──────────────────────────
 const CLERK_ERROR_MESSAGES: Record<string, string> = {
@@ -154,6 +155,7 @@ export default function SignInScreen() {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <PageTitle title="Sign in" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 14,
-    color: brand.primary,
+    color: brand.primaryDark,
     fontWeight: '600',
   },
   trust: {

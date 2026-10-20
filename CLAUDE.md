@@ -146,6 +146,11 @@ Location setup (components/locations/LocationSetupCard.tsx)
 - All interactive elements must have `accessibilityRole`, `accessibilityLabel`, and `accessibilityHint`.
 - Use `ThemedText` and `ThemedView` instead of raw `Text`/`View` for theming consistency.
 - Avoid anonymous inline styles; use `StyleSheet.create`.
+- Checkable state on web: pass `aria-checked` (radios, checkboxes, switches). react-native-web 0.20 drops `accessibilityState` except `disabled`. Wrap radios in a labelled `accessibilityRole="radiogroup"`.
+- Every literal `t('…')` key must exist in `locales/en.ts` (`t()` returns `''` for a missing key; `hooks/__tests__/localeKeys.test.ts` enforces it).
+- Teal text and icons use `colors.tintText` / `brand.primaryDark` (#0F766E). `brand.primary` / `colors.tint` (#0D9488) is for fills and borders only (3.74:1 as text).
+- Web pages are rendered to HTML at build time: text from the clock, time zone or browser locale renders after mount (`useHasMounted`), or hydration fails (React #418).
+- Every route screen renders `<PageTitle title=… />` (document `<title>`).
 
 ### Security
 - **Service-role key NEVER leaves the server** (`app/api/secure-proxy/route.ts`).

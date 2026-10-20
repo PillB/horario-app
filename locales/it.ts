@@ -20,6 +20,8 @@ export const it = {
     signOut: 'Esci',
     signOutA11y: 'Disconnettiti dal tuo account',
     languageSelector: 'Lingua',
+    profile: 'Profilo',
+    diagnostics: 'Diagnostica',
   },
 
   // ─── Common ────────────────────────────────────────────────────────────────

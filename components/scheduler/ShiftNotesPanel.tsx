@@ -417,7 +417,7 @@ export function ShiftNotesPanel({
                         pressed && styles.pressedOpacity,
                       ]}
                     >
-                      <ThemedText style={[styles.sendCommentText, { color: brand.primary }]}>↑</ThemedText>
+                      <ThemedText style={[styles.sendCommentText, { color: theme.tintText }]}>↑</ThemedText>
                     </Pressable>
                   </View>
                 </View>

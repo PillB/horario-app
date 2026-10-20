@@ -6,6 +6,22 @@
 
 ---
 
+### CHG-081 — 2026-10-20 UTC
+**Type:** FIX (QA web accessibility spot check U1–U8, `qa/spotcheck-a11y-2026-10-20.md`)
+
+- U1 Profile tab blank: `nav.profile` was missing from every locale, and `t()` returns `''` for a missing key. A scan found 106 literal keys missing from `en.ts` (profile, sync, playbook, capability, pickers, advanced controls). Added the missing English strings and pointed 9 callers at existing keys (`tour.nav.whyMatters`/`done`, `scheduler.roster.listView`/`calendarView`, `scheduler.pos.uploadButton`, `common.draft`/`published`, `advancedControls.multiLocation.toggle`/`locations`). `nav.profile` and `nav.diagnostics` are in all 9 locales. Icon: `IconSymbol` cast its map `as IconMapping`, so any SF Symbol name type-checked; it now uses `satisfies`, so an unmapped name fails tsc. Added `person.crop.circle.fill`, `wrench.and.screwdriver.fill` and `rectangle.portrait.and.arrow.right` (sign-out, also unmapped).
+- U2 diagnostics tab: it had no `title` or icon, so it showed the route name. Gave it `t('nav.diagnostics')` and a wrench icon (still hidden in production).
+- U3 hydration #418: `web.output: "server"` renders HTML at build time. `TimezoneBar` (zone, date, time), the scheduler's default form dates (`isoDate(n)` in `useState`) and the diagnostics footer date came from the build machine's clock. New `hooks/useHasMounted.ts`: the bar and the footer show these values after mount, and the form dates are filled in by a mount effect.
+- U4 titles: new `components/PageTitle.tsx` (expo-router `Head`, "Screen · Horario") on every route.
+- U5 aria-checked: react-native-web 0.20 ignores `accessibilityState` (except `disabled`), and some radios used `selected` instead of `checked`. All radios now pass `aria-checked` and sit in labelled radiogroups: language selector, tour language chips, demand mode/preset/ratio, playbook filter, location chips, roster view.
+- U6 unnamed buttons: on /scheduler the two empty buttons were the roster List/Calendar toggle (wrong keys). It is now a labelled radio pair. The 4 on /profile were `aria-label=""` from the missing `profile.*` keys. Sign-out, guide, language-overlay and diagnostics buttons now have hints.
+- U7 teal contrast: new `tintText` token (light #0F766E, dark #2DD4BF). Teal text and icons now use `tintText` or `brand.primaryDark`: tab bar active tint, links, View Calendar, guides, pickers, chevrons, calendar today header, CheckIcon, diagnostics chip text, sign-in/up links, pricing. Fills and borders stay #0D9488. Fixed wrong "4.52:1" / "6.88:1" comments.
+- U8 diagnostics list: the `list` role was on the FlatList scroller, whose only child is the content container (`<ul><div>`). Now a ScrollView holds a `role="list"` View with `role="listitem"` rows; an empty log shows the message without a list.
+- CLAUDE.md §6: aria-checked, locale keys, teal tokens, hydration and page-title rules.
+
+Not changed: white text on #0D9488 fills (buttons, chips) is also 3.74:1; `Collapsible` and the picker chips still pass `expanded`/`selected` via `accessibilityState`, which never reaches the web DOM; the auth screens are English-only; `+not-found` has a hydration mismatch in jsdom (same before this change, not reproduced in a browser).
+
+**Tests:** jest 626 passed, 13 skipped (42 new: locale keys, useHasMounted, TimezoneBar, PageTitle, IconSymbol, DiagnosticsPanel, LanguageSelector, teal contrast, scheduler radios/toggle/start date, diagnostics date). tsc 0 errors. Lint 0 errors (10 pre-existing warnings). Web export: titles on every tab page; UTC and Asia/Tokyo exports give identical HTML. A jsdom hydration run of the exported pages shows #418 before the change on /scheduler and /diagnostics (Tokyo), and none after (Tokyo, Lima).
 ### CHG-082 — 2026-10-20 UTC
 **Type:** FEATURE (scheduler uses the labor engine, locations and their time zones)
 
