@@ -9,6 +9,9 @@
  *   rosterByDate    – Record<dateString, RosterShift[]>
  *   coverageByDate  – optional Record<dateString, { scheduled: number; required: number }>
  *   onMaximize      – optional callback to enter full-screen modal
+ *   weekStartKey    – optional controlled first visible day ('YYYY-MM-DD', a Sunday)
+ *   onWeekStartChange – called with the new first visible day when the week changes
+ *   shiftMarkers    – optional labor-compliance verdict per shift id (shown on the chip)
  */
 
 import React, { useMemo, useCallback } from 'react';
@@ -25,6 +28,8 @@ import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
+import type { Verdict } from '@/services/labor/types';
+import { parseDateKey } from '@/utils/dateKeys';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +44,9 @@ interface WeekCalendarProps {
   rosterByDate: Record<string, RosterShift[]>;
   coverageByDate?: Record<string, { scheduled: number; required: number }>;
   onMaximize?: () => void;
+  weekStartKey?: string;
+  onWeekStartChange?: (weekStartKey: string) => void;
+  shiftMarkers?: Record<string, Verdict>;
 }
 
 type ViewMode = 'week' | 'month';
@@ -251,9 +259,11 @@ interface ShiftChipProps {
   shift: RosterShift;
   chipBg: string;
   chipText: string;
+  /** Localized compliance verdict, e.g. "Violation". */
+  markerLabel?: string;
 }
 
-function ShiftChip({ shift, chipBg, chipText }: ShiftChipProps) {
+function ShiftChip({ shift, chipBg, chipText, markerLabel }: ShiftChipProps) {
   const templateName = shift.template?.name ?? '–';
   const workerName = shift.worker ? `${shift.worker.name}` : '–';
   const statusLabel = shift.status === 'Published' ? 'Published' : 'Draft';
@@ -285,6 +295,12 @@ function ShiftChip({ shift, chipBg, chipText }: ShiftChipProps) {
       color: chipText,
       opacity: 0.75,
     },
+    markerText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: chipText,
+      textDecorationLine: 'underline',
+    },
   });
 
   return (
@@ -292,8 +308,13 @@ function ShiftChip({ shift, chipBg, chipText }: ShiftChipProps) {
       style={chipStyles.chip}
       accessible
       accessibilityRole="text"
-      accessibilityLabel={`${workerName}, ${templateName}, ${statusLabel}${timeRange ? `, ${timeRange}` : ''}`}
+      accessibilityLabel={`${workerName}, ${templateName}, ${statusLabel}${timeRange ? `, ${timeRange}` : ''}${markerLabel ? `, ${markerLabel}` : ''}`}
     >
+      {markerLabel ? (
+        <Text style={chipStyles.markerText} numberOfLines={1} testID={`shift-marker-${shift.id}`}>
+          {`! ${markerLabel}`}
+        </Text>
+      ) : null}
       <Text style={chipStyles.templateText} numberOfLines={1}>
         {templateName}
       </Text>
@@ -313,7 +334,14 @@ function ShiftChip({ shift, chipBg, chipText }: ShiftChipProps) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekCalendarProps) {
+export function WeekCalendar({
+  rosterByDate,
+  coverageByDate,
+  onMaximize,
+  weekStartKey,
+  onWeekStartChange,
+  shiftMarkers,
+}: WeekCalendarProps) {
   const { t } = useT();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -323,8 +351,21 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
   const [viewMode, setViewMode] = React.useState<ViewMode>('week');
 
   // ---- Week state ----------------------------------------------------------
-  const [weekStart, setWeekStart] = React.useState<Date>(() =>
+  // Controlled when weekStartKey is given (the roster shares it with the
+  // compliance panel), otherwise local state.
+  const [internalWeekStart, setInternalWeekStart] = React.useState<Date>(() =>
     getSundayOfWeek(new Date())
+  );
+  const weekStart = useMemo(
+    () => (weekStartKey ? getSundayOfWeek(parseDateKey(weekStartKey)) : internalWeekStart),
+    [internalWeekStart, weekStartKey]
+  );
+  const setWeekStart = useCallback(
+    (next: Date) => {
+      setInternalWeekStart(next);
+      onWeekStartChange?.(toLocalDateString(next));
+    },
+    [onWeekStartChange]
   );
 
   // ---- Month state ---------------------------------------------------------
@@ -363,12 +404,12 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
 
   // ---- Navigation ----------------------------------------------------------
   const goToPrevWeek = useCallback(() => {
-    setWeekStart((prev) => addDays(prev, -7));
-  }, []);
+    setWeekStart(addDays(weekStart, -7));
+  }, [setWeekStart, weekStart]);
 
   const goToNextWeek = useCallback(() => {
-    setWeekStart((prev) => addDays(prev, 7));
-  }, []);
+    setWeekStart(addDays(weekStart, 7));
+  }, [setWeekStart, weekStart]);
 
   const goToPrevMonth = useCallback(() => {
     setMonthStart((prev) => addMonths(prev, -1));
@@ -382,7 +423,7 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
     const today = new Date();
     setWeekStart(getSundayOfWeek(today));
     setMonthStart(getMonthStart(today));
-  }, []);
+  }, [setWeekStart]);
 
   // ---- View mode toggle ----------------------------------------------------
   const toggleViewMode = useCallback(() => {
@@ -401,7 +442,7 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
   const handleMonthDayPress = useCallback((date: Date) => {
     setWeekStart(getSundayOfWeek(date));
     setViewMode('week');
-  }, []);
+  }, [setWeekStart]);
 
   // ---- Derived data (week view) --------------------------------------------
   const shiftsThisWeek = useMemo(() => {
@@ -530,6 +571,11 @@ export function WeekCalendar({ rosterByDate, coverageByDate, onMaximize }: WeekC
                           shift={shift}
                           chipBg={bg}
                           chipText={textCol}
+                          markerLabel={
+                            shiftMarkers?.[shift.id]
+                              ? t(`compliance.verdict.${shiftMarkers[shift.id]}`)
+                              : undefined
+                          }
                         />
                       );
                     })

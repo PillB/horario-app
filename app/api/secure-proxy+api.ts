@@ -27,6 +27,7 @@ import {
 } from '@/services/demandForecast';
 import { OnboardingProgress } from '@/services/onboardingProgress';
 import { type BusinessLocation, validateLocationInput } from '@/utils/locationValidation';
+import { validateWorkerLabor } from '@/utils/workerLaborValidation';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
 
@@ -439,8 +440,12 @@ async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags:
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
 
-const WORKER_COLUMNS = 'id, account_id, name, role, skills, created_at';
-type WorkerRow = { id: string; account_id: string; name: string; role: string; skills: string[] | null; created_at?: string };
+const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at';
+type WorkerRow = {
+  id: string; account_id: string; name: string; role: string; skills: string[] | null;
+  birth_date: string | null; night_worker: boolean | null; weekly_limit_opt_out: boolean | null; no_fixed_hours: boolean | null;
+  created_at?: string;
+};
 
 const rowToWorker = (row: WorkerRow) => ({
   id: row.id,
@@ -448,6 +453,10 @@ const rowToWorker = (row: WorkerRow) => ({
   name: row.name,
   role: row.role,
   skills: row.skills ?? [],
+  birthDate: row.birth_date ?? null,
+  nightWorker: Boolean(row.night_worker),
+  weeklyLimitOptOut: Boolean(row.weekly_limit_opt_out),
+  noFixedHours: Boolean(row.no_fixed_hours),
   createdAt: row.created_at,
 });
 
@@ -468,10 +477,22 @@ async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: un
   if (!isNonEmptyString(worker.role, 100)) return badRequest('role is required (max 100 chars)');
   const skills = Array.isArray(worker.skills) ? worker.skills : [];
   if (skills.length > 50 || !skills.every((s) => isNonEmptyString(s, 100))) return badRequest('skills must be up to 50 short strings');
+  // Labor attributes: absent fields are left as stored (or the column default on insert).
+  const labor = validateWorkerLabor(worker);
+  if (!labor.ok) return badRequest(labor.error);
+  const { birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = labor.values;
 
   const result = await updateOrInsert<WorkerRow>(
     client, 'workers', ctx, worker.id as string | undefined,
-    { name: worker.name.trim(), role: worker.role.trim(), skills },
+    {
+      name: worker.name.trim(),
+      role: worker.role.trim(),
+      skills,
+      ...(birthDate !== undefined ? { birth_date: birthDate } : {}),
+      ...(nightWorker !== undefined ? { night_worker: nightWorker } : {}),
+      ...(weeklyLimitOptOut !== undefined ? { weekly_limit_opt_out: weeklyLimitOptOut } : {}),
+      ...(noFixedHours !== undefined ? { no_fixed_hours: noFixedHours } : {}),
+    },
     WORKER_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });

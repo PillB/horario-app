@@ -6,6 +6,40 @@
 
 ---
 
+### CHG-082 — 2026-10-20 UTC
+**Type:** FEATURE (scheduler uses the labor engine, locations and their time zones)
+
+1. **Worker labor attributes.** `supabase/migrations/20261020000002_worker_labor_attributes.sql` adds `birth_date` (date) and `night_worker`, `weekly_limit_opt_out`, `no_fixed_hours` (boolean, not null, default false) to `workers`. CHECK `birth_date >= 1900-01-01`. The "13 or older, real past date" rule needs today's date, so it lives in the proxy, not in a CHECK. RLS unchanged (the table's single SELECT-own-tenant policy covers the columns). Idempotent (re-run checked).
+   - `utils/workerLaborValidation.ts` (shared by form and proxy): real calendar day (no 2026-02-30), not before 1900, before today, 13th birthday reached (29 Feb counts on 1 Mar). Flags must be booleans. Absent fields are left out of the update, so an update without them keeps what is stored; `birthDate: null` / `''` clears it.
+   - Proxy `upsertWorker` / `listWorkers` validate and map the four fields (`birthDate`, `nightWorker`, `weeklyLimitOptOut`, `noFixedHours`).
+   - `Worker`, `DbWorker`, `useWorkers` carry them. The Add worker form has a birth-date field and three switches (`components/scheduler/WorkerLaborFields.tsx`, role `switch`, label, hint, checked state). `useSchedulerHandlers` exports `WorkerFormState`, and `updateWorkerField` is typed per field so booleans pass through.
+2. **Compliance findings.**
+   - `utils/scheduleLocation.ts`: a shift uses the stored location its roster entry names (by id, or by a unique name, case-insensitive), else the account's only location, else none.
+   - `hooks/useCompliance.ts` (`evaluateCompliance` + memoized `useCompliance`): groups the visible week's shifts by location and runs `evaluateRoster` with the location's jurisdiction, IANA zone and industry. It evaluates from the day before the Monday on or before the first visible day to the day after the Sunday on or after the last one, so rest into the first day and whole Monday workweeks are seen. It keeps findings that touch a visible shift, plus shift-less ones (baseline notes) once per location. It returns groups per verdict, the most severe verdict per shift (violation > refusable > premium > warning > review), and the visible shifts it could not link to a location.
+   - `components/scheduler/CompliancePanel.tsx`: findings grouped violation, premium, warning, refusable, review, each with message, worker and location, and citation (a link when the cite has a URL). With no location it shows one prompt linking to Profile, where locations are managed; it renders nothing while locations load or when the list fails to load (same as Home).
+   - `RosterSection` owns the visible week (Sunday start, like the calendar), and `WeekCalendar` takes an optional controlled `weekStartKey` / `onWeekStartChange`, so the inline and maximized calendars and the panel share one week. Shift chips show a text marker ("! Violation") that is also in the chip's accessibility label.
+   - `scheduler.tsx` grows by 2 lines (passes `scheduleLocations`).
+3. **Auto-assign.** `utils/autoAssignSettings.ts`: `mergeConstraints(business, legalConstraintsFor(location.jurisdictionCode, Monday of the assign date's ISO week))` and `timeZone: getBusinessTimeZone(location)`. Without a location only the business limits apply and the device zone is used.
+   - `getBusinessTimeZone(location?)` returns a valid location zone, else the device zone.
+   - `useSchedulerHandlers.handleAutoAssign` uses the account's only location (there is no location picker yet). With several locations no jurisdiction is applied. Applied suggestions store that location's id instead of `'HQ'`.
+   - `useAutoAssign.autoAssign` and `useDemandAwareSchedule.demandAwareAutoAssign` take a new trailing `businessLocation` / `location` argument, and the shifts they persist name its id.
+4. **Strings.** `workerLabor.*` and `compliance.*` in all 9 locales. **English text in de, fr, it, zh, sw, tl and hi** (to translate); es is translated.
+5. CLAUDE.md: Worker management and Labor-law engine rows, debt item 11, key files.
+
+**Not done / limits:**
+- A worker's shifts at two locations are evaluated separately, so rest between them is not checked.
+- Engine messages are English (engine/packs untouched).
+- No publish time, rest consent, breaks or school days reach the engine, so notice, consent and minors' school-day rules are not checked.
+- `useAutoAssign` / `useDemandAwareSchedule` still pass no `templateCatalog`, so roster shifts whose template is not in `templates` are invisible to the assigner's rest and hours checks (pre-existing).
+- Client age check uses the device's date and the server uses the UTC date, so they can disagree on the 13th birthday itself.
+
+**Tests:** jest 633 (619 passed, 14 skipped: the integration suite); 35 new tests:
+- `hooks/__tests__/useCompliance.test.tsx` (8): ES flags the 8 h rest, US does not, roster-named location, unlinked shifts, no-location / loading, week edges, DST elapsed time in the location zone, memoization.
+- `hooks/__tests__/autoAssignLegalConstraints.test.tsx` (8): merge, stricter wins per field, no location, ISO week start, zone fallback, real assigner refuses the short-rest open under ES, `useAutoAssign` passes merged constraints and zone and saves the location id.
+- `server/__tests__/workersProxy.test.ts` (14): pre-database 400s plus validator edges.
+- `components/__tests__/CompliancePanel.test.tsx` (5).
+
+pgTAP 57/57 (4 new): the migration was applied to the running local stack with psql, no `db reset`. Integration 14/14 (1 new: store, keep on partial update, clear). tsc 0 errors; lint 0 errors (12 pre-existing warnings).
 ### CHG-083 — 2026-10-20 UTC
 **Type:** FIX (QA re-test of bundle 8e1d62c: L6 and the locations recommendation)
 

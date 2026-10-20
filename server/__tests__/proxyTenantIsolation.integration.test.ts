@@ -100,6 +100,25 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     expect(res.body.workers).toEqual([]);
   });
 
+  it('stores worker labor attributes and keeps them when an update leaves them out', async () => {
+    const id = randomUUID();
+    const created = await asA({
+      action: 'upsertWorker',
+      worker: { id, name: 'Lia', role: 'Barista', birthDate: '2001-04-17', nightWorker: true, weeklyLimitOptOut: true, noFixedHours: true },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.worker).toMatchObject({ birthDate: '2001-04-17', nightWorker: true, weeklyLimitOptOut: true, noFixedHours: true });
+
+    const renamed = await asA({ action: 'upsertWorker', worker: { id, name: 'Lia M.', role: 'Barista' } });
+    expect(renamed.body.worker).toMatchObject({ name: 'Lia M.', birthDate: '2001-04-17', nightWorker: true });
+
+    const cleared = await asA({ action: 'upsertWorker', worker: { id, name: 'Lia M.', role: 'Barista', birthDate: null, nightWorker: false } });
+    expect(cleared.body.worker).toMatchObject({ birthDate: null, nightWorker: false, weeklyLimitOptOut: true });
+
+    const plain = (await asA({ action: 'listWorkers' })).body.workers as { id: string; nightWorker: boolean; birthDate: string | null }[];
+    expect(plain.find((w) => w.id === workerA)).toMatchObject({ birthDate: null, nightWorker: false });
+  });
+
   it("cannot overwrite A's worker by reusing its id", async () => {
     const res = await asB({ action: 'upsertWorker', worker: { id: workerA, name: 'Hijacked', role: 'Cook' } });
     expect(res.status).toBe(409);

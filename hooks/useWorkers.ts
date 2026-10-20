@@ -12,6 +12,7 @@ import {
   type UpsertAvailabilityResult,
   type UpsertWorkerResult,
 } from '@/services/rosterService';
+import type { WorkerLaborAttributes } from '@/utils/workerLaborValidation';
 
 export type WorkerAvailabilitySlot = {
   day: string;
@@ -27,6 +28,10 @@ export type WorkerWithAvailability = {
   role: string;
   skills: string[];
   availability: WorkerAvailabilitySlot[];
+  birthDate?: string | null;
+  nightWorker?: boolean;
+  weeklyLimitOptOut?: boolean;
+  noFixedHours?: boolean;
 };
 
 const dbToWorker = (
@@ -39,6 +44,10 @@ const dbToWorker = (
   name: dbWorker.name,
   role: dbWorker.role,
   skills: dbWorker.skills ?? [],
+  birthDate: dbWorker.birthDate ?? null,
+  nightWorker: dbWorker.nightWorker ?? false,
+  weeklyLimitOptOut: dbWorker.weeklyLimitOptOut ?? false,
+  noFixedHours: dbWorker.noFixedHours ?? false,
   availability: availabilities
     .filter((av) => av.workerId === dbWorker.id)
     .map((av) => ({ day: av.dayOfWeek, from: av.fromTime, to: av.toTime })),
@@ -74,13 +83,19 @@ export const useWorkers = (accountId: string) => {
   }, [loadWorkers]);
 
   const addWorker = useCallback(
-    async (name: string, role: string, skills: string[]): Promise<UpsertWorkerResult> => {
+    async (
+      name: string,
+      role: string,
+      skills: string[],
+      labor?: Partial<WorkerLaborAttributes>,
+    ): Promise<UpsertWorkerResult> => {
       const newWorker: DbWorker = {
         id: generateId(),
         accountId,
         name,
         role,
         skills,
+        ...labor,
       };
       // Optimistic update — always show the worker immediately in local state
       setWorkers((prev) => [...prev, dbToWorker(newWorker, [], prev.length)]);

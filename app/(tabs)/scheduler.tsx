@@ -103,6 +103,7 @@ export default function SchedulerScreen() {
 
     // Derived
     rosterByDate,
+    scheduleLocations,
     upcomingShifts,
     staffingGaps,
     onboardingSteps,
@@ -380,6 +381,7 @@ export default function SchedulerScreen() {
         <RosterSection
           publishCelebration={publishCelebration}
           rosterByDate={rosterByDate}
+          scheduleLocations={scheduleLocations}
           handlePublishShift={handlePublishShift}
           handleUnpublishShift={handleUnpublishShift}
           handleNotifyShift={handleNotifyShift}

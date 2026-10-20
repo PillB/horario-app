@@ -5,8 +5,8 @@
  * convert them with the business zone, not with a fixed UTC offset (a fixed
  * offset is wrong for every shift after a DST change).
  *
- * For now this is the device's zone. When locations carry their own zone this
- * is the single place that should read it.
+ * A business location stores its own IANA zone (CHG-076); callers pass the
+ * location that applies and fall back to the device zone without one.
  */
 import { isValidTimeZone } from '@/utils/zonedTime';
 
@@ -20,5 +20,9 @@ export const getDeviceTimeZone = (): string => {
   }
 };
 
-/** The IANA zone used to place shifts on the timeline (currently the device zone). */
-export const getBusinessTimeZone = (): string => getDeviceTimeZone();
+/**
+ * The IANA zone used to place shifts on the timeline: the location's zone when
+ * it is valid, else the device zone.
+ */
+export const getBusinessTimeZone = (location?: { timeZone?: string | null } | null): string =>
+  location?.timeZone && isValidTimeZone(location.timeZone) ? location.timeZone : getDeviceTimeZone();

@@ -18,7 +18,8 @@ import {
 } from '@/services/rosterService';
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
-import { getBusinessTimeZone } from '@/utils/businessTimeZone';
+import { autoAssignSettings } from '@/utils/autoAssignSettings';
+import type { BusinessLocation } from '@/utils/locationValidation';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -192,9 +193,16 @@ export const useAutoAssign = (accountId: string) => {
       templates: ShiftTemplate[],
       workers: Worker[],
       existingRoster: Shift[],
+      /** The business's own limits; merged with the location's legal limits. */
       constraints?: LaborConstraints,
       /** Optional default location string applied to all persisted shifts. */
       location?: string,
+      /**
+       * The business location the shifts are for. Its jurisdiction's hard limits are
+       * merged into `constraints` (stricter wins) and its IANA zone places the shifts.
+       * Persisted shifts name it when `location` is not given.
+       */
+      businessLocation?: BusinessLocation | null,
     ): Promise<AssignmentResult> => {
       setState((prev) => ({
         ...prev,
@@ -207,19 +215,21 @@ export const useAutoAssign = (accountId: string) => {
         templateCount: templates.length,
         workerCount: workers.length,
         hasConstraints: !!constraints,
+        jurisdiction: businessLocation?.jurisdictionCode ?? null,
       });
 
       // ── 1. Run the assignment algorithm ─────────────────────────────────
 
       let assignResult: EngineResult;
       try {
+        const settings = autoAssignSettings(date, businessLocation, constraints);
         assignResult = assignShifts({
           date,
           templates,
           workers,
           existingRoster,
-          constraints,
-          timeZone: getBusinessTimeZone(),
+          constraints: settings.constraints,
+          timeZone: settings.timeZone,
         });
       } catch (err) {
         const message =
@@ -264,7 +274,7 @@ export const useAutoAssign = (accountId: string) => {
             accountId,
             status: 'Draft',
             notified: false,
-            location: location ?? '',
+            location: location ?? businessLocation?.id ?? '',
           });
           if (result.success && result.shift) {
             persisted.push(result.shift);

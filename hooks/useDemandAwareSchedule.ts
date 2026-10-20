@@ -17,7 +17,8 @@ import {
 } from '@/utils/schedulerMetrics';
 
 import type { Worker } from '@/types/scheduler';
-import { getBusinessTimeZone } from '@/utils/businessTimeZone';
+import { autoAssignSettings } from '@/utils/autoAssignSettings';
+import type { BusinessLocation } from '@/utils/locationValidation';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,7 +68,10 @@ export type UseDemandAwareScheduleReturn = {
     workers: Worker[],
     roster: Shift[],
     demandTargets: DemandForecast[],
+    /** The business's own limits; merged with the location's legal limits. */
     constraints?: AssignmentConstraints,
+    /** Business location: legal limits and IANA zone (device zone without one). */
+    location?: BusinessLocation | null,
   ) => Promise<DemandAwareAssignResult>;
 };
 
@@ -218,6 +222,7 @@ export function useDemandAwareSchedule(
       roster: Shift[],
       overrideTargets: DemandForecast[],
       constraints?: AssignmentConstraints,
+      location?: BusinessLocation | null,
     ): Promise<DemandAwareAssignResult> => {
       const lookup = buildDemandLookup(overrideTargets);
 
@@ -233,13 +238,14 @@ export function useDemandAwareSchedule(
         }
       }
 
+      const settings = autoAssignSettings(date, location, constraints);
       const assignmentResult = assignShifts({
         date,
         templates: shiftTemplates,
         workers,
         existingRoster: roster,
-        constraints,
-        timeZone: getBusinessTimeZone(),
+        constraints: settings.constraints,
+        timeZone: settings.timeZone,
       });
 
       const newShifts: Shift[] = assignmentResult.assignments.map(
@@ -248,7 +254,7 @@ export function useDemandAwareSchedule(
           date,
           workerId: a.workerId,
           templateId: a.templateId,
-          location: '',
+          location: location?.id ?? '',
           status: 'Draft',
           notified: false,
         }),

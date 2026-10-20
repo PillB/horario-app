@@ -4,7 +4,7 @@
 -- users must see only their own tenant and must not write directly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(57);
 
 -- ── Fixtures (as the table owner) ────────────────────────────────────────────
 insert into public.workers (id, account_id, name, role) values
@@ -103,6 +103,15 @@ select throws_ok($$insert into public.demand_targets (date, role, required) valu
 select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','pe','PE','America/Lima','retail','user_a')$$, '23514', null, 'location rejects a lower-case country code');
 select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','PER','PE','America/Lima','retail','user_a')$$, '23514', null, 'location rejects a 3-letter country code');
 select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','PE','PE','America/Lima','casino','user_a')$$, '23514', null, 'location rejects an unknown industry');
+
+-- ── Worker labor attributes (CHG-082) ────────────────────────────────────────
+select col_type_is('public', 'workers', 'birth_date', 'date', 'workers.birth_date is a date');
+select results_eq(
+  $$select night_worker, weekly_limit_opt_out, no_fixed_hours from public.workers where id = '00000000-0000-0000-0000-0000000000a1'$$,
+  $$values (false, false, false)$$,
+  'worker labor flags default to false');
+select throws_ok($$update public.workers set birth_date = '1899-12-31' where id = '00000000-0000-0000-0000-0000000000a1'$$, '23514', null, 'birth date before 1900 rejected');
+select lives_ok($$update public.workers set birth_date = '2001-04-17', night_worker = true where id = '00000000-0000-0000-0000-0000000000a1'$$, 'valid labor attributes accepted');
 
 -- ── Server-only functions ────────────────────────────────────────────────────
 select is(public.increment_auto_assign('user_b','org_b'), 4, 'counter increments an existing row');

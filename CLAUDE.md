@@ -89,7 +89,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 |---|---|---|
 | Home dashboard | Partial | Static hardcoded data; no live queries |
 | Scheduler UI | Partial | Works but all state is in-memory, resets on reload |
-| Worker management (add/view) | Partial | In-memory only, no DB persistence |
+| Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20; no edit/delete UI |
 | Shift template management | Partial | In-memory only, no DB persistence |
 | Roster (shift assignment) | Partial | In-memory only; fake persistence functions |
 | Availability tracking | Partial | In-memory, validated, no DB |
@@ -105,7 +105,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Real-time updates | Missing | No Supabase realtime subscriptions |
 | Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; shifts placed in an IANA business time zone (`timeZone`), so hours and rest are elapsed time across DST — re-verified 2026-10-20; CP-SAT optimizer planned (step 3) |
 | Analytics screen | Missing | explore.tsx is placeholder |
-| Labor-law constraint engine | Partial | Optional max daily/weekly hours and min rest in the assigner; per-jurisdiction rule packs planned (step 3) |
+| Labor-law constraint engine | Partial | Rule engine + jurisdiction packs (`services/labor/`). Scheduler shows findings for the visible roster week, grouped by verdict with citations and per-shift markers (`hooks/useCompliance.ts`, `components/scheduler/CompliancePanel.tsx`); a shift uses its roster entry's location, else the account's only location, else a set-up prompt. Auto-assign merges the location's legal hard limits with business limits and uses its IANA zone (`utils/autoAssignSettings.ts`) — re-verified 2026-10-20. No consent, publish time, breaks or school days fed to the engine yet |
 | Business locations / jurisdiction | Working | `locations` table + `listLocations` / `upsertLocation` / `deleteLocation` (admin) proxy actions; country detected from IP (`/api/geo-hint`) and device, always confirmed by the user; setup card on Home until a location exists, management on Profile — added 2026-10-20 (CHG-076) |
 | Multi-tenant support | Working | Tenant = Clerk org id, else user id; enforced in the proxy and by RLS (`20261018000001_tenant_isolation.sql`) — re-verified 2026-10-18 |
 | Date/time picker components | Missing | Raw text inputs only |
@@ -245,6 +245,9 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 | `components/locations/LocationSetupCard.tsx` | Location / jurisdiction confirmation form (detection pre-fills only) |
 | `services/supabaseClient.ts` | Anon client factory |
 | `services/onboardingProgress.ts` | Onboarding persistence |
+| `hooks/useCompliance.ts` | Labor-rule findings for the visible roster week, per location |
+| `utils/autoAssignSettings.ts` | Legal + business constraints and time zone for an auto-assign run |
+| `utils/workerLaborValidation.ts` | Worker labor attributes validation shared by client and proxy |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
 | `hooks/useStreak.ts` | Streak counter with AsyncStorage |
 | `hooks/useSessionWellness.ts` | Break-prompt wellness hook |
@@ -265,7 +268,7 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 8. The `explore.tsx` tab is the default Expo placeholder with no real content.
 9. Sample shift dates are hardcoded to December 2024 (past dates).
 10. No rate limiting or authentication validation on the secure proxy.
-11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone()` (`utils/businessTimeZone.ts`), which is still the device zone. `locations.time_zone` now stores the business zone (CHG-076) but `getBusinessTimeZone()` does not read it yet. `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
+11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else the device zone (CHG-082). The scheduler's auto-assign only has a location when the account has exactly one (no location picker yet). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
 12. The `shifts` table in Supabase is for historical data only; the live roster is never persisted.
 
 ---

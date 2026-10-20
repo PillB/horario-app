@@ -13,6 +13,10 @@ import { type Worker } from '@/types/scheduler';
 import { type DemandForecast } from '@/services/demandForecast';
 import { SectionCard } from './SectionCard';
 import { WeekCalendar } from './WeekCalendar';
+import { CompliancePanel } from './CompliancePanel';
+import { useCompliance } from '@/hooks/useCompliance';
+import type { BusinessLocation } from '@/utils/locationValidation';
+import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -31,6 +35,16 @@ type Props = {
   onSelectShiftForNotes?: (shift: RosterShift) => void;
   upcomingShifts: RosterShift[];
   staffingGaps: StaffingGap[];
+  /** Stored business locations, for labor-rule checks of the visible week. */
+  scheduleLocations?: { locations: BusinessLocation[]; loaded: boolean };
+};
+
+const NO_LOCATIONS = { locations: [] as BusinessLocation[], loaded: false };
+
+/** Sunday of the current week (the calendar's weeks run Sunday to Saturday). */
+const currentWeekStartKey = (): string => {
+  const today = todayKey();
+  return addDaysToKey(today, -weekdayOfKey(today));
 };
 
 const makeLocalStyles = (colors: ThemeColors, isDark: boolean) =>
@@ -265,6 +279,7 @@ export const RosterSection = ({
   onSelectShiftForNotes,
   upcomingShifts,
   staffingGaps,
+  scheduleLocations = NO_LOCATIONS,
 }: Props) => {
   const { t } = useT();
   const colorScheme = useColorScheme();
@@ -274,6 +289,16 @@ export const RosterSection = ({
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [isMaximized, setIsMaximized] = useState(false);
+  // Shared by every calendar instance and the compliance panel.
+  const [weekStartKey, setWeekStartKey] = useState(currentWeekStartKey);
+
+  const allShifts = useMemo(() => Object.values(rosterByDate).flat(), [rosterByDate]);
+  const compliance = useCompliance({
+    shifts: allShifts,
+    locations: scheduleLocations.locations,
+    locationsLoaded: scheduleLocations.loaded,
+    weekStart: weekStartKey,
+  });
 
   // Aggregate staffing gaps into a per-date coverage map for the calendar
   const coverageByDate = useMemo(() => {
@@ -300,7 +325,14 @@ export const RosterSection = ({
 
   const calendarContent = (
     <View style={local.printRegion} nativeID="print-region">
-      <WeekCalendar rosterByDate={rosterByDate} coverageByDate={coverageByDate} onMaximize={handleMaximize} />
+      <WeekCalendar
+        rosterByDate={rosterByDate}
+        coverageByDate={coverageByDate}
+        onMaximize={handleMaximize}
+        weekStartKey={weekStartKey}
+        onWeekStartChange={setWeekStartKey}
+        shiftMarkers={compliance.markers}
+      />
     </View>
   );
 
@@ -351,6 +383,8 @@ export const RosterSection = ({
           </ThemedText>
         </Pressable>
       </View>
+
+      <CompliancePanel result={compliance} weekStart={weekStartKey} />
 
       {viewMode === 'calendar' ? (
         <>
