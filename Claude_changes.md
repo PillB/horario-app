@@ -6,6 +6,16 @@
 
 ---
 
+### CHG-079 — 2026-10-20 UTC
+**Type:** FIX (QA review of the step 3 judgment calls)
+
+- When a weekly-rest shortfall depends on days just outside the schedule, it is now a warning, never a violation (QA point 5).
+- A short schedule that is on track to exceed a rolling average now says how many hours are left and the per-week budget (point 4).
+- Spanish minors need 48 consecutive hours off each week (`MinorRule.weeklyRestHours`) (point 3).
+- Peru's refrigerio citation now says the 6 h trigger is Horario's default, not the law (point 1).
+
+---
+
 ### CHG-077 — 2026-10-20 UTC
 **Type:** FIX (QA finding R7: IANA business time zone in the auto-scheduler)
 

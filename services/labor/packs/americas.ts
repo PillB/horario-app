@@ -231,7 +231,7 @@ export const AMERICAS: Record<string, RulePack> = {
     weeklyOrdinaryMax: { hours: 48, cite: { source: 'Constitución art. 25', confidence: 'high' } },
     breaks: {
       triggers: [{ afterHours: 6, minMinutes: 45 }], verdict: 'warning',
-      cite: { source: 'D.S. 007-2002-TR art. 7 (refrigerio ≥ 45 min)', confidence: 'medium' },
+      cite: { source: 'D.S. 007-2002-TR art. 7 (refrigerio ≥ 45 min in continuous schedules). The 6 h trigger is Horario\'s default, not law.', confidence: 'medium' },
     },
     night: {
       window: ['22:00', '06:00'], premiumPct: 35,

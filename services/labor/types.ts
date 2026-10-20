@@ -199,6 +199,8 @@ export type MinorRule = {
   /** Used instead of the first banned window when the contract moves it (UK 23:00–07:00). */
   alternativeBannedWindow?: TimeWindow;
   minRestHours?: number;
+  /** Consecutive hours off within each workweek (Spain: 2 days). */
+  weeklyRestHours?: number;
   breaks?: BreakTrigger[];
   noOvertime?: boolean;
   cite: Cite;

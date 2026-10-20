@@ -38,9 +38,9 @@ export const EUROPE: Record<string, RulePack> = {
     nightWorker: { averageDailyHours: 8, referenceDays: 15, noOvertime: true, cite: { source: 'Estatuto de los Trabajadores art. 36.1', url: ET, confidence: 'high' } },
     minors: [
       {
-        ageFrom: 0, ageTo: 17, maxDailyHours: 8, bannedWindows: [['22:00', '06:00']], noOvertime: true,
+        ageFrom: 0, ageTo: 17, maxDailyHours: 8, bannedWindows: [['22:00', '06:00']], noOvertime: true, weeklyRestHours: 48,
         breaks: [{ afterHours: 4.5, minMinutes: 30 }],
-        cite: { source: 'Estatuto de los Trabajadores arts. 6, 34.3-34.4', url: ET, confidence: 'high' },
+        cite: { source: 'Estatuto de los Trabajadores arts. 6, 34.3-34.4, 37.1', url: ET, confidence: 'high' },
       },
     ],
   },

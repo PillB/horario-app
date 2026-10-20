@@ -527,7 +527,12 @@ function checkWeekly(
       if (total > avg.hours * avg.weeks + EPS) {
         emit({ rule: 'weekly.average', verdict: 'violation', shiftIds: [], hours: round2(mean), cite: avg.cite, message: `These weeks alone exceed the ${avg.hours} h average over ${avg.weeks} weeks${optOut}.` });
       } else if (mean > avg.hours + EPS) {
-        emit({ rule: 'weekly.average', verdict: 'warning', shiftIds: [], hours: round2(mean), cite: avg.cite, message: `On track to exceed the ${avg.hours} h average over ${avg.weeks} weeks${optOut}.` });
+        const left = avg.weeks - span;
+        const budget = avg.hours * avg.weeks - total;
+        emit({
+          rule: 'weekly.average', verdict: 'warning', shiftIds: [], hours: round2(budget), cite: avg.cite,
+          message: `On track to exceed the ${avg.hours} h average over ${avg.weeks} weeks${optOut}: ${round2(budget)} h left for the other ${left} weeks (${round2(budget / left)} h/week).`,
+        });
       }
     }
   }
@@ -542,15 +547,24 @@ function checkWeekly(
       // off the edge of the schedule counts only up to the week boundary,
       // because the engine can't see whether those days were worked.
       const sorted = [...duties].sort((a, b) => a.start - b.start);
-      const free: Interval[] = [{ start: Math.min(winStart, sorted[0].start), end: sorted[0].start }];
-      for (let i = 1; i < sorted.length; i++) free.push({ start: sorted[i - 1].end, end: sorted[i].start });
-      free.push({ start: sorted[sorted.length - 1].end, end: Math.max(winEnd, sorted[sorted.length - 1].end) });
-      let longest = 0;
-      for (const f of free) if (overlap(f, { start: winStart, end: winEnd }) > 0) longest = Math.max(longest, f.end - f.start);
+      const week = { start: winStart, end: winEnd };
+      const gaps: Interval[] = [];
+      for (let i = 1; i < sorted.length; i++) gaps.push({ start: sorted[i - 1].end, end: sorted[i].start });
+      const head = { start: Math.min(winStart, sorted[0].start), end: sorted[0].start };
+      const tail = { start: sorted[sorted.length - 1].end, end: Math.max(winEnd, sorted[sorted.length - 1].end) };
+      const longestOf = (list: Interval[]) =>
+        list.reduce((m, f) => (overlap(f, week) > 0 ? Math.max(m, f.end - f.start) : m), 0);
+      const longest = longestOf([head, ...gaps, tail]);
       if (longest < wr.minHours * HOUR - 1) {
+        // If treating the unseen days as free would satisfy the rule, the
+        // shortfall rests on an assumption, so it is only a warning.
+        const assumed = longestOf([{ start: -Infinity, end: head.end }, ...gaps, { start: tail.start, end: Infinity }]) >= wr.minHours * HOUR - 1;
         emit({
-          rule: 'rest.weekly', verdict: wr.verdict ?? 'violation', shiftIds: weeks.get(key)!.duties.flatMap(ids), hours: round2(longest / HOUR), cite: wr.cite,
-          message: `No weekly rest of ${wr.minHours} consecutive hours in the week of ${key}.`,
+          rule: 'rest.weekly', verdict: assumed ? 'warning' : wr.verdict ?? 'violation', shiftIds: weeks.get(key)!.duties.flatMap(ids),
+          hours: round2(longest / HOUR), cite: wr.cite,
+          message: assumed
+            ? `No weekly rest of ${wr.minHours} consecutive hours inside the week of ${key} unless the days just outside this schedule are free.`
+            : `No weekly rest of ${wr.minHours} consecutive hours in the week of ${key}.`,
         });
       }
     }
@@ -647,6 +661,15 @@ function checkMinors(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker
     const schoolWeek = weekDays.some((k) => school.has(k));
     const cap = schoolWeek ? r.schoolWeekMaxHours ?? r.maxWeeklyHours : r.nonSchoolWeekMaxHours ?? r.maxWeeklyHours;
     if (cap !== undefined && total > cap + EPS) violation(r, list, `${round2(total)} h exceeds the ${cap} h weekly limit for this young worker.`, round2(total));
+    if (r.weeklyRestHours !== undefined) {
+      const winStart = zonedToUtc(key, 0, tz);
+      const winEnd = zonedToUtc(addDaysToKey(key, 7), 0, tz);
+      // Only gaps inside the week count; days outside the schedule are not assumed free.
+      const bounds = [winStart, ...list.flatMap((d) => [d.start, d.end]), winEnd];
+      let longest = 0;
+      for (let i = 0; i < bounds.length; i += 2) longest = Math.max(longest, bounds[i + 1] - bounds[i]);
+      if (longest < r.weeklyRestHours * HOUR - 1) violation(r, list, `Young workers need ${r.weeklyRestHours} consecutive hours off each week.`, round2(longest / HOUR));
+    }
     if (schoolWeek && r.schoolWeekWeekdayMaxHours !== undefined) {
       const weekdays = list.filter((d) => { const wd = weekdayOfKey(d.date); return wd >= 1 && wd <= 5; });
       const h = weekdays.reduce((n, d) => n + workedH(d), 0);

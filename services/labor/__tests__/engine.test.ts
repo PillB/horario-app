@@ -67,12 +67,35 @@ describe('engine', () => {
     expect(r.findings.filter((f) => f.rule === 'daily.ordinaryMax')).toHaveLength(1);
   });
 
-  it('flags a week with no weekly rest, but not one that ends before the schedule does', () => {
-    const seven = [0, 1, 2, 3, 4, 5, 6].map((d) => shift(addDaysToKey('2026-11-02', d), '09:00', '14:00'));
-    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, seven);
-    expect(r.findings.filter((f) => f.rule === 'rest.weekly')).toHaveLength(1);
-    const five = seven.slice(0, 5);
-    expect(evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, five).findings.filter((f) => f.rule === 'rest.weekly')).toHaveLength(0);
+  it('flags a week with no weekly rest; a shortfall that rests on unseen days is only a warning', () => {
+    // Three weeks worked every day: the middle week is fully known, so it is a violation.
+    const all = Array.from({ length: 21 }, (_, d) => shift(addDaysToKey('2026-11-02', d), '09:00', '14:00'));
+    const weekly = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, all).findings.filter((f) => f.rule === 'rest.weekly');
+    // ES weekly rest is itself a warning (14-day accumulation), so test the verdict logic on France.
+    expect(weekly).toHaveLength(3);
+    const fr = evaluateShifts({ jurisdiction: 'FR', timeZone: 'Europe/Paris' }, { id: 'w' },
+      Array.from({ length: 21 }, (_, d) => shift(addDaysToKey('2026-11-02', d), '09:00', '14:00', 'Europe/Paris')));
+    const verdicts = fr.findings.filter((f) => f.rule === 'rest.weekly').map((f) => f.verdict);
+    expect(verdicts).toEqual(['warning', 'violation', 'warning']);
+    const five = all.slice(0, 5);
+    expect(evaluateShifts({ jurisdiction: 'FR', timeZone: TZ }, { id: 'w' }, five).findings.filter((f) => f.rule === 'rest.weekly')).toHaveLength(0);
+  });
+
+  it('gives the remaining hours budget when a short schedule is on track to exceed an average', () => {
+    const tz = 'Europe/Paris';
+    const week = [0, 1, 2, 3, 4].map((d) => shift(addDaysToKey('2026-11-02', d), '08:00', '18:00', tz));
+    const f = evaluateShifts({ jurisdiction: 'FR', timeZone: tz }, { id: 'w' }, week).findings.find((x) => x.rule === 'weekly.average');
+    expect(f?.verdict).toBe('warning');
+    expect(f?.hours).toBe(44 * 12 - 50);
+    expect(f?.message).toContain('for the other 11 weeks');
+  });
+
+  it('requires two days off each week for Spanish minors', () => {
+    const six = [0, 1, 2, 3, 4, 5].map((d) => shift(addDaysToKey('2026-11-02', d), '10:00', '14:00'));
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w', birthDate: '2010-01-01' }, six);
+    expect(r.findings.some((f) => f.rule === 'minors' && f.message.includes('48 consecutive hours'))).toBe(true);
+    const five = six.slice(0, 5);
+    expect(evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w', birthDate: '2010-01-01' }, five).findings.some((f) => f.rule === 'minors')).toBe(false);
   });
 
   it('applies minor rules from the birthday on', () => {
