@@ -165,6 +165,9 @@ describe('QA adversarial regressions', () => {
     expect(rest('IE', 'Europe/Dublin', ['18:00', '23:00'], ['04:00', '08:00'])).toHaveLength(1);
     expect(rest('ES', TZ, ['15:00', '23:00'], ['04:00', '08:00'])).toHaveLength(1);
     expect(rest('DE', 'Europe/Berlin', ['14:00', '22:00'], ['03:00', '07:00'])).toHaveLength(1);
+    // A long gap is plain short rest; a short gap that did not merge is a too-long working day.
+    expect(rest('GB', tz, ['16:00', '23:00'], ['04:00', '08:00'])[0].message).toContain('16 h working day');
+    expect(rest('GB', tz, ['14:00', '22:00'], ['06:00', '10:00'])[0].message).toMatch(/^Only 8 h of rest/);
   });
 
   it('ES-DRIP-01: short shifts with short gaps do not chain into a multi-day working day', () => {

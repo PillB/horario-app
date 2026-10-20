@@ -10,6 +10,7 @@
 **Type:** FIX (QA re-test of bundle 8e1d62c: L6 and the locations recommendation)
 
 - L6 (regression from the L1 merge): a merged working day now spans at most 24 h minus the daily rest minimum (capped at 11 h, so 13 h). Short overnight rests (GB 16:00–23:00 then 04:00) and chains of short shifts with short gaps now split, so the rest rule applies. Packs that define their own merge gap (NL dienst, PE) follow it with no cap. Tests GB-REST-SPLIT-01 (GB, IE, ES, DE), ES-DRIP-01, and a 09–14 + 17–22 Spanish day that stays one working day.
+- A rest finding caused by the span cap explains itself as a too-long working day ("daily amplitude"), per QA's note on FR 08–12 + 19–23.
 - `upsertLocation` is now admin-only (`MANAGER_ACTIONS`): a location's jurisdiction, industry and headcount decide which rules apply. Unit and integration tests cover a member getting 403.
 - Not done: change history for locations, and the stricter-only rule for overrides (overrides are not wired into the engine yet).
 

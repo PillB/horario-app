@@ -375,7 +375,10 @@ function checkRest(pack: RulePack, ctx: EvaluationContext, duties: Duty[], emit:
           rule: 'rest.betweenShifts', verdict: rest.verdict ?? 'violation', shiftIds: pair, hours: round2(gapH), cite: rest.cite,
           message: rest.verdict === 'warning'
             ? `Only ${round2(gapH)} h of rest between shifts. No statutory minimum is verified here; check the agreed schedule.`
-            : `Only ${round2(gapH)} h of rest between shifts; at least ${why} is required.`,
+            : gapH < (pack.dutyMergeGapHours ?? DEFAULT_SPLIT_SHIFT_GAP_HOURS)
+              // A short gap that did not merge: the day would be too long (daily amplitude).
+              ? `These shifts would make a ${round2((next.end - prev.start) / HOUR)} h working day from first start to last end, which leaves only ${round2(gapH)} h of rest; a working day can span at most ${round2(24 - Math.min(DAILY_REST_CAP_HOURS, min))} h to leave room for daily rest.`
+              : `Only ${round2(gapH)} h of rest between shifts; at least ${why} is required.`,
         });
       }
       if (rest.dailyRestReviewHours !== undefined && gapH < rest.dailyRestReviewHours - EPS) {
