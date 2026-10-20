@@ -33,7 +33,7 @@ const makeStyles = (colors: ThemeColors) =>
     finding: { gap: 2, paddingLeft: 10, borderLeftWidth: 3 },
     message: { color: colors.text },
     meta: { color: colors.textSecondary, fontSize: 13 },
-    citeLink: { color: colors.tint, fontSize: 13, textDecorationLine: 'underline' },
+    citeLink: { color: colors.tintText, fontSize: 13, textDecorationLine: 'underline' },
     button: { alignSelf: 'flex-start', paddingVertical: 8, minHeight: 44, justifyContent: 'center' },
   });
 

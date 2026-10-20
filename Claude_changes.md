@@ -6,6 +6,15 @@
 
 ---
 
+### CHG-084 — 2026-10-20 UTC
+**Type:** FIX (merge of CHG-081 and CHG-082)
+
+- `CompliancePanel` citation links used the fill teal (`colors.tint`) as text; the CHG-081 contrast guard caught it. They now use `colors.tintText`.
+
+**Tests:** jest 664 passed, 14 skipped; tsc 0 errors; lint 0 errors.
+
+---
+
 ### CHG-081 — 2026-10-20 UTC
 **Type:** FIX (QA web accessibility spot check U1–U8, `qa/spotcheck-a11y-2026-10-20.md`)
 
