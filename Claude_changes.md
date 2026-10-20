@@ -60,6 +60,14 @@ Not done: manual-assign overlap check (`validateShiftReadiness`, handler) still 
 **Type:** FEATURE (shared base for step 3)
 
 `utils/zonedTime.ts` converts between wall clock and instants for an IANA zone. A DST gap resolves to the instant after it; an overlap resolves to the earlier instant. `services/labor/jurisdictions.ts` holds the supported jurisdiction codes, resolves a confirmed place to the most specific pack (unlisted EU member states use the `EU` floor, other countries use `GENERIC`), and builds the rule chains.
+### CHG-076 — 2026-10-20 UTC
+**Type:** FEATURE (business locations with a confirmed jurisdiction and IANA time zone)
+
+1. `supabase/migrations/20261020000001_locations.sql`: `public.locations` (country / region / city codes, `jurisdiction_code`, `time_zone`, `industry` enum, headcount, locations count, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at`). Same RLS as CHG-068: anon revoked, authenticated SELECT own tenant only, writes via the proxy. Index on `account_id`. Idempotent (re-run checked).
+2. Proxy: `listLocations`, `upsertLocation`, `deleteLocation` (admin-only, in `MANAGER_ACTIONS`). `utils/locationValidation.ts` (shared with the client) requires `jurisdictionCode === resolveJurisdiction({country, region, city})`, `isValidTimeZone`, name 1–80, industry enum, city only with a region. `confirmed_by` = session user, `confirmed_at` = now; body `accountId` / `confirmedBy` ignored.
+3. `app/api/geo-hint+api.ts`: GET echoing validated `x-vercel-ip-country`, `-country-region`, `-city` (decoded), `-timezone`; all null when absent; `no-store`; no auth.
+
+**Tests:** pgTAP 53/53 (9 new); integration 13/13 (1 new); unit tests for validation, geo-hint and the proxy's pre-database checks.
 
 ---
 
