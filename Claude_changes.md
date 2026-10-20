@@ -6,6 +6,17 @@
 
 ---
 
+### CHG-083 — 2026-10-20 UTC
+**Type:** FIX (QA re-test of bundle 8e1d62c: L6 and the locations recommendation)
+
+- L6 (regression from the L1 merge): a merged working day now spans at most 24 h minus the daily rest minimum (capped at 11 h, so 13 h). Short overnight rests (GB 16:00–23:00 then 04:00) and chains of short shifts with short gaps now split, so the rest rule applies. Packs that define their own merge gap (NL dienst, PE) follow it with no cap. Tests GB-REST-SPLIT-01 (GB, IE, ES, DE), ES-DRIP-01, and a 09–14 + 17–22 Spanish day that stays one working day.
+- `upsertLocation` is now admin-only (`MANAGER_ACTIONS`): a location's jurisdiction, industry and headcount decide which rules apply. Unit and integration tests cover a member getting 403.
+- Not done: change history for locations, and the stricter-only rule for overrides (overrides are not wired into the engine yet).
+
+**Tests:** jest all pass; integration 13/13 against local Supabase; tsc 0 errors; lint 0 errors.
+
+---
+
 ### CHG-080 — 2026-10-20 UTC
 **Type:** FIX (QA adversarial probes L1–L5 on the labor engine)
 

@@ -207,6 +207,7 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     const member = signToken(`user_m_${run}`, { claims: { o: { id: ORG_B, rol: 'org:member' } } });
     const locB = (await asB({ action: 'upsertLocation', location: { name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' } })).body.location as { id: string };
     expect((await call(member, { action: 'deleteLocation', id: locB.id })).status).toBe(403);
+    expect((await call(member, { action: 'upsertLocation', location: { id: locB.id, name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service', employerHeadcount: 1 } })).status).toBe(403);
     expect((await asB({ action: 'deleteLocation', id: locB.id })).status).toBe(200);
     expect((await asA({ action: 'deleteLocation', id: locA.id })).status).toBe(200);
   });

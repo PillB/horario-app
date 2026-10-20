@@ -155,6 +155,37 @@ describe('QA adversarial regressions', () => {
     expect(restViolations(r)).toHaveLength(0);
   });
 
+  it('GB-REST-SPLIT-01: a short overnight rest is not merged into one working day', () => {
+    const tz = 'Europe/London';
+    const rest = (code: string, zone: string, a: [string, string], b: [string, string]) =>
+      evaluateShifts({ jurisdiction: code, timeZone: zone }, { id: 'w' }, [
+        shift('2026-11-02', a[0], a[1], zone), shift('2026-11-03', b[0], b[1], zone),
+      ]).findings.filter((f) => f.rule === 'rest.betweenShifts');
+    expect(rest('GB', tz, ['16:00', '23:00'], ['04:00', '08:00']).map((f) => f.hours)).toEqual([5]);
+    expect(rest('IE', 'Europe/Dublin', ['18:00', '23:00'], ['04:00', '08:00'])).toHaveLength(1);
+    expect(rest('ES', TZ, ['15:00', '23:00'], ['04:00', '08:00'])).toHaveLength(1);
+    expect(rest('DE', 'Europe/Berlin', ['14:00', '22:00'], ['03:00', '07:00'])).toHaveLength(1);
+  });
+
+  it('ES-DRIP-01: short shifts with short gaps do not chain into a multi-day working day', () => {
+    // 1.5 h shifts every 7 h 20 min (5 h 50 min gaps) for two and a half days.
+    const start = zonedShiftSpan('2026-11-02', '06:00', '07:30', TZ).start;
+    const drip: LaborShift[] = Array.from({ length: 8 }, (_, i) => {
+      const s = start + i * (7 * 60 + 20) * 60e3;
+      return { id: `d${i}`, start: s, end: s + 90 * 60e3 };
+    });
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, drip);
+    expect(restViolations(r).length).toBeGreaterThan(0);
+  });
+
+  it('keeps a long Spanish split day (09-14 + 17-22) as one working day', () => {
+    const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [
+      shift('2026-11-02', '09:00', '14:00'),
+      shift('2026-11-02', '17:00', '22:00'),
+    ]);
+    expect(restViolations(r)).toHaveLength(0);
+  });
+
   it('still flags short rest between two separate working days', () => {
     const r = evaluateShifts({ jurisdiction: 'ES', timeZone: TZ }, { id: 'w' }, [
       shift('2026-11-02', '14:00', '22:00'),

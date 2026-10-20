@@ -47,6 +47,8 @@ const MANAGER_ACTIONS = new Set([
   'deleteAvailability',
   'deleteShiftTemplate',
   'deleteRosterShift',
+  // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
+  'upsertLocation',
   'deleteLocation',
   'cancelSubscription',
   'createCheckoutSession',

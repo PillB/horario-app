@@ -116,6 +116,13 @@ const msInWindow = (work: Interval[], window: TimeWindow, tz: string): number =>
  * halves. Horario's default; the Netherlands defines it by law (8 h).
  */
 export const DEFAULT_SPLIT_SHIFT_GAP_HOURS = 6;
+/**
+ * A merged working day must leave room for daily rest in 24 h: its span (first
+ * start to last end) is at most 24 h minus the rest minimum, capped at the EU's
+ * 11 h. Packs that define their own merge gap are exempt. Without this, short overnight rests (16:00–23:00 then 04:00) and chains
+ * of short shifts would merge into one long "day" and never be checked as rest.
+ */
+const DAILY_REST_CAP_HOURS = 11;
 
 const MAX_SHIFT_MS = 24 * HOUR;
 
@@ -136,7 +143,7 @@ const validShifts = (shifts: LaborShift[], emit: Emit): LaborShift[] => {
   return valid;
 };
 
-const buildDuties = (sorted: LaborShift[], tz: string, mergeGapHours: number): Duty[] => {
+const buildDuties = (sorted: LaborShift[], tz: string, mergeGapHours: number, maxSpanHoursOn: (date: DateKey) => number): Duty[] => {
   const duties: Duty[] = [];
   for (const s of sorted) {
     // Only the part of a declared break inside its shift counts.
@@ -147,7 +154,8 @@ const buildDuties = (sorted: LaborShift[], tz: string, mergeGapHours: number): D
     const work = subtract({ start: s.start, end: s.end }, breaks);
     const workedMs = work.reduce((n, w) => n + (w.end - w.start), 0);
     const last = duties[duties.length - 1];
-    if (last && s.start - last.end < mergeGapHours * HOUR) {
+    const maxSpanMs = last ? maxSpanHoursOn(last.date) * HOUR : 0;
+    if (last && s.start - last.end < mergeGapHours * HOUR && Math.max(last.end, s.end) - last.start <= maxSpanMs) {
       if (s.start > last.end) last.breaks.push({ start: last.end, end: s.start });
       last.breaks.push(...breaks);
       last.shifts.push(s);
@@ -209,7 +217,12 @@ export function evaluateShifts(ctx: EvaluationContext, worker: LaborWorker, shif
     emit({ rule: 'jurisdiction.baseline', verdict: 'review', shiftIds: [], message: pack.baselineOnly });
   }
 
-  const duties = buildDuties(validShifts(shifts, emit), tz, pack.dutyMergeGapHours ?? DEFAULT_SPLIT_SHIFT_GAP_HOURS);
+  const duties = buildDuties(
+    validShifts(shifts, emit), tz, pack.dutyMergeGapHours ?? DEFAULT_SPLIT_SHIFT_GAP_HOURS,
+    // A pack that defines its own merge gap (NL's dienst) follows the law's definition, with no span cap.
+    (date) => (pack.dutyMergeGapHours !== undefined ? Infinity
+      : 24 - Math.min(DAILY_REST_CAP_HOURS, pack.restBetweenShifts ? resolveDated(pack.restBetweenShifts.minHours, date) : DAILY_REST_CAP_HOURS)),
+  );
   const ordinaryByDay = checkDaily(pack, ctx, worker, duties, emit);
   checkRest(pack, ctx, duties, emit);
   checkBreaks(pack, duties, emit);

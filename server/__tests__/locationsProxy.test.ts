@@ -55,10 +55,10 @@ describe('secure proxy location actions (no database)', () => {
     expect(String(res.body.error)).toMatch(message);
   });
 
-  it('only lets an org admin delete a location', async () => {
+  it('only lets an org admin create, change or delete a location', async () => {
     const member = signToken('user_m', { claims: { o: { id: 'org_m', rol: 'org:member' } } });
-    const res = await call(member, { action: 'deleteLocation', id: '00000000-0000-0000-0000-000000000001' });
-    expect(res.status).toBe(403);
+    expect((await call(member, { action: 'deleteLocation', id: '00000000-0000-0000-0000-000000000001' })).status).toBe(403);
+    expect((await call(member, { action: 'upsertLocation', location: valid })).status).toBe(403);
   });
 
   it('rejects a delete without a UUID', async () => {
