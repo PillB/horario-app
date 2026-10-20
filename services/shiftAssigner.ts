@@ -18,8 +18,17 @@
  *     real elapsed time: 22:00–06:00 is 9h on a fall-back night and 7h on a
  *     spring-forward night. A template whose end is <= its start is an overnight shift
  *     ending on the following local day (22:00–06:00 on Mon runs Mon 22:00 → Tue 06:00;
- *     16:00–00:00 ends at Tue 00:00). A start inside a DST gap moves to the end of the
- *     gap; a repeated local time resolves to its first occurrence.
+ *     16:00–00:00 ends at Tue 00:00). A local time inside a DST gap resolves to after the
+ *     gap (`zonedToUtc`: read with the offset in force before the gap, so 02:30 on a
+ *     New York spring-forward day is 03:30 EDT); a repeated local time resolves to its
+ *     first occurrence.
+ *   - Spans inside a DST gap (CHG-087): when the start resolves past the gap but the end
+ *     does not, the elapsed span can come out zero or negative (02:00–03:00 New York on
+ *     2026-03-08 is 07:00Z–07:00Z). Such a span moves to after the gap with its
+ *     wall-clock length, as if both ends were read with the pre-gap offset: 02:00–03:00
+ *     runs 03:00–04:00 EDT, 02:30–03:00 runs 03:30–04:00 EDT. Availability slots use the
+ *     same rule. So every span with a positive wall-clock length has a positive elapsed
+ *     length; no slot is ever zero-length.
  *   - Weekdays and calendar days come from the business-local date key, never from the
  *     device clock.
  *   - Deprecated: without `timeZone`, a given `timezoneOffsetMinutes` means a fixed-offset
@@ -211,13 +220,34 @@ export const timelineFor = (input: AssignmentInput): Timeline => {
   return zonedTimeline(getDeviceTimeZone());
 };
 
+/**
+ * Absolute interval of the local window [startMinutes, endMinutes) on `date` (end may be
+ * ≥ 1440). A span that a DST gap makes zero or negative moves to after the gap with its
+ * wall-clock length (see "Spans inside a DST gap" above).
+ */
+export const zonedSpan = (date: string, startMinutes: number, endMinutes: number, at: Timeline): Interval => {
+  const start = at(date, startMinutes);
+  const end = at(date, endMinutes);
+  const wallLength = endMinutes - startMinutes;
+  return { start, end: end <= start && wallLength > 0 ? start + wallLength : end };
+};
+
 /** Absolute interval of `template` when it starts on `date`. */
 export const shiftInterval = (template: ShiftTemplate, date: string, at: Timeline): Interval => {
   const w = normalizeWindow(getTemplateWindow(template));
-  return { start: at(date, w.startMinutes), end: at(date, w.endMinutes) };
+  return zonedSpan(date, w.startMinutes, w.endMinutes, at);
 };
 
 const entryMinutes = (e: Entry | Interval): number => e.end - e.start;
+
+/**
+ * True when two intervals share any instant. A zero-length interval occupies its
+ * instant (it overlaps an interval containing it, or another at the same instant), so a
+ * worker can never stack zero-length shifts. Minutes are integers, so `start + 1` is
+ * the smallest non-empty end.
+ */
+export const intervalsOverlap = (a: Interval, b: Interval): boolean =>
+  a.start < Math.max(b.end, b.start + 1) && b.start < Math.max(a.end, a.start + 1);
 
 /** Absolute interval of an availability slot on `date` (23:59 = end of day, end <= start wraps). */
 const availabilityInterval = (from: string, to: string, date: string, at: Timeline): Interval => {
@@ -225,7 +255,7 @@ const availabilityInterval = (from: string, to: string, date: string, at: Timeli
   const rawEnd = parseTimeToMinutes(to);
   const end = rawEnd === MINUTES_PER_DAY - 1 ? MINUTES_PER_DAY : rawEnd;
   const w = normalizeWindow({ startMinutes: start, endMinutes: end });
-  return { start: at(date, w.startMinutes), end: at(date, w.endMinutes) };
+  return zonedSpan(date, w.startMinutes, w.endMinutes, at);
 };
 
 /**
@@ -298,7 +328,11 @@ export const checkEligibility = (
   if (!workerCoversInterval(worker, interval, ctx)) return 'no_availability';
 
   const mine = others.filter((e) => e.workerId === worker.id);
-  if (mine.some((e) => e.start < interval.end && interval.start < e.end)) return 'overlap';
+  // A worker never takes two positions of one slot (date × template), whatever its
+  // length, and never a slot that shares an instant with one they hold (CHG-087).
+  if (mine.some((e) => (e.date === ctx.date && e.templateId === template.id) || intervalsOverlap(e, interval))) {
+    return 'overlap';
+  }
 
   const constraints = ctx.constraints;
   if (!constraints) return null;

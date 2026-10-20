@@ -149,7 +149,7 @@ describe('short history', () => {
     const fc = forecastSeries([3, 4, 5, 6, 7, 8, 9, 3, 4], [1], OPTIONS);
     expect(fc.model).toBe('seasonalNaive');
     expect(fc.intervalSource).toBe('none');
-    expect(fc.points[0]).toEqual({ h: 1, expected: 5, lower: null, upper: null, atServiceLevel: 5 });
+    expect(fc.points[0]).toEqual({ h: 1, expected: 5, lower: null, upper: null, atServiceLevel: 5, closedWeekday: false });
   });
 
   it('only scores seasonal naive between 35 and 41 days', () => {

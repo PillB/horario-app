@@ -357,7 +357,7 @@ export const zh = {
       forecastHelperRunning: '正在运行预测...',
       forecastHelperReady: '已准备好使用今日信号运行预测。',
       beforeForecast: '预测前',
-      afterForecast: '预测后', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}',
+      afterForecast: '预测后', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}', historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.', signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.',
       sourceLabelModel: 'AI预测',
       sourceLabelOverride: '手动输入',
       sourceLabelPos: 'POS导入',

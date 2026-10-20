@@ -1,7 +1,3 @@
-jest.mock('@/services/authToken', () => ({
-  getSessionToken: jest.fn(),
-}));
-
 import { getSessionToken } from '@/services/authToken';
 import {
   getForecastDataStatus,
@@ -12,6 +8,10 @@ import {
   DemandForecast,
 } from '../demandForecast';
 import { addDaysToKey, weekdayOfKey } from '@/utils/dateKeys';
+
+jest.mock('@/services/authToken', () => ({
+  getSessionToken: jest.fn(),
+}));
 
 const mockGetSessionToken = getSessionToken as jest.Mock;
 const mockFetch = jest.fn();
@@ -259,6 +259,28 @@ describe('generateDemandForecast without the external API', () => {
     const tokyo = await generateDemandForecast({ role: 'Cook' }, { timeZone: 'Asia/Tokyo', horizonDays: 3 });
     expect(bodyOf(mockFetch.mock.calls.find((c) => bodyOf(c).action === 'forecastHistory')!).to).toBe('2026-03-08');
     expect(tokyo.forecasts.map((f) => f.date)).toEqual(['2026-03-08', '2026-03-09', '2026-03-10']);
+  });
+
+  test('CHG-087: history that stopped weeks ago counts as 0 up to the window end, and the gap is reported', async () => {
+    // Shifts stop on 2026-02-05; today (UTC) is 2026-03-08, so the window ends 2026-03-07.
+    mockFetch.mockImplementation(fakeProxy('2026-02-06', 200));
+    const result = await generateDemandForecast({ date: '2026-03-10', role: 'Cook' }, { timeZone: 'UTC' });
+    expect(result.metadata.historyEndsDaysAgo).toBe(30);
+    expect(result.metadata.models?.[0]).toMatchObject({ lastDataDate: '2026-02-05', historyEndsDaysAgo: 30 });
+    expect(result.forecasts).toEqual([expect.objectContaining({ date: '2026-03-10', required: 0 })]);
+    expect(result.metadata.signalsTruncated).toBe(false);
+  });
+
+  test('CHG-087: passes on the proxy\'s signal truncation flag', async () => {
+    const proxy = fakeProxy('2026-03-08', 60);
+    mockFetch.mockImplementation((url: string, init: RequestInit) =>
+      bodyOf([url, init]).action === 'listForecastSignals'
+        ? Promise.resolve(makeOkResponse({ signals: [], truncated: true }))
+        : proxy(url, init),
+    );
+    const result = await generateDemandForecast({ date: '2026-03-10', role: 'Cook' }, { timeZone: 'UTC' });
+    expect(result.metadata.signalsTruncated).toBe(true);
+    expect(result.metadata.historyEndsDaysAgo).toBe(0);
   });
 
   test('says so when there is no history for the role', async () => {

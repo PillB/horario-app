@@ -9,7 +9,7 @@ import {
 } from '@/utils/posForecasting';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { type DemandForecast } from '@/services/demandForecast';
+import { HISTORY_GAP_NOTICE_DAYS, type DemandForecast, type ForecastNotices } from '@/services/demandForecast';
 import { type ForecastModelName } from '@/services/forecasting/models';
 import { type RoleModelSummary } from '@/services/forecasting/statisticalForecast';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
@@ -77,6 +77,8 @@ type Props = {
   forecastError: string | null;
   /** Model chosen per role by the last statistical forecast, with its backtest MASE. */
   forecastModels?: RoleModelSummary[];
+  /** History gap and signal truncation from the last statistical forecast. */
+  forecastNotices?: ForecastNotices;
 };
 
 // Factory so every colour resolves against the live theme
@@ -292,6 +294,7 @@ export const DemandSection = ({
   shiftTemplates,
   forecastError,
   forecastModels = [],
+  forecastNotices,
   onBulkSave,
 }: Props) => {
   const { t } = useT();
@@ -1035,6 +1038,19 @@ export const DemandSection = ({
             </View>
           ))}
         </View>
+      ) : null}
+
+      {forecastNotices &&
+      forecastNotices.historyEndsDaysAgo !== null &&
+      forecastNotices.historyEndsDaysAgo >= HISTORY_GAP_NOTICE_DAYS ? (
+        <ThemedText style={styles.mutedText} testID="forecast-history-gap">
+          {t('scheduler.demand.historyEndsNote', { days: String(forecastNotices.historyEndsDaysAgo) })}
+        </ThemedText>
+      ) : null}
+      {forecastNotices?.signalsTruncated ? (
+        <ThemedText style={styles.mutedText} testID="forecast-signals-truncated">
+          {t('scheduler.demand.signalsTruncatedNote')}
+        </ThemedText>
       ) : null}
 
       <LostRevenueSummary

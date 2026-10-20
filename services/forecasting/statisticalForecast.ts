@@ -5,11 +5,13 @@
  * `forecastHistory` proxy action), external signals and the dates to forecast.
  * For each role:
  *   1. build a dense daily series from the role's first day to the end of the
- *      history (days without shifts are 0), divided by that day's signal
- *      multiplier so past events do not distort the baseline;
+ *      history window (days without shifts are 0, including trailing days after
+ *      the last recorded shift when `historyEnd` is given), divided by that day's
+ *      signal multiplier so past events do not distort the baseline;
  *   2. pick a model by rolling-origin backtest (selection.ts);
  *   3. forecast, multiply by the target day's signal multiplier, and take the
- *      planned headcount at the service-level quantile, rounded up.
+ *      planned headcount at the service-level quantile, rounded up. A weekday that
+ *      was 0 in each of its last 4 weeks (CLOSED_WEEKDAY_WEEKS) is forecast 0.
  *
  * Dates are calendar keys ("YYYY-MM-DD") handled with utils/dateKeys.ts only,
  * so the result never depends on the device time zone or DST.
@@ -51,6 +53,10 @@ export type RoleModelSummary = {
   /** Every candidate's backtest MASE. */
   scores: ModelScore[];
   historyDays: number;
+  /** Last date with a recorded shift for this role. */
+  lastDataDate: string;
+  /** Days from `lastDataDate` to the end of the series (0 when the last day has data). */
+  historyEndsDaysAgo: number;
   backtestOrigins: number;
   intervalSource: IntervalSource;
   params: Record<string, number>;
@@ -61,6 +67,11 @@ export type StatisticalForecastResult = {
   models: RoleModelSummary[];
   /** Requested roles with no shift history (no forecast made). */
   rolesWithoutHistory: string[];
+  /**
+   * Days between the most recent recorded shift (any role) and the end of the history
+   * window; null without history. A large value means shifts stopped being logged.
+   */
+  historyEndsDaysAgo: number | null;
 };
 
 const validWeight = (w: unknown): w is number => typeof w === 'number' && Number.isFinite(w) && w > 0 && w <= MAX_SIGNAL_WEIGHT;
@@ -86,30 +97,40 @@ export function buildSignalMultipliers(signals: readonly ForecastSignal[]): (dat
   return (date, role) => byRole.get(`${date}::${role}`) ?? global.get(date) ?? 1;
 }
 
-export type RoleSeries = { role: string; start: string; end: string; values: number[] };
+export type RoleSeries = { role: string; start: string; end: string; lastDataDate: string; values: number[] };
 
 /**
  * Dense daily series per role, ending at `end` (inclusive). Rows on or after
- * `before` are ignored. Each role starts on its own first day with shifts.
+ * `before` (or `historyEnd`) are ignored. Each role starts on its own first day with
+ * shifts. With `historyEnd` (exclusive end of the fetched window), every series ends
+ * the day before it (or before `before`, whichever is earlier), so days after the last
+ * recorded shift count as 0 (CHG-087); without it, the series end at the last date
+ * with data.
  */
 export function buildRoleSeries(
   history: readonly HistoryDay[],
   multiplier: (date: string, role: string) => number,
   before: string,
+  historyEnd?: string,
 ): RoleSeries[] {
+  const cutoff = historyEnd && isDateKey(historyEnd) && historyEnd < before ? historyEnd : before;
   const totals = new Map<string, Map<string, number>>();
+  const lastData = new Map<string, string>();
   let end: string | null = null;
   for (const row of history) {
     if (!row || !isDateKey(String(row.date)) || typeof row.role !== 'string' || !row.role) continue;
-    if (row.date >= before) continue;
+    if (row.date >= cutoff) continue;
     const count = Number(row.shifts);
     if (!Number.isFinite(count) || count < 0) continue;
     let days = totals.get(row.role);
     if (!days) totals.set(row.role, (days = new Map()));
     days.set(row.date, (days.get(row.date) ?? 0) + count);
     if (end === null || row.date > end) end = row.date;
+    const seen = lastData.get(row.role);
+    if (seen === undefined || row.date > seen) lastData.set(row.role, row.date);
   }
   if (end === null) return [];
+  if (historyEnd && isDateKey(historyEnd)) end = addDaysToKey(cutoff, -1);
   const starts = new Map([...totals].map(([role, days]) => [role, [...days.keys()].reduce((a, b) => (a < b ? a : b))]));
   const first = [...starts.values()].reduce((a, b) => (a < b ? a : b));
   // Every calendar day once, shared by all roles.
@@ -123,7 +144,7 @@ export function buildRoleSeries(
       const date = calendar[offset + i];
       values[i] = (days.get(date) ?? 0) / multiplier(date, role);
     }
-    out.push({ role, start, end, values });
+    out.push({ role, start, end, lastDataDate: lastData.get(role)!, values });
   }
   return out.sort((a, b) => a.role.localeCompare(b.role));
 }
@@ -139,6 +160,12 @@ export type StatisticalForecastInput = {
   targetDates: readonly string[];
   /** Roles to forecast; default every role in the history. */
   roles?: readonly string[];
+  /**
+   * Exclusive end of the history window that was fetched. Days in the window after the
+   * last recorded shift count as 0 demand. Without it the series end at the last date
+   * with data.
+   */
+  historyEnd?: string;
 };
 
 type Plan = {
@@ -155,7 +182,9 @@ function plan(input: StatisticalForecastInput, options: StatisticalForecastOptio
   const targets = Array.from(new Set(input.targetDates.filter(isDateKey))).sort();
   const multiplier = buildSignalMultipliers(input.signals ?? []);
   const series = new Map(
-    (targets.length ? buildRoleSeries(input.history, multiplier, targets[0]) : []).map((r) => [r.role, r] as const),
+    (targets.length ? buildRoleSeries(input.history, multiplier, targets[0], input.historyEnd) : []).map(
+      (r) => [r.role, r] as const,
+    ),
   );
   return {
     targets,
@@ -184,6 +213,8 @@ function forecastRole(pl: Plan, role: string, result: StatisticalForecastResult)
     mase: fc.mase === null ? null : round(fc.mase, 3),
     scores: fc.scores.map((x) => ({ model: x.model, mase: round(x.mase, 3) })),
     historyDays: s.values.length,
+    lastDataDate: s.lastDataDate,
+    historyEndsDaysAgo: daysBetweenKeys(s.lastDataDate, s.end),
     backtestOrigins: fc.backtestOrigins,
     intervalSource: fc.intervalSource,
     params: fc.params,
@@ -214,20 +245,30 @@ function forecastRole(pl: Plan, role: string, result: StatisticalForecastResult)
 
 const sortForecasts = (result: StatisticalForecastResult) => {
   result.forecasts.sort((a, b) => (a.date === b.date ? a.role.localeCompare(b.role) : a.date < b.date ? -1 : 1));
+  result.historyEndsDaysAgo = result.models.length
+    ? Math.min(...result.models.map((m) => m.historyEndsDaysAgo))
+    : null;
   return result;
 };
 
+const emptyResult = (): StatisticalForecastResult => ({
+  forecasts: [],
+  models: [],
+  rolesWithoutHistory: [],
+  historyEndsDaysAgo: null,
+});
+
 /**
  * Forecasts `targetDates` for each role. Only history before the earliest
- * target date is used; the horizon of each target is counted from the last
- * day of history.
+ * target date (and before `historyEnd`) is used; the horizon of each target is
+ * counted from the end of the series.
  */
 export function statisticalForecast(
   input: StatisticalForecastInput,
   options: StatisticalForecastOptions = {},
 ): StatisticalForecastResult {
   const pl = plan(input, options);
-  const result: StatisticalForecastResult = { forecasts: [], models: [], rolesWithoutHistory: [] };
+  const result = emptyResult();
   for (const role of pl.roles) forecastRole(pl, role, result);
   return sortForecasts(result);
 }
@@ -246,7 +287,7 @@ export async function statisticalForecastAsync(
   pause: () => Promise<void> = yieldToEventLoop,
 ): Promise<StatisticalForecastResult> {
   const pl = plan(input, options);
-  const result: StatisticalForecastResult = { forecasts: [], models: [], rolesWithoutHistory: [] };
+  const result = emptyResult();
   for (const role of pl.roles) {
     await pause();
     forecastRole(pl, role, result);

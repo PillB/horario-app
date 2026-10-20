@@ -38,8 +38,8 @@ describe('series building', () => {
       '2026-03-09',
     );
     expect(series).toEqual([
-      { role: 'Barista', start: '2026-03-03', end: '2026-03-04', values: [5, 0] },
-      { role: 'Cook', start: '2026-03-01', end: '2026-03-04', values: [2, 0, 0, 1] },
+      { role: 'Barista', start: '2026-03-03', end: '2026-03-04', lastDataDate: '2026-03-03', values: [5, 0] },
+      { role: 'Cook', start: '2026-03-01', end: '2026-03-04', lastDataDate: '2026-03-04', values: [2, 0, 0, 1] },
     ]);
   });
 
@@ -55,7 +55,7 @@ describe('series building', () => {
       () => 1,
       '2026-04-01',
     );
-    expect(series).toEqual([{ role: 'Cook', start: '2026-03-02', end: '2026-03-02', values: [3] }]);
+    expect(series).toEqual([{ role: 'Cook', start: '2026-03-02', end: '2026-03-02', lastDataDate: '2026-03-02', values: [3] }]);
   });
 });
 
@@ -166,6 +166,7 @@ describe('statisticalForecast', () => {
       forecasts: [],
       models: [],
       rolesWithoutHistory: [],
+      historyEndsDaysAgo: null,
     });
   });
 

@@ -91,7 +91,7 @@ export const de = {
       forecastHelperRunning: 'Prognose wird erstellt...',
       forecastHelperReady: 'Bereit, die Prognose mit den heutigen Signalen auszuführen.',
       beforeForecast: 'Vor der Prognose',
-      afterForecast: 'Nach der Prognose', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}',
+      afterForecast: 'Nach der Prognose', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}', historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.', signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.',
       sourceLabelModel: 'KI-Prognose',
       sourceLabelOverride: 'Manuelle Eingabe',
       sourceLabelPos: 'POS-Import',

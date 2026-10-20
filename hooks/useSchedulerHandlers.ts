@@ -99,6 +99,7 @@ export function useSchedulerHandlers() {
     dataStatus,
     seedBaselineTargets,
     forecastModels,
+    forecastNotices,
   } = useDemandForecast(undefined, { timeZone: forecastTimeZone });
 
   const { workers, addWorker, addAvailability } = useWorkers(accountId);
@@ -1206,6 +1207,7 @@ export function useSchedulerHandlers() {
     demandTargets,
     forecastError,
     forecastModels,
+    forecastNotices,
     forecastLoading,
     forecasting,
     needsFallbackSetup,

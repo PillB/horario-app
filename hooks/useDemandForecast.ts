@@ -7,6 +7,7 @@ import {
   ForecastDataStatus,
   ForecastGenerationResult,
   ForecastGenerationMetadata,
+  ForecastNotices,
   ForecastOptions,
   generateDemandForecast,
   getForecastDataStatus,
@@ -24,6 +25,7 @@ const mergeForecasts = (incoming: DemandForecast[], existing: DemandForecast[]) 
 const forecastKey = (f: DemandForecast) => `${f.date}::${f.role}`;
 
 const NO_MODELS: RoleModelSummary[] = [];
+const NO_NOTICES: ForecastNotices = { historyEndsDaysAgo: null, signalsTruncated: false };
 
 /**
  * `options` (service level, interval level, business time zone) is read when a
@@ -181,6 +183,16 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
   }, [hydrate]);
 
   const forecastModels = useMemo(() => lastGenerationMetadata?.models ?? NO_MODELS, [lastGenerationMetadata]);
+  const forecastNotices = useMemo<ForecastNotices>(
+    () =>
+      lastGenerationMetadata
+        ? {
+            historyEndsDaysAgo: lastGenerationMetadata.historyEndsDaysAgo ?? null,
+            signalsTruncated: lastGenerationMetadata.signalsTruncated === true,
+          }
+        : NO_NOTICES,
+    [lastGenerationMetadata],
+  );
 
   return {
     demandTargets,
@@ -191,6 +203,8 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     lastGenerationMetadata,
     /** Statistical forecasts: model chosen per role and its backtest MASE (empty otherwise). */
     forecastModels,
+    /** Statistical forecasts: history gap and signal truncation, for a note in the UI. */
+    forecastNotices,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,

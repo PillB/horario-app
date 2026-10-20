@@ -7,7 +7,7 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { DemandSection } from '../scheduler/DemandSection';
-import { type DemandForecast } from '@/services/demandForecast';
+import { type DemandForecast, type ForecastNotices } from '@/services/demandForecast';
 import { type RoleModelSummary } from '@/services/forecasting/statisticalForecast';
 
 jest.mock('@/contexts/LocaleContext', () => {
@@ -35,6 +35,8 @@ const MODELS: RoleModelSummary[] = [
     mase: 0.734,
     scores: [],
     historyDays: 400,
+    lastDataDate: '2026-10-19',
+    historyEndsDaysAgo: 0,
     backtestOrigins: 10,
     intervalSource: 'backtest',
     params: {},
@@ -45,6 +47,8 @@ const MODELS: RoleModelSummary[] = [
     mase: null,
     scores: [],
     historyDays: 20,
+    lastDataDate: '2026-10-19',
+    historyEndsDaysAgo: 0,
     backtestOrigins: 0,
     intervalSource: 'in-sample',
     params: {},
@@ -67,7 +71,7 @@ const TARGETS: DemandForecast[] = [
   },
 ];
 
-const render = (forecastModels?: RoleModelSummary[]): ReactTestRenderer => {
+const render = (forecastModels?: RoleModelSummary[], forecastNotices?: ForecastNotices): ReactTestRenderer => {
   let tree!: ReactTestRenderer;
   act(() => {
     tree = renderer.create(
@@ -94,6 +98,7 @@ const render = (forecastModels?: RoleModelSummary[]): ReactTestRenderer => {
         shiftTemplates={[]}
         forecastError={null}
         forecastModels={forecastModels}
+        forecastNotices={forecastNotices}
       />,
     );
   });
@@ -125,5 +130,23 @@ describe('DemandSection forecast model', () => {
 
   it('shows no model block before a statistical forecast has run', () => {
     expect(allText(render())).not.toContain('Forecast model');
+  });
+});
+
+describe('DemandSection forecast notices (CHG-087)', () => {
+  it('says when the shift history ends long before today', () => {
+    const text = allText(render(MODELS, { historyEndsDaysAgo: 130, signalsTruncated: false }));
+    expect(text).toContain('Shift history ends 130 days ago; the days since count as no demand.');
+    expect(text).not.toContain('Too many demand signals');
+  });
+
+  it('stays quiet about a short gap', () => {
+    const text = allText(render(MODELS, { historyEndsDaysAgo: 3, signalsTruncated: false }));
+    expect(text).not.toContain('Shift history ends');
+  });
+
+  it('says when the proxy left out old signals', () => {
+    const text = allText(render(MODELS, { historyEndsDaysAgo: 0, signalsTruncated: true }));
+    expect(text).toContain('Too many demand signals to load: the oldest past signals were left out.');
   });
 });

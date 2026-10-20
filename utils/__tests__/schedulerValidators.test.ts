@@ -563,3 +563,18 @@ describe('localizeValidationErrors', () => {
     expect(result).toEqual([]);
   });
 });
+
+// ─── CHG-087: one worker never fills two positions of one slot ────────────────
+
+describe('validateShiftReadiness — same slot twice (CHG-087)', () => {
+  test('the same template on the same date is SHIFT_OVERLAP even when its window cannot be measured', () => {
+    // A legacy template with an unparsable end gives NaN minutes, so the window
+    // comparison alone never reports an overlap.
+    const broken = makeTemplate({ id: 'broken', start: '09:00', end: '' });
+    const first = makeShift({ id: 'a', templateId: 'broken' });
+    const second = makeShift({ id: 'b', templateId: 'broken' });
+    const worker = makeWorker({ availability: [{ day: 'Mon', from: '00:00', to: '23:59' }] });
+    const { errors } = validateShiftReadiness(second, [first, second], [broken], [worker], UTC_OFFSET);
+    expect(errors.map((e) => e.code)).toContain('SHIFT_OVERLAP');
+  });
+});

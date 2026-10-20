@@ -76,6 +76,13 @@ export type ForecastGenerationMetadata = ForecastDataStatus & {
   fitMs?: number;
   /** True when the history had more shifts than the client fetches; the oldest were left out. */
   historyTruncated?: boolean;
+  /**
+   * Days from the most recent recorded shift to the end of the history window (the day
+   * before today or the first target). Days in between count as 0 demand.
+   */
+  historyEndsDaysAgo?: number | null;
+  /** True when the proxy had more signals than it returns; the oldest past ones were left out. */
+  signalsTruncated?: boolean;
 };
 
 export type ForecastOptions = {
@@ -92,6 +99,16 @@ export type ForecastOptions = {
 /** Days of history fitted (2 years). */
 export const FORECAST_HISTORY_DAYS = 730;
 export const DEFAULT_FORECAST_HORIZON_DAYS = 14;
+/** The UI notes "history ends N days ago" from this many days without a recorded shift. */
+export const HISTORY_GAP_NOTICE_DAYS = 14;
+
+/** Data-quality notes from the last statistical forecast, for the UI. */
+export type ForecastNotices = {
+  /** Days from the most recent recorded shift to the end of the history window. */
+  historyEndsDaysAgo: number | null;
+  /** The proxy left out the oldest past signals. */
+  signalsTruncated: boolean;
+};
 /** Must match the proxy's FORECAST_HISTORY_MAX_PAGES. */
 const MAX_HISTORY_PAGES = 40;
 const HISTORY_PAGE_CONCURRENCY = 4;
@@ -203,9 +220,25 @@ export const fetchForecastHistory = async (
   return { days, truncated };
 };
 
-export const fetchForecastSignals = async (from: string, to: string, role?: string): Promise<ForecastSignal[]> => {
-  const result = await handleSecureFetch<{ signals: ForecastSignal[] }>({ action: 'listForecastSignals', from, to, role });
-  return result.signals ?? [];
+/**
+ * External signals in [from, to). With `targetsFrom` (the first forecast date) the proxy
+ * returns the signals from that date on first, then the newest past ones; `truncated`
+ * says that some (the oldest past ones) were left out.
+ */
+export const fetchForecastSignals = async (
+  from: string,
+  to: string,
+  role?: string,
+  targetsFrom?: string,
+): Promise<{ signals: ForecastSignal[]; truncated: boolean }> => {
+  const result = await handleSecureFetch<{ signals?: ForecastSignal[]; truncated?: boolean }>({
+    action: 'listForecastSignals',
+    from,
+    to,
+    role,
+    targetsFrom,
+  });
+  return { signals: result.signals ?? [], truncated: result.truncated === true };
 };
 
 const elapsedMs = (start: number) => Math.round((Date.now() - start) * 10) / 10;
@@ -227,16 +260,18 @@ const generateStatisticalForecast = async (
   const end = targetDates[0] < today ? targetDates[0] : today;
   const from = addDaysToKey(end, -FORECAST_HISTORY_DAYS);
   const signalsTo = addDaysToKey(targetDates[targetDates.length - 1], 1);
-  const [history, signals] = await Promise.all([
+  const [history, signalPage] = await Promise.all([
     fetchForecastHistory(from, end, filters?.role),
-    fetchForecastSignals(from, signalsTo, filters?.role),
+    fetchForecastSignals(from, signalsTo, filters?.role, targetDates[0]),
   ]);
 
   const serviceLevel = options.serviceLevel ?? DEFAULT_SERVICE_LEVEL;
   const intervalLevel = options.intervalLevel ?? DEFAULT_INTERVAL_LEVEL;
+  const signals = signalPage.signals;
   const started = Date.now();
   const result = await statisticalForecastAsync(
-    { history: history.days, signals, targetDates, roles: filters?.role ? [filters.role] : undefined },
+    // historyEnd: days after the last recorded shift, up to the window end, count as 0.
+    { history: history.days, signals, targetDates, roles: filters?.role ? [filters.role] : undefined, historyEnd: end },
     { serviceLevel, intervalLevel },
   );
   const fitMs = elapsedMs(started);
@@ -270,6 +305,8 @@ const generateStatisticalForecast = async (
       intervalLevel: result.forecasts.find((f) => f.intervalLevel !== undefined)?.intervalLevel ?? intervalLevel,
       fitMs,
       historyTruncated: history.truncated,
+      historyEndsDaysAgo: result.historyEndsDaysAgo,
+      signalsTruncated: signalPage.truncated,
     },
   };
 };

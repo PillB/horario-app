@@ -26,6 +26,7 @@ import {
   ForecastGenerationResult,
 } from '@/services/demandForecast';
 import { OnboardingProgress } from '@/services/onboardingProgress';
+import { isDateKey } from '@/utils/dateKeys';
 import { type BusinessLocation, validateLocationInput } from '@/utils/locationValidation';
 import { validateWorkerLabor } from '@/utils/workerLaborValidation';
 
@@ -85,8 +86,12 @@ const isDayOfWeek = (v: unknown): v is string =>
 const isShiftStatus = (v: unknown): v is 'Draft' | 'Published' =>
   v === 'Draft' || v === 'Published';
 
-const isISODate = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+/**
+ * A real calendar date as YYYY-MM-DD. `isDateKey` round-trips the parts, so 2026-02-31
+ * is refused (Date.parse rolls it over to 2026-03-03, and Postgres then rejects it with
+ * a 500) (CHG-087).
+ */
+const isISODate = (v: unknown): v is string => typeof v === 'string' && isDateKey(v);
 
 const isNonEmptyString = (v: unknown, max = 200): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= max;
@@ -181,6 +186,12 @@ type ExternalSignal = { date: string; role?: string; signal_type?: string; weigh
 
 const roundToInt = (value: number) => Math.max(0, Math.round(value));
 const buildKey = (item: { date: string; role: string }) => `${item.date}::${item.role}`;
+
+/** 400 message for forecast filters with a date that is not a real YYYY-MM-DD date, else null. */
+const filtersDateError = (filters: unknown): string | null =>
+  isRecord(filters) && filters.date !== undefined && filters.date !== null && filters.date !== '' && !isISODate(filters.date)
+    ? 'filters.date must be a real YYYY-MM-DD date'
+    : null;
 
 const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
   if (!isRecord(filters)) return undefined;
@@ -403,21 +414,56 @@ async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Reco
   });
 }
 
-/** External signals in [from, to); with a role, that role's and the global ones. */
+/** Most signals one listForecastSignals call returns. */
+const FORECAST_SIGNALS_LIMIT = 1000;
+
+type SignalRow = { date: string; role: string | null; signal_type: string | null; weight: number | string | null };
+
+/**
+ * External signals in [from, to); with a role, that role's and the global ones. At most
+ * FORECAST_SIGNALS_LIMIT are returned, and `truncated` says whether some were left out
+ * (CHG-087). With `targetsFrom` (the first forecast date, inside the window) the
+ * signals in [targetsFrom, to) come first, nearest first, and the history signals fill
+ * the rest, newest first; without it the window is read newest first. Either way the
+ * oldest history signals are the ones dropped, never the future ones being forecast
+ * (before, the window was read oldest first and the future was cut off).
+ */
 async function listForecastSignals(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
   const windowError = historyWindowError(p.from, p.to);
   if (windowError) return badRequest(windowError);
   if (p.role !== undefined && !isNonEmptyString(p.role, 100)) return badRequest('role must be a non-empty string');
-  let query = client
-    .from('external_signals')
-    .select('date, role, signal_type, weight')
-    .eq('account_id', ctx.accountId)
-    .gte('date', p.from as string)
-    .lt('date', p.to as string);
-  if (typeof p.role === 'string') query = query.in('role', [p.role, 'global']);
-  const { data, error } = await query.order('date', { ascending: true }).limit(FORECAST_HISTORY_PAGE_SIZE);
-  if (error) return dbFailure('select external_signals', error);
-  return ok({ signals: (data ?? []).map((s) => ({ ...s, weight: s.weight === null ? null : Number(s.weight) })) });
+  const from = p.from as string;
+  const to = p.to as string;
+  if (p.targetsFrom !== undefined && (!isISODate(p.targetsFrom) || p.targetsFrom <= from || p.targetsFrom > to)) {
+    return badRequest('targetsFrom must be a YYYY-MM-DD date after from and not after to');
+  }
+  const split = p.targetsFrom as string | undefined;
+  // Each query asks for one row more than it may keep, to tell whether rows were left out.
+  const read = (gte: string, lt: string, ascending: boolean) => {
+    let query = client
+      .from('external_signals')
+      .select('date, role, signal_type, weight')
+      .eq('account_id', ctx.accountId)
+      .gte('date', gte)
+      .lt('date', lt);
+    if (typeof p.role === 'string') query = query.in('role', [p.role, 'global']);
+    return query.order('date', { ascending }).limit(FORECAST_SIGNALS_LIMIT + 1);
+  };
+  const [future, past] = await Promise.all(
+    split ? [read(split, to, true), read(from, split, false)] : [read(from, to, false)],
+  );
+  if (future.error) return dbFailure('select external_signals', future.error);
+  if (past?.error) return dbFailure('select external_signals', past.error);
+  const futureRows = (future.data ?? []) as SignalRow[];
+  const pastRows = (past?.data ?? []) as SignalRow[];
+  const keptFuture = futureRows.slice(0, FORECAST_SIGNALS_LIMIT);
+  const room = FORECAST_SIGNALS_LIMIT - keptFuture.length;
+  const keptPast = pastRows.slice(0, room);
+  const truncated = futureRows.length > keptFuture.length || pastRows.length > keptPast.length;
+  return ok({
+    signals: [...keptFuture, ...keptPast].map((s) => ({ ...s, weight: s.weight === null ? null : Number(s.weight) })),
+    truncated,
+  });
 }
 
 /** True when the tenant has at least one row in `table` (matching the filters). */
@@ -895,9 +941,14 @@ const paymentsNotConfigured = () => fail(501, 'Payment integration not yet confi
 
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
   switch (p.action) {
-    case 'forecast':
+    case 'forecast': {
+      const dateError = filtersDateError(p.filters);
+      if (dateError) return badRequest(dateError);
       return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
+    }
     case 'status': {
+      const dateError = filtersDateError(p.filters);
+      if (dateError) return badRequest(dateError);
       // History is checked for the role only: a forecast for a date is made
       // from earlier days, so the date filter does not apply to history.
       const filters = cleanFilters(p.filters);
@@ -923,8 +974,11 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return forecastHistory(client, ctx, p);
     case 'listForecastSignals':
       return listForecastSignals(client, ctx, p);
-    case 'loadTargets':
+    case 'loadTargets': {
+      const dateError = filtersDateError(p.filters);
+      if (dateError) return badRequest(dateError);
       return ok({ targets: await fetchExistingTargets(client, ctx, cleanFilters(p.filters)) });
+    }
     case 'upsertTargets':
       return upsertTargets(client, ctx, p.targets);
     case 'getOnboarding':

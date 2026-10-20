@@ -149,6 +149,20 @@ export const MIN_INTERVAL_ERRORS = 6;
 /** Errors from horizons within ±3 days are pooled when there are at least this many. */
 const MIN_WINDOW_ERRORS = 20;
 const HORIZON_WINDOW = 3;
+/**
+ * A target's own weekday's backtest errors (all horizons) are blended into its
+ * quantiles when there are at least this many: 6 origins × 2 days of that weekday in a
+ * 14-day horizon (CHG-087).
+ */
+export const MIN_WEEKDAY_ERRORS = 12;
+/**
+ * A weekday that was 0 in each of its last CLOSED_WEEKDAY_WEEKS occurrences in the
+ * history is forecast 0 (expected, interval and planned headcount): the business is
+ * closed that day (CHG-087).
+ */
+export const CLOSED_WEEKDAY_WEEKS = 4;
+/** Pseudo-errors the weekday quantile is shrunk toward the pooled one with (20: half weight at 10 origins). */
+export const WEEKDAY_SHRINKAGE = 20;
 
 export type ErrorModel = {
   source: IntervalSource;
@@ -157,12 +171,26 @@ export type ErrorModel = {
 };
 
 /**
- * Error quantiles from the chosen model's backtest errors. For horizon h the
- * errors at horizons h−3 … h+3 are pooled (errors grow with the horizon); when
- * that window has fewer than 20 errors, all horizons are pooled. Horizons past
- * the backtest horizon use the last window.
+ * Error quantiles from the chosen model's backtest errors.
+ *
+ * For horizon h the errors at horizons h−3 … h+3 are pooled (errors grow with the
+ * horizon); when that window has fewer than 20 errors, all horizons are pooled.
+ * Horizons past the backtest horizon use the last window.
+ *
+ * Weekday-aware (CHG-087) when `weekdays` gives the backtest origins and the series
+ * length: when the target's weekday has at least MIN_WEEKDAY_ERRORS errors (all
+ * horizons), the quantile is a blend of that weekday's own quantile and the pooled
+ * one, weighted n ÷ (n + WEEKDAY_SHRINKAGE) for the weekday. A quiet or closed weekday
+ * then gets a narrow interval instead of the busy days' spread. The weekday quantile is
+ * shrunk because 10 origins give only 20 errors per weekday, two per origin and
+ * correlated: on their own their 10th/90th percentiles cover well under 80 %.
+ * Quantiles (not mean and spread) are blended so one outlier day cannot widen the
+ * interval. Fewer errors: the pooled quantile.
  */
-export function errorModelFromBacktest(errorsByH: number[][]): ErrorModel {
+export function errorModelFromBacktest(
+  errorsByH: number[][],
+  weekdays?: { origins: readonly number[]; length: number },
+): ErrorModel {
   const H = errorsByH.length;
   const all = errorsByH.flat().sort((a, b) => a - b);
   if (all.length < MIN_INTERVAL_ERRORS) return NO_ERRORS;
@@ -172,10 +200,41 @@ export function errorModelFromBacktest(errorsByH: number[][]): ErrorModel {
     for (let k = Math.max(1, h - HORIZON_WINDOW); k <= Math.min(H, h + HORIZON_WINDOW); k += 1) pooled.push(...errorsByH[k - 1]);
     windows.push(pooled.length >= MIN_WINDOW_ERRORS ? pooled.sort((a, b) => a - b) : all);
   }
+  // Errors by weekday phase (series index mod 7): errorsByH[h − 1][k] is for index origins[k] + h − 1.
+  const byPhase: number[][] = Array.from({ length: SEASON }, () => []);
+  if (weekdays) {
+    errorsByH.forEach((errors, hi) =>
+      errors.forEach((e, k) => {
+        const o = weekdays.origins[k];
+        if (o !== undefined) byPhase[(o + hi) % SEASON].push(e);
+      }),
+    );
+    for (const list of byPhase) list.sort((a, b) => a - b);
+  }
   return {
     source: 'backtest',
-    quantile: (h, p) => quantileSorted(windows[Math.min(H, Math.max(1, Math.round(h))) - 1], p),
+    quantile: (h, p) => {
+      const step = Math.max(1, Math.round(h));
+      const pooled = quantileSorted(windows[Math.min(H, step) - 1], p);
+      const own = weekdays ? byPhase[(weekdays.length - 1 + step) % SEASON] : [];
+      if (own.length < MIN_WEEKDAY_ERRORS) return pooled;
+      const w = own.length / (own.length + WEEKDAY_SHRINKAGE);
+      return w * quantileSorted(own, p) + (1 - w) * pooled;
+    },
   };
+}
+
+/**
+ * True when the weekday of series index `index` (≥ y.length, a future day) was 0 in each
+ * of its last CLOSED_WEEKDAY_WEEKS occurrences in `y`. False with fewer occurrences.
+ */
+export function isClosedWeekday(y: ArrayLike<number>, index: number, weeks = CLOSED_WEEKDAY_WEEKS): boolean {
+  const lastIndex = y.length - 1;
+  const phase = ((index % SEASON) + SEASON) % SEASON;
+  const last = lastIndex - ((((lastIndex - phase) % SEASON) + SEASON) % SEASON);
+  if (last - (weeks - 1) * SEASON < 0) return false;
+  for (let k = 0; k < weeks; k += 1) if (Math.abs(y[last - k * SEASON]) > 1e-9) return false;
+  return true;
 }
 
 /**
@@ -214,6 +273,8 @@ export type SeriesPoint = {
    * It can sit below `expected` when the backtest shows the model forecasts high.
    */
   atServiceLevel: number;
+  /** True when the weekday was 0 in each of its last CLOSED_WEEKDAY_WEEKS weeks; every value is then 0. */
+  closedWeekday: boolean;
 };
 
 export type SeriesForecast = {
@@ -237,7 +298,7 @@ export function forecastSeries(
   let errorModel: ErrorModel;
   if (result) {
     chosen = chooseModel(result.scores, options.backtest.tieTolerance);
-    errorModel = errorModelFromBacktest(result.errors[chosen.model] ?? []);
+    errorModel = errorModelFromBacktest(result.errors[chosen.model] ?? [], { origins: result.origins, length: y.length });
   } else {
     errorModel = errorModelInSample(y);
   }
@@ -248,6 +309,10 @@ export function forecastSeries(
   const lowP = (1 - options.intervalLevel) / 2;
   const highP = 1 - lowP;
   const points = horizons.map((h): SeriesPoint => {
+    if (isClosedWeekday(y, y.length - 1 + h)) {
+      const bound = errorModel.source !== 'none' ? 0 : null;
+      return { h, expected: 0, lower: bound, upper: bound, atServiceLevel: 0, closedWeekday: true };
+    }
     const expected = path[h - 1] ?? 0;
     const withError = (p: number) => Math.max(0, expected + errorModel.quantile(h, p));
     const hasInterval = errorModel.source !== 'none';
@@ -257,6 +322,7 @@ export function forecastSeries(
       lower: hasInterval ? withError(lowP) : null,
       upper: hasInterval ? withError(highP) : null,
       atServiceLevel: hasInterval ? withError(options.serviceLevel) : expected,
+      closedWeekday: false,
     };
   });
   return {

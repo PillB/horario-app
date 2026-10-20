@@ -25,6 +25,9 @@
  *   day:     Σ_{s on day} minutes(s) · x[w,s] ≤ 60 · maxDailyHours − existing minutes
  *   wk:      Σ_{s in ISO week} minutes(s) · x[w,s] ≤ 60 · maxWeeklyHours − existing minutes
  *   (rows that can never bind are left out)
+ *   A worker has one variable per slot, so never two positions of one slot. Slot spans
+ *   come from `shiftInterval`, so a span inside a DST gap is moved after the gap the
+ *   same way as in the greedy (CHG-087).
  *
  * Objective: lexicographic, solved as three stages (see shiftOptimizer):
  *   1. coverage    maximize Σ x
@@ -210,7 +213,11 @@ export function buildAssignmentModel(input: OptimizeInput): AssignmentModel {
     const cliques = new Set<string>();
     for (const anchor of sorted) {
       const p = slots[anchor.slot].start;
-      const members = sorted.filter((c) => slots[c.slot].start <= p && p < slots[c.slot].end + restMinutes);
+      // A zero-length slot still occupies its instant (`intervalsOverlap`); slots are
+      // never zero-length since CHG-087, this keeps the model in step with the check.
+      const members = sorted.filter(
+        (c) => slots[c.slot].start <= p && p < Math.max(slots[c.slot].end + restMinutes, slots[c.slot].start + 1),
+      );
       if (members.length < 2) continue;
       const key = members.map((c) => c.name).join(',');
       if (cliques.has(key)) continue;

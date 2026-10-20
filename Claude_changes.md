@@ -6,6 +6,54 @@
 
 ---
 
+### CHG-087 — 2026-10-20 UTC
+**Type:** FIX (QA red team of step 3b, findings F1–F6: `/mnt/project-files/qa/redteam-step3b-2026-10-20.md`)
+
+1. **F1 — DST-gap slot filled by one worker** (`services/shiftAssigner.ts`, `services/optimizer/assignmentModel.ts`, `utils/schedulerValidators.ts`).
+   - Root cause: `zonedToUtc` reads a gap time with the pre-gap offset, so 02:00 and 03:00 New York on 2026-03-08 both resolve to 07:00Z. The template became a zero-length span. A zero-length span never "overlaps" anything (`e.start < iv.end && iv.start < e.end`), so with no rest rule one worker passed `checkEligibility` for every position of the slot (coverage 3 → `solo` ×3, no shortfall). The ILP has one variable per (worker, slot), so its own solution could not repeat a worker. Its re-check dropped those positions, and it then lost to the greedy's duplicates (`greedy_better`).
+   - Rule in `checkEligibility` (both engines): a worker already on (date, template) is ineligible (`overlap`), whatever the length. Overlap is now `intervalsOverlap`, where a zero-length interval occupies its instant. The ILP clique rows use the same effective end (`max(end + rest, start + 1)`). `finalizeSchedule` already refused a second position of one slot. The validator's `validateShiftReadiness` also treats the same template on the same date as `SHIFT_OVERLAP`, even when the window cannot be measured.
+   - Zero or negative spans: **moved to after the gap with their wall-clock length** (`zonedSpan`), not a shortfall. This matches `zonedToUtc`: a gap time resolves after the gap, read with the pre-gap offset. Reading both ends that way gives 02:00–03:00 → 03:00–04:00 EDT and 02:30–03:00 → 03:30–04:00 EDT. That is also what `zonedToUtc` already did for spans ending inside the gap (02:00–02:59 → 03:00–03:59). It applies only when the elapsed span comes out ≤ 0. Spans that end after the gap keep their elapsed length (01:00–04:00 = 2 h). Availability slots use the same rule. Greedy and ILP share `shiftInterval`. `schedulerValidators` compares wall-clock windows, which always keep their wall-clock length, so it needed no change for this. No slot is zero-length any more; the zero-length rules are defence in depth.
+2. **F2 — closed weekday staffed** (`services/forecasting/selection.ts`).
+   - Root cause: the interval and service-level quantiles pooled backtest errors over all weekdays, so a day with a mean of 0 got the busy days' +3.
+   - Weekday-aware quantiles: when the target's weekday has ≥ `MIN_WEEKDAY_ERRORS` (12) backtest errors (all horizons), its quantile is blended with the pooled one, weekday weight n / (n + `WEEKDAY_SHRINKAGE` = 20), so ½ at 10 origins. Below 12 errors the pooled quantile is used.
+   - Why not the weekday's raw quantiles or a mean/MAD rescale: raw quantiles of 20 correlated errors covered 69 % on the Gaussian test (needs > 74 %). Mean/MAD let one 100× spike day raise that weekday's plan from 19 to 50.
+   - In-sample intervals (history < 35 days) stay pooled.
+   - `CLOSED_WEEKDAY_WEEKS = 4`: a weekday that was 0 in each of its last 4 occurrences is forecast 0 (expected, interval, required). `SeriesPoint.closedWeekday` marks it.
+   - QA probe (40 seeds; before → after): 80 % interval coverage 0.80 → 0.76 (seasonal), 0.80 → 0.79 (level shift), 0.88 → 0.85 (sparse), 0.79 → 0.78 (trend). Service level met 0.85 → 0.84, 0.89 → 0.88, 0.95 → 0.91, 0.86 → 0.85. Closed Mondays: required 3 → 0. A mostly closed Monday (one shift 3 weeks before) plans ≤ 1 (2 with pooled quantiles).
+3. **F3 — history that stops** (`services/forecasting/statisticalForecast.ts`, `services/demandForecast.ts`, `components/scheduler/DemandSection.tsx`).
+   - Root cause: `buildRoleSeries` ended at the last date with data. When shifts stopped being logged, the trailing empty days were dropped and the old level continued.
+   - New optional `historyEnd` (exclusive window end) on `StatisticalForecastInput` / `buildRoleSeries`. Every series ends the day before it, so trailing days count as 0. `generateDemandForecast` passes the fetched window end (`end`). Without `historyEnd` the old behaviour stays.
+   - New fields: `RoleSeries.lastDataDate`, `RoleModelSummary.lastDataDate` / `historyEndsDaysAgo`, `StatisticalForecastResult.historyEndsDaysAgo` and `ForecastGenerationMetadata.historyEndsDaysAgo` (the business-wide minimum).
+   - `useDemandForecast` returns `forecastNotices` ({ historyEndsDaysAgo, signalsTruncated }), passed through `useSchedulerHandlers` and the scheduler to `DemandSection`. From `HISTORY_GAP_NOTICE_DAYS` (14) it shows "Shift history ends N days ago; the days since count as no demand."
+   - Caveat: the live roster is still not written to `shifts` (debt #12), so an account whose history stopped now gets a forecast of 0 and that note, not the old level.
+4. **F4 — future signals dropped** (`app/api/secure-proxy+api.ts`, `services/demandForecast.ts`).
+   - Root cause: `listForecastSignals` read [from, to) `order asc limit 1000`, so the newest signals (the forecast dates) were cut first, with no flag.
+   - New optional `targetsFrom` (the client sends the first target date). The proxy reads [targetsFrom, to) ascending and [from, targetsFrom) descending, in parallel, each with limit 1001. It keeps up to 1000 rows, target-span rows first, and returns `truncated`. Without `targetsFrom` the whole window is read newest first.
+   - `fetchForecastSignals` returns `{ signals, truncated }`. The flag reaches `metadata.signalsTruncated` and a DemandSection note ("Too many demand signals to load: the oldest past signals were left out.").
+5. **F5 — impossible dates** (`app/api/secure-proxy+api.ts`).
+   - Root cause: `isISODate` used `Date.parse`, which rolls 2026-02-31 over to March, so Postgres rejected it with a 500.
+   - `isISODate` now uses `isDateKey` (round trip of the parts). Every caller was checked: `forecastHistory` / `listForecastSignals` windows, `targetsFrom`, `upsertTargets`, `listRoster` fromDate / toDate, `upsertRosterShift`, `uploadPosSales` rows, and the external-API response filter (bad rows are dropped).
+   - `cleanFilters` used to drop an invalid `filters.date` silently, which widened the query. `forecast`, `status` and `loadTargets` now return 400 for one.
+6. **F6 — multi-date ILP fuzz** (`services/__tests__/shiftAssigner.fuzz.test.ts`): 150 seeded `dates[]` cases (2–7 days), adapted from QA's probe. They cover Madrid, New York, Lima and Sydney DST weeks, overnight templates, a template inside the spring-forward gap (30 % of cases, coverage 2–3), roster entries before, inside and after the span, and ISO-week boundaries. Each case is checked with the file's independent reference model: each assignment is legal against all other shifts (role, availability, overlap, rest, daily / weekly hours), no worker holds two positions of a slot, no over-coverage, filled + missing = required, and no fillable slot left open. The greedy must pass the same checks. The ILP must not cover fewer positions than the greedy or score worse (`compareScores`). The re-check must drop nothing, and the only fallback allowed is `greedy_better`. It runs in about 3 s. Without the F1 fix it fails (seeds 700022, 700034, …: "w0 holds two positions of 2026-03-08 gap"). The fuzz reference (`absSpan`) applies the same DST-gap rule.
+
+**Locales:** 2 new keys, `scheduler.demand.historyEndsNote` and `scheduler.demand.signalsTruncatedNote`, in all 9 files. `es` is translated. de, fr, hi, it, sw, tl and zh use the English text for now.
+
+**CLAUDE.md §8:** notes the DST-gap rule and the same-slot rule.
+
+**Tests:** jest 844 passed, 14 skipped (72 suites). Each new test fails before its fix:
+- `services/__tests__/shiftAssigner.dstGap.test.ts` (9): spans, greedy, ILP, `checkEligibility` same slot / zero-length, `intervalsOverlap`.
+- `utils/__tests__/schedulerValidators.test.ts` (+1).
+- `services/__tests__/shiftAssigner.fuzz.test.ts` (+1, multi-date).
+- `services/forecasting/__tests__/closedDaysAndHistoryEnd.test.ts` (7).
+- `services/__tests__/demandForecast.test.ts` (+2).
+- `components/__tests__/DemandSectionModel.test.tsx` (+3).
+- `server/__tests__/forecastSignalsDatesProxy.test.ts` (15).
+- Existing forecasting tests updated for the new fields (`lastDataDate`, `closedWeekday`, `historyEndsDaysAgo`).
+
+The touched suites (services, utils, server, hooks, DemandSection) also pass under TZ=Asia/Tokyo and TZ=America/Lima. tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not changed:** `services/labor/` (its own `zonedToUtc` spans still give a zero-length span for a template inside the gap; the compliance panel was not touched). Client-side date regexes in `services/forecastEngine.ts`, `hooks/useDemandAnalysis.ts`, `hooks/useAvailabilityGrid.ts` and the POS / demand form parsers are not `isISODate` and were left as they are.
+
 ### CHG-085 — 2026-10-20 UTC
 **Type:** FEATURE (exact ILP auto-assign with HiGHS, in a Web Worker, never worse than the greedy)
 

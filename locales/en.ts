@@ -398,6 +398,8 @@ export const en = {
       modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.',
       planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})',
       intervalRange: '{pct}% range: {low} – {high}',
+      historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.',
+      signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.',
       tooltip: '📈 Demand targets tell the scheduler how many workers you need per role per day. Start with "Quick setup" to seed a week of baseline demand, then run a forecast to get AI-powered targets based on your historical shifts and external signals.',
       posTab: 'POS Import',
       posRole: 'Assign to role',
