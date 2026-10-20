@@ -410,7 +410,7 @@ export const tl = {
       posCsvA11yHint: 'I-paste ang CSV na may mga kolum: date, revenue, covers, notes',
       posPreviewCount: '{n} sa {total} na row ang ipinapakita',
       beforeForecast: 'Bago ang forecast',
-      afterForecast: 'Pagkatapos ng forecast'
+      afterForecast: 'Pagkatapos ng forecast', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}'
     },
 
     roster: {

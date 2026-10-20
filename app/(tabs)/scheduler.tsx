@@ -46,6 +46,7 @@ export default function SchedulerScreen() {
     roster,
     demandTargets,
     forecastError,
+    forecastModels,
     needsFallbackSetup,
 
     // Wellness
@@ -338,6 +339,7 @@ export default function SchedulerScreen() {
             roster={roster}
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
+            forecastModels={forecastModels}
             onBulkSave={handlePosTargetsGenerated}
           />
           </TourStep>

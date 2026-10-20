@@ -53,7 +53,8 @@ horario-app/
 ├── constants/Colors.ts         Theme color tokens
 ├── hooks/                      Custom React hooks (forecast, streak, wellness, etc.)
 ├── services/
-│   ├── demandForecast.ts       Client-side forecast service (calls secure proxy)
+│   ├── demandForecast.ts       Client-side forecast service (history via secure proxy, fit on the client)
+│   ├── forecasting/            Statistical forecaster: models, backtest selection, intervals
 │   ├── onboardingProgress.ts   Onboarding fetch/upsert (client-side + secure proxy)
 │   └── supabaseClient.ts       Anon Supabase client factory
 ├── supabase/migrations/        SQL migration files
@@ -93,7 +94,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Shift template management | Partial | In-memory only, no DB persistence |
 | Roster (shift assignment) | Partial | In-memory only; fake persistence functions |
 | Availability tracking | Partial | In-memory, validated, no DB |
-| Demand forecasting (AI proxy) | Working | Requires EXPO_PUBLIC_FORECAST_API_URL + Supabase setup |
+| Demand forecasting | Working | Statistical forecaster fitted in the client (`services/forecasting/`): seasonal naive, weekday profile with recency weighting, Holt-Winters (additive weekly season, damped trend); chosen per role by rolling-origin backtest on MASE vs. seasonal naive; intervals from backtest-error quantiles; `required` = forecast at the service level (default P80), rounded up. Proxy only pages history (`forecastHistory`, `listForecastSignals`). External API (EXPO_PUBLIC_FORECAST_API_URL) optional, tried first — added 2026-10-20 (CHG-086) |
 | Demand target overrides | Working | Persisted to Supabase via proxy |
 | Uncovered-loss metric | Working | Pure function, well-tested |
 | Onboarding checklist | Working | Persisted to Supabase via proxy |
@@ -246,6 +247,7 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 | `app/(tabs)/schedulerMetrics.ts` | Pure uncovered-loss metric functions |
 | `app/api/secure-proxy/route.ts` | Server-side Supabase proxy (service role) |
 | `services/demandForecast.ts` | Client-facing forecast service |
+| `services/forecasting/` | Forecast models (`models.ts`), backtest selection and intervals (`selection.ts`), per-role pipeline (`statisticalForecast.ts`) |
 | `utils/locationValidation.ts` | Location validation shared by client and proxy (jurisdiction must match the place) |
 | `components/locations/LocationSetupCard.tsx` | Location / jurisdiction confirmation form (detection pre-fills only) |
 | `services/supabaseClient.ts` | Anon client factory |

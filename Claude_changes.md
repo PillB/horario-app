@@ -6,6 +6,46 @@
 
 ---
 
+### CHG-086 — 2026-10-20 UTC
+**Type:** FEATURE (statistical demand forecaster, fitted in the client)
+
+**Old method and its weaknesses.** Without the external API, the proxy's `computeDailyAverages` set `required` for a date × role to the mean `hours` of the shifts recorded on that same date, plus the summed signal weights.
+- Units: it averaged shift hours (≈ 8), not headcount, and the scheduler reads `required` as headcount.
+- No projection: it only "forecast" dates that already had shifts. A future date got the default 4 (+ signals). The proxy also filtered the history by the target date, so a future date always got 4.
+- Signals were added (`mean + weight`), although `project_migrations.md` documents `weight` as a demand multiplier. With a role filter, global signals were dropped.
+- No seasonality, trend, recency or accuracy check; the "interval" was ±1 SD of the hours that day (±1.22 with no data), and confidence was a function of row count.
+- `.limit(500)` oldest-first, so a long history was cut to its oldest 500 shifts.
+- It ran in the API route, which Workers Free limits to 10 ms of CPU.
+
+**New method** (`services/forecasting/`, pure TypeScript, no dependencies):
+- The series is shifts per date × role (headcount), dense from the role's first day to the last day of history (missing days = 0), with weekday by position. Dates are keys from `utils/dateKeys.ts`; "today" comes from `todayKey(businessZone)` (the account's only location, else the device zone).
+- Models and the minimum history each needs: seasonal naive (same weekday last week; 7 days, mean for unseen weekdays below that); weekday profile with exponential recency weighting (half-life 1/2/4/8/16/520 weeks picked by in-sample one-step error; 14 days); Holt-Winters ETS(A,Ad,A), additive weekly season and damped trend. Its α, β ≤ α, γ ≤ 1−α, φ ∈ [0.8, 0.98] are fitted by a bounded search on in-sample one-step SSE (a 4×3×3×3 grid, then a Hooke-Jeeves pattern search). It needs 28 days and fits on the last 53 weeks.
+- Selection: rolling-origin backtest, horizon 14, up to 10 origins a week apart. MASE = forecast MAE / in-sample weekly seasonal-naive MAE, averaged over the origins. A model takes part only if it can be scored on ≥ 3 origins: seasonal naive needs 35 days, weekday profile 42, Holt-Winters 56. Below 35 days seasonal naive is used without a score. A simpler model within 2 % of the best MASE wins. Holt-Winters warm-starts each origin from the previous one.
+- Intervals: empirical quantiles of the chosen model's backtest errors, pooled over horizons ±3 days (all horizons when the window has < 20 errors). With no backtest: quantiles of the in-sample lag-7 differences (≥ 6), else none.
+- `required` = ceil(forecast + error quantile at the service level, default 0.8). `expected` holds the mean. `lowerBound`/`upperBound` hold the 80 % interval.
+- Signals: `weight` is a multiplier (doc'd meaning; the old code added it). Several signals on a day multiply. A role's own signals take precedence over `global` ones. Weights outside (0, 10] are ignored. History is divided by the day's multiplier before fitting, and forecasts (and their intervals) are multiplied by the target day's multiplier.
+
+**Plumbing.**
+- Proxy: `computeDailyAverages` removed. `forecast` returns only external-API rows plus stored overrides. New `forecastHistory`: a [from, to) window ≤ 1100 days, newest first, 1000 rows/page summed per date × role, total count on page 0, pages 0–39. New `listForecastSignals`: a role's signals plus the global ones. `status` checks history by role only (`limit(1)`).
+- `generateDemandForecast(filters, options)`: tries the external API when configured, else fits on the client. It fetches up to 2 years of history (pages after page 0 in parallel, 4 at a time; past 40 pages the oldest shifts and the oldest partial day are left out, `historyTruncated`). Statistical model forecasts are not written to `demand_targets`: nothing read them back (`loadDemandTargets` keeps overrides only).
+- `useDemandForecast(filters?, options?)`: same return shape plus `forecastModels`. `DemandForecast` gains optional `expected`, `serviceLevel`, `intervalLevel`, `model`, `mase`, `signalMultiplier`; metadata gains `method`, `models`, levels, `fitMs`, `historyTruncated`. A stored override now beats a model forecast for the same date and role (before, the new forecast replaced it in state).
+- UI (`DemandSection`, ThemedText): the model per role with its MASE and backtest count, or the short-history notice; per target "Plans for the 80th percentile (expected x)" and "80% range: low – high". The "Forecast API unavailable" helper no longer shows, since the forecast works without the API.
+- Locales: 9 new `scheduler.demand.*` keys in all 9 files. `es` is translated; de, fr, hi, it, sw, tl and zh use the English text for now.
+
+**Timing (2 years × 5 roles, 14-day horizon).** Plain Node 22 on this container: 56 ms first run, 27 ms warm median (35 ms max), 4.5–6.5 ms per role. Under Jest: 50–100 ms. `statisticalForecastAsync` yields to the event loop before each role, so no single task is longer than one role's fit. No Web Worker: Metro (SDK 53) has no worker bundling and React Native has no worker API without a new dependency. Not measured on a phone or on Hermes, which has no JIT and may be several times slower.
+
+**Synthetic backtests (MASE, 400 days).**
+- Trend + season: Holt-Winters 0.72, seasonal naive 1.14, weekday profile 1.45 → Holt-Winters.
+- Stable weekly pattern + noise (SD 2): weekday profile 0.83, Holt-Winters 0.83, seasonal naive 1.19 → weekday profile.
+- Seasonal random walk: seasonal naive 1.51, Holt-Winters 1.53, weekday profile 1.75 → seasonal naive.
+- 80 % interval coverage on Gaussian noise: 0.80 (40 series × 14 days); the P80 plan covered demand 0.79 of the time.
+
+**Tests:** 75 new across `services/forecasting/__tests__/` (models, selection, statisticalForecast: seasonality recovery, damping ratio φ⁷ and bounded trend, parameter bounds, selection on constructed cases, coverage, short-history fallback, signals, DST weeks, device time zones, no `toISOString()`), `services/__tests__/demandForecast.test.ts` (paging, truncation, business-zone today, API fallback), `server/__tests__/forecastHistoryProxy.test.ts` (validation, tenant scope, aggregation, signals, no averages), `hooks/__tests__/useDemandForecast.test.tsx` (models, overrides, options) and `components/__tests__/DemandSectionModel.test.tsx`. jest 739 passed, 14 skipped; tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not done / follow-ups:** a server-side `group by` (SQL view or RPC) would replace up to 40 history pages with one request. It needs a migration, which this change does not include. The external-API path still sends the proxy's 500 oldest shifts. Intervals assume past errors look like future ones: 14-day backtests do not cover longer horizons, which reuse the last window.
+
+---
+
 ### CHG-084 — 2026-10-20 UTC
 **Type:** FIX (merge of CHG-081 and CHG-082)
 

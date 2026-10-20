@@ -10,6 +10,8 @@ import {
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type DemandForecast } from '@/services/demandForecast';
+import { type ForecastModelName } from '@/services/forecasting/models';
+import { type RoleModelSummary } from '@/services/forecasting/statisticalForecast';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
@@ -73,6 +75,8 @@ type Props = {
   roster: Shift[];
   shiftTemplates: ShiftTemplate[];
   forecastError: string | null;
+  /** Model chosen per role by the last statistical forecast, with its backtest MASE. */
+  forecastModels?: RoleModelSummary[];
 };
 
 // Factory so every colour resolves against the live theme
@@ -109,6 +113,12 @@ const makeLocalStyles = (colors: ThemeColors) =>
       color: colors.success,
       fontSize: 13,
       marginTop: 4,
+    },
+    // Chosen forecast model per role, under the forecast button
+    modelSummary: {
+      gap: 6,
+      marginTop: 8,
+      marginBottom: 4,
     },
     // Toggle chips — inactive label uses textSecondary (6.86:1) ✓ AA
     toggleChip: {
@@ -238,6 +248,17 @@ const makeLocalStyles = (colors: ThemeColors) =>
 
 const PRESET_KEYS: StaffingPresetKey[] = ['fine_dining', 'casual_dining', 'bar_cafe', 'qsr', 'custom'];
 
+const getModelLabel = (model: ForecastModelName, t: TFunction): string => {
+  const map: Record<ForecastModelName, string> = {
+    seasonalNaive: t('scheduler.demand.modelSeasonalNaive'),
+    dowProfile: t('scheduler.demand.modelDowProfile'),
+    holtWinters: t('scheduler.demand.modelHoltWinters'),
+  };
+  return map[model];
+};
+
+const percent = (level: number) => String(Math.round(level * 100));
+
 const getSourceLabel = (source: string | undefined, t: TFunction): string => {
   const map: Record<string, string> = {
     model: t('scheduler.demand.sourceLabelModel'),
@@ -270,6 +291,7 @@ export const DemandSection = ({
   roster,
   shiftTemplates,
   forecastError,
+  forecastModels = [],
   onBulkSave,
 }: Props) => {
   const { t } = useT();
@@ -997,6 +1019,24 @@ export const DemandSection = ({
         <ThemedText style={[styles.mutedText, styles.helperText]}>{forecastHelperText}</ThemedText>
       </View>
 
+      {forecastModels.length ? (
+        <View style={local.modelSummary}>
+          <ThemedText type="defaultSemiBold">{t('scheduler.demand.modelHeading')}</ThemedText>
+          {forecastModels.map((m) => (
+            <View key={m.role}>
+              <ThemedText>
+                {t('scheduler.demand.modelRole', { role: m.role, model: getModelLabel(m.model, t) })}
+              </ThemedText>
+              <ThemedText style={styles.mutedText}>
+                {m.mase === null
+                  ? t('scheduler.demand.modelShortHistory', { days: String(m.historyDays) })
+                  : t('scheduler.demand.modelAccuracy', { mase: m.mase.toFixed(2), n: String(m.backtestOrigins) })}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       <LostRevenueSummary
         baselineTargets={baselineTargetsRef.current ?? demandTargets}
         currentTargets={demandTargets}
@@ -1022,7 +1062,23 @@ export const DemandSection = ({
             {target.notes ? (
               <ThemedText style={styles.mutedText}>{target.notes}</ThemedText>
             ) : null}
-            {(target.lowerBound || target.upperBound || target.confidence) ? (
+            {target.expected !== undefined && target.serviceLevel !== undefined ? (
+              <ThemedText style={styles.mutedText}>
+                {t('scheduler.demand.planAtServiceLevel', {
+                  pct: percent(target.serviceLevel),
+                  mean: target.expected.toFixed(1),
+                })}
+              </ThemedText>
+            ) : null}
+            {target.intervalLevel !== undefined && target.lowerBound !== undefined && target.upperBound !== undefined ? (
+              <ThemedText style={styles.mutedText}>
+                {t('scheduler.demand.intervalRange', {
+                  pct: percent(target.intervalLevel),
+                  low: target.lowerBound.toFixed(1),
+                  high: target.upperBound.toFixed(1),
+                })}
+              </ThemedText>
+            ) : (target.lowerBound || target.upperBound || target.confidence) ? (
               <ThemedText style={styles.mutedText}>
                 {t('scheduler.demand.ci', {
                   low: String(target.lowerBound ?? target.required),

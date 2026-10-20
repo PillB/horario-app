@@ -302,4 +302,75 @@ describe('useDemandForecast failure handling', () => {
     loadSpy.mockRestore();
     statusSpy.mockRestore();
   });
+
+  it('exposes the chosen models, keeps overrides over model forecasts and passes options through', async () => {
+    const override = { date: '2026-10-21', role: 'barista', required: 7, source: 'override' as const };
+    const loadSpy = jest.spyOn(demandForecast, 'loadDemandTargets').mockResolvedValue([override]);
+    const statusSpy = jest.spyOn(demandForecast, 'getForecastDataStatus').mockResolvedValue({
+      hasHistorical: true,
+      hasExternalSignals: false,
+      hasExistingTargets: true,
+      apiAvailable: false,
+    });
+    const models = [
+      {
+        role: 'barista',
+        model: 'holtWinters' as const,
+        mase: 0.71,
+        scores: [],
+        historyDays: 400,
+        backtestOrigins: 10,
+        intervalSource: 'backtest' as const,
+        params: {},
+      },
+    ];
+    const forecastSpy = jest.spyOn(demandForecast, 'generateDemandForecast').mockResolvedValue({
+      forecasts: [
+        { date: '2026-10-21', role: 'barista', required: 3, expected: 2.4, source: 'model', model: 'holtWinters' },
+        { date: '2026-10-22', role: 'barista', required: 4, expected: 3.1, source: 'model', model: 'holtWinters', mase: 0.71 },
+      ],
+      metadata: {
+        hasHistorical: true,
+        hasExternalSignals: false,
+        hasExistingTargets: false,
+        apiAvailable: false,
+        usedApi: false,
+        usedFallback: false,
+        apiCallFailed: false,
+        method: 'statistical',
+        models,
+      },
+    });
+
+    let hookState: ReturnType<typeof useDemandForecast> | null = null;
+    const options = { timeZone: 'America/Lima', serviceLevel: 0.9 };
+    const TestComponent = () => {
+      const hook = useDemandForecast(undefined, options);
+      useEffect(() => {
+        hookState = hook;
+      }, [hook]);
+      return null;
+    };
+
+    await act(async () => {
+      renderer.create(<TestComponent />);
+    });
+    expect(hookState?.forecastModels).toEqual([]);
+
+    await act(async () => {
+      await hookState?.triggerForecast({ role: 'barista' });
+    });
+
+    expect(forecastSpy).toHaveBeenCalledWith({ role: 'barista' }, options);
+    expect(hookState?.forecastModels).toEqual(models);
+    expect(hookState?.error).toBeNull();
+    expect(hookState?.demandTargets).toEqual([
+      override,
+      expect.objectContaining({ date: '2026-10-22', required: 4, mase: 0.71 }),
+    ]);
+
+    loadSpy.mockRestore();
+    statusSpy.mockRestore();
+    forecastSpy.mockRestore();
+  });
 });

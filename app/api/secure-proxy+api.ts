@@ -289,48 +289,6 @@ const callForecastApi = async (inputs: { shifts: HistoricalShift[]; signals: Ext
   }
 };
 
-const computeDailyAverages = (shifts: HistoricalShift[], signals: ExternalSignal[], filters?: ForecastFilters): DemandForecast[] => {
-  const grouped = shifts.reduce<Record<string, number[]>>((acc, shift) => {
-    if (filters?.role && shift.role !== filters.role) return acc;
-    const key = buildKey(shift);
-    (acc[key] ??= []).push(shift.hours ?? 8);
-    return acc;
-  }, {});
-
-  const signalMap = signals.reduce<Record<string, number>>((acc, signal) => {
-    if (filters?.role && signal.role && signal.role !== filters.role) return acc;
-    if (!signal.weight) return acc;
-    const key = buildKey({ date: signal.date, role: signal.role ?? 'global' });
-    acc[key] = (acc[key] ?? 0) + signal.weight;
-    return acc;
-  }, {});
-
-  const keys = new Set<string>([...Object.keys(grouped), ...Object.keys(signalMap)]);
-  if (filters?.date && filters?.role) keys.add(buildKey({ date: filters.date, role: filters.role }));
-
-  const forecasts: DemandForecast[] = [];
-  keys.forEach((key) => {
-    const [date, ...roleParts] = key.split('::');
-    const role = roleParts.join('::');
-    const samples = grouped[key] ?? [];
-    const mean = samples.length ? samples.reduce((s, v) => s + v, 0) / samples.length : 4;
-    const variance = samples.length ? samples.reduce((s, v) => s + (v - mean) ** 2, 0) / samples.length : 1.5;
-    const stdDev = Math.sqrt(variance);
-    const signalBoost = signalMap[key] ?? signalMap[buildKey({ date, role: 'global' })] ?? 0;
-    const required = roundToInt(mean + signalBoost);
-    forecasts.push({
-      date,
-      role,
-      required,
-      lowerBound: Math.max(0, Math.floor(required - stdDev)),
-      upperBound: roundToInt(required + stdDev),
-      confidence: Math.max(0, Math.min(1, samples.length ? 0.7 + Math.min(samples.length / 20, 0.2) : 0.55)),
-      source: 'model',
-    });
-  });
-  return forecasts.sort((a, b) => a.date.localeCompare(b.date));
-};
-
 async function generateForecast(client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters): Promise<ForecastGenerationResult> {
   const metadata: ForecastGenerationMetadata = {
     hasHistorical: false,
@@ -357,14 +315,17 @@ async function generateForecast(client: SupabaseClient, ctx: AuthContext, filter
   metadata.apiCallFailed = api.failed;
   metadata.usedFallback = !metadata.usedApi;
   if (metadata.usedFallback) {
+    // The statistical forecast runs on the client (services/forecasting/):
+    // Workers Free allows 10 ms of CPU per request, so this route only
+    // fetches history (forecastHistory, listForecastSignals).
     metadata.fallbackReason = !metadata.apiAvailable
-      ? 'Forecast API is not configured; using local averages.'
+      ? 'Forecast API is not configured; use the statistical forecast.'
       : api.failed
-        ? 'Forecast API request failed; using local averages.'
-        : 'Forecast API returned no data; using local averages.';
+        ? 'Forecast API request failed; use the statistical forecast.'
+        : 'Forecast API returned no data; use the statistical forecast.';
   }
 
-  const generated = metadata.usedApi ? api.forecasts : computeDailyAverages(shifts, signals, filters);
+  const generated = metadata.usedApi ? api.forecasts : [];
   const lookup = new Map<string, DemandForecast>();
   generated.forEach((f) => lookup.set(buildKey(f), f));
   stored.filter((t) => t.source === 'override').forEach((o) => lookup.set(buildKey(o), o));
@@ -376,6 +337,100 @@ async function generateForecast(client: SupabaseClient, ctx: AuthContext, filter
     if (error) console.warn('[secure-proxy] unable to persist demand targets:', error.message);
   }
   return { forecasts: merged, metadata };
+}
+
+/** Rows per history page (Supabase's default max-rows). */
+const FORECAST_HISTORY_PAGE_SIZE = 1000;
+/** Pages a client may request: 40 000 shifts, newest first. */
+const FORECAST_HISTORY_MAX_PAGES = 40;
+/** Longest history window, in days (3 years). */
+const FORECAST_HISTORY_MAX_DAYS = 1100;
+
+const daysBetweenIso = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+/** Validates a [from, to) date window; returns an error message or null. */
+const historyWindowError = (from: unknown, to: unknown): string | null => {
+  if (!isISODate(from) || !isISODate(to)) return 'from and to must be YYYY-MM-DD dates';
+  const span = daysBetweenIso(from, to);
+  if (span <= 0) return 'from must be before to';
+  if (span > FORECAST_HISTORY_MAX_DAYS) return `The window is limited to ${FORECAST_HISTORY_MAX_DAYS} days`;
+  return null;
+};
+
+/**
+ * One page of shift history in [from, to), newest first, summed per date ×
+ * role ({ date, role, shifts, hours }). The client adds the pages up and fits
+ * the forecast itself; this action does no modelling. Page 0 also returns the
+ * total row count so the client can fetch the other pages in parallel.
+ */
+async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const windowError = historyWindowError(p.from, p.to);
+  if (windowError) return badRequest(windowError);
+  if (p.role !== undefined && !isNonEmptyString(p.role, 100)) return badRequest('role must be a non-empty string');
+  const page = p.page === undefined ? 0 : Number(p.page);
+  if (!Number.isInteger(page) || page < 0 || page >= FORECAST_HISTORY_MAX_PAGES) {
+    return badRequest(`page must be an integer from 0 to ${FORECAST_HISTORY_MAX_PAGES - 1}`);
+  }
+  const offset = page * FORECAST_HISTORY_PAGE_SIZE;
+  let query = client
+    .from('shifts')
+    .select('date, role, hours', page === 0 ? { count: 'exact' } : undefined)
+    .eq('account_id', ctx.accountId)
+    .gte('date', p.from as string)
+    .lt('date', p.to as string);
+  if (typeof p.role === 'string') query = query.eq('role', p.role);
+  const { data, error, count } = await query
+    .order('date', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + FORECAST_HISTORY_PAGE_SIZE - 1);
+  if (error) return dbFailure('select shifts history', error);
+  const rows = data ?? [];
+  const days = new Map<string, { date: string; role: string; shifts: number; hours: number }>();
+  for (const row of rows) {
+    const key = buildKey(row);
+    const day = days.get(key) ?? { date: row.date, role: row.role, shifts: 0, hours: 0 };
+    day.shifts += 1;
+    day.hours += Number(row.hours ?? 0);
+    days.set(key, day);
+  }
+  return ok({
+    days: Array.from(days.values()),
+    page,
+    pageSize: FORECAST_HISTORY_PAGE_SIZE,
+    rows: rows.length,
+    total: page === 0 ? count ?? null : null,
+  });
+}
+
+/** External signals in [from, to); with a role, that role's and the global ones. */
+async function listForecastSignals(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const windowError = historyWindowError(p.from, p.to);
+  if (windowError) return badRequest(windowError);
+  if (p.role !== undefined && !isNonEmptyString(p.role, 100)) return badRequest('role must be a non-empty string');
+  let query = client
+    .from('external_signals')
+    .select('date, role, signal_type, weight')
+    .eq('account_id', ctx.accountId)
+    .gte('date', p.from as string)
+    .lt('date', p.to as string);
+  if (typeof p.role === 'string') query = query.in('role', [p.role, 'global']);
+  const { data, error } = await query.order('date', { ascending: true }).limit(FORECAST_HISTORY_PAGE_SIZE);
+  if (error) return dbFailure('select external_signals', error);
+  return ok({ signals: (data ?? []).map((s) => ({ ...s, weight: s.weight === null ? null : Number(s.weight) })) });
+}
+
+/** True when the tenant has at least one row in `table` (matching the filters). */
+async function hasRows(client: SupabaseClient, table: string, ctx: AuthContext, filters?: ForecastFilters): Promise<boolean> {
+  let query = client.from(table).select('date').eq('account_id', ctx.accountId);
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
+  const { data, error } = await query.limit(1);
+  if (error) {
+    console.warn(`[secure-proxy] ${table} unavailable:`, error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
 }
 
 async function upsertTargets(client: SupabaseClient, ctx: AuthContext, targets: unknown): Promise<Result> {
@@ -843,16 +898,19 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'forecast':
       return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
     case 'status': {
+      // History is checked for the role only: a forecast for a date is made
+      // from earlier days, so the date filter does not apply to history.
       const filters = cleanFilters(p.filters);
-      const [historical, signals, targets] = await Promise.all([
-        fetchHistoricalShifts(client, ctx, filters),
-        fetchExternalSignals(client, ctx, filters),
-        fetchExistingTargets(client, ctx, filters),
+      const roleOnly = filters?.role ? { role: filters.role } : undefined;
+      const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
+        hasRows(client, 'shifts', ctx, roleOnly),
+        hasRows(client, 'external_signals', ctx, filters),
+        hasRows(client, 'demand_targets', ctx, filters),
       ]);
       const status: ForecastGenerationMetadata = {
-        hasHistorical: historical.length > 0,
-        hasExternalSignals: signals.length > 0,
-        hasExistingTargets: targets.length > 0,
+        hasHistorical,
+        hasExternalSignals,
+        hasExistingTargets,
         apiAvailable: Boolean(FORECAST_API_URL),
         usedApi: false,
         usedFallback: false,
@@ -861,6 +919,10 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       };
       return ok(status);
     }
+    case 'forecastHistory':
+      return forecastHistory(client, ctx, p);
+    case 'listForecastSignals':
+      return listForecastSignals(client, ctx, p);
     case 'loadTargets':
       return ok({ targets: await fetchExistingTargets(client, ctx, cleanFilters(p.filters)) });
     case 'upsertTargets':

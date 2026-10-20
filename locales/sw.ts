@@ -410,7 +410,7 @@ export const sw = {
       posCsvA11yHint: 'Bandika CSV yenye safu wima: tarehe, mapato, idadi ya wageni, maelezo',
       posPreviewCount: '{n} kati ya safu {total} zinaonyeshwa',
       beforeForecast: 'Kabla ya utabiri',
-      afterForecast: 'Baada ya utabiri'
+      afterForecast: 'Baada ya utabiri', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}'
     },
 
     roster: {

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { RoleModelSummary } from '@/services/forecasting/statisticalForecast';
 import {
   DemandForecast,
   ForecastFilters,
   ForecastDataStatus,
   ForecastGenerationResult,
   ForecastGenerationMetadata,
+  ForecastOptions,
   generateDemandForecast,
   getForecastDataStatus,
   loadDemandTargets,
@@ -19,7 +21,18 @@ const mergeForecasts = (incoming: DemandForecast[], existing: DemandForecast[]) 
   return Array.from(lookup.values()).sort((a, b) => `${a.date}-${a.role}`.localeCompare(`${b.date}-${b.role}`));
 };
 
-export const useDemandForecast = (filters?: ForecastFilters) => {
+const forecastKey = (f: DemandForecast) => `${f.date}::${f.role}`;
+
+const NO_MODELS: RoleModelSummary[] = [];
+
+/**
+ * `options` (service level, interval level, business time zone) is read when a
+ * forecast runs, so passing a new object each render does not re-create
+ * `triggerForecast`.
+ */
+export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastOptions) => {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   const [demandTargets, setDemandTargets] = useState<DemandForecast[]>([]);
   const [loading, setLoading] = useState(false);
   const [forecasting, setForecasting] = useState(false);
@@ -68,12 +81,20 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
       try {
         setForecasting(true);
         setLoading(true);
-        const { forecasts, metadata }: ForecastGenerationResult = await generateDemandForecast({
-          ...filters,
-          ...overrideFilters,
-        });
+        const { forecasts, metadata }: ForecastGenerationResult = await generateDemandForecast(
+          { ...filters, ...overrideFilters },
+          optionsRef.current,
+        );
         setLastGenerationMetadata(metadata);
-        setDemandTargets((prev) => mergeForecasts(forecasts, prev.filter((item) => item.source === 'override')));
+        // A manual override always beats a model forecast for the same date and role.
+        setDemandTargets((prev) => {
+          const overrides = prev.filter((item) => item.source === 'override');
+          const overridden = new Set(overrides.map(forecastKey));
+          return mergeForecasts(
+            forecasts.filter((f) => f.source === 'override' || !overridden.has(forecastKey(f))),
+            overrides,
+          );
+        });
         setDataStatus((prev) => ({
           ...prev,
           hasHistorical: prev.hasHistorical || metadata.hasHistorical,
@@ -159,6 +180,8 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     };
   }, [hydrate]);
 
+  const forecastModels = useMemo(() => lastGenerationMetadata?.models ?? NO_MODELS, [lastGenerationMetadata]);
+
   return {
     demandTargets,
     loading,
@@ -166,6 +189,8 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     forecasting,
     dataStatus,
     lastGenerationMetadata,
+    /** Statistical forecasts: model chosen per role and its backtest MASE (empty otherwise). */
+    forecastModels,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,

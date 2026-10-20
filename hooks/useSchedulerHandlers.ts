@@ -27,6 +27,7 @@ import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
+import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { useLocations } from '@/hooks/useLocations';
 import {
   findCoveringAvailability,
@@ -84,6 +85,10 @@ export function useSchedulerHandlers() {
   const { recordTourAction } = useWelcomeTour();
 
   // ── DB-backed data hooks ──────────────────────────────────────────────────
+  const { locations, loaded: locationsLoaded } = useLocations(accountId);
+  // "Today" and the forecast horizon are business-local dates (the account's
+  // only location's zone, else the device zone).
+  const forecastTimeZone = useMemo(() => getBusinessTimeZone(resolveShiftLocation(locations)), [locations]);
   const {
     demandTargets,
     triggerForecast,
@@ -93,12 +98,12 @@ export function useSchedulerHandlers() {
     forecasting,
     dataStatus,
     seedBaselineTargets,
-  } = useDemandForecast();
+    forecastModels,
+  } = useDemandForecast(undefined, { timeZone: forecastTimeZone });
 
   const { workers, addWorker, addAvailability } = useWorkers(accountId);
   const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
   const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
-  const { locations, loaded: locationsLoaded } = useLocations(accountId);
   const { canAutoAssign, count: usageCount, increment: incrementUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
@@ -326,12 +331,10 @@ export function useSchedulerHandlers() {
   const forecastHelperText = useMemo(() => {
     if (!isForecastInputValid) return t('scheduler.demand.forecastHelperInvalid');
     if (needsFallbackSetup) return t('scheduler.demand.forecastHelperNoData');
-    if (!dataStatus.apiAvailable) return t('scheduler.demand.forecastHelperApiDown');
     if (forecastPending) return t('scheduler.demand.forecastHelperPending');
     if (forecastLoading || forecasting) return t('scheduler.demand.forecastHelperRunning');
     return t('scheduler.demand.forecastHelperReady');
   }, [
-    dataStatus.apiAvailable,
     forecastLoading,
     forecasting,
     forecastPending,
@@ -1183,6 +1186,7 @@ export function useSchedulerHandlers() {
     roster,
     demandTargets,
     forecastError,
+    forecastModels,
     forecastLoading,
     forecasting,
     needsFallbackSetup,
