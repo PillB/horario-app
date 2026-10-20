@@ -6,6 +6,15 @@
 
 ---
 
+### [SUMMARY] — 2026-10-20 16:40 UTC
+**Last CHG completed:** CHG-074
+**Current state:** Step 2 (PR #52) is green, QA signed off, waiting on Pablo to merge. Step 3 starts: per-jurisdiction labor rules, country detection with per-location confirmation, IANA business time zones, then CP-SAT optimizer, server-side paywall and forecasting.
+**Active decisions:** law follows the work location (jurisdiction stored per business location, detection only suggests); durations measured in elapsed UTC time, rule windows in the location's IANA zone; rule packs are data with citations and effective dates; QA's `qa/labor-rules-golden.md` (46 cases) is the test oracle; Peru has no statutory min rest, so it's a warning; unverified rules stay off as hard constraints; tokens without `azp` are allowed for native clients (Pablo's call).
+**Next action:** `utils/zonedTime.ts` + `services/labor/jurisdictions.ts` (shared base), then the rule engine + packs (main thread), locations + detection (worker), IANA tz in shiftAssigner (worker).
+**Watch out for:** MX-03 week spanning a dated limit uses the stricter value and flags review; NL night-shift "more than 1 h" source conflict; Ontario 13 h exception; AU pays DST shifts by the clock.
+
+---
+
 ### CHG-074 — 2026-10-18 UTC
 **Type:** FIX (Codex review of PR #52)
 
