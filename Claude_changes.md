@@ -84,6 +84,8 @@
 
 **Not done / follow-ups:** a server-side `group by` (SQL view or RPC) would replace up to 40 history pages with one request. It needs a migration, which this change does not include. The external-API path still sends the proxy's 500 oldest shifts. Intervals assume past errors look like future ones: 14-day backtests do not cover longer horizons, which reuse the last window.
 
+
+**Browser check (2026-10-20):** the exported worker bundle ran in headless Chromium 141 served over HTTP: the WASM loaded as `application/wasm`, the engine was `ilp`, and the first-fit-trap case was assigned optimally (w2 morning, w1 late) in 151 ms with no console errors.
 ---
 
 ### CHG-084 — 2026-10-20 UTC
