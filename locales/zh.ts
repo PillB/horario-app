@@ -299,6 +299,16 @@ export const zh = {
       applyingButton: '应用中…',
       suggestions: '{n} 条分配建议已就绪',
       suggestionItem: '{worker} → {template} 于 {date}',
+      partialCoverageBanner: '自动分配找到 {n} 条建议，但仍有 {missing} 个岗位无法安排。请查看下方的缺口，然后点击“应用建议”。',
+      shortfallTitle: '{n} 个班次未完全覆盖',
+      shortfallItem: '{template}（{date}）：已分配 {assigned}/{required}，缺 {missing} 人 — {reason}',
+      shortfallReasons: {
+        no_role_match: '没有员工具有该角色',
+        no_availability: '没有该角色的员工在整个班次内都有空',
+        overlap: '所有符合条件的员工都已有时间重叠的班次',
+        max_hours: '所有符合条件的员工都会超出每日或每周工时上限',
+        min_rest: '所有符合条件的员工都会违反班次之间的最短休息时间',
+      },
       tooltip: '📋 有了员工和模板后，在此创建具体班次。输入日期，选择员工和模板，然后保存。或使用自动分配一键填充所有模板——它会遵循可用性、职位匹配和公平性原则。',
     },
 

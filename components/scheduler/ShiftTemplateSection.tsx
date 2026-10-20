@@ -12,7 +12,7 @@ import {
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { type ShiftTemplate } from '@/utils/schedulerMetrics';
-import { type AssignedShift } from '@/services/shiftAssigner';
+import { type AssignedShift, type CoverageShortfall } from '@/services/shiftAssigner';
 import { type Worker } from '@/types/scheduler';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
@@ -51,6 +51,8 @@ type Props = {
   handleAutoAssign: () => void;
   applyAutoAssign: () => void;
   autoAssignSuggestions: AssignedShift[] | null;
+  /** Templates the last auto-assign run could not fully cover (partial or none). */
+  autoAssignShortfalls?: CoverageShortfall[] | null;
   autoAssignApplying: boolean;
   workers: Worker[];
 };
@@ -133,6 +135,7 @@ export const ShiftTemplateSection = ({
   handleAutoAssign,
   applyAutoAssign,
   autoAssignSuggestions,
+  autoAssignShortfalls,
   autoAssignApplying,
   workers,
 }: Props) => {
@@ -353,6 +356,34 @@ export const ShiftTemplateSection = ({
           {/* [7] Fix: errorText uses scheme-aware colors.error token */}
           {shiftError ? (
             <ThemedText style={local.errorText}>{shiftError}</ThemedText>
+          ) : null}
+
+          {autoAssignShortfalls && autoAssignShortfalls.length > 0 ? (
+            <ThemedView
+              testID="auto-assign-shortfalls"
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={[styles.banner, styles.bannerWarning, styles.dismissibleBanner]}
+            >
+              <ThemedText style={styles.bannerText}>
+                {t('scheduler.shifts.shortfallTitle', { n: String(autoAssignShortfalls.length) })}
+              </ThemedText>
+              {autoAssignShortfalls.map((gap) => {
+                const templateName = shiftTemplates.find((tpl) => tpl.id === gap.templateId)?.name ?? gap.templateId;
+                return (
+                  <ThemedText key={`${gap.templateId}-${gap.date}`} style={local.bannerMutedText}>
+                    {t('scheduler.shifts.shortfallItem', {
+                      template: templateName,
+                      date: gap.date,
+                      assigned: String(gap.assigned),
+                      required: String(gap.required),
+                      missing: String(gap.missing),
+                      reason: t(`scheduler.shifts.shortfallReasons.${gap.reasonCode}`),
+                    })}
+                  </ThemedText>
+                );
+              })}
+            </ThemedView>
           ) : null}
 
           {autoAssignSuggestions && autoAssignSuggestions.length > 0 ? (

@@ -23,6 +23,7 @@ import { useT } from '@/contexts/LocaleContext';
 import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
+import { isDiagnosticsEnabled } from '@/utils/appEnv';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -436,20 +437,22 @@ export default function ProfileScreen() {
           <ThemedText style={styles.mutedText}>{APP_VERSION}</ThemedText>
         </View>
 
-        <Pressable
-          onPress={handleDiagnostics}
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && { opacity: 0.75 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={t('profile.about.diagnosticsA11y')}
-          accessibilityHint={t('profile.about.diagnosticsHint')}
-        >
-          <ThemedText style={styles.secondaryButtonText}>
-            {t('profile.about.diagnosticsButton')}
-          </ThemedText>
-        </Pressable>
+        {isDiagnosticsEnabled() && (
+          <Pressable
+            onPress={handleDiagnostics}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && { opacity: 0.75 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.about.diagnosticsA11y')}
+            accessibilityHint={t('profile.about.diagnosticsHint')}
+          >
+            <ThemedText style={styles.secondaryButtonText}>
+              {t('profile.about.diagnosticsButton')}
+            </ThemedText>
+          </Pressable>
+        )}
       </ThemedView>
     </ScrollView>
   );

@@ -6,6 +6,134 @@
 
 ---
 
+### CHG-074 — 2026-10-18 UTC
+**Type:** FIX (Codex review of PR #52)
+
+1. `contexts/IdentityContext.tsx`: client `accountId` is the active Clerk org id, else the user id, matching `accountIdFromClaims` on the server, so switching organization refetches account-scoped hooks instead of showing the previous org's data.
+2. `.env.local.template` / `.env.example`: document the local dev bypass (`HORARIO_INSECURE_DEV_AUTH`, `HORARIO_DEV_ACCOUNT_ID`, comment out `CLERK_JWKS_URL`) and `CLERK_AUTHORIZED_PARTIES` (required in production).
+3. Missing-`azp` finding: answered on the PR; CHG-073 already rejects browser requests without `azp` and requires the allow-list in production. Native tokens carry no `azp`, matching Clerk's own `authorizedParties` check.
+
+**Tests:** jest 439 passed, 12 skipped; tsc 0 errors.
+
+---
+
+### CHG-073 — 2026-10-18 UTC
+**Type:** SECURITY (QA review of PR #52: R1–R4)
+
+1. **R1 (blocker) referral double redeem:** new server-only `referral_redemptions (referral_id, user_id)` table with a primary key; `redeem_referral()` locks the code row, inserts the redemption and only then increments the count, so one user can redeem a code once. pgTAP 44/44 (3 new), integration test asserts a repeat redeem returns 400.
+2. **R2:** `supabase/config.toml` turns Supabase Auth signups off (Clerk is the only sign-in). Cloud checklist tells Pablo to do the same in both projects.
+3. **R3:** in production (`VERCEL_ENV` or `EXPO_PUBLIC_APP_ENV` = production) the proxy refuses requests until `CLERK_AUTHORIZED_PARTIES` is set; with the allow-list set, a browser request (Origin header) whose token has no `azp` is rejected. Native clients may omit `azp`.
+4. **R4:** `AuthContext.canManage` (personal account, or org role `admin` / `org:admin` from `o.rol` or `org_role`). Deletes and billing actions return 403 otherwise.
+
+Deferred to step 3, per QA: R5 (Expo SDK / Clerk upgrade, npm audit), R6 (rate limiting), R7 (IANA timezone in the engine).
+
+**Tests:** jest 439 passed, 12 skipped; integration 12/12; pgTAP 44/44; tsc 0 errors; lint 0 errors.
+
+---
+
+### CHG-072 — 2026-10-18 UTC
+**Type:** INFRA (official Expo-on-Vercel deploy, health check, prod-only diagnostics, repo cleanup)
+
+- `api/index.ts` + `vercel.json` follow the SDK 53 Expo Router docs (`@expo/server/adapter/vercel`, pinned 0.6.2; single rewrite to the function; `dist/client` static). Old hand-written route table removed (it 404'd `/profile` and `/diagnostics`).
+- Headers per path; CSP now applies to server-rendered pages (the old rule only matched `*.html`), drops `'unsafe-eval'`, adds Clerk-required hosts, `object-src 'none'`, `base-uri`, `form-action`. 0 CSP violations across 8 routes in headless Chromium (without Clerk keys — recheck on a preview).
+- `app/api/health+api.ts`: env, short commit, `authConfigured`, `databaseConfigured`; no secrets; `no-store`.
+- Diagnostics tab and route hidden/redirected when `EXPO_PUBLIC_APP_ENV=production` (`utils/appEnv.ts`).
+- Deleted 240 committed artefacts (root PNGs, `screenshots/`, `.playwright-mcp/`, `playwright-report/`, `test-results/`, `agent.md.pdf`); none were referenced.
+- CLAUDE.md feature table and env table updated (auth, multi-tenant, CI rows were stale).
+- Verified: `npm ci`, tsc 0 errors, lint 0 errors, 432 tests passed (12 integration skipped), web export; built server: `/api/health` 200, `/api/secure-proxy` 503 without auth config, `/profile` 200.
+- Not verified: behaviour on real Vercel (rewrite path pass-through, negative-lookahead header source), Clerk under the CSP.
+
+---
+
+### CHG-071 — 2026-10-18 UTC
+**Type:** FIX (calendar dates were UTC, off by one day in the evening west of UTC)
+
+- New `utils/dateKeys.ts` (`toDateKey`, `todayKey`, `parseDateKey`, `addDaysToKey`, `weekdayOfKey`, `daysBetweenKeys`, `isDateKey`).
+- Replaced all 14 `toISOString().slice(0, 10)` date keys in app code; `useLocale.formatDate` reads `YYYY-MM-DD` as local noon; `useStreak` counts local days.
+- `getWeekdayFromDate` returns the weekday of the date itself (the offset argument is ignored; three tests that expected 2024-06-01 to be a Friday were corrected).
+- Tests no longer depend on the machine running in UTC; suite verified under America/Lima, America/New_York, Asia/Tokyo.
+- Follow-up: business timezone is still offset minutes; it should become an IANA zone stored per location (step 3, with jurisdictions).
+
+---
+
+### CHG-070 — 2026-10-18 UTC
+**Type:** FIX (auto-assign correctness, QA findings A1–A4, A6)
+
+- `services/shiftAssigner.ts` rewritten around absolute time spans: overnight shifts and availability (incl. split Mon 18:00–23:59 + Tue 00:00–08:00) are handled; overlap and min-rest are checked across days against all of a worker's shifts; templates are looked up in the full catalog.
+- 2-opt swaps re-validate every hard constraint against the real resulting roster, then a fill pass retries open slots (no more double-booking).
+- Every shortfall is reported (`CoverageShortfall`: required, assigned, missing, reasonCode `no_role_match | no_availability | overlap | max_hours | min_rest`). The Scheduler shows a partial-coverage banner; strings added to all 9 locales.
+- Overnight hours count toward the day/ISO week the shift starts on.
+- Tests: 5,000-case seeded fuzz with 8 invariants checked by an independent reference model (it flagged hundreds of violations on the old engine), 22 regression tests, component test for the banner. Four old tests that encoded the bugs were corrected.
+- Not in scope: jurisdiction labor rules (A5, step 3), server-side paywall (A7, moves with the optimizer in step 3), existing roster not counted toward coverage, DST-length days.
+
+---
+
+### CHG-069 — 2026-10-18 UTC
+**Type:** INFRA (CI database job, migrations pipeline, dev seed)
+
+- `.github/workflows/ci.yml`: Node 22; job `checks` (tsc, lint, unit tests, web export) and job `database` (local Supabase via `supabase/setup-cli`, `supabase test db`, proxy integration tests).
+- `.github/workflows/migrate.yml`: `supabase db push` to the dev project on pushes to main that touch migrations (skips with a notice until secrets exist); prod only via manual run gated by the `production` environment.
+- `scripts/seed-dev.mjs`: creates Clerk dev test users A, B (owner of org "Horario QA Tenant B") and C (no tenant) with `+clerk_test` emails, seeds both tenants (workers, availability, templates incl. overnight, a week of roster, targets) with deterministic ids, prints all ids as JSON. Refuses `sk_live_` keys and URLs containing "prod".
+- Verified locally: the CI database steps pass (pgTAP 41/41, integration 12/12).
+
+---
+
+### CHG-068 — 2026-10-18 UTC
+**Type:** SECURITY (tenant isolation in the API and the database; fail-closed auth)
+
+**Fixes QA red-team findings S1–S6** (`/mnt/project-files/qa/redteam-baseline-2026-10-18.md`).
+
+**Server (`app/api/secure-proxy+api.ts`, rewritten; new `server/`):**
+- `server/proxyAuth.ts`: Clerk token verification (RS256 only, exp/nbf with 5 s skew, required `sub`, issuer = JWKS origin or `CLERK_ISSUER`, optional `azp` allow-list via `CLERK_AUTHORIZED_PARTIES`, `kid` required when the key set has more than one key). Tenant = `o.id` / `org_id` / `sub`, matching `private.current_account_id()`. Fails closed with 503 when `CLERK_JWKS_URL` is unset; `HORARIO_INSECURE_DEV_AUTH=1` gives a fixed dev tenant only when `NODE_ENV !== 'production'`.
+- Every action scoped by the verified tenant; body `accountId`/`userId` ignored. Updates/deletes match `id AND account_id` and return 404 when nothing matched. Client-generated ids: update own row, else insert (a clash with another tenant's id fails with 409, never overwrites). Roster and availability writes verify the referenced worker/template belong to the caller.
+- Removed `upsertSubscription`, `stripeWebhook`, `culqiWebhook` (no client action can change a plan; webhooks need their own verified route). Checkout/portal return 501.
+- Forecast, targets and status queries scoped by tenant; targets upsert on `(account_id, date, role)`.
+- New `getOnboarding` action; `services/onboardingProgress.ts` reads through the proxy (anon reads are gone).
+- Atomic usage counter (`increment_auto_assign` RPC) replaces the upsert that always reset the count to 1.
+- DB error details are logged, never returned (generic 409/500). `Cache-Control: no-store` on responses. Localhost CORS origins only outside production.
+- Overnight templates/availability accepted (end < start); zero-length rejected.
+- `app/api/referrals+api.ts`: shared auth (no `'local-user'` fallback, no public-env auth switch), real column names, one reusable pending code per referrer, atomic `redeem_referral` RPC, uniform error for invalid codes. Deleted unused `services/referralService.ts` (anon reads of non-existent columns).
+
+**Database:**
+- `20261018000001_tenant_isolation.sql`: `private.current_account_id()`; `account_id` on `shifts`, `external_signals`, `demand_targets` (NOT VALID not-null check keeps legacy rows unreachable instead of deleting them); `demand_targets` unique `(account_id, date, role)`; every policy on 13 tables dropped and replaced by one `authenticated` SELECT-own-tenant policy; anon privileges revoked; direct writes revoked from `authenticated`; overnight windows allowed; `increment_auto_assign()` (service_role only).
+- `20261018000002_referrals_alignment.sql`: `channel`, `max_redemptions`, `redemption_count`; `redeem_referral()` (service_role only).
+- `supabase/config.toml` (from `supabase init`) so `supabase start` / `supabase test db` work locally and in CI.
+
+**Tests:**
+- `supabase/tests/database/tenant_isolation.test.sql`: 41 pgTAP tests (anon denied on 10 tables, tenant A/B read isolation incl. org claims, direct writes denied, tier change denied, overnight constraint, counter and redeem semantics).
+- `server/__tests__/proxyAuth.test.ts`: 25 tests with real RSA signing (13 rejection cases incl. alg none/HS256, foreign key, wrong iss, tampered payload; azp; fail-closed; dev mode refused in production; JWKS cache).
+- `server/__tests__/proxyTenantIsolation.integration.test.ts`: 12 tests against a real local Supabase (`npm run test:integration`); skipped in plain `npm test`.
+- Removed `services/__tests__/secureProxy.test.ts` (mocked `crypto`, tested the old behaviour).
+
+**Verified:** `supabase test db` 41/41; integration 12/12 against local Supabase; `npm test` 362 passed, 12 skipped; `tsc` 0 errors; lint 0 errors.
+
+**New env vars (server only):** `CLERK_ISSUER` (optional), `CLERK_AUTHORIZED_PARTIES` (optional), `HORARIO_INSECURE_DEV_AUTH`, `HORARIO_DEV_ACCOUNT_ID` (local dev only).
+
+---
+
+### [SUMMARY] — 2026-10-18 01:10 UTC
+**Last CHG completed:** CHG-066
+**Current state:** Production-readiness plan agreed with Pablo (4 steps, PR review per step). Step 1 audit done: gap report at /mnt/project-files/plan/step1-gap-report.md (project shared folder), QA red-team baseline at /mnt/project-files/qa/redteam-baseline-2026-10-18.md. Step 2 (hardening) in progress on branch claude/project-thread-80h0k5.
+**Active decisions:** Two cloud stacks (dev: Supabase horario-dev + Clerk dev + Vercel Preview; prod: horario-prod + Clerk prod + Vercel Production). Supabase native Clerk third-party auth; tenant = Clerk org id, else user id. Labor rules become per-jurisdiction data packs (US+states/cities, Peru, LatAm, EU+strict countries, AU, CA) with country auto-detect + confirm, stored per business location (step 3). OR-Tools CP-SAT optimizer as a Python function in step 3; current TS assigner stays as preview/fallback.
+**Next action:** CHG-067 CI green, then tenant scoping of the secure proxy and RLS rebuild.
+**Watch out for:** CLAUDE.md feature table is stale (auth + CI exist). Previous "TypeScript: 0 errors" claims were false; re-run checks instead of trusting this log.
+
+---
+
+### CHG-067 — 2026-10-18 UTC
+**Type:** FIX (CI green: lockfile, typecheck, lint) + SECURITY (remove committed Clerk session state)
+
+**Changes:**
+- `package-lock.json` regenerated so `npm ci` succeeds (was missing react@19.3.1, react-dom, scheduler, utf-8-validate).
+- `components/InfoTooltip.tsx`: typed web-only `position: 'fixed'` via a cast instead of ineffective `@ts-ignore` (TS2769).
+- `components/scheduler/RosterSection.tsx`: `className` is not a View prop (and RN-web drops it), so the print CSS never matched. Now uses `nativeID="print-region"` and a visibility-based `@media print` rule.
+- `components/scheduler/InputField.tsx`: add `displayName` (react/display-name lint error).
+- Deleted `.playwright-auth/state.json` (live Clerk dev session cookies) and gitignored `.playwright-auth/`, `playwright-report/`, `test-results/`. The sessions must also be revoked in the Clerk dashboard.
+
+**Verified:** `npm ci` OK; `tsc --noEmit` 0 errors; `npm run lint` 0 errors (17 warnings); `npm test` 352/352.
+
+---
+
 ### CHG-066 — 2026-04-05 UTC
 **Type:** DOCS (Second-pass manual improvement — batch rewrite with accumulated research)
 

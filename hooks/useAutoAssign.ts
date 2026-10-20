@@ -4,8 +4,12 @@ import { log } from '@/services/logger';
 import { trackEvent } from '@/services/analytics';
 import {
   assignShifts,
+  requiredSlots,
   type AssignedShift,
+  type AssignmentResult as EngineResult,
+  type CoverageShortfall,
   type LaborConstraints,
+  type ShortfallReasonCode,
 } from '@/services/shiftAssigner';
 import {
   upsertRosterShift,
@@ -14,7 +18,7 @@ import {
 } from '@/services/rosterService';
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
-import { getTemplateWindow, parseTimeToMinutes } from '@/utils/schedulerUtils';
+import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +45,11 @@ export type CoverageGap = {
   required: number;
   assigned: number;
   shortfall: number;
+  /**
+   * Why the engine could not fill the remaining slots. Absent when the engine filled
+   * every slot but some assignments failed to persist.
+   */
+  reasonCode?: ShortfallReasonCode;
 };
 
 export type AssignmentResult = {
@@ -119,22 +128,26 @@ const buildExplanation = (
 
 /**
  * Identifies templates whose total required coverage exceeds the number of
- * assignments that were successfully persisted.
+ * assignments that were successfully persisted. Partial coverage counts as a gap;
+ * the engine's shortfall reason is attached when it reported one.
  */
 const computeCoverageGaps = (
   templates: ShiftTemplate[],
   persisted: DbRosterShift[],
+  shortfalls: CoverageShortfall[],
 ): CoverageGap[] => {
   return templates.reduce<CoverageGap[]>((acc, template) => {
     const assigned = persisted.filter((s) => s.templateId === template.id).length;
-    const required = template.coverage ?? 1;
+    const required = requiredSlots(template);
     if (assigned < required) {
+      const engineShortfall = shortfalls.find((s) => s.templateId === template.id);
       acc.push({
         templateId: template.id,
         templateName: template.name,
         required,
         assigned,
         shortfall: required - assigned,
+        ...(engineShortfall ? { reasonCode: engineShortfall.reasonCode } : {}),
       });
     }
     return acc;
@@ -197,7 +210,7 @@ export const useAutoAssign = (accountId: string) => {
 
       // ── 1. Run the assignment algorithm ─────────────────────────────────
 
-      let assignResult: { assignments: AssignedShift[]; unassigned: unknown[] };
+      let assignResult: EngineResult;
       try {
         assignResult = assignShifts({
           date,
@@ -280,7 +293,7 @@ export const useAutoAssign = (accountId: string) => {
 
       // ── 4. Identify coverage gaps ────────────────────────────────────────
 
-      const coverageGaps = computeCoverageGaps(templates, persisted);
+      const coverageGaps = computeCoverageGaps(templates, persisted, assignResult.unassigned);
 
       // ── 5. Update state and return ───────────────────────────────────────
 

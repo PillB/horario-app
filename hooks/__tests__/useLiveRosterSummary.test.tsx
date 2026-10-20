@@ -6,10 +6,11 @@
 import React, { useEffect } from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { useLiveRosterSummary, type LiveRosterSummary } from '../useLiveRosterSummary';
+import { todayKey } from '@/utils/dateKeys';
 
 // ─── Fetch mock helpers ───────────────────────────────────────────────────────
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = todayKey(); // device-local, matching the hook's isoDate(0)
 
 const MORNING_TEMPLATE = {
   id: 'morning',

@@ -2,7 +2,10 @@
  * IdentityContext — provides { accountId, userId, isLoaded } to the entire app.
  *
  * When Clerk auth is enabled (EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY starts with "pk_"):
- *   - accountId = Clerk userId (each user is their own tenant in the MVP)
+ *   - accountId = active Clerk organization id, else the Clerk userId. This
+ *     matches the tenant the server derives from the session token
+ *     (server/proxyAuth.ts accountIdFromClaims), so switching organization
+ *     re-fetches every account-scoped hook.
  *   - userId    = Clerk userId
  *   - isLoaded  = false while Clerk is initialising, true once resolved
  *   Falls back to env-var values if Clerk hasn't resolved yet.
@@ -62,7 +65,7 @@ const IdentityContext = createContext<Identity>({
 function ClerkIdentityProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useAuth } = require('@clerk/expo') as typeof import('@clerk/expo');
-  const { userId, isLoaded, getToken } = useAuth();
+  const { userId, orgId, isLoaded, getToken } = useAuth();
 
   useEffect(() => {
     setTokenProvider(getToken);
@@ -71,7 +74,7 @@ function ClerkIdentityProvider({ children }: { children: React.ReactNode }) {
   const value: Identity = {
     // While isLoaded=false, userId is null; fall back to env var so hooks
     // don't receive an empty string and fire an unnecessary empty fetch.
-    accountId: userId ?? ENV_ACCOUNT_ID,
+    accountId: orgId ?? userId ?? ENV_ACCOUNT_ID,
     userId: userId ?? ENV_USER_ID,
     isLoaded,
   };

@@ -318,6 +318,16 @@ export const it = {
       applyingButton: 'Applicazione…',
       suggestions: '{n} suggerimento/i di assegnazione pronto/i',
       suggestionItem: '{worker} → {template} il {date}',
+      partialCoverageBanner: "L'assegnazione automatica ha trovato {n} suggerimento/i, ma non è stato possibile coprire {missing} posto/i. Controlla le lacune qui sotto, poi fai clic su «Applica suggerimenti».",
+      shortfallTitle: '{n} turno/i non completamente coperto/i',
+      shortfallItem: '{template} il {date}: {assigned}/{required} assegnati, {missing} mancanti — {reason}',
+      shortfallReasons: {
+        no_role_match: 'nessun lavoratore ha questo ruolo',
+        no_availability: "nessun lavoratore con questo ruolo è disponibile per l'intero turno",
+        overlap: 'tutti i lavoratori idonei hanno già un turno sovrapposto',
+        max_hours: 'tutti i lavoratori idonei supererebbero il limite di ore giornaliere o settimanali',
+        min_rest: 'tutti i lavoratori idonei violerebbero il riposo minimo tra i turni',
+      },
       tooltip: '📋 Una volta che hai lavoratori e modelli, crea turni individuali qui. Inserisci la data, scegli il lavoratore e il modello, poi salva. Oppure usa l\'assegnazione automatica per riempire tutti i modelli con un solo tocco — rispetta disponibilità, corrispondenza di ruolo ed equità.',
     },
 

@@ -94,10 +94,14 @@ describe('assignShifts — basic assignment', () => {
   });
 
   it('assigns different workers to non-overlapping shifts on the same day', () => {
+    // eveningTemplate ends at midnight, so workers need availability until 23:59 (= end of day).
+    // (Previously alice/bob's 07:00–20:00 availability was wrongly accepted for 16:00–00:00.)
+    const lateAlice: Worker = { ...alice, availability: [{ day: 'Mon', from: '07:00', to: '23:59' }] };
+    const lateBob: Worker = { ...bob, availability: [{ day: 'Mon', from: '07:00', to: '23:59' }] };
     const input: AssignmentInput = {
       date: MON,
       templates: [morningTemplate, eveningTemplate],
-      workers: [alice, bob],
+      workers: [lateAlice, lateBob],
       existingRoster: [],
     };
     const result = assignShifts(input);
@@ -189,7 +193,8 @@ describe('assignShifts — respects existing roster', () => {
     const input: AssignmentInput = {
       date: MON,
       templates: [eveningTemplate],
-      workers: [alice],
+      // availability must reach midnight to cover 16:00–00:00 (07:00–20:00 was wrongly accepted before A4 fix)
+      workers: [{ ...alice, availability: [{ day: 'Mon', from: '07:00', to: '00:00' }] }],
       existingRoster: [
         {
           id: 'existing-1',
@@ -332,12 +337,15 @@ describe('assignShifts — maxDailyHours constraint', () => {
   });
 
   it('blocks assignment when it would exceed the daily limit', () => {
-    // fullDay already has an 8h morning shift; adding 6h afternoon would = 14h > 10h limit
+    // fullDay already has an 8h morning shift; adding 6h late shift would = 14h > 10h limit.
+    // (This test used afternoonTemplate 12:00–18:00, which OVERLAPS the 08:00–16:00 morning
+    // shift; it only reached the hours check because of bug A6. Use a non-overlapping shift.)
+    const lateTemplate: ShiftTemplate = { ...afternoonTemplate, id: 'late6', start: '16:00', end: '22:00' };
     const constraints: LaborConstraints = { maxDailyHours: 10 };
     const result = assignShifts({
       date: MON,
-      templates: [afternoonTemplate],
-      templateCatalog: [morningTemplate, afternoonTemplate], // catalog includes prior-day template
+      templates: [lateTemplate],
+      templateCatalog: [morningTemplate, lateTemplate], // catalog includes prior-day template
       workers: [fullDay],
       existingRoster: [
         { id: 'e1', date: MON, workerId: 'fullday', templateId: 'morning', location: 'HQ', status: 'Published', notified: false },
@@ -457,7 +465,7 @@ describe('assignShifts — minRestHoursBetweenShifts constraint', () => {
     name: 'Late',
     role: 'Support',
     start: '22:00',
-    end: '06:00', // overnight — skipped by min-rest check
+    end: '06:00', // overnight — ends 06:00 the next day
     coverage: 1,
   };
 
@@ -500,23 +508,23 @@ describe('assignShifts — minRestHoursBetweenShifts constraint', () => {
     expect(result.assignments).toHaveLength(1);
   });
 
-  it('ignores overnight shifts (end < start) in min-rest calculations', () => {
-    // lateTemplate is 22:00–06:00 overnight; min-rest check skips overnight shifts
+  it('includes overnight shifts (end < start) in min-rest calculations', () => {
+    // lateTemplate is Mon 22:00 → Tue 06:00; earlyTemplate Tue 06:00 starts with 0h rest.
+    // (Previously this test only asserted "does not throw" because overnight shifts were skipped — bug A3.)
     const constraints: LaborConstraints = { minRestHoursBetweenShifts: 8 };
     const TUE = '2026-03-31';
     const priorShift = { id: 'r1', date: MON, workerId: 'restworker', templateId: 'late', location: 'HQ', status: 'Published' as const, notified: false };
-    // Should not throw and should not falsely block due to the overnight skip
-    expect(() =>
-      assignShifts({
-        date: TUE,
-        templates: [earlyTemplate],
-        templateCatalog: [earlyTemplate, lateTemplate],
-        workers: [fullDayWorker],
-        existingRoster: [priorShift],
-        constraints,
-        timezoneOffsetMinutes: 0,
-      })
-    ).not.toThrow();
+    const result = assignShifts({
+      date: TUE,
+      templates: [earlyTemplate],
+      templateCatalog: [earlyTemplate, lateTemplate],
+      workers: [fullDayWorker],
+      existingRoster: [priorShift],
+      constraints,
+      timezoneOffsetMinutes: 0,
+    });
+    expect(result.assignments).toHaveLength(0);
+    expect(result.unassigned[0].reasonCode).toBe('min_rest');
   });
 });
 

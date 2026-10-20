@@ -1,29 +1,40 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npx expo export --platform web",
-  "outputDirectory": "dist",
+  "buildCommand": "expo export -p web",
+  "outputDirectory": "dist/client",
   "functions": {
-    "app/api/secure-proxy+api.ts": {
-      "runtime": "nodejs20.x",
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "app/api/referrals+api.ts": {
-      "runtime": "nodejs20.x",
-      "maxDuration": 15,
-      "memory": 256
+    "api/index.ts": {
+      "runtime": "@vercel/node@5.1.8",
+      "includeFiles": "dist/server/**",
+      "maxDuration": 30
     }
   },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://clerk.horario.app https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.clerk.accounts.dev https://clerk.horario.app https://*.protect.clerk.com:*; worker-src 'self' blob:; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    },
+    {
+      "source": "/((?!api/|_expo/static/|assets/).*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
-        { "key": "Pragma", "value": "no-cache" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        { "key": "Pragma", "value": "no-cache" }
       ]
     },
     {
@@ -37,36 +48,6 @@
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
-    },
-    {
-      "source": "/(.*)\\.html",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clerk.accounts.dev https://clerk.horario.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.clerk.accounts.dev https://clerk.horario.app wss://*.supabase.co; frame-ancestors 'none';" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
-      ]
     }
-  ],
-  "rewrites": [
-    { "source": "/_expo/static/(.*)", "destination": "/client/_expo/static/$1" },
-    { "source": "/assets/(.*)", "destination": "/client/assets/$1" },
-    { "source": "/favicon.ico", "destination": "/client/favicon.ico" },
-    { "source": "/api/secure-proxy", "destination": "/server/_expo/functions/api/secure-proxy+api.js" },
-    { "source": "/api/referrals", "destination": "/server/_expo/functions/api/referrals+api.js" },
-    { "source": "/_sitemap", "destination": "/server/_sitemap.html" },
-    { "source": "/", "destination": "/server/(tabs)/index.html" },
-    { "source": "/(tabs)", "destination": "/server/(tabs)/index.html" },
-    { "source": "/(tabs)/scheduler", "destination": "/server/(tabs)/scheduler.html" },
-    { "source": "/scheduler", "destination": "/server/(tabs)/scheduler.html" },
-    { "source": "/(tabs)/explore", "destination": "/server/(tabs)/explore.html" },
-    { "source": "/explore", "destination": "/server/(tabs)/explore.html" },
-    { "source": "/(auth)/sign-in", "destination": "/server/(auth)/sign-in.html" },
-    { "source": "/sign-in", "destination": "/server/(auth)/sign-in.html" },
-    { "source": "/(auth)/sign-up", "destination": "/server/(auth)/sign-up.html" },
-    { "source": "/sign-up", "destination": "/server/(auth)/sign-up.html" },
-    { "source": "/(.*)", "destination": "/server/+not-found.html" }
   ]
 }

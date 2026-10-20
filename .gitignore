@@ -38,3 +38,15 @@ yarn-error.*
 
 app-example
 .vercel
+
+# Test artefacts and auth state (never commit session cookies)
+.playwright-auth/
+playwright-report/
+test-results/
+
+# Local agent worktrees
+.claude/worktrees/
+
+# Ad-hoc screenshots and Playwright MCP session output
+/*.png
+.playwright-mcp/

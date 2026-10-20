@@ -1,2 +1,0 @@
-[    1257ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:25628
-[    1333ms] [WARNING] Route "./api/secure-proxy/route.ts" is missing the required default export. Ensure a React component is exported as default. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app:101220

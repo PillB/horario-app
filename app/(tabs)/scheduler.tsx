@@ -134,6 +134,7 @@ export default function SchedulerScreen() {
 
     // Auto-assign state
     autoAssignSuggestions,
+    autoAssignShortfalls,
     autoAssignApplying,
 
     // Freemium
@@ -365,6 +366,7 @@ export default function SchedulerScreen() {
             handleAutoAssign={handleAutoAssign}
             applyAutoAssign={applyAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
+            autoAssignShortfalls={autoAssignShortfalls}
             autoAssignApplying={autoAssignApplying}
             workers={workers}
           />

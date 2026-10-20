@@ -8,7 +8,8 @@ import {
   type DbShiftTemplate,
 } from '@/services/rosterService';
 import { loadDemandTargets, type DemandForecast } from '@/services/demandForecast';
-import { isoDate, parseTimeToMinutes, getWeekdayFromDate } from '@/utils/schedulerUtils';
+import { isoDate, parseTimeToMinutes } from '@/utils/schedulerUtils';
+import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ function availableHoursOnDate(
   date: string,
   availability: WorkerAvailability[],
 ): number {
-  const dayOfWeek = new Date(date + 'T00:00:00').getDay();
+  const dayOfWeek = weekdayOfKey(date);
   return availability
     .filter((a) => a.workerId === workerId && a.dayOfWeek === dayOfWeek)
     .reduce((sum, a) => {
@@ -184,11 +185,8 @@ export function computeBurnoutRisks(
   );
 
   // Build the date range [lookbackStart, today]
-  const today = new Date();
-  const lookbackStart = new Date(today);
-  lookbackStart.setDate(today.getDate() - lookbackDays);
-  const startStr = lookbackStart.toISOString().slice(0, 10);
-  const endStr = today.toISOString().slice(0, 10);
+  const endStr = todayKey();
+  const startStr = addDaysToKey(endStr, -lookbackDays);
 
   // Sum assigned hours per worker within the window
   const assignedHoursMap = new Map<string, number>();
@@ -211,11 +209,8 @@ export function computeBurnoutRisks(
     let totalAvailableHours = 0;
 
     // Iterate through each day in the lookback window
-    const cursor = new Date(lookbackStart);
-    while (cursor <= today) {
-      const dateStr = cursor.toISOString().slice(0, 10);
+    for (let dateStr = startStr; dateStr <= endStr; dateStr = addDaysToKey(dateStr, 1)) {
       totalAvailableHours += availableHoursOnDate(worker.id, dateStr, availability);
-      cursor.setDate(cursor.getDate() + 1);
     }
 
     const assignedHours = assignedHoursMap.get(worker.id) ?? 0;
@@ -358,11 +353,7 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
     try {
       const today = isoDate(0);
       const futureDate = isoDate(FORECAST_DAYS);
-      const pastDate = (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - LOOKBACK_DAYS);
-        return d.toISOString().slice(0, 10);
-      })();
+      const pastDate = isoDate(-LOOKBACK_DAYS);
 
       const [
         futureRoster,
@@ -419,7 +410,7 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
       setRawGaps(gaps);
       setRawBurnout(burnoutRisks);
       setRawTrends(trends);
-    } catch (_err) {
+    } catch {
       if (requestId !== requestIdRef.current) return;
       setRawGaps([]);
       setRawBurnout([]);
@@ -473,7 +464,7 @@ function deriveAvailabilityFromRoster(
     const template = templateMap.get(shift.templateId);
     if (!template) continue;
 
-    const dayOfWeek = new Date(shift.date + 'T00:00:00').getDay();
+    const dayOfWeek = weekdayOfKey(shift.date);
     const key = `${shift.workerId}::${dayOfWeek}`;
     const existing = windowMap.get(key);
 

@@ -39,6 +39,7 @@ import {
   StyleSheet,
   Platform,
   useWindowDimensions,
+  type ViewStyle,
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors, brand } from '@/constants/Colors';
@@ -47,7 +48,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 // Lazy-load createPortal only on web to avoid issues with native/SSR
 let createPortal: ((children: React.ReactNode, container: Element) => React.ReactPortal) | null = null;
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- web-only, must not load on native
   createPortal = require('react-dom').createPortal;
 }
 
@@ -182,14 +183,14 @@ export function InfoTooltip({ content, label = 'More information' }: Props) {
             style={[
               styles.tooltipCard,
               {
-                // @ts-ignore — web-only CSS: position:fixed keeps card viewport-
-                // relative without any body overflow side-effect
-                position: 'fixed',
+                // Web-only CSS: position:fixed keeps the card viewport-relative
+                // without any body overflow side-effect. RN's ViewStyle type
+                // doesn't include 'fixed', so cast this web-only value.
+                position: 'fixed' as unknown as ViewStyle['position'],
                 top: cardPos.y,
                 left: cardPos.x,
                 width: tooltipW,
                 maxHeight: maxCardH,
-                // @ts-ignore
                 zIndex: 9999,
               },
             ]}

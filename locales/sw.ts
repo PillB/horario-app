@@ -307,6 +307,16 @@ export const sw = {
       applyingButton: 'Inatekeleza…',
       suggestions: 'Mapendekezo {n} ya ugawaji yako tayari',
       suggestionItem: '{worker} → {template} tarehe {date}',
+      partialCoverageBanner: 'Ugawaji wa kiotomatiki umepata mapendekezo {n}, lakini nafasi {missing} hazikuweza kujazwa. Kagua mapengo hapa chini, kisha bofya "Tekeleza mapendekezo".',
+      shortfallTitle: 'Zamu {n} hazijajazwa kikamilifu',
+      shortfallItem: '{template} tarehe {date}: {assigned}/{required} wamepangwa, {missing} wanakosekana — {reason}',
+      shortfallReasons: {
+        no_role_match: 'hakuna mfanyakazi mwenye jukumu hili',
+        no_availability: 'hakuna mfanyakazi mwenye jukumu hili anayepatikana kwa zamu nzima',
+        overlap: 'wafanyakazi wote wanaostahili tayari wana zamu inayoingiliana',
+        max_hours: 'wafanyakazi wote wanaostahili wangezidi kikomo cha saa za kila siku au kila wiki',
+        min_rest: 'wafanyakazi wote wanaostahili wangekiuka muda wa chini wa kupumzika kati ya zamu',
+      },
       tooltip: '📋 Baada ya kuwa na wafanyakazi na violezo, unda zamu maalum hapa. Ingiza tarehe, chagua mfanyakazi na kiolezo, kisha hifadhi. Au tumia Gawa otomatiki kujaza violezo vyote kwa kubonyeza moja — inazingatia upatikanaji, ufaafu wa jukumu, na usawa.',
     },
 

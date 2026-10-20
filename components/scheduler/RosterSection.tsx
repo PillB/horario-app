@@ -13,7 +13,6 @@ import { type Worker } from '@/types/scheduler';
 import { type DemandForecast } from '@/services/demandForecast';
 import { SectionCard } from './SectionCard';
 import { WeekCalendar } from './WeekCalendar';
-import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -224,6 +223,7 @@ const WebFullscreenPortal: React.FC<WebPortalProps> = ({ children }) => {
   if (typeof document === 'undefined') return null;
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- web-only, must not load on native
     const ReactDOM = require('react-dom') as typeof import('react-dom');
     return ReactDOM.createPortal(children, containerRef.current);
   } catch {
@@ -241,8 +241,9 @@ const usePrintStyles = (enabled: boolean) => {
     styleEl.setAttribute('data-horario-print', 'roster');
     styleEl.textContent = `
       @media print {
-        body > *:not(.print-region) { display: none !important; }
-        .print-region { display: block !important; }
+        body * { visibility: hidden !important; }
+        #print-region, #print-region * { visibility: visible !important; }
+        #print-region { position: absolute; left: 0; top: 0; width: 100%; }
       }
     `;
     document.head.appendChild(styleEl);
@@ -298,7 +299,7 @@ export const RosterSection = ({
   const handleCloseMaximize = () => setIsMaximized(false);
 
   const calendarContent = (
-    <View style={local.printRegion} className="print-region">
+    <View style={local.printRegion} nativeID="print-region">
       <WeekCalendar rosterByDate={rosterByDate} coverageByDate={coverageByDate} onMaximize={handleMaximize} />
     </View>
   );

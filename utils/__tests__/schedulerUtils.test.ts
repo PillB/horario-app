@@ -7,6 +7,7 @@ import {
   normalizeDay,
   parseTimeToMinutes,
   windowsOverlap,
+  normalizeWindow,
   getTemplateWindow,
   defaultTimezoneOffsetMinutes,
 } from '../schedulerUtils';
@@ -71,17 +72,18 @@ describe('normalizeDay', () => {
 });
 
 describe('getWeekdayFromDate', () => {
-  it('derives weekday using a supplied timezone offset', () => {
-    // 2024-06-01 is a Saturday in UTC. UTC-12 pushes it to Friday.
-    expect(getWeekdayFromDate('2024-06-01', -720)).toBe('Fri');
+  it('returns the weekday of the calendar date regardless of timezone offset', () => {
+    // 2024-06-01 is a Saturday as a business-local calendar date in every zone.
+    expect(getWeekdayFromDate('2024-06-01', -720)).toBe('Sat');
+    expect(getWeekdayFromDate('2024-06-01', 540)).toBe('Sat');
+    expect(getWeekdayFromDate('2024-06-01')).toBe('Sat');
   });
   it('returns null for invalid dates', () => {
     expect(getWeekdayFromDate('not-a-date')).toBeNull();
     expect(getWeekdayFromDate('2024-13-01')).toBeNull();
   });
-  it('uses defaultTimezoneOffsetMinutes when no offset provided', () => {
-    const result = getWeekdayFromDate('2024-12-16'); // known Monday in UTC
-    expect(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).toContain(result);
+  it('returns Monday for 2024-12-16 without an offset', () => {
+    expect(getWeekdayFromDate('2024-12-16')).toBe('Mon');
   });
 });
 
@@ -109,12 +111,42 @@ describe('windowsOverlap', () => {
   it('does not flag non-overlapping windows', () => {
     expect(windowsOverlap({ startMinutes: 0, endMinutes: 300 }, { startMinutes: 600, endMinutes: 900 })).toBe(false);
   });
+  // A4 regression: windows crossing midnight
+  it('detects overlap between an overnight window and a late-evening window', () => {
+    // 22:00–06:00 vs 23:00–23:30
+    expect(windowsOverlap({ startMinutes: 1320, endMinutes: 360 }, { startMinutes: 1380, endMinutes: 1410 })).toBe(true);
+  });
+  it('detects overlap between two overnight windows', () => {
+    // 22:00–06:00 vs 23:00–01:00
+    expect(windowsOverlap({ startMinutes: 1320, endMinutes: 360 }, { startMinutes: 1380, endMinutes: 60 })).toBe(true);
+  });
+  it('does not flag a window ending at midnight and one starting right after it on the same day', () => {
+    // 08:00–16:00 vs 16:00–00:00 (touching)
+    expect(windowsOverlap({ startMinutes: 480, endMinutes: 960 }, { startMinutes: 960, endMinutes: 0 })).toBe(false);
+  });
+});
+
+describe('normalizeWindow', () => {
+  it('leaves a same-day window untouched', () => {
+    expect(normalizeWindow({ startMinutes: 540, endMinutes: 1020 })).toEqual({ startMinutes: 540, endMinutes: 1020 });
+  });
+  it('extends an overnight window into the next day', () => {
+    expect(normalizeWindow({ startMinutes: 1320, endMinutes: 360 })).toEqual({ startMinutes: 1320, endMinutes: 1800 });
+  });
+  it('treats an end of 00:00 as midnight of the next day', () => {
+    expect(normalizeWindow({ startMinutes: 960, endMinutes: 0 })).toEqual({ startMinutes: 960, endMinutes: 1440 });
+  });
 });
 
 describe('isoDate', () => {
-  it('returns today for offset 0', () => {
-    const today = new Date().toISOString().slice(0, 10);
-    expect(isoDate(0)).toBe(today);
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+  it('returns the device-local date for offset 0 (not the UTC date)', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 17, 23, 30)); // local 23:30
+    expect(isoDate(0)).toBe('2026-10-17');
+    expect(isoDate(1)).toBe('2026-10-18');
+    expect(isoDate(-17)).toBe('2026-09-30');
   });
   it('returns YYYY-MM-DD format', () => {
     expect(isoDate(1)).toMatch(/^\d{4}-\d{2}-\d{2}$/);

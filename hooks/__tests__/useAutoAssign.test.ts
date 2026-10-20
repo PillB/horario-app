@@ -6,9 +6,17 @@ import type { DbRosterShift, UpsertRosterShiftResult } from '@/services/rosterSe
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
 
+// jest.mock calls below are hoisted above these imports by babel-jest.
+import { assignShifts } from '@/services/shiftAssigner';
+import { upsertRosterShift } from '@/services/rosterService';
+import { trackEvent } from '@/services/analytics';
+import { log } from '@/services/logger';
+import { useAutoAssign, type AssignmentResult } from '../useAutoAssign';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 jest.mock('@/services/shiftAssigner', () => ({
+  ...jest.requireActual('@/services/shiftAssigner'),
   assignShifts: jest.fn(),
 }));
 
@@ -36,13 +44,6 @@ jest.mock('@/utils/schedulerUtils', () => ({
   }),
 }));
 
-// ─── Import after mocks ────────────────────────────────────────────────────────
-
-import { assignShifts } from '@/services/shiftAssigner';
-import { upsertRosterShift } from '@/services/rosterService';
-import { trackEvent } from '@/services/analytics';
-import { log } from '@/services/logger';
-import { useAutoAssign, type AssignmentResult } from '../useAutoAssign';
 
 // ─── Typed mock helpers ───────────────────────────────────────────────────────
 
@@ -179,6 +180,31 @@ describe('useAutoAssign', () => {
     expect(result.coverageGaps).toHaveLength(0);
     expect(result.failedToPersist).toHaveLength(0);
     expect(ref.current.result?.totalAssigned).toBe(2);
+  });
+
+  // ── Test 1b: partial coverage is surfaced with the engine's reason ─────────
+
+  it('partial coverage: template needing 3 with 1 assigned → coverage gap with shortfall 2 and reasonCode', async () => {
+    const templates = [makeTemplate({ id: 'tpl-1', coverage: 3 })];
+    const workers = [makeWorker({ id: 'worker-1' })];
+    const assignments = [makeAssignedShift({ workerId: 'worker-1', templateId: 'tpl-1' })];
+    mockAssignShifts.mockReturnValue({
+      assignments,
+      unassigned: [
+        { templateId: 'tpl-1', date: DATE, required: 3, assigned: 1, missing: 2, reasonCode: 'overlap', reason: 'x' },
+      ],
+    });
+    mockUpsertRosterShift.mockResolvedValueOnce(makeSuccessUpsertResult(makeDbRosterShift()));
+
+    const ref = renderHook(ACCOUNT_ID);
+    let result!: AssignmentResult;
+    await act(async () => {
+      result = await ref.current.autoAssign(DATE, templates, workers, EXISTING_ROSTER, CONSTRAINTS);
+    });
+
+    expect(result.coverageGaps).toEqual([
+      expect.objectContaining({ templateId: 'tpl-1', required: 3, assigned: 1, shortfall: 2, reasonCode: 'overlap' }),
+    ]);
   });
 
   // ── Test 2: algorithm throws ───────────────────────────────────────────────

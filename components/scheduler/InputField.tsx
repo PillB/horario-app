@@ -80,3 +80,5 @@ export const InputField = React.forwardRef<TextInput, Props>(({
     </View>
   );
 });
+
+InputField.displayName = 'InputField';

@@ -174,41 +174,52 @@ If you use bun locally, add this to `vercel.json`:
 
 ⚠️ GOTCHA: The `"framework": null` key in `vercel.json` is mandatory. Omitting it causes Vercel's auto-detection to treat the project as Next.js, which breaks the Expo export step and produces an empty deployment. (source: https://docs.expo.dev/router/reference/api-routes/)
 
-Your `vercel.json` at the project root must look exactly like this:
+This repo follows the official Expo Router guide for SDK 53
+(https://docs.expo.dev/router/reference/api-routes/, "Vercel"). Two files at the
+repo root are involved:
+
+`api/index.ts` (the location is required by the guide) hands every request that is
+not a static client file to `@expo/server`, which routes it using
+`dist/server/_expo/routes.json`:
+
+```ts
+const { createRequestHandler } = require('@expo/server/adapter/vercel');
+
+module.exports = createRequestHandler({
+  build: require('path').join(__dirname, '../dist/server'),
+});
+```
+
+`vercel.json` (abridged; the real file also sets the security and cache headers):
 
 ```json
 {
-  "buildCommand": "expo export -p web",
-  "outputDirectory": "dist",
-  "devCommand": "expo",
-  "cleanUrls": true,
   "framework": null,
+  "buildCommand": "expo export -p web",
+  "outputDirectory": "dist/client",
   "functions": {
-    "app/api/**/*+api.ts": {
+    "api/index.ts": {
       "runtime": "@vercel/node@5.1.8",
       "includeFiles": "dist/server/**",
-      "maxDuration": 60
+      "maxDuration": 30
     }
   },
-  "rewrites": [
-    { "source": "/:path*", "destination": "/" }
-  ]
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
 ```
 
-> **Note on `maxDuration: 60`:** This requires the **Pro plan**. On the Hobby plan, remove the `"maxDuration"` key entirely — the default is 300s on Hobby (configurable up to 300s). See §5.3 for timeout guidance.
+Vercel serves files that exist in `dist/client` (`/_expo/static/*`, `/assets/*`,
+`/favicon.ico`) directly; everything else (pages, `/api/*` routes, unknown paths that
+render `+not-found` with a 404) goes through the function. New pages and `+api` routes
+need **no** `vercel.json` change. Do not add per-route rewrites to compiled files in
+`dist/server`, and do not list `app/api/*+api.ts` under `functions`: those are not
+Vercel functions.
+
+> **Note on `maxDuration`:** 30s is within the Hobby limit. Raise it only on Pro.
 
 🔄 UPDATED: ⚠️ GOTCHA: The `@vercel/node` runtime version must be pinned. The Expo docs explicitly pin `"runtime": "@vercel/node@5.1.8"`. Unpinned runtimes auto-update and have historically broken `@expo/server` adapter compatibility without warning. (source: https://docs.expo.dev/router/reference/api-routes/)
 
-Also add the build script to `package.json`:
-
-```json
-{
-  "scripts": {
-    "vercel-build": "expo export -p web"
-  }
-}
-```
+No `vercel-build` script is needed with this (v3) format.
 
 ✅ **Verify:** Run `cat vercel.json | python3 -m json.tool` (or any JSON linter) — the file must be valid JSON with no trailing commas.
 
@@ -226,25 +237,15 @@ If you need ESM for specific files, rename those files to `.mjs` instead of usin
 
 ✅ **Verify:** `cat package.json | grep '"type"'` returns nothing, or returns `"type": "commonjs"`.
 
-### 2.5 Pin @expo/server to ≥ 0.5.1
+### 2.5 Pin @expo/server (SDK 53: 0.6.2)
 
 🔄 UPDATED: ⚠️ GOTCHA: There is a critical bug in older `@expo/server` versions where POST requests to Expo API routes on Vercel return `FUNCTION_INVOCATION_TIMEOUT` with `SyntaxError: JSON Parse error: Unexpected character: A`. The function is NOT actually timing out — the adapter silently returns garbage HTML instead of JSON. This affects all POST routes including `secure-proxy+api.ts`. GET requests work fine, masking the issue until payment flows are tested. Fix: pin to `@expo/server@0.5.1` or later. (source: https://github.com/expo/expo/issues/35763)
 
-```bash
-npm install @expo/server@0.5.1 --force
-```
+This repo pins `"@expo/server": "0.6.2"` in `dependencies`, the version `expo-router@5.0.x`
+(SDK 53) resolves to, so `api/index.ts` and Expo Router share one copy. (`expo-server`, without
+the scope, is the SDK 54+ package; do not use it on SDK 53.)
 
-Pin it in `package.json` to prevent silent auto-upgrade regressions:
-
-```json
-{
-  "dependencies": {
-    "@expo/server": "0.5.1"
-  }
-}
-```
-
-✅ **Verify:** `cat node_modules/@expo/server/package.json | grep '"version"'` outputs `"version": "0.5.1"` (or higher).
+✅ **Verify:** `npm ls @expo/server` shows `@expo/server@0.6.2` at the top level and `deduped` under `expo-router`.
 
 ### 2.6 Confirm dist/ Is in .gitignore
 
@@ -395,6 +396,15 @@ value for this variable.
 | `EXPO_PUBLIC_APP_ORIGIN` | Production | `https://horario-app.vercel.app` |
 | `EXPO_PUBLIC_APP_ORIGIN` | Preview | `https://horario-app-git-<YOUR_BRANCH>-<YOUR_TEAM>.vercel.app` |
 | `EXPO_PUBLIC_APP_ORIGIN` | Development | `http://localhost:8081` |
+| `EXPO_PUBLIC_APP_ENV` | Production | `production` |
+| `EXPO_PUBLIC_APP_ENV` | Preview | `preview` |
+| `EXPO_PUBLIC_APP_ENV` | Development | `development` |
+
+`EXPO_PUBLIC_APP_ENV` is inlined at build time. Only the value `production` changes
+behaviour: it hides the support **Diagnostics** tab (and the Profile button that opens
+it) and makes `/diagnostics` redirect to `/`. Any other value, or leaving it unset,
+keeps diagnostics available. `GET /api/health` reports the server-side environment
+separately, from Vercel's `VERCEL_ENV` system variable (no setup needed).
 
 **Option B: Use `VERCEL_URL` at runtime (server-side only)**
 

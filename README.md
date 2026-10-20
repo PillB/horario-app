@@ -54,6 +54,8 @@ EXPO_PUBLIC_CLERK_FRONTEND_API=https://YOUR-INSTANCE.clerk.accounts.dev
 EXPO_PUBLIC_SECURE_PROXY_URL=http://localhost:8081/api/secure-proxy
 EXPO_PUBLIC_APP_ORIGIN=http://localhost:8081
 EXPO_PUBLIC_ACCOUNT_ID=your-account-uuid
+# production | preview | development — "production" hides the diagnostics tab
+EXPO_PUBLIC_APP_ENV=development
 
 # Server-only secrets — NEVER use EXPO_PUBLIC_ prefix for these
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
@@ -119,7 +121,7 @@ horario-app/
 
 The app deploys to Vercel (web) and can be built for iOS/Android with EAS Build.
 
-For Vercel deployment, configure all environment variables listed above under **Settings → Environment Variables**. The `secure-proxy` and `referrals` functions require Node.js 20.x runtime.
+For Vercel deployment, configure all environment variables listed above under **Settings → Environment Variables** (set `EXPO_PUBLIC_APP_ENV=production` in the Production scope only). Vercel runs the whole Expo Router server output (pages and `app/api/*` routes) through one function, `api/index.ts`, as in the official Expo guide; see [VERCEL_DEPLOY.md](VERCEL_DEPLOY.md). `GET /api/health` reports the deployed environment, commit and whether auth and the database are configured.
 
 See [docs/MCP_COMPLIANCE.md](docs/MCP_COMPLIANCE.md) for the full deployment and compliance verification checklist.
 

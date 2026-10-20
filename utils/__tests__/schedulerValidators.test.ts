@@ -102,17 +102,20 @@ describe('findCoveringAvailability', () => {
     expect(coveringSlot).toBeUndefined();
   });
 
-  test('5. timezone offset pushes date to different weekday → correct weekday used', () => {
-    // 2024-01-15 UTC midnight = still Monday at UTC+0
-    // But with a large positive offset (+720 min = UTC+12), midnight UTC = noon Monday,
-    // so the adjusted day stays Monday. Use a negative offset to push back to Sunday.
-    // UTC-12 offset = -720 minutes; midnight UTC on Mon Jan 15 → noon Sunday Jan 14 UTC-12
+  test('5. timezone offset does not shift a business-local date to another weekday', () => {
+    // 2024-01-15 is a Monday as a calendar date in every timezone.
     const negativeOffset = -720;
     const slot = { day: 'Sun', from: '00:00', to: '23:59' };
     const worker = makeWorker({ availability: [slot] });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
-    const { weekdayLabel } = findCoveringAvailability(worker, template, '2024-01-15', negativeOffset);
-    expect(weekdayLabel).toBe('Sun');
+    const { weekdayLabel, coveringSlot } = findCoveringAvailability(
+      worker,
+      template,
+      '2024-01-15',
+      negativeOffset
+    );
+    expect(weekdayLabel).toBe('Mon');
+    expect(coveringSlot).toBeUndefined();
   });
 
   test('6. worker role does not match template role — findCoveringAvailability still returns slot (role check is separate)', () => {
