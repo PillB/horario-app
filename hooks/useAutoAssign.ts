@@ -18,6 +18,7 @@ import {
 } from '@/services/rosterService';
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
+import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -218,6 +219,7 @@ export const useAutoAssign = (accountId: string) => {
           workers,
           existingRoster,
           constraints,
+          timeZone: getBusinessTimeZone(),
         });
       } catch (err) {
         const message =

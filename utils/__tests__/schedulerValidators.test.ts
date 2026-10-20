@@ -126,6 +126,48 @@ describe('findCoveringAvailability', () => {
     // findCoveringAvailability ignores role — it only checks time coverage
     expect(coveringSlot).toEqual(slot);
   });
+
+  describe('overnight windows', () => {
+    const night = makeTemplate({ start: '22:00', end: '06:00' });
+
+    test('7. availability 21:00-07:00 covers a 22:00-06:00 shift', () => {
+      const slot = { day: 'Mon', from: '21:00', to: '07:00' };
+      const { coveringSlot } = findCoveringAvailability(makeWorker({ availability: [slot] }), night, '2024-01-15');
+      expect(coveringSlot).toEqual(slot);
+    });
+
+    test('8. a daytime slot 05:00-23:00 does NOT cover a 22:00-06:00 shift', () => {
+      const worker = makeWorker({ availability: [{ day: 'Mon', from: '05:00', to: '23:00' }] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15').coveringSlot).toBeUndefined();
+    });
+
+    test('9. availability 21:00-05:00 does NOT cover a shift ending at 06:00', () => {
+      const worker = makeWorker({ availability: [{ day: 'Mon', from: '21:00', to: '05:00' }] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15').coveringSlot).toBeUndefined();
+    });
+
+    test('10. an overnight slot from the previous day covers early-morning hours', () => {
+      const slot = { day: 'Mon', from: '21:00', to: '07:00' };
+      const early = makeTemplate({ start: '01:00', end: '05:00' });
+      // 2024-01-16 is a Tuesday; the Mon 21:00-07:00 slot runs into it.
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-16').coveringSlot).toEqual(slot);
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-15').coveringSlot).toBeUndefined();
+    });
+
+    test('11. a slot ending at 23:59 covers a shift ending at midnight', () => {
+      const slot = { day: 'Mon', from: '16:00', to: '23:59' };
+      const evening = makeTemplate({ start: '16:00', end: '00:00' });
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), evening, '2024-01-15').coveringSlot).toEqual(slot);
+    });
+
+    test('12. validateShiftReadiness accepts an overnight shift inside overnight availability', () => {
+      const worker = makeWorker({ id: 'w-night', availability: [{ day: 'Mon', from: '21:00', to: '07:00' }] });
+      const template = makeTemplate({ id: 'tpl-night', start: '22:00', end: '06:00' });
+      const shift = makeShift({ id: 's1', date: '2024-01-15', workerId: 'w-night', templateId: 'tpl-night' });
+      const { errors } = validateShiftReadiness(shift, [shift], [template], [worker]);
+      expect(errors.map((e) => e.code)).not.toContain('COVERAGE_MISSING');
+    });
+  });
 });
 
 // ─── validateAvailabilitySubmission ──────────────────────────────────────────

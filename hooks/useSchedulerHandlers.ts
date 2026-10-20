@@ -17,7 +17,6 @@ import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type OnboardingStep, type Worker } from '@/types/scheduler';
 import {
   createChangeHandler,
-  defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   isValidDate,
   isValidTime,
@@ -25,6 +24,7 @@ import {
   windowsOverlap,
 } from '@/utils/schedulerUtils';
 import { addDaysToKey, isDateKey } from '@/utils/dateKeys';
+import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import {
   findCoveringAvailability,
   validateAvailabilitySubmission,
@@ -161,7 +161,7 @@ export function useSchedulerHandlers() {
   const demandSectionRef = useRef<View>(null);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
-  const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
+  const businessTimeZone = useMemo(() => getBusinessTimeZone(), []);
 
   const updateWorkerField = useMemo(
     () => createChangeHandler(setWorkerForm, recordInteraction),
@@ -686,7 +686,7 @@ export function useSchedulerHandlers() {
     const worker = workers.find((w) => w.id === trimmedWorkerId);
     const { coveringSlot, weekdayLabel } =
       template && worker
-        ? findCoveringAvailability(worker, template, trimmedDate, businessTimezoneOffsetMinutes)
+        ? findCoveringAvailability(worker, template, trimmedDate)
         : {
             coveringSlot: undefined,
             weekdayLabel: null,
@@ -752,7 +752,6 @@ export function useSchedulerHandlers() {
     }
   }, [
     addShift,
-    businessTimezoneOffsetMinutes,
     recordTourAction,
     roster,
     rosterLookup,
@@ -879,7 +878,7 @@ export function useSchedulerHandlers() {
       if (!shift) return;
 
       const { errors } = validateShiftReadiness(
-        shift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+        shift, roster, shiftTemplates, workers
       );
       if (errors.length) { showActionBanner(errors.map((e) => e.message).join(' '), 'error'); return; }
 
@@ -888,7 +887,7 @@ export function useSchedulerHandlers() {
         const latestShift = roster.find((s) => s.id === shiftId);
         if (!latestShift) return;
         const validation = validateShiftReadiness(
-          latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+          latestShift, roster, shiftTemplates, workers
         );
         if (validation.errors.length) {
           showActionBanner(validation.errors.map((e) => e.message).join(' '), 'error'); return;
@@ -916,7 +915,6 @@ export function useSchedulerHandlers() {
       }
     },
     [
-      businessTimezoneOffsetMinutes,
       celebrateRosterPublish,
       roster,
       setShiftStatus,
@@ -982,7 +980,7 @@ export function useSchedulerHandlers() {
       templates: shiftTemplates,
       workers,
       existingRoster: roster,
-      timezoneOffsetMinutes: businessTimezoneOffsetMinutes,
+      timeZone: businessTimeZone,
     });
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
@@ -1006,7 +1004,7 @@ export function useSchedulerHandlers() {
         : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
       'info'
     );
-  }, [businessTimezoneOffsetMinutes, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
+  }, [businessTimeZone, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {

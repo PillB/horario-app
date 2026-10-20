@@ -97,7 +97,7 @@ Client (Expo App)
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
-| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; CP-SAT optimizer planned (step 3) |
+| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; shifts placed in an IANA business time zone (`timeZone`), so hours and rest are elapsed time across DST — re-verified 2026-10-20; CP-SAT optimizer planned (step 3) |
 | Analytics screen | Missing | explore.tsx is placeholder |
 | Labor-law constraint engine | Partial | Optional max daily/weekly hours and min rest in the assigner; per-jurisdiction rule packs planned (step 3) |
 | Multi-tenant support | Working | Tenant = Clerk org id, else user id; enforced in the proxy and by RLS (`20261018000001_tenant_isolation.sql`) — re-verified 2026-10-18 |
@@ -190,6 +190,7 @@ Manual assignment with client-side validation:
 - Role match (worker role must equal template role)
 - Availability coverage (worker's availability window must contain the template window)
 - No time overlap per worker per day
+- Times are wall-clock times in the business IANA zone (`utils/zonedTime.ts`); durations, overlap and rest are measured in elapsed time (a 22:00–06:00 night is 9 h on a fall-back night, 7 h on spring-forward); weekdays and calendar days come from the local date key
 
 ### Target approach (future phases)
 Constraint-based auto-assignment using a greedy/heuristic engine:
@@ -257,7 +258,7 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 8. The `explore.tsx` tab is the default Expo placeholder with no real content.
 9. Sample shift dates are hardcoded to December 2024 (past dates).
 10. No rate limiting or authentication validation on the secure proxy.
-11. `businessTimezoneOffsetMinutes` is always the device timezone — not a business setting.
+11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone()` (`utils/businessTimeZone.ts`), which is still the device zone until locations store their own zone. `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST). The validators' offset argument is ignored.
 12. The `shifts` table in Supabase is for historical data only; the live roster is never persisted.
 
 ---

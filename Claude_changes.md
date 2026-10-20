@@ -6,6 +6,18 @@
 
 ---
 
+### CHG-077 — 2026-10-20 UTC
+**Type:** FIX (QA finding R7: IANA business time zone in the auto-scheduler)
+
+1. `services/shiftAssigner.ts`: new `AssignmentInput.timeZone` (IANA). Shifts, availability windows and existing roster entries are placed with `zonedToUtc` for their local date, so overlap, rest, daily and weekly hours are elapsed time (22:00–06:00 is 9 h on a fall-back night, 7 h on spring-forward). Weekdays and calendar days come from the local date key. Without `timeZone`, a given `timezoneOffsetMinutes` (deprecated) keeps the old fixed 24 h-day timeline; with neither, the device zone (UTC if invalid). An invalid `timeZone` throws `RangeError`. Fairness hours use elapsed time too.
+2. `utils/businessTimeZone.ts`: `getDeviceTimeZone()` and `getBusinessTimeZone()` (device zone for now; the single place to read a location's zone later). `useSchedulerHandlers`, `useAutoAssign` and `useDemandAwareSchedule` pass it; `businessTimezoneOffsetMinutes` is gone.
+3. `utils/schedulerValidators.ts` `findCoveringAvailability` (manual assign / publish): overnight slots and templates, 23:59 = midnight, and an overnight slot from the previous weekday covering the early hours. Before, 05:00–23:00 "covered" 22:00–06:00.
+4. Tests: `services/__tests__/shiftAssigner.timezone.test.ts` (16: New York fall-back/spring-forward, Madrid DST-ES-01 12 h rest, Sydney, Lima, default zone, invalid zone); fuzz adds 3,000 cases in a random zone (New York, Madrid, Sydney, Lima, Kolkata, UTC) around DST days with a zoned reference model (it catches the engine ignoring the zone); 6 validator tests.
+5. CLAUDE.md: debt item 11, scheduler feature row, domain notes.
+
+Not done: manual-assign overlap check (`validateShiftReadiness`, handler) still compares same-day windows only; split availability (Mon 18:00–23:59 + Tue 00:00–08:00) is not merged in manual validation (the assigner merges it).
+
+**Tests:** jest 470 passed, 12 skipped, same under TZ=UTC, Asia/Tokyo, America/Lima, Europe/Madrid, America/New_York, Australia/Sydney; tsc 0 errors; lint 0 errors.
 ### CHG-078 — 2026-10-20 UTC
 **Type:** FEATURE (labor-rule engine and jurisdiction rule packs, step 3)
 

@@ -17,6 +17,7 @@ import {
 } from '@/utils/schedulerMetrics';
 
 import type { Worker } from '@/types/scheduler';
+import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -238,6 +239,7 @@ export function useDemandAwareSchedule(
         workers,
         existingRoster: roster,
         constraints,
+        timeZone: getBusinessTimeZone(),
       });
 
       const newShifts: Shift[] = assignmentResult.assignments.map(
