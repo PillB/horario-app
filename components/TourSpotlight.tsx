@@ -7,7 +7,7 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, type ThemeColors } from '@/constants/Colors';
 import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
@@ -106,12 +106,12 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
   const { t, langCode, setLanguage } = useT();
   const styles = makeStyles(colors);
 
-  const modes: Array<{
+  const modes: {
     mode: TourMode;
     emoji: string;
     title: string;
     desc: string;
-  }> = [
+  }[] = [
     {
       mode: 'overview',
       emoji: '🗺️',
@@ -167,6 +167,8 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.langRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('tour.roleSelect.languageLabel')}
             >
               {LANG_CODES.map((code) => {
                 const meta = LANG_META[code];
@@ -176,8 +178,9 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
                     key={code}
                     onPress={() => setLanguage(code)}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: selected }}
+                    aria-checked={selected}
                     accessibilityLabel={meta.native}
+                    accessibilityHint={t('language.selectorHint')}
                     style={({ pressed }) => [
                       styles.langChip,
                       selected && styles.langChipSelected,
@@ -249,11 +252,9 @@ export function TourSpotlight() {
     progressPercent,
     nextStep,
     skipTour,
-    startTourMode,
   } = useWelcomeTour();
 
   const { t } = useT();
-  const router = useRouter();
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -513,11 +514,11 @@ export function TourSpotlight() {
             <Pressable
               onPress={() => setWhyExpanded((v) => !v)}
               accessibilityRole="button"
-              accessibilityLabel={t('tour.nav.why')}
+              accessibilityLabel={t('tour.nav.whyMatters')}
               style={styles.whyToggle}
             >
               <ThemedText style={styles.whyToggleText}>
-                {whyExpanded ? '▲ ' : '▼ '}{t('tour.nav.why')}
+                {whyExpanded ? '▲ ' : '▼ '}{t('tour.nav.whyMatters')}
               </ThemedText>
               {whyExpanded ? (
                 <ThemedText style={styles.whyText}>{stepWhy}</ThemedText>
@@ -537,7 +538,7 @@ export function TourSpotlight() {
             onPress={nextStep}
             disabled={requiresActionAndBlocked}
             accessibilityRole="button"
-            accessibilityLabel={isLastStep ? t('tour.nav.finish') : t('tour.nav.next')}
+            accessibilityLabel={isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
             accessibilityState={{ disabled: requiresActionAndBlocked }}
             style={({ pressed }) => [
               styles.nextButton,
@@ -546,7 +547,7 @@ export function TourSpotlight() {
             ]}
           >
             <ThemedText style={styles.nextButtonText}>
-              {isLastStep ? t('tour.nav.finish') : t('tour.nav.next')}
+              {isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
             </ThemedText>
           </Pressable>
         </View>
@@ -673,7 +674,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     whyToggleText: {
       fontSize: 12,
-      color: brand.primary,
+      color: colors.tintText,
       fontWeight: '600',
       marginBottom: 4,
     },

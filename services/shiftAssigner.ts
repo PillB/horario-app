@@ -12,18 +12,25 @@
  *   6. (optional) Minimum rest hours between consecutive shifts must be observed
  *
  * Time model:
- *   - Every shift is converted to an absolute interval [start, end) in minutes on a
- *     continuous business-local timeline (day index × 1440 + minutes). A template whose
- *     end is <= its start is an overnight shift ending on the following day
- *     (22:00–06:00 on Mon runs Mon 22:00 → Tue 06:00; 16:00–00:00 ends at Tue 00:00).
- *     DST transitions are ignored (every day is 24h).
+ *   - Dates and HH:MM times are wall-clock values in the business time zone
+ *     (`timeZone`, IANA). Every shift is converted to an absolute interval [start, end)
+ *     in elapsed UTC minutes with `utils/zonedTime`, so durations, overlap and rest are
+ *     real elapsed time: 22:00–06:00 is 9h on a fall-back night and 7h on a
+ *     spring-forward night. A template whose end is <= its start is an overnight shift
+ *     ending on the following local day (22:00–06:00 on Mon runs Mon 22:00 → Tue 06:00;
+ *     16:00–00:00 ends at Tue 00:00). A start inside a DST gap moves to the end of the
+ *     gap; a repeated local time resolves to its first occurrence.
+ *   - Weekdays and calendar days come from the business-local date key, never from the
+ *     device clock.
+ *   - Deprecated: without `timeZone`, a given `timezoneOffsetMinutes` means a fixed-offset
+ *     zone (every day is 24h). With neither, the device's IANA zone is used.
  *   - Availability slots use the same rule (Mon 22:00–06:00 runs into Tuesday). A slot
  *     ending at 23:59 is treated as ending at 24:00, because time inputs cannot express
  *     24:00. Slots from the previous, same and next weekday are merged when they touch,
  *     so Mon 18:00–23:59 + Tue 00:00–08:00 covers a Mon 22:00–06:00 shift.
  *   - Overlap and minimum rest are computed on absolute intervals, so they work across
  *     day boundaries and look at shifts on any date (not only the target date).
- *   - Hours attribution: a shift's full duration counts toward the day (and ISO week)
+ *   - Hours attribution: a shift's full elapsed duration counts toward the day (and ISO week)
  *     on which it STARTS. A Sun 22:00–Mon 06:00 shift is 8h on Sunday and in Sunday's week.
  *
  * Soft scoring (higher = preferred):
@@ -44,13 +51,14 @@ import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
   MINUTES_PER_DAY,
-  defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   getWeekdayFromDate,
   normalizeWindow,
   parseTimeToMinutes,
 } from '@/utils/schedulerUtils';
 import { addDaysToKey, weekdayOfKey } from '@/utils/dateKeys';
+import { isValidTimeZone, zonedToUtc } from '@/utils/zonedTime';
+import { getDeviceTimeZone } from '@/utils/businessTimeZone';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -82,7 +90,16 @@ export type AssignmentInput = {
   workers: Worker[];
   /** Already-committed roster entries (any date) used for overlap + fairness checks. */
   existingRoster: Shift[];
-  /** Optional business timezone offset for weekday derivation (defaults to device TZ). */
+  /**
+   * Business time zone (IANA, e.g. "Europe/Madrid"). Dates and template/availability
+   * times are wall-clock times in this zone. Throws RangeError when it is not a valid
+   * zone. Defaults to the device zone (UTC if the device zone is invalid).
+   */
+  timeZone?: string;
+  /**
+   * @deprecated Use `timeZone`. Only read when `timeZone` is absent: shifts are placed on
+   * a fixed-offset timeline where every day is 24h (no DST).
+   */
   timezoneOffsetMinutes?: number;
   /** Optional labor-law constraints. Omitting this field disables all constraint checks (backward-compatible). */
   constraints?: LaborConstraints;
@@ -129,12 +146,13 @@ export type AssignmentResult = {
 
 // ─── Internal types ───────────────────────────────────────────────────────────
 
-/** A roster entry resolved to an absolute interval on the business-local timeline. */
+/** A roster entry resolved to an absolute interval of elapsed time. */
 type Entry = {
   workerId: string;
   templateId: string;
+  /** Business-local start date (YYYY-MM-DD). */
   date: string;
-  /** Absolute start, in minutes since 1970-01-01 00:00 (business-local wall clock). */
+  /** Absolute start, in elapsed minutes since the Unix epoch. */
   start: number;
   /** Absolute end (exclusive). */
   end: number;
@@ -160,29 +178,54 @@ const dayIndex = (date: string): number => Math.round(Date.parse(`${date}T00:00:
 /** Returns an ISO date string offset by `days` from the given ISO date. */
 const offsetDate = (date: string, days: number): string => addDaysToKey(date, days);
 
+/**
+ * Maps a business-local wall time (date key + minutes after its midnight, possibly
+ * >= 1440 for the next day) to absolute elapsed minutes since the Unix epoch.
+ */
+type Timeline = (date: string, minutes: number) => number;
+
+/** Timeline for an IANA zone; conversions are cached for the run. */
+const zonedTimeline = (timeZone: string): Timeline => {
+  const cache = new Map<string, number>();
+  return (date, minutes) => {
+    const key = `${date}|${minutes}`;
+    let value = cache.get(key);
+    if (value === undefined) {
+      value = Math.round(zonedToUtc(date, minutes, timeZone) / 60_000);
+      cache.set(key, value);
+    }
+    return value;
+  };
+};
+
+/** Deprecated fixed-offset timeline: every day is exactly 24h. */
+const fixedOffsetTimeline: Timeline = (date, minutes) => dayIndex(date) * MINUTES_PER_DAY + minutes;
+
+/** Picks the timeline for an input: `timeZone`, else a given fixed offset, else the device zone. */
+const timelineFor = (input: AssignmentInput): Timeline => {
+  if (input.timeZone !== undefined) {
+    if (!isValidTimeZone(input.timeZone)) throw new RangeError(`Invalid time zone: "${input.timeZone}"`);
+    return zonedTimeline(input.timeZone);
+  }
+  if (input.timezoneOffsetMinutes !== undefined) return fixedOffsetTimeline;
+  return zonedTimeline(getDeviceTimeZone());
+};
+
 /** Absolute interval of `template` when it starts on `date`. */
-const shiftInterval = (template: ShiftTemplate, date: string): Interval => {
+const shiftInterval = (template: ShiftTemplate, date: string, at: Timeline): Interval => {
   const w = normalizeWindow(getTemplateWindow(template));
-  const base = dayIndex(date) * MINUTES_PER_DAY;
-  return { start: base + w.startMinutes, end: base + w.endMinutes };
+  return { start: at(date, w.startMinutes), end: at(date, w.endMinutes) };
 };
 
-/** Duration of a template in minutes (overnight-aware). */
-const shiftMinutes = (template: ShiftTemplate): number => {
-  const w = normalizeWindow(getTemplateWindow(template));
-  return w.endMinutes - w.startMinutes;
-};
-
-const entryMinutes = (e: Entry): number => e.end - e.start;
+const entryMinutes = (e: Entry | Interval): number => e.end - e.start;
 
 /** Absolute interval of an availability slot on `date` (23:59 = end of day, end <= start wraps). */
-const availabilityInterval = (from: string, to: string, date: string): Interval => {
+const availabilityInterval = (from: string, to: string, date: string, at: Timeline): Interval => {
   const start = parseTimeToMinutes(from);
   const rawEnd = parseTimeToMinutes(to);
   const end = rawEnd === MINUTES_PER_DAY - 1 ? MINUTES_PER_DAY : rawEnd;
   const w = normalizeWindow({ startMinutes: start, endMinutes: end });
-  const base = dayIndex(date) * MINUTES_PER_DAY;
-  return { start: base + w.startMinutes, end: base + w.endMinutes };
+  return { start: at(date, w.startMinutes), end: at(date, w.endMinutes) };
 };
 
 /**
@@ -209,6 +252,8 @@ type CheckContext = {
   /** The previous, target and next date with their weekday labels (null when invalid). */
   days: { date: string; label: string | null }[];
   constraints?: LaborConstraints;
+  /** Business-local wall time → absolute elapsed minutes. */
+  at: Timeline;
 };
 
 /** Returns true when the worker's availability covers `interval` (a shift starting on ctx.date). */
@@ -217,7 +262,7 @@ const workerCoversInterval = (worker: Worker, interval: Interval, ctx: CheckCont
   for (const { date: day, label } of ctx.days) {
     if (!label) continue;
     for (const slot of worker.availability) {
-      if (slot.day === label) slots.push(availabilityInterval(slot.from, slot.to, day));
+      if (slot.day === label) slots.push(availabilityInterval(slot.from, slot.to, day, ctx.at));
     }
   }
   if (slots.length === 0) return false;
@@ -249,7 +294,7 @@ const checkEligibility = (
 ): ShortfallReasonCode | null => {
   if (worker.role !== template.role) return 'no_role_match';
 
-  const interval = shiftInterval(template, ctx.date);
+  const interval = shiftInterval(template, ctx.date, ctx.at);
   if (!workerCoversInterval(worker, interval, ctx)) return 'no_availability';
 
   const mine = others.filter((e) => e.workerId === worker.id);
@@ -289,14 +334,16 @@ const fairnessScore = (workerId: string, accumulatedHours: Map<string, number>):
 
 export function assignShifts(input: AssignmentInput): AssignmentResult {
   const { date, templates, workers, existingRoster, constraints } = input;
-  const tzOffset = input.timezoneOffsetMinutes ?? defaultTimezoneOffsetMinutes;
+  const at = timelineFor(input);
   const ctx: CheckContext = {
     date,
+    // Weekday labels are a property of the business-local date key.
     days: [-1, 0, 1].map((offset) => {
       const day = offsetDate(date, offset);
-      return { date: day, label: getWeekdayFromDate(day, tzOffset) };
+      return { date: day, label: getWeekdayFromDate(day) };
     }),
     constraints,
+    at,
   };
 
   // Template lookup: full catalog plus today's templates (A6 — existing shifts whose
@@ -317,7 +364,7 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
       workerId: shift.workerId,
       templateId: shift.templateId,
       date: shift.date,
-      ...shiftInterval(template, shift.date),
+      ...shiftInterval(template, shift.date, at),
     });
   }
 
@@ -352,8 +399,9 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
         }
       }
       if (!best) return;
-      assigned.push({ workerId: best.id, templateId: template.id, date, ...shiftInterval(template, date) });
-      accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + shiftMinutes(template) / 60);
+      const interval = shiftInterval(template, date, at);
+      assigned.push({ workerId: best.id, templateId: template.id, date, ...interval });
+      accumulatedHours.set(best.id, (accumulatedHours.get(best.id) ?? 0) + entryMinutes(interval) / 60);
     }
   };
 
@@ -379,8 +427,8 @@ export function assignShifts(input: AssignmentInput): AssignmentResult {
         const workerB = workerById.get(b.workerId);
         if (!templateA || !templateB || !workerA || !workerB) continue;
 
-        const hoursA = shiftMinutes(templateA) / 60;
-        const hoursB = shiftMinutes(templateB) / 60;
+        const hoursA = entryMinutes(a) / 60;
+        const hoursB = entryMinutes(b) / 60;
         const swappedHours = new Map(accumulatedHours);
         swappedHours.set(a.workerId, (swappedHours.get(a.workerId) ?? 0) - hoursA + hoursB);
         swappedHours.set(b.workerId, (swappedHours.get(b.workerId) ?? 0) - hoursB + hoursA);

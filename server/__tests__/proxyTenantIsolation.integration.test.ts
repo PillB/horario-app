@@ -100,6 +100,25 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     expect(res.body.workers).toEqual([]);
   });
 
+  it('stores worker labor attributes and keeps them when an update leaves them out', async () => {
+    const id = randomUUID();
+    const created = await asA({
+      action: 'upsertWorker',
+      worker: { id, name: 'Lia', role: 'Barista', birthDate: '2001-04-17', nightWorker: true, weeklyLimitOptOut: true, noFixedHours: true },
+    });
+    expect(created.status).toBe(200);
+    expect(created.body.worker).toMatchObject({ birthDate: '2001-04-17', nightWorker: true, weeklyLimitOptOut: true, noFixedHours: true });
+
+    const renamed = await asA({ action: 'upsertWorker', worker: { id, name: 'Lia M.', role: 'Barista' } });
+    expect(renamed.body.worker).toMatchObject({ name: 'Lia M.', birthDate: '2001-04-17', nightWorker: true });
+
+    const cleared = await asA({ action: 'upsertWorker', worker: { id, name: 'Lia M.', role: 'Barista', birthDate: null, nightWorker: false } });
+    expect(cleared.body.worker).toMatchObject({ birthDate: null, nightWorker: false, weeklyLimitOptOut: true });
+
+    const plain = (await asA({ action: 'listWorkers' })).body.workers as { id: string; nightWorker: boolean; birthDate: string | null }[];
+    expect(plain.find((w) => w.id === workerA)).toMatchObject({ birthDate: null, nightWorker: false });
+  });
+
   it("cannot overwrite A's worker by reusing its id", async () => {
     const res = await asB({ action: 'upsertWorker', worker: { id: workerA, name: 'Hijacked', role: 'Cook' } });
     expect(res.status).toBe(409);
@@ -181,6 +200,35 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     }
     const sub = (await asA({ action: 'getSubscription' })).body.subscription as { tier: string };
     expect(sub.tier).toBe('free');
+  });
+
+  it('keeps business locations per tenant and records who confirmed them', async () => {
+    const berkeley = { name: 'Berkeley store', countryCode: 'US', regionCode: 'CA', cityCode: 'BERKELEY', jurisdictionCode: 'US-CA-BERKELEY', timeZone: 'America/Los_Angeles', industry: 'retail', employerHeadcount: 120 };
+    const created = await asA({ action: 'upsertLocation', location: { ...berkeley, accountId: ORG_B, confirmedBy: 'someone-else' } });
+    expect(created.status).toBe(200);
+    const locA = created.body.location as { id: string; confirmedBy: string; jurisdictionCode: string; overrides: unknown[] };
+    expect(locA).toMatchObject({ confirmedBy: USER_A, jurisdictionCode: 'US-CA-BERKELEY', overrides: [] });
+
+    expect(((await asA({ action: 'listLocations' })).body.locations as { id: string }[]).map((l) => l.id)).toEqual([locA.id]);
+    expect((await asB({ action: 'listLocations' })).body.locations).toEqual([]);
+
+    // B cannot overwrite or delete A's location by id.
+    expect((await asB({ action: 'upsertLocation', location: { ...berkeley, id: locA.id, name: 'Hijacked' } })).status).toBe(409);
+    expect((await asB({ action: 'deleteLocation', id: locA.id })).status).toBe(404);
+    const still = (await asA({ action: 'listLocations' })).body.locations as { name: string }[];
+    expect(still.map((l) => l.name)).toEqual(['Berkeley store']);
+
+    // A can switch the place; the pack must follow.
+    expect((await asA({ action: 'upsertLocation', location: { ...berkeley, id: locA.id, cityCode: null } })).status).toBe(400);
+    const moved = await asA({ action: 'upsertLocation', location: { ...berkeley, id: locA.id, cityCode: null, jurisdictionCode: 'US-CA' } });
+    expect(moved.body.location).toMatchObject({ id: locA.id, cityCode: null, jurisdictionCode: 'US-CA' });
+
+    const member = signToken(`user_m_${run}`, { claims: { o: { id: ORG_B, rol: 'org:member' } } });
+    const locB = (await asB({ action: 'upsertLocation', location: { name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' } })).body.location as { id: string };
+    expect((await call(member, { action: 'deleteLocation', id: locB.id })).status).toBe(403);
+    expect((await call(member, { action: 'upsertLocation', location: { id: locB.id, name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service', employerHeadcount: 1 } })).status).toBe(403);
+    expect((await asB({ action: 'deleteLocation', id: locB.id })).status).toBe(200);
+    expect((await asA({ action: 'deleteLocation', id: locA.id })).status).toBe(200);
   });
 
   it('does not leak database error details', async () => {

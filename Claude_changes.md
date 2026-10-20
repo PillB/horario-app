@@ -6,6 +6,155 @@
 
 ---
 
+### CHG-084 — 2026-10-20 UTC
+**Type:** FIX (merge of CHG-081 and CHG-082)
+
+- `CompliancePanel` citation links used the fill teal (`colors.tint`) as text; the CHG-081 contrast guard caught it. They now use `colors.tintText`.
+
+**Tests:** jest 664 passed, 14 skipped; tsc 0 errors; lint 0 errors.
+
+---
+
+### CHG-081 — 2026-10-20 UTC
+**Type:** FIX (QA web accessibility spot check U1–U8, `qa/spotcheck-a11y-2026-10-20.md`)
+
+- U1 Profile tab blank: `nav.profile` was missing from every locale, and `t()` returns `''` for a missing key. A scan found 106 literal keys missing from `en.ts` (profile, sync, playbook, capability, pickers, advanced controls). Added the missing English strings and pointed 9 callers at existing keys (`tour.nav.whyMatters`/`done`, `scheduler.roster.listView`/`calendarView`, `scheduler.pos.uploadButton`, `common.draft`/`published`, `advancedControls.multiLocation.toggle`/`locations`). `nav.profile` and `nav.diagnostics` are in all 9 locales. Icon: `IconSymbol` cast its map `as IconMapping`, so any SF Symbol name type-checked; it now uses `satisfies`, so an unmapped name fails tsc. Added `person.crop.circle.fill`, `wrench.and.screwdriver.fill` and `rectangle.portrait.and.arrow.right` (sign-out, also unmapped).
+- U2 diagnostics tab: it had no `title` or icon, so it showed the route name. Gave it `t('nav.diagnostics')` and a wrench icon (still hidden in production).
+- U3 hydration #418: `web.output: "server"` renders HTML at build time. `TimezoneBar` (zone, date, time), the scheduler's default form dates (`isoDate(n)` in `useState`) and the diagnostics footer date came from the build machine's clock. New `hooks/useHasMounted.ts`: the bar and the footer show these values after mount, and the form dates are filled in by a mount effect.
+- U4 titles: new `components/PageTitle.tsx` (expo-router `Head`, "Screen · Horario") on every route.
+- U5 aria-checked: react-native-web 0.20 ignores `accessibilityState` (except `disabled`), and some radios used `selected` instead of `checked`. All radios now pass `aria-checked` and sit in labelled radiogroups: language selector, tour language chips, demand mode/preset/ratio, playbook filter, location chips, roster view.
+- U6 unnamed buttons: on /scheduler the two empty buttons were the roster List/Calendar toggle (wrong keys). It is now a labelled radio pair. The 4 on /profile were `aria-label=""` from the missing `profile.*` keys. Sign-out, guide, language-overlay and diagnostics buttons now have hints.
+- U7 teal contrast: new `tintText` token (light #0F766E, dark #2DD4BF). Teal text and icons now use `tintText` or `brand.primaryDark`: tab bar active tint, links, View Calendar, guides, pickers, chevrons, calendar today header, CheckIcon, diagnostics chip text, sign-in/up links, pricing. Fills and borders stay #0D9488. Fixed wrong "4.52:1" / "6.88:1" comments.
+- U8 diagnostics list: the `list` role was on the FlatList scroller, whose only child is the content container (`<ul><div>`). Now a ScrollView holds a `role="list"` View with `role="listitem"` rows; an empty log shows the message without a list.
+- CLAUDE.md §6: aria-checked, locale keys, teal tokens, hydration and page-title rules.
+
+Not changed: white text on #0D9488 fills (buttons, chips) is also 3.74:1; `Collapsible` and the picker chips still pass `expanded`/`selected` via `accessibilityState`, which never reaches the web DOM; the auth screens are English-only; `+not-found` has a hydration mismatch in jsdom (same before this change, not reproduced in a browser).
+
+**Tests:** jest 626 passed, 13 skipped (42 new: locale keys, useHasMounted, TimezoneBar, PageTitle, IconSymbol, DiagnosticsPanel, LanguageSelector, teal contrast, scheduler radios/toggle/start date, diagnostics date). tsc 0 errors. Lint 0 errors (10 pre-existing warnings). Web export: titles on every tab page; UTC and Asia/Tokyo exports give identical HTML. A jsdom hydration run of the exported pages shows #418 before the change on /scheduler and /diagnostics (Tokyo), and none after (Tokyo, Lima).
+### CHG-082 — 2026-10-20 UTC
+**Type:** FEATURE (scheduler uses the labor engine, locations and their time zones)
+
+1. **Worker labor attributes.** `supabase/migrations/20261020000002_worker_labor_attributes.sql` adds `birth_date` (date) and `night_worker`, `weekly_limit_opt_out`, `no_fixed_hours` (boolean, not null, default false) to `workers`. CHECK `birth_date >= 1900-01-01`. The "13 or older, real past date" rule needs today's date, so it lives in the proxy, not in a CHECK. RLS unchanged (the table's single SELECT-own-tenant policy covers the columns). Idempotent (re-run checked).
+   - `utils/workerLaborValidation.ts` (shared by form and proxy): real calendar day (no 2026-02-30), not before 1900, before today, 13th birthday reached (29 Feb counts on 1 Mar). Flags must be booleans. Absent fields are left out of the update, so an update without them keeps what is stored; `birthDate: null` / `''` clears it.
+   - Proxy `upsertWorker` / `listWorkers` validate and map the four fields (`birthDate`, `nightWorker`, `weeklyLimitOptOut`, `noFixedHours`).
+   - `Worker`, `DbWorker`, `useWorkers` carry them. The Add worker form has a birth-date field and three switches (`components/scheduler/WorkerLaborFields.tsx`, role `switch`, label, hint, checked state). `useSchedulerHandlers` exports `WorkerFormState`, and `updateWorkerField` is typed per field so booleans pass through.
+2. **Compliance findings.**
+   - `utils/scheduleLocation.ts`: a shift uses the stored location its roster entry names (by id, or by a unique name, case-insensitive), else the account's only location, else none.
+   - `hooks/useCompliance.ts` (`evaluateCompliance` + memoized `useCompliance`): groups the visible week's shifts by location and runs `evaluateRoster` with the location's jurisdiction, IANA zone and industry. It evaluates from the day before the Monday on or before the first visible day to the day after the Sunday on or after the last one, so rest into the first day and whole Monday workweeks are seen. It keeps findings that touch a visible shift, plus shift-less ones (baseline notes) once per location. It returns groups per verdict, the most severe verdict per shift (violation > refusable > premium > warning > review), and the visible shifts it could not link to a location.
+   - `components/scheduler/CompliancePanel.tsx`: findings grouped violation, premium, warning, refusable, review, each with message, worker and location, and citation (a link when the cite has a URL). With no location it shows one prompt linking to Profile, where locations are managed; it renders nothing while locations load or when the list fails to load (same as Home).
+   - `RosterSection` owns the visible week (Sunday start, like the calendar), and `WeekCalendar` takes an optional controlled `weekStartKey` / `onWeekStartChange`, so the inline and maximized calendars and the panel share one week. Shift chips show a text marker ("! Violation") that is also in the chip's accessibility label.
+   - `scheduler.tsx` grows by 2 lines (passes `scheduleLocations`).
+3. **Auto-assign.** `utils/autoAssignSettings.ts`: `mergeConstraints(business, legalConstraintsFor(location.jurisdictionCode, Monday of the assign date's ISO week))` and `timeZone: getBusinessTimeZone(location)`. Without a location only the business limits apply and the device zone is used.
+   - `getBusinessTimeZone(location?)` returns a valid location zone, else the device zone.
+   - `useSchedulerHandlers.handleAutoAssign` uses the account's only location (there is no location picker yet). With several locations no jurisdiction is applied. Applied suggestions store that location's id instead of `'HQ'`.
+   - `useAutoAssign.autoAssign` and `useDemandAwareSchedule.demandAwareAutoAssign` take a new trailing `businessLocation` / `location` argument, and the shifts they persist name its id.
+4. **Strings.** `workerLabor.*` and `compliance.*` in all 9 locales. **English text in de, fr, it, zh, sw, tl and hi** (to translate); es is translated.
+5. CLAUDE.md: Worker management and Labor-law engine rows, debt item 11, key files.
+
+**Not done / limits:**
+- A worker's shifts at two locations are evaluated separately, so rest between them is not checked.
+- Engine messages are English (engine/packs untouched).
+- No publish time, rest consent, breaks or school days reach the engine, so notice, consent and minors' school-day rules are not checked.
+- `useAutoAssign` / `useDemandAwareSchedule` still pass no `templateCatalog`, so roster shifts whose template is not in `templates` are invisible to the assigner's rest and hours checks (pre-existing).
+- Client age check uses the device's date and the server uses the UTC date, so they can disagree on the 13th birthday itself.
+
+**Tests:** jest 633 (619 passed, 14 skipped: the integration suite); 35 new tests:
+- `hooks/__tests__/useCompliance.test.tsx` (8): ES flags the 8 h rest, US does not, roster-named location, unlinked shifts, no-location / loading, week edges, DST elapsed time in the location zone, memoization.
+- `hooks/__tests__/autoAssignLegalConstraints.test.tsx` (8): merge, stricter wins per field, no location, ISO week start, zone fallback, real assigner refuses the short-rest open under ES, `useAutoAssign` passes merged constraints and zone and saves the location id.
+- `server/__tests__/workersProxy.test.ts` (14): pre-database 400s plus validator edges.
+- `components/__tests__/CompliancePanel.test.tsx` (5).
+
+pgTAP 57/57 (4 new): the migration was applied to the running local stack with psql, no `db reset`. Integration 14/14 (1 new: store, keep on partial update, clear). tsc 0 errors; lint 0 errors (12 pre-existing warnings).
+### CHG-083 — 2026-10-20 UTC
+**Type:** FIX (QA re-test of bundle 8e1d62c: L6 and the locations recommendation)
+
+- L6 (regression from the L1 merge): a merged working day now spans at most 24 h minus the daily rest minimum (capped at 11 h, so 13 h). Short overnight rests (GB 16:00–23:00 then 04:00) and chains of short shifts with short gaps now split, so the rest rule applies. Packs that define their own merge gap (NL dienst, PE) follow it with no cap. Tests GB-REST-SPLIT-01 (GB, IE, ES, DE), ES-DRIP-01, and a 09–14 + 17–22 Spanish day that stays one working day.
+- A rest finding caused by the span cap explains itself as a too-long working day ("daily amplitude"), per QA's note on FR 08–12 + 19–23.
+- `upsertLocation` is now admin-only (`MANAGER_ACTIONS`): a location's jurisdiction, industry and headcount decide which rules apply. Unit and integration tests cover a member getting 403.
+- Not done: change history for locations, and the stricter-only rule for overrides (overrides are not wired into the engine yet).
+
+**Tests:** jest all pass; integration 13/13 against local Supabase; tsc 0 errors; lint 0 errors.
+
+---
+
+### CHG-080 — 2026-10-20 UTC
+**Type:** FIX (QA adversarial probes L1–L5 on the labor engine)
+
+- L1: shifts with a gap under `dutyMergeGapHours` (default 6 h, NL 8 h, PE 0) form one working day, so a Spanish split shift is no longer a rest violation; the gap counts as a break. Tests ES-SPLIT-01 (same day) and ES-SPLIT-02 (across midnight).
+- L2: minors' weekly caps count only the days the worker is a minor.
+- L3: breaks are clipped to their shift; a break outside it no longer reduces worked time.
+- L4: invalid shifts (NaN, end ≤ start, > 24 h) give `input.invalid` instead of throwing; overlapping shifts give `shift.overlap`.
+- L5: Mexico overtime on at most 4 days a week (`overtimeDaysPerWeekMax`); Colombia's cite notes that jornada flexible is a location override.
+
+**Tests:** labor 70 passed (7 new).
+
+---
+
+### CHG-079 — 2026-10-20 UTC
+**Type:** FIX (QA review of the step 3 judgment calls)
+
+- When a weekly-rest shortfall depends on days just outside the schedule, it is now a warning, never a violation (QA point 5).
+- A short schedule that is on track to exceed a rolling average now says how many hours are left and the per-week budget (point 4).
+- Spanish minors need 48 consecutive hours off each week (`MinorRule.weeklyRestHours`) (point 3).
+- Peru's refrigerio citation now says the 6 h trigger is Horario's default, not the law (point 1).
+
+---
+
+### CHG-077 — 2026-10-20 UTC
+**Type:** FIX (QA finding R7: IANA business time zone in the auto-scheduler)
+
+1. `services/shiftAssigner.ts`: new `AssignmentInput.timeZone` (IANA). Shifts, availability windows and existing roster entries are placed with `zonedToUtc` for their local date, so overlap, rest, daily and weekly hours are elapsed time (22:00–06:00 is 9 h on a fall-back night, 7 h on spring-forward). Weekdays and calendar days come from the local date key. Without `timeZone`, a given `timezoneOffsetMinutes` (deprecated) keeps the old fixed 24 h-day timeline; with neither, the device zone (UTC if invalid). An invalid `timeZone` throws `RangeError`. Fairness hours use elapsed time too.
+2. `utils/businessTimeZone.ts`: `getDeviceTimeZone()` and `getBusinessTimeZone()` (device zone for now; the single place to read a location's zone later). `useSchedulerHandlers`, `useAutoAssign` and `useDemandAwareSchedule` pass it; `businessTimezoneOffsetMinutes` is gone.
+3. `utils/schedulerValidators.ts` `findCoveringAvailability` (manual assign / publish): overnight slots and templates, 23:59 = midnight, and an overnight slot from the previous weekday covering the early hours. Before, 05:00–23:00 "covered" 22:00–06:00.
+4. Tests: `services/__tests__/shiftAssigner.timezone.test.ts` (16: New York fall-back/spring-forward, Madrid DST-ES-01 12 h rest, Sydney, Lima, default zone, invalid zone); fuzz adds 3,000 cases in a random zone (New York, Madrid, Sydney, Lima, Kolkata, UTC) around DST days with a zoned reference model (it catches the engine ignoring the zone); 6 validator tests.
+5. CLAUDE.md: debt item 11, scheduler feature row, domain notes.
+
+Not done: manual-assign overlap check (`validateShiftReadiness`, handler) still compares same-day windows only; split availability (Mon 18:00–23:59 + Tue 00:00–08:00) is not merged in manual validation (the assigner merges it).
+
+**Tests:** jest 470 passed, 12 skipped, same under TZ=UTC, Asia/Tokyo, America/Lima, Europe/Madrid, America/New_York, Australia/Sydney; tsc 0 errors; lint 0 errors.
+### CHG-078 — 2026-10-20 UTC
+**Type:** FEATURE (labor-rule engine and jurisdiction rule packs, step 3)
+
+- `services/labor/types.ts`: the rule-pack shape. Every section carries a citation and a confidence level; values can be effective-dated (`Dated<T>`).
+- `services/labor/engine.ts`: `evaluateShifts` / `evaluateRoster` return findings with a verdict (`violation` | `premium` | `warning` | `refusable` | `review`) plus an overtime pay breakdown.
+  - Checks: rest between shifts (Ontario 13 h exemption, Netherlands 14 h after a night duty), fair-workweek clopenings (consent and flat / inside-gap / whole-shift premiums, gated on coverage), daily ordinary, overtime and total maxima (Mexico shift kinds, Brazil 52.5 min night hour), split-shift merging (Netherlands dienst), breaks and the California meal deadline, night premiums and night-worker averages, weekly ordinary limits (a week that spans a dated change uses the stricter value and is flagged for review), rolling weekly averages with opt-out, weekly rest, notice (violation or refusable), minors (school days, windows, banned periods, industry exceptions), US/Canada overtime pay (daily, weekly, 7th day), and Australia's pay-by-the-clock rule.
+  - Durations are measured in elapsed time; time windows use the location's IANA zone. Daily limits sum every shift on the same local day.
+- `services/labor/packs/americas.ts`, `europe.ts`: US federal, CA, NY, OR, and the cities NYC, SF, LA, Berkeley, Emeryville, Seattle, Chicago, Evanston and Philadelphia; Canada federal, ON and QC; PE, MX, CO, CL, BR and AR; the EU floor, ES, FR, DE, IT, PT, NL, BE, IE, PL, GB and AU; plus a GENERIC fallback.
+  - Rules marked unverified in QA's golden file are left out.
+  - Peru's rest rule is a warning only.
+  - AU, PT, EU and GENERIC carry a review note.
+- Tests: `services/labor/__tests__/golden.test.ts` covers all 46 QA oracle cases (47 tests); `engine.test.ts` has 11 more. Both pass under TZ=Asia/Tokyo, America/Lima and UTC.
+
+---
+
+### CHG-075 — 2026-10-20 UTC
+**Type:** FEATURE (shared base for step 3)
+
+`utils/zonedTime.ts` converts between wall clock and instants for an IANA zone. A DST gap resolves to the instant after it; an overlap resolves to the earlier instant. `services/labor/jurisdictions.ts` holds the supported jurisdiction codes, resolves a confirmed place to the most specific pack (unlisted EU member states use the `EU` floor, other countries use `GENERIC`), and builds the rule chains.
+### CHG-076 — 2026-10-20 UTC
+**Type:** FEATURE (business locations with a confirmed jurisdiction and IANA time zone)
+
+1. `supabase/migrations/20261020000001_locations.sql`: `public.locations` (country / region / city codes, `jurisdiction_code`, `time_zone`, `industry` enum, headcount, locations count, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at`). Same RLS as CHG-068: anon revoked, authenticated SELECT own tenant only, writes via the proxy. Index on `account_id`. Idempotent (re-run checked).
+2. Proxy: `listLocations`, `upsertLocation`, `deleteLocation` (admin-only, in `MANAGER_ACTIONS`). `utils/locationValidation.ts` (shared with the client) requires `jurisdictionCode === resolveJurisdiction({country, region, city})`, `isValidTimeZone`, name 1–80, industry enum, city only with a region. `confirmed_by` = session user, `confirmed_at` = now; body `accountId` / `confirmedBy` ignored.
+3. `app/api/geo-hint+api.ts`: GET echoing validated `x-vercel-ip-country`, `-country-region`, `-city` (decoded), `-timezone`; all null when absent; `no-store`; no auth.
+4. Client: `services/locationService.ts`, `hooks/useLocations.ts` (request-id guard), `hooks/useJurisdictionSuggestion.ts` (country = IP ?? device region, both offered on conflict, zone = IP ?? device ?? pack default, `unknown` = ask).
+5. `components/locations/LocationSetupCard.tsx`: detected country pre-filled ("We think this location is in Peru…"), picker first when detection fails (pack countries + all 249 ISO countries, searchable, Intl.DisplayNames names with code fallback), region / city pickers with "Other", editable validated time zone, industry, approximate headcount, "Rules applied: Berkeley, California, United States", baseline note for GENERIC / EU. `LocationsManager.tsx` (list, add, edit, two-tap delete).
+6. Mounted on Home (only once the list loaded and is empty) and in a "Business locations" card on Profile. With no auth configured the list fails to load, so Home shows nothing and Profile shows a retry message.
+7. Strings in all 9 locales (`locations.*`). CLAUDE.md: tables list, data flow, feature row, key files.
+
+**Tests:** jest 491 passed, 13 skipped (44 new across validation, geo-hint, proxy pre-DB checks, both hooks, card + manager); pgTAP 53/53 (9 new); integration 13/13 (1 new); tsc 0 errors; lint 0 errors (12 pre-existing warnings); web export bundles `/api/geo-hint`.
+
+---
+
+### [SUMMARY] — 2026-10-20 16:40 UTC
+**Last CHG completed:** CHG-074
+**Current state:** Step 2 (PR #52) is green, QA signed off, waiting on Pablo to merge. Step 3 starts: per-jurisdiction labor rules, country detection with per-location confirmation, IANA business time zones, then CP-SAT optimizer, server-side paywall and forecasting.
+**Active decisions:** law follows the work location (jurisdiction stored per business location, detection only suggests); durations measured in elapsed UTC time, rule windows in the location's IANA zone; rule packs are data with citations and effective dates; QA's `qa/labor-rules-golden.md` (46 cases) is the test oracle; Peru has no statutory min rest, so it's a warning; unverified rules stay off as hard constraints; tokens without `azp` are allowed for native clients (Pablo's call).
+**Next action:** `utils/zonedTime.ts` + `services/labor/jurisdictions.ts` (shared base), then the rule engine + packs (main thread), locations + detection (worker), IANA tz in shiftAssigner (worker).
+**Watch out for:** MX-03 week spanning a dated limit uses the stricter value and flags review; NL night-shift "more than 1 h" source conflict; Ontario 13 h exception; AU pays DST shifts by the clock.
+
+---
+
 ### CHG-074 — 2026-10-18 UTC
 **Type:** FIX (Codex review of PR #52)
 

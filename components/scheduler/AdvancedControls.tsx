@@ -287,13 +287,14 @@ export function AdvancedControls({
 
   const isDark = colorScheme === 'dark';
   const cardBg = isDark ? '#1C2630' : '#FFFFFF';
-  const sectionBg = isDark ? '#222E3A' : '#F8FFFE';
   const borderColor = isDark ? '#2D3F50' : '#CCEDE9';
   const textColor = isDark ? '#E2F7F5' : '#134E4A';
   const subtextColor = isDark ? '#8BAAB8' : '#64748B';
   const inputBg = isDark ? '#1A2835' : '#F0FDFA';
   const inputBorder = isDark ? '#2D4A58' : '#99F6E4';
   const presetActiveBg = brand.primary;
+  // Chevron glyphs are text: use the text-safe teal, not the fill teal.
+  const accentText = colors.tintText;
   const presetInactiveBg = isDark ? '#1A2835' : '#F0FDFA';
   const presetActiveBorder = brand.primaryDark;
   const presetInactiveBorder = inputBorder;
@@ -392,7 +393,7 @@ export function AdvancedControls({
         <Animated.Text
           style={[
             innerStyles.chevron,
-            { color: brand.primary, transform: [{ rotate: outerChevronRotate }] },
+            { color: accentText, transform: [{ rotate: outerChevronRotate }] },
           ]}
         >
           ▾
@@ -406,7 +407,7 @@ export function AdvancedControls({
           <CollapseSection
             title={constraintsSectionTitle}
             accessibilityHint={t('advancedControls.a11y.constraintsHint')}
-            accentColor={brand.primary}
+            accentColor={accentText}
             borderColor={borderColor}
             textColor={textColor}
             expandedLabel={sectionExpandedLabel}
@@ -451,7 +452,7 @@ export function AdvancedControls({
           <CollapseSection
             title={presetsSectionTitle}
             accessibilityHint={t('advancedControls.a11y.presetsHint')}
-            accentColor={brand.primary}
+            accentColor={accentText}
             borderColor={borderColor}
             textColor={textColor}
             expandedLabel={sectionExpandedLabel}
@@ -493,7 +494,7 @@ export function AdvancedControls({
           <CollapseSection
             title={multiLocationSectionTitle}
             accessibilityHint={t('advancedControls.a11y.multiLocationHint')}
-            accentColor={brand.primary}
+            accentColor={accentText}
             borderColor={borderColor}
             textColor={textColor}
             expandedLabel={sectionExpandedLabel}
@@ -501,7 +502,7 @@ export function AdvancedControls({
           >
             <View style={innerStyles.row}>
               <ThemedText style={[innerStyles.rowLabel, { color: textColor }]}>
-                {t('advancedControls.multiLocation.enableLabel')}
+                {t('advancedControls.multiLocation.toggle')}
               </ThemedText>
               <Switch
                 value={state.locationMode === 'multi'}
@@ -514,7 +515,7 @@ export function AdvancedControls({
             {state.locationMode === 'multi' ? (
               <View style={innerStyles.row}>
                 <ThemedText style={[innerStyles.rowLabel, { color: textColor }]}>
-                  {t('advancedControls.multiLocation.locationsLabel')}
+                  {t('advancedControls.multiLocation.locations')}
                 </ThemedText>
                 <TextInput
                   value={state.locationsRaw}

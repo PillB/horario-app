@@ -14,6 +14,8 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LocationsManager } from '@/components/locations/LocationsManager';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -24,6 +26,7 @@ import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 import { isDiagnosticsEnabled } from '@/utils/appEnv';
+import { PageTitle } from '@/components/PageTitle';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -198,6 +201,7 @@ export default function ProfileScreen() {
       contentContainerStyle={styles.container}
       accessibilityLabel={t('nav.profile')}
     >
+      <PageTitle title={t('nav.profile')} />
       {/* ── Hero identity header ───────────────────────────────────────── */}
       <ThemedView style={styles.heroCard}>
         <View style={styles.heroRow}>
@@ -330,6 +334,18 @@ export default function ProfileScreen() {
         ) : null}
       </ThemedView>
 
+      {/* ── Business locations ────────────────────────────────────────── */}
+      <ThemedView style={styles.card}>
+        <SectionHeader
+          title={t('locations.sectionTitle')}
+          subtitle={t('locations.sectionSubtitle')}
+          styles={styles}
+        />
+        <ErrorBoundary>
+          <LocationsManager accountId={accountId} />
+        </ErrorBoundary>
+      </ThemedView>
+
       {/* ── Settings ──────────────────────────────────────────────────── */}
       <ThemedView style={styles.card}>
         <SectionHeader
@@ -414,6 +430,7 @@ export default function ProfileScreen() {
             onPress={() => startTourMode(mode)}
             accessibilityRole="button"
             accessibilityLabel={label}
+            accessibilityHint={t('profile.guides.startHint')}
             style={({ pressed }) => [styles.guideButton, pressed && { opacity: 0.75 }]}
           >
             <ThemedText style={styles.guideButtonText}>{label}</ThemedText>
@@ -671,7 +688,7 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
       alignItems: 'center',
     },
     guideButtonText: {
-      color: brand.primary,
+      color: colors.tintText,
       fontWeight: '600',
       fontSize: 14,
     },

@@ -286,6 +286,8 @@ export function PlaybookLibrary({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterScrollContent}
         style={styles.filterScroll}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={t('playbook.filterA11y')}
       >
         {FILTER_OPTIONS.map((option) => {
           const isActive = activeFilter === option;
@@ -298,8 +300,9 @@ export function PlaybookLibrary({
               key={option}
               onPress={() => setActiveFilter(option)}
               accessibilityRole="radio"
-              accessibilityState={{ selected: isActive }}
+              aria-checked={isActive}
               accessibilityLabel={label}
+              accessibilityHint={t('playbook.filterHint')}
               style={[
                 styles.filterChip,
                 isActive

@@ -152,11 +152,18 @@ export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
         onRequestClose={() => setOpen(false)}
         statusBarTranslucent
       >
-        <Pressable style={styles.overlay} onPress={() => setOpen(false)} accessibilityLabel="Close language selector">
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Close language selector"
+          accessibilityHint="Closes the list without changing the language"
+        >
           <ThemedView style={styles.sheet}>
             <ThemedText type="defaultSemiBold" style={styles.sheetTitle}>
               {locale.language.selectorLabel}
             </ThemedText>
+            <View accessibilityRole="radiogroup" accessibilityLabel={locale.language.selectorLabel}>
             <FlatList
               data={LANG_CODES}
               keyExtractor={(item) => item}
@@ -168,8 +175,9 @@ export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
                     onPress={() => handleSelect(item)}
                     style={[styles.langRow, isSelected && styles.langRowSelected]}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
+                    aria-checked={isSelected}
                     accessibilityLabel={`${meta.langName} — ${meta.langNameNative}`}
+                    accessibilityHint={locale.language.selectorHint}
                   >
                     <ThemedText style={styles.langFlag}>{meta.flag}</ThemedText>
                     <View style={styles.langLabels}>
@@ -184,6 +192,7 @@ export function LanguageSelector({ currentLang, onSelect, locale }: Props) {
               }}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
+            </View>
           </ThemedView>
         </Pressable>
       </Modal>

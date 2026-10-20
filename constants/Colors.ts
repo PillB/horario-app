@@ -11,8 +11,12 @@
 // ─── Brand palette ────────────────────────────────────────────────────────────
 export const brand = {
   // Primary — teal: trust, calmness, efficiency
+  // primary is for fills, borders and large shapes only: as text or an icon on
+  // white it is 3.74:1 (3.57:1 on #F8FAFC), below WCAG AA 4.5:1. White text on
+  // a primary fill is the same 3.74:1. Use primaryDark (or the theme's
+  // tintText) for teal text and icons on light surfaces.
   primary: '#0D9488',       // Teal 600
-  primaryDark: '#0F766E',   // Teal 700
+  primaryDark: '#0F766E',   // Teal 700 — 5.47:1 on white, 5.22:1 on #F8FAFC
   primaryDeep: '#115E59',   // Teal 800
   primaryLight: '#99F6E4',  // Teal 300
   primarySurface: '#F0FDFA', // Teal 50
@@ -56,10 +60,11 @@ export const Colors = {
     borderFocus: '#0D9488',    // Teal — focused input ring
 
     // Brand
-    tint: '#0D9488',
+    tint: '#0D9488',           // fills / borders only — 3.74:1 as text (see brand.primary)
+    tintText: '#0F766E',       // Teal 700 — teal text and icons on light surfaces (5.47:1 on white)
     icon: '#475569',           // Slate 600 (was #64748B) — icon labels pass AA at any size
     tabIconDefault: '#64748B', // Slate 500 — inactive tab labels (4.35:1; labels are 14px+ on most platforms)
-    tabIconSelected: '#0D9488',
+    tabIconSelected: '#0F766E',
 
     // Semantic — all values are minimum AA-compliant as TEXT on white (#FFFFFF)
     success: '#15803D',        // Green 700  — 5.44:1 ✓ AA  (was #10B981 Emerald 500, only 2.88:1)
@@ -85,6 +90,7 @@ export const Colors = {
 
     // Brand
     tint: '#2DD4BF',           // Teal 400 — lighter for dark mode
+    tintText: '#2DD4BF',       // Teal 400 on Slate 800/900 passes AA
     icon: '#94A3B8',
     tabIconDefault: '#64748B',
     tabIconSelected: '#2DD4BF',

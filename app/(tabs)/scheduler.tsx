@@ -31,6 +31,7 @@ import { TourStep } from '@/components/TourStep';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import { Colors, brand } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { PageTitle } from '@/components/PageTitle';
 
 export default function SchedulerScreen() {
   const { t } = useT();
@@ -103,6 +104,7 @@ export default function SchedulerScreen() {
 
     // Derived
     rosterByDate,
+    scheduleLocations,
     upcomingShifts,
     staffingGaps,
     onboardingSteps,
@@ -198,6 +200,7 @@ export default function SchedulerScreen() {
 
   return (
     <ErrorBoundary>
+    <PageTitle title={t('nav.scheduler')} />
     <ThemedView style={styles.screenContainer}>
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
@@ -380,6 +383,7 @@ export default function SchedulerScreen() {
         <RosterSection
           publishCelebration={publishCelebration}
           rosterByDate={rosterByDate}
+          scheduleLocations={scheduleLocations}
           handlePublishShift={handlePublishShift}
           handleUnpublishShift={handleUnpublishShift}
           handleNotifyShift={handleNotifyShift}

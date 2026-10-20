@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 28,
     fontWeight: '800',
-    color: brand.primary,
+    color: brand.primaryDark,
   },
   pricePro: {
     color: brand.pro,

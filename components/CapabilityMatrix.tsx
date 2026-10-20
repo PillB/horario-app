@@ -256,7 +256,7 @@ export function CapabilityMatrix({
                   {isPro ? (
                     <DashIcon color={colors.textSecondary} notIncludedLabel={iconLabelNotIncluded} />
                   ) : (
-                    <CheckIcon color={brand.primary} includedLabel={iconLabelIncluded} />
+                    <CheckIcon color={colors.tintText} includedLabel={iconLabelIncluded} />
                   )}
                 </View>
 

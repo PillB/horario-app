@@ -61,7 +61,7 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
     },
     resolvedDot: {
       fontSize: 12,
-      color: brand.primary,
+      color: colors.tintText,
     },
     warningRow: {
       flexDirection: 'row',

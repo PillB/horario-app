@@ -65,12 +65,18 @@ horario-app/
 ```
 Client (Expo App)
   → services/demandForecast.ts (anon-key or no-key calls)
-  → app/api/secure-proxy/route.ts  ← service-role key lives HERE ONLY
+  → app/api/secure-proxy+api.ts  ← service-role key lives HERE ONLY
   → Supabase (PostgreSQL)
       ├── shifts             (historical shifts for forecasting)
       ├── external_signals   (demand boost signals)
       ├── demand_targets     (AI/manual demand forecasts)
-      └── onboarding_progress
+      ├── locations          (confirmed jurisdiction + IANA zone per business location)
+      └── onboarding_progress, workers, roster, …
+
+Location setup (components/locations/LocationSetupCard.tsx)
+  → GET app/api/geo-hint+api.ts  (echoes validated x-vercel-ip-* headers; all null in local dev)
+  + expo-localization device region / time zone
+  → suggestion only; the user confirms → upsertLocation (server re-checks the jurisdiction)
 ```
 
 ---
@@ -83,7 +89,7 @@ Client (Expo App)
 |---|---|---|
 | Home dashboard | Partial | Static hardcoded data; no live queries |
 | Scheduler UI | Partial | Works but all state is in-memory, resets on reload |
-| Worker management (add/view) | Partial | In-memory only, no DB persistence |
+| Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20; no edit/delete UI |
 | Shift template management | Partial | In-memory only, no DB persistence |
 | Roster (shift assignment) | Partial | In-memory only; fake persistence functions |
 | Availability tracking | Partial | In-memory, validated, no DB |
@@ -97,9 +103,10 @@ Client (Expo App)
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
-| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; CP-SAT optimizer planned (step 3) |
+| Shift optimization algorithm | Partial | Greedy + 2-opt auto-assign (`services/shiftAssigner.ts`), overnight-aware, reports shortfalls; shifts placed in an IANA business time zone (`timeZone`), so hours and rest are elapsed time across DST — re-verified 2026-10-20; CP-SAT optimizer planned (step 3) |
 | Analytics screen | Missing | explore.tsx is placeholder |
-| Labor-law constraint engine | Partial | Optional max daily/weekly hours and min rest in the assigner; per-jurisdiction rule packs planned (step 3) |
+| Labor-law constraint engine | Partial | Rule engine + jurisdiction packs (`services/labor/`). Scheduler shows findings for the visible roster week, grouped by verdict with citations and per-shift markers (`hooks/useCompliance.ts`, `components/scheduler/CompliancePanel.tsx`); a shift uses its roster entry's location, else the account's only location, else a set-up prompt. Auto-assign merges the location's legal hard limits with business limits and uses its IANA zone (`utils/autoAssignSettings.ts`) — re-verified 2026-10-20. No consent, publish time, breaks or school days fed to the engine yet |
+| Business locations / jurisdiction | Working | `locations` table + `listLocations` / `upsertLocation` / `deleteLocation` (admin) proxy actions; country detected from IP (`/api/geo-hint`) and device, always confirmed by the user; setup card on Home until a location exists, management on Profile — added 2026-10-20 (CHG-076) |
 | Multi-tenant support | Working | Tenant = Clerk org id, else user id; enforced in the proxy and by RLS (`20261018000001_tenant_isolation.sql`) — re-verified 2026-10-18 |
 | Date/time picker components | Missing | Raw text inputs only |
 | Error boundaries | Partial | ErrorBoundary used in `app/_layout.tsx` and some screens |
@@ -110,19 +117,17 @@ Client (Expo App)
 
 ## 5. Database Schema (Supabase)
 
-### Tables that exist (via migrations/docs):
+### Tables that exist (via migrations; every one has `account_id` and the tenant RLS policy):
 - `shifts` — historical shift data (date, role, worker_id, hours)
 - `external_signals` — demand boost signals (date, role, signal_type, weight)
 - `demand_targets` — model/override demand forecasts (date, role, required, source, …)
 - `onboarding_progress` — account-level onboarding flags
+- `workers`, `worker_availability`, `shift_templates`, `roster` — core scheduling data
+- `usage_limits`, `pos_sales`, `subscriptions`, `referrals`, `referral_redemptions`, `shift_messages`
+- `locations` — business locations: country / region / city codes, confirmed `jurisdiction_code` (from `services/labor/jurisdictions.ts`), IANA `time_zone`, `industry`, `employer_headcount`, `locations_count`, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at` (`20261020000001_locations.sql`). Law follows the work location: the jurisdiction is stored here, never per user or device.
 
 ### Tables that need to be created:
-- `workers` — worker profiles (id, name, role, skills, account_id)
-- `availability` — worker availability windows (worker_id, day_of_week, from_time, to_time)
-- `shift_templates` — reusable shift templates (id, name, role, start, end, coverage, account_id)
-- `roster` — assigned shifts (id, date, worker_id, template_id, location, status, notified, account_id)
-- `accounts` — tenant accounts
-- `users` / auth integration — Supabase Auth
+- `accounts` — tenant accounts (today the tenant is the Clerk org / user id)
 
 ---
 
@@ -141,6 +146,11 @@ Client (Expo App)
 - All interactive elements must have `accessibilityRole`, `accessibilityLabel`, and `accessibilityHint`.
 - Use `ThemedText` and `ThemedView` instead of raw `Text`/`View` for theming consistency.
 - Avoid anonymous inline styles; use `StyleSheet.create`.
+- Checkable state on web: pass `aria-checked` (radios, checkboxes, switches). react-native-web 0.20 drops `accessibilityState` except `disabled`. Wrap radios in a labelled `accessibilityRole="radiogroup"`.
+- Every literal `t('…')` key must exist in `locales/en.ts` (`t()` returns `''` for a missing key; `hooks/__tests__/localeKeys.test.ts` enforces it).
+- Teal text and icons use `colors.tintText` / `brand.primaryDark` (#0F766E). `brand.primary` / `colors.tint` (#0D9488) is for fills and borders only (3.74:1 as text).
+- Web pages are rendered to HTML at build time: text from the clock, time zone or browser locale renders after mount (`useHasMounted`), or hydration fails (React #418).
+- Every route screen renders `<PageTitle title=… />` (document `<title>`).
 
 ### Security
 - **Service-role key NEVER leaves the server** (`app/api/secure-proxy/route.ts`).
@@ -190,6 +200,7 @@ Manual assignment with client-side validation:
 - Role match (worker role must equal template role)
 - Availability coverage (worker's availability window must contain the template window)
 - No time overlap per worker per day
+- Times are wall-clock times in the business IANA zone (`utils/zonedTime.ts`); durations, overlap and rest are measured in elapsed time (a 22:00–06:00 night is 9 h on a fall-back night, 7 h on spring-forward); weekdays and calendar days come from the local date key
 
 ### Target approach (future phases)
 Constraint-based auto-assignment using a greedy/heuristic engine:
@@ -235,8 +246,13 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 | `app/(tabs)/schedulerMetrics.ts` | Pure uncovered-loss metric functions |
 | `app/api/secure-proxy/route.ts` | Server-side Supabase proxy (service role) |
 | `services/demandForecast.ts` | Client-facing forecast service |
+| `utils/locationValidation.ts` | Location validation shared by client and proxy (jurisdiction must match the place) |
+| `components/locations/LocationSetupCard.tsx` | Location / jurisdiction confirmation form (detection pre-fills only) |
 | `services/supabaseClient.ts` | Anon client factory |
 | `services/onboardingProgress.ts` | Onboarding persistence |
+| `hooks/useCompliance.ts` | Labor-rule findings for the visible roster week, per location |
+| `utils/autoAssignSettings.ts` | Legal + business constraints and time zone for an auto-assign run |
+| `utils/workerLaborValidation.ts` | Worker labor attributes validation shared by client and proxy |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
 | `hooks/useStreak.ts` | Streak counter with AsyncStorage |
 | `hooks/useSessionWellness.ts` | Break-prompt wellness hook |
@@ -257,7 +273,7 @@ Constraint-based auto-assignment using a greedy/heuristic engine:
 8. The `explore.tsx` tab is the default Expo placeholder with no real content.
 9. Sample shift dates are hardcoded to December 2024 (past dates).
 10. No rate limiting or authentication validation on the secure proxy.
-11. `businessTimezoneOffsetMinutes` is always the device timezone — not a business setting.
+11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else the device zone (CHG-082). The scheduler's auto-assign only has a location when the account has exactly one (no location picker yet). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
 12. The `shifts` table in Supabase is for historical data only; the live roster is never persisted.
 
 ---

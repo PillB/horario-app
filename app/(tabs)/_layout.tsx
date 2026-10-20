@@ -57,7 +57,8 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        // Text-safe tint: the active tab label is 10–12px text on a light bar.
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tintText,
         tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].textSecondary,
         headerShown: true,
         headerRight: () => headerRightContent,
@@ -109,7 +110,13 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
       {/* Support diagnostics: hidden from the tab bar in production builds. */}
       <Tabs.Screen
         name="diagnostics"
-        options={{ href: isDiagnosticsEnabled() ? undefined : null }}
+        options={{
+          href: isDiagnosticsEnabled() ? undefined : null,
+          title: t('nav.diagnostics'),
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="wrench.and.screwdriver.fill" color={color} />
+          ),
+        }}
       />
     </Tabs>
   );
@@ -120,11 +127,13 @@ function SignOutButton() {
   const { useAuth } = require('@clerk/expo');
   const { signOut } = useAuth();
   const colorScheme = useColorScheme();
+  const { t } = useT();
   return (
     <Pressable
       onPress={() => signOut()}
       accessibilityRole="button"
-      accessibilityLabel="Sign out"
+      accessibilityLabel={t('nav.signOut')}
+      accessibilityHint={t('nav.signOutA11y')}
       style={{ paddingHorizontal: 14, paddingVertical: 11, minHeight: 44 }}
     >
       <IconSymbol
