@@ -111,8 +111,10 @@ export const zonedToUtc = (dateKey: string, minutes: number, timeZone: string): 
   if (matches.length) return Math.min(...matches);
 
   // Inside a spring-forward gap: use the offset in force before the gap, which
-  // lands just after it.
-  const before = offsetMinutesAt(naive - 6 * 3600_000, timeZone);
+  // lands just after it. A gap only opens when the offset grows, so the offset
+  // before it is the smaller one (reading "6 h earlier" fails for zones at
+  // UTC+6 and beyond, where that instant is already past the change).
+  const before = Math.min(...offsets);
   return naive - before * MS_PER_MINUTE;
 };
 

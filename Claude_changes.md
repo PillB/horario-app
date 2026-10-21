@@ -6,6 +6,16 @@
 
 ---
 
+### CHG-090 — 2026-10-21 UTC
+**Type:** FIX (`zonedToUtc` inside a spring-forward gap, zones at UTC+6 and beyond)
+
+- `utils/zonedTime.ts` read "the offset before the gap" 6 h before the naive time. In zones at UTC+6 or more that instant is already past the change, so 02:30 on Sydney's spring-forward day resolved to 01:30 AEST instead of 03:30 AEDT. It now takes the smaller of the nearby offsets (a gap only opens when the offset grows). Reported by the CHG-089 worker.
+- Test: Sydney 2026-10-04 and Auckland 2026-09-27 at 02:30 resolve to 03:30 local; fails without the fix.
+
+**Tests:** jest 913 passed, 17 skipped; services/utils/hooks also under TZ=Asia/Tokyo; tsc 0 errors.
+
+---
+
 ### CHG-089 — 2026-10-21 UTC
 **Type:** FIX + FEATURE (open items from CHG-083 / CHG-087: labor DST gap, location change history, stricter-only overrides, client date validation)
 
