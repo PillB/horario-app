@@ -344,22 +344,60 @@ export const generateDemandForecast = async (
   }
 };
 
-export const loadDemandTargets = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
+/** Must match LIST_MAX_PAGES in the proxy (500 overrides per page). */
+const MAX_OVERRIDE_PAGES = 20;
+
+export type OverrideTargetsResult =
+  | { ok: true; targets: DemandForecast[]; truncated: boolean }
+  | { ok: false; error: string };
+
+/**
+ * The tenant's stored manual overrides (every page), optionally for one date /
+ * role. Unlike loadDemandTargets, a failed request is reported, not turned
+ * into an empty list.
+ */
+export const fetchOverrideTargets = async (filters?: ForecastFilters): Promise<OverrideTargetsResult> => {
+  const targets: DemandForecast[] = [];
   try {
-    const result = await handleSecureFetch<{ targets: DemandForecast[] }>({ action: 'loadTargets', filters });
-    return (result.targets ?? []).filter((target) => target.source === 'override');
+    for (let page = 0; page < MAX_OVERRIDE_PAGES; page += 1) {
+      const result = await handleSecureFetch<{ targets?: DemandForecast[]; hasMore?: boolean }>({ action: 'loadTargets', filters, page });
+      targets.push(...(result.targets ?? []).filter((target) => target.source === 'override'));
+      if (result.hasMore !== true) return { ok: true, targets, truncated: false };
+    }
+    return { ok: true, targets, truncated: true };
   } catch (error) {
     console.warn('Unable to load demand targets from secure proxy', error);
-    return [];
+    return { ok: false, error: error instanceof Error ? error.message : 'Unable to load demand targets' };
+  }
+};
+
+/** @deprecated returns [] on failure; use fetchOverrideTargets. */
+export const loadDemandTargets = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
+  const result = await fetchOverrideTargets(filters);
+  return result.ok ? result.targets : [];
+};
+
+/** Removes the stored override for one date and role (manager only). */
+export const deleteDemandTarget = async (target: { date: string; role: string }): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const result = await handleSecureFetch<{ success: boolean; error?: string }>({
+      action: 'deleteDemandTarget',
+      target: { date: target.date, role: target.role },
+    });
+    return result.success ? { success: true } : { success: false, error: result.error ?? 'Unable to remove override' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unable to remove override' };
   }
 };
 
 export const upsertDemandTarget = async (target: DemandForecast): Promise<UpsertDemandTargetResult> => {
   const normalized = { ...target, required: Number(target.required), source: target.source ?? 'override' };
+  // Only the fields the proxy stores (validateDemandTargetInput in utils/schedulingValidation.ts).
+  const { date, role, required, notes, confidence, lowerBound, upperBound } = normalized;
   try {
     const result = await handleSecureFetch<{ success: boolean; targets: DemandForecast[]; error?: string }>({
       action: 'upsertTargets',
-      targets: [normalized],
+      targets: [{ date, role, required, notes, confidence, lowerBound, upperBound }],
     });
 
     if (!result.success) {

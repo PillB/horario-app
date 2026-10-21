@@ -5,6 +5,8 @@
  */
 
 export type Availability = {
+  /** Stored slot id (set for slots loaded through useWorkers). */
+  id?: string;
   day: string;
   from: string;
   to: string;

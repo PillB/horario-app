@@ -8,6 +8,9 @@
  *   - reads filter by account_id;
  *   - updates and deletes match id AND account_id, and report 404 when no row
  *     matched;
+ *   - lists are paged (LIST_PAGE_SIZE rows, `hasMore`), ordered with id as the
+ *     tie-breaker, and every write payload is read field by field by the
+ *     validators in utils/schedulingValidation.ts (shared with the client);
  *   - writes that reference another row (availability → worker, roster →
  *     worker and template) first check that row belongs to the same tenant;
  *   - an upsert with a client-generated id updates only the caller's row; if
@@ -35,7 +38,17 @@ import {
   type LocationHistoryValues,
   validateLocationInput,
 } from '@/utils/locationValidation';
-import { validateWorkerLabor } from '@/utils/workerLaborValidation';
+import {
+  isShiftStatus,
+  isUuid,
+  validateAvailabilityInput,
+  validateDemandTargetInput,
+  validateDemandTargetKey,
+  validateRosterShiftInput,
+  validateShiftTemplateInput,
+  validateWorkerInput,
+  type DemandTargetInput,
+} from '@/utils/schedulingValidation';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
 
@@ -56,6 +69,7 @@ const MANAGER_ACTIONS = new Set([
   'deleteAvailability',
   'deleteShiftTemplate',
   'deleteRosterShift',
+  'deleteDemandTarget',
   // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
   'upsertLocation',
   'deleteLocation',
@@ -84,15 +98,6 @@ const getServiceClient = (): SupabaseClient | null => {
 
 // ─── Validators ───────────────────────────────────────────────────────────────
 
-const isHHMM = (v: unknown): v is string =>
-  typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
-
-const isDayOfWeek = (v: unknown): v is string =>
-  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(v as string);
-
-const isShiftStatus = (v: unknown): v is 'Draft' | 'Published' =>
-  v === 'Draft' || v === 'Published';
-
 /**
  * A real calendar date as YYYY-MM-DD. `isDateKey` round-trips the parts, so 2026-02-31
  * is refused (Date.parse rolls it over to 2026-03-03, and Postgres then rejects it with
@@ -102,9 +107,6 @@ const isISODate = (v: unknown): v is string => typeof v === 'string' && isDateKe
 
 const isNonEmptyString = (v: unknown, max = 200): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= max;
-
-const isUuid = (v: unknown): v is string =>
-  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -155,24 +157,6 @@ async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthConte
   return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
-async function updateOwned(
-  client: SupabaseClient,
-  table: string,
-  ctx: AuthContext,
-  id: unknown,
-  values: Record<string, unknown>,
-): Promise<Result> {
-  if (!isUuid(id)) return badRequest('id must be a UUID');
-  const { data, error } = await client
-    .from(table)
-    .update(values)
-    .eq('id', id)
-    .eq('account_id', ctx.accountId)
-    .select('id');
-  if (error) return dbFailure(`update ${table}`, error);
-  return (data ?? []).length ? ok({ success: true }) : notFound();
-}
-
 /** True when every id exists in `table` for the caller's tenant. */
 async function ownsAll(client: SupabaseClient, table: string, ctx: AuthContext, ids: string[]): Promise<boolean | Result> {
   const unique = Array.from(new Set(ids));
@@ -185,6 +169,33 @@ async function ownsAll(client: SupabaseClient, table: string, ctx: AuthContext, 
   if (error) return dbFailure(`ownership check ${table}`, error);
   return (data ?? []).length === unique.length;
 }
+
+// ─── Paged lists ──────────────────────────────────────────────────────────────
+
+/** Rows per page of the scheduling lists (workers, availability, templates, roster, overrides). */
+export const LIST_PAGE_SIZE = 500;
+/** Pages a client may request per list: 10 000 rows. */
+export const LIST_MAX_PAGES = 20;
+
+/** `page` from the body (default 0), or an error message. */
+const readPage = (page: unknown): number | string => {
+  const value = page === undefined ? 0 : page;
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) < LIST_MAX_PAGES
+    ? (value as number)
+    : `page must be an integer from 0 to ${LIST_MAX_PAGES - 1}`;
+};
+
+/**
+ * One page: asks for LIST_PAGE_SIZE + 1 rows, so `hasMore` needs no count.
+ * The caller orders the query with a unique tie-breaker (id), so pages never
+ * overlap or skip rows.
+ */
+const pageRange = (page: number): [number, number] => [page * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE + LIST_PAGE_SIZE];
+
+const pageOf = <Row>(rows: Row[] | null, page: number) => {
+  const all = rows ?? [];
+  return { rows: all.slice(0, LIST_PAGE_SIZE), page, pageSize: LIST_PAGE_SIZE, hasMore: all.length > LIST_PAGE_SIZE };
+};
 
 // ─── Forecasting ──────────────────────────────────────────────────────────────
 
@@ -486,22 +497,100 @@ async function hasRows(client: SupabaseClient, table: string, ctx: AuthContext, 
   return (data ?? []).length > 0;
 }
 
+const overrideFromInput = (t: DemandTargetInput): DemandForecast => ({
+  date: t.date,
+  role: t.role,
+  required: t.required,
+  source: 'override',
+  ...(t.notes !== null ? { notes: t.notes } : {}),
+  ...(t.confidence !== null ? { confidence: t.confidence } : {}),
+  ...(t.lowerBound !== null ? { lowerBound: t.lowerBound } : {}),
+  ...(t.upperBound !== null ? { upperBound: t.upperBound } : {}),
+});
+
+/** Manual overrides only: model rows are never written by a client (CHG-088). */
 async function upsertTargets(client: SupabaseClient, ctx: AuthContext, targets: unknown): Promise<Result> {
   if (!Array.isArray(targets)) return badRequest('targets must be an array');
   if (targets.length > 500) return badRequest('Maximum 500 targets per request');
-  const valid: DemandForecast[] = [];
-  for (const t of targets) {
-    if (!isRecord(t) || !isISODate(t.date) || !isNonEmptyString(t.role, 100)) return badRequest('Each target needs date and role');
-    const required = Number(t.required);
-    if (!Number.isFinite(required) || required < 0 || required > 10_000) return badRequest('required must be a number between 0 and 10000');
-    valid.push({ ...(t as unknown as DemandForecast), required: Math.round(required) });
+  const valid: DemandTargetInput[] = [];
+  for (const [index, t] of targets.entries()) {
+    const checked = validateDemandTargetInput(t);
+    if (!checked.ok) return badRequest(`Invalid target ${index + 1}: ${checked.error}`);
+    valid.push(checked.value);
   }
   if (!valid.length) return ok({ success: true, targets: [] });
-  const { error } = await client
-    .from('demand_targets')
-    .upsert(valid.map((t) => toTargetRow(ctx, t, 'override')), { onConflict: 'account_id,date,role' });
+  const rows = valid.map((t) => ({
+    account_id: ctx.accountId,
+    date: t.date,
+    role: t.role,
+    required: t.required,
+    notes: t.notes,
+    confidence: t.confidence,
+    lower_bound: t.lowerBound,
+    upper_bound: t.upperBound,
+    source: 'override',
+  }));
+  const { error } = await client.from('demand_targets').upsert(rows, { onConflict: 'account_id,date,role' });
   if (error) return dbFailure('upsert demand_targets', error);
-  return ok({ success: true, targets: valid });
+  return ok({ success: true, targets: valid.map(overrideFromInput) });
+}
+
+/**
+ * One page of the tenant's manual overrides, oldest date first, optionally in
+ * [fromDate, toDate] and for one date / role (`filters`, as `forecast` takes).
+ */
+async function listOverrideTargets(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const dateError = filtersDateError(p.filters);
+  if (dateError) return badRequest(dateError);
+  if (p.fromDate !== undefined && !isISODate(p.fromDate)) return badRequest('fromDate must be a real YYYY-MM-DD date');
+  if (p.toDate !== undefined && !isISODate(p.toDate)) return badRequest('toDate must be a real YYYY-MM-DD date');
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
+  const filters = cleanFilters(p.filters);
+  let query = client
+    .from('demand_targets')
+    .select('id, date, role, required, notes, confidence, lower_bound, upper_bound, source')
+    .eq('account_id', ctx.accountId)
+    .eq('source', 'override');
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
+  if (typeof p.fromDate === 'string') query = query.gte('date', p.fromDate);
+  if (typeof p.toDate === 'string') query = query.lte('date', p.toDate);
+  const { data, error } = await query
+    .order('date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
+  if (error) return dbFailure('list demand_targets', error);
+  const { rows, ...meta } = pageOf(data, page);
+  return ok({
+    ...meta,
+    targets: rows.map((row) => ({
+      date: row.date,
+      role: row.role,
+      required: Number(row.required ?? 0),
+      notes: row.notes ?? undefined,
+      confidence: row.confidence === null ? undefined : Number(row.confidence),
+      lowerBound: row.lower_bound === null ? undefined : Number(row.lower_bound),
+      upperBound: row.upper_bound === null ? undefined : Number(row.upper_bound),
+      source: 'override' as const,
+    })),
+  });
+}
+
+/** Removes the override for one date and role; 404 when the tenant has none. */
+async function deleteDemandTarget(client: SupabaseClient, ctx: AuthContext, target: unknown): Promise<Result> {
+  const key = validateDemandTargetKey(target);
+  if (!key.ok) return badRequest(key.error);
+  const { data, error } = await client
+    .from('demand_targets')
+    .delete()
+    .eq('account_id', ctx.accountId)
+    .eq('date', key.value.date)
+    .eq('role', key.value.role)
+    .eq('source', 'override')
+    .select('id');
+  if (error) return dbFailure('delete demand_targets', error);
+  return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
@@ -568,33 +657,32 @@ const rowToWorker = (row: WorkerRow) => ({
   createdAt: row.created_at,
 });
 
-async function listWorkers(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('workers')
     .select(WORKER_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
-    .limit(500);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list workers', error);
-  return ok({ workers: (data as WorkerRow[]).map(rowToWorker) });
+  const { rows, ...meta } = pageOf(data as WorkerRow[] | null, page);
+  return ok({ ...meta, workers: rows.map(rowToWorker) });
 }
 
 async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown): Promise<Result> {
-  if (!isRecord(worker)) return badRequest('worker is required');
-  if (!isNonEmptyString(worker.name, 100)) return badRequest('name is required (max 100 chars)');
-  if (!isNonEmptyString(worker.role, 100)) return badRequest('role is required (max 100 chars)');
-  const skills = Array.isArray(worker.skills) ? worker.skills : [];
-  if (skills.length > 50 || !skills.every((s) => isNonEmptyString(s, 100))) return badRequest('skills must be up to 50 short strings');
-  // Labor attributes: absent fields are left as stored (or the column default on insert).
-  const labor = validateWorkerLabor(worker);
-  if (!labor.ok) return badRequest(labor.error);
-  const { birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = labor.values;
+  const checked = validateWorkerInput(worker);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = checked.value;
 
+  // Labor attributes: absent fields are left as stored (or the column default on insert).
   const result = await updateOrInsert<WorkerRow>(
-    client, 'workers', ctx, worker.id as string | undefined,
+    client, 'workers', ctx, id,
     {
-      name: worker.name.trim(),
-      role: worker.role.trim(),
+      name,
+      role,
       skills,
       ...(birthDate !== undefined ? { birth_date: birthDate } : {}),
       ...(nightWorker !== undefined ? { night_worker: nightWorker } : {}),
@@ -620,33 +708,33 @@ const rowToAvailability = (row: AvailabilityRow) => ({
   toTime: row.to_time,
 });
 
-async function listAvailability(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listAvailability(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('worker_availability')
     .select(AVAILABILITY_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('worker_id', { ascending: true })
-    .limit(2000);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list worker_availability', error);
-  return ok({ availabilities: (data as AvailabilityRow[]).map(rowToAvailability) });
+  const { rows, ...meta } = pageOf(data as AvailabilityRow[] | null, page);
+  return ok({ ...meta, availabilities: rows.map(rowToAvailability) });
 }
 
 async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: unknown): Promise<Result> {
-  if (!isRecord(av)) return badRequest('availability is required');
-  if (!isUuid(av.workerId)) return badRequest('workerId must be a UUID');
-  if (!isDayOfWeek(av.dayOfWeek)) return badRequest('dayOfWeek must be Mon–Sun');
-  if (!isHHMM(av.fromTime)) return badRequest('fromTime must be HH:MM');
-  if (!isHHMM(av.toTime)) return badRequest('toTime must be HH:MM');
-  // An earlier end time means the window ends the next day.
-  if (av.fromTime === av.toTime) return badRequest('fromTime and toTime must differ');
+  const checked = validateAvailabilityInput(av);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, workerId, dayOfWeek, fromTime, toTime } = checked.value;
 
-  const owns = await ownsAll(client, 'workers', ctx, [av.workerId]);
+  const owns = await ownsAll(client, 'workers', ctx, [workerId]);
   if (owns !== true) return owns === false ? notFound() : owns;
 
-  const values = { worker_id: av.workerId, day_of_week: av.dayOfWeek, from_time: av.fromTime, to_time: av.toTime };
+  const values = { worker_id: workerId, day_of_week: dayOfWeek, from_time: fromTime, to_time: toTime };
 
-  if (av.id !== undefined) {
-    const result = await updateOrInsert<AvailabilityRow>(client, 'worker_availability', ctx, av.id as string, values, AVAILABILITY_COLUMNS);
+  if (id !== undefined) {
+    const result = await updateOrInsert<AvailabilityRow>(client, 'worker_availability', ctx, id, values, AVAILABILITY_COLUMNS);
     return 'error' in result ? result.error : ok({ success: true, availability: rowToAvailability(result.row) });
   }
 
@@ -677,32 +765,28 @@ const rowToTemplate = (row: TemplateRow) => ({
   createdAt: row.created_at,
 });
 
-async function listTemplates(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('shift_templates')
     .select(TEMPLATE_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
-    .limit(500);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list shift_templates', error);
-  return ok({ templates: (data as TemplateRow[]).map(rowToTemplate) });
+  const { rows, ...meta } = pageOf(data as TemplateRow[] | null, page);
+  return ok({ ...meta, templates: rows.map(rowToTemplate) });
 }
 
 async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown): Promise<Result> {
-  if (!isRecord(tmpl)) return badRequest('template is required');
-  if (!isNonEmptyString(tmpl.name, 100)) return badRequest('name is required (max 100 chars)');
-  if (!isNonEmptyString(tmpl.role, 100)) return badRequest('role is required (max 100 chars)');
-  if (!isHHMM(tmpl.startTime)) return badRequest('startTime must be HH:MM');
-  if (!isHHMM(tmpl.endTime)) return badRequest('endTime must be HH:MM');
-  // An earlier end time is an overnight shift.
-  if (tmpl.startTime === tmpl.endTime) return badRequest('startTime and endTime must differ');
-  if (!Number.isInteger(tmpl.coverage) || (tmpl.coverage as number) < 1 || (tmpl.coverage as number) > 500) {
-    return badRequest('coverage must be an integer between 1 and 500');
-  }
-
+  const checked = validateShiftTemplateInput(tmpl);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, name, role, startTime, endTime, coverage } = checked.value;
   const result = await updateOrInsert<TemplateRow>(
-    client, 'shift_templates', ctx, tmpl.id as string | undefined,
-    { name: tmpl.name.trim(), role: tmpl.role.trim(), start_time: tmpl.startTime, end_time: tmpl.endTime, coverage: tmpl.coverage },
+    client, 'shift_templates', ctx, id,
+    { name, role, start_time: startTime, end_time: endTime, coverage },
     TEMPLATE_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, template: rowToTemplate(result.row) });
@@ -729,51 +813,102 @@ const rowToRosterShift = (row: RosterRow) => ({
   updatedAt: row.updated_at,
 });
 
-async function listRoster(client: SupabaseClient, ctx: AuthContext, fromDate: unknown, toDate: unknown): Promise<Result> {
-  if (fromDate !== undefined && !isISODate(fromDate)) return badRequest('fromDate must be YYYY-MM-DD');
-  if (toDate !== undefined && !isISODate(toDate)) return badRequest('toDate must be YYYY-MM-DD');
+async function listRoster(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  if (p.fromDate !== undefined && !isISODate(p.fromDate)) return badRequest('fromDate must be YYYY-MM-DD');
+  if (p.toDate !== undefined && !isISODate(p.toDate)) return badRequest('toDate must be YYYY-MM-DD');
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
   let query = client
     .from('roster')
     .select(ROSTER_COLUMNS)
-    .eq('account_id', ctx.accountId)
+    .eq('account_id', ctx.accountId);
+  if (typeof p.fromDate === 'string') query = query.gte('date', p.fromDate);
+  if (typeof p.toDate === 'string') query = query.lte('date', p.toDate);
+  const { data, error } = await query
     .order('date', { ascending: true })
-    .limit(500);
-  if (fromDate) query = query.gte('date', fromDate);
-  if (toDate) query = query.lte('date', toDate);
-  const { data, error } = await query;
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list roster', error);
-  return ok({ shifts: (data as RosterRow[]).map(rowToRosterShift) });
+  const { rows, ...meta } = pageOf(data as RosterRow[] | null, page);
+  return ok({ ...meta, shifts: rows.map(rowToRosterShift) });
 }
 
 async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
-  if (!isRecord(shift)) return badRequest('shift is required');
-  if (!isISODate(shift.date)) return badRequest('date must be YYYY-MM-DD');
-  if (!isUuid(shift.workerId)) return badRequest('workerId must be a UUID');
-  if (!isUuid(shift.templateId)) return badRequest('templateId must be a UUID');
-  if (shift.status !== undefined && !isShiftStatus(shift.status)) return badRequest('status must be Draft or Published');
-  if (shift.location !== undefined && typeof shift.location !== 'string') return badRequest('location must be a string');
+  const checked = validateRosterShiftInput(shift);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, date, workerId, templateId, location, status, notified } = checked.value;
 
   const [ownsWorker, ownsTemplate] = await Promise.all([
-    ownsAll(client, 'workers', ctx, [shift.workerId]),
-    ownsAll(client, 'shift_templates', ctx, [shift.templateId]),
+    ownsAll(client, 'workers', ctx, [workerId]),
+    ownsAll(client, 'shift_templates', ctx, [templateId]),
   ]);
   if (ownsWorker !== true) return ownsWorker === false ? notFound() : ownsWorker;
   if (ownsTemplate !== true) return ownsTemplate === false ? notFound() : ownsTemplate;
 
   const result = await updateOrInsert<RosterRow>(
-    client, 'roster', ctx, shift.id as string | undefined,
-    {
-      date: shift.date,
-      worker_id: shift.workerId,
-      template_id: shift.templateId,
-      location: ((shift.location as string | undefined) ?? '').slice(0, 200),
-      status: shift.status ?? 'Draft',
-      notified: shift.notified === true,
-    },
+    client, 'roster', ctx, id,
+    { date, worker_id: workerId, template_id: templateId, location, status, notified },
     ROSTER_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
 }
+
+/** The caller's roster row, null when it has none with this id. */
+async function ownRosterRow(client: SupabaseClient, ctx: AuthContext, id: string): Promise<RosterRow | null | Result> {
+  const { data, error } = await client
+    .from('roster')
+    .select(ROSTER_COLUMNS)
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .maybeSingle();
+  if (error) return dbFailure('select roster', error);
+  return (data as RosterRow | null) ?? null;
+}
+
+const isResult = (v: unknown): v is Result => isRecord(v) && typeof v.status === 'number' && 'body' in v;
+
+/**
+ * Changing the status clears `notified`: a shift published again must be
+ * sent again (the client shows the same). Setting the status a shift already
+ * has changes nothing, so a retry does not clear a sent notification.
+ * Returns the stored shift.
+ */
+async function updateShiftStatus(client: SupabaseClient, ctx: AuthContext, id: unknown, status: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  if (!isShiftStatus(status)) return badRequest('status must be Draft or Published');
+  const { data, error } = await client
+    .from('roster')
+    .update({ status, notified: false })
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .neq('status', status)
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster status', error);
+  if (data) return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+  const existing = await ownRosterRow(client, ctx, id);
+  if (isResult(existing)) return existing;
+  return existing ? ok({ success: true, shift: rowToRosterShift(existing) }) : notFound();
+}
+
+/** Only a published shift can be marked notified: 409 for a draft, 404 for another tenant's id. */
+async function markShiftNotified(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from('roster')
+    .update({ notified: true })
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .eq('status', 'Published')
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster notified', error);
+  if (data) return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+  const existing = await ownRosterRow(client, ctx, id);
+  if (isResult(existing)) return existing;
+  return existing ? fail(409, 'Publish the shift before notifying') : notFound();
+}
+
 
 // ─── Business locations ───────────────────────────────────────────────────────
 // Labor law follows the work location, so the jurisdiction lives here. The
@@ -1069,45 +1204,42 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return forecastHistory(client, ctx, p);
     case 'listForecastSignals':
       return listForecastSignals(client, ctx, p);
-    case 'loadTargets': {
-      const dateError = filtersDateError(p.filters);
-      if (dateError) return badRequest(dateError);
-      return ok({ targets: await fetchExistingTargets(client, ctx, cleanFilters(p.filters)) });
-    }
+    case 'loadTargets':
+      return listOverrideTargets(client, ctx, p);
     case 'upsertTargets':
       return upsertTargets(client, ctx, p.targets);
+    case 'deleteDemandTarget':
+      return deleteDemandTarget(client, ctx, p.target);
     case 'getOnboarding':
       return getOnboarding(client, ctx);
     case 'upsertOnboarding':
       return upsertOnboarding(client, ctx, p.flags);
     case 'listWorkers':
-      return listWorkers(client, ctx);
+      return listWorkers(client, ctx, p.page);
     case 'upsertWorker':
       return upsertWorker(client, ctx, p.worker);
     case 'deleteWorker':
       return deleteOwned(client, 'workers', ctx, p.id);
     case 'listWorkerAvailability':
-      return listAvailability(client, ctx);
+      return listAvailability(client, ctx, p.page);
     case 'upsertAvailability':
       return upsertAvailability(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
     case 'listShiftTemplates':
-      return listTemplates(client, ctx);
+      return listTemplates(client, ctx, p.page);
     case 'upsertShiftTemplate':
       return upsertTemplate(client, ctx, p.template);
     case 'deleteShiftTemplate':
       return deleteOwned(client, 'shift_templates', ctx, p.id);
     case 'listRoster':
-      return listRoster(client, ctx, p.fromDate, p.toDate);
+      return listRoster(client, ctx, p);
     case 'upsertRosterShift':
       return upsertRosterShift(client, ctx, p.shift);
     case 'updateShiftStatus':
-      return isShiftStatus(p.status)
-        ? updateOwned(client, 'roster', ctx, p.id, { status: p.status })
-        : badRequest('status must be Draft or Published');
+      return updateShiftStatus(client, ctx, p.id, p.status);
     case 'markShiftNotified':
-      return updateOwned(client, 'roster', ctx, p.id, { notified: true });
+      return markShiftNotified(client, ctx, p.id);
     case 'deleteRosterShift':
       return deleteOwned(client, 'roster', ctx, p.id);
     case 'listLocations':

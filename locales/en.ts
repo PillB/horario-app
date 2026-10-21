@@ -198,6 +198,29 @@ export const en = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    // Stored data: load state and failed saves (CHG-088)
+    sync: {
+      loading: 'Loading your saved schedule…',
+      loadFailed: 'Could not load your saved schedule. What you see may be out of date.',
+      errorDetail: 'Details: {error}',
+      retry: 'Retry loading',
+      retryHint: 'Loads workers, shift templates, the roster and demand overrides again',
+      truncated: 'Only the first 10,000 rows of a list were loaded; older rows are not shown.',
+      saveFailed: 'Not saved: {error}. Your change was undone.',
+    },
+    remove: {
+      remove: 'Remove',
+      confirm: 'Tap again to remove',
+      workerA11y: 'Remove worker {name}',
+      workerHint: 'Deletes this worker and their availability. Tap twice to confirm.',
+      slotA11y: 'Remove availability {day} {from}–{to}',
+      slotHint: 'Deletes this availability window. Tap twice to confirm.',
+      templateA11y: 'Remove template {name}',
+      templateHint: 'Deletes this shift template. Tap twice to confirm.',
+      shiftA11y: 'Remove the shift of {name} on {date}',
+      shiftHint: 'Deletes this roster shift. Tap twice to confirm.',
+      removed: '{name} removed.',
+    },
     title: 'Scheduler',
     subtitle: 'Coordinate coverage across workers, shift templates, and day-by-day staffing plans.',
     tooltip: 'Your scheduling hub. Add workers, set their availability, create shift templates, then assign or auto-fill rosters in one tap. Start with step 1 — adding a worker.',
@@ -454,6 +477,10 @@ export const en = {
       publishA11y: 'Publish this shift',
       unpublishA11y: 'Move this shift back to draft',
       notifyA11y: 'Send notification for this shift',
+      publishHint: 'Checks availability and overlaps, then publishes the shift',
+      unpublishHint: 'Moves the shift back to draft; it must be sent again after the next publish',
+      notifyHint: 'Records that the worker was sent this shift',
+      upcomingEmpty: 'No upcoming shifts. Assign one in Shift Creation above.',
       upcoming: {
         title: 'Upcoming shifts',
         subtitle: 'Stay ahead of the next roster window.',

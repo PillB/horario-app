@@ -18,6 +18,7 @@ import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { WorkerLaborFields } from './WorkerLaborFields';
+import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import type { WorkerFormState } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
@@ -33,6 +34,10 @@ type AvailabilityFormState = {
 
 type Props = {
   workers: Worker[];
+  /** False until the stored workers have loaded: the empty state waits for it. */
+  workersLoaded?: boolean;
+  onRemoveWorker?: (workerId: string) => void;
+  onRemoveAvailability?: (workerId: string, slotId: string) => void;
   workerForm: WorkerFormState;
   updateWorkerField: <K extends keyof WorkerFormState>(key: K) => (value: WorkerFormState[K]) => void;
   handleAddWorker: () => void;
@@ -68,10 +73,18 @@ const makeLocalStyles = (colors: ThemeColors) =>
     ghostEmptyCtaText: {
       color: colors.textSecondary,
     },
+    slotRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
   });
 
 export const WorkerSection = ({
   workers,
+  workersLoaded = true,
+  onRemoveWorker,
+  onRemoveAvailability,
   workerForm,
   updateWorkerField,
   handleAddWorker,
@@ -136,17 +149,31 @@ export const WorkerSection = ({
               </View>
               <View style={styles.availabilityList}>
                 {worker.availability.map((slot, index) => (
-                  <AvailabilityLabel
-                    key={`${worker.id}-${index}`}
-                    day={slot.day}
-                    from={slot.from}
-                    to={slot.to}
-                  />
+                  <View key={slot.id ?? `${worker.id}-${index}`} style={localStyles.slotRow}>
+                    <AvailabilityLabel day={slot.day} from={slot.from} to={slot.to} />
+                    {onRemoveAvailability && slot.id ? (
+                      <ConfirmRemoveButton
+                        compactLabel="×"
+                        onConfirm={() => onRemoveAvailability(worker.id, slot.id as string)}
+                        accessibilityLabel={t('scheduler.remove.slotA11y', { day: slot.day, from: slot.from, to: slot.to })}
+                        accessibilityHint={t('scheduler.remove.slotHint')}
+                        testID={`remove-slot-${slot.id}`}
+                      />
+                    ) : null}
+                  </View>
                 ))}
+                {onRemoveWorker ? (
+                  <ConfirmRemoveButton
+                    onConfirm={() => onRemoveWorker(worker.id)}
+                    accessibilityLabel={t('scheduler.remove.workerA11y', { name: worker.name })}
+                    accessibilityHint={t('scheduler.remove.workerHint')}
+                    testID={`remove-worker-${worker.id}`}
+                  />
+                ) : null}
               </View>
             </View>
           ))}
-          {workers.length === 0 && (
+          {workersLoaded && workers.length === 0 && (
             <View>
               {/* Ghost preview — shows what populated workers look like */}
               <View style={styles.ghostContainer} accessibilityElementsHidden>

@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+/**
+ * Shift templates, loaded from and saved through the secure proxy. Writes are
+ * optimistic and roll back, returning the server's error, when the proxy
+ * refuses them (CHG-088).
+ */
+import { useCallback } from 'react';
 
 import { log } from '@/services/logger';
 import {
-  listShiftTemplates,
+  deleteShiftTemplate,
+  fetchShiftTemplates,
   upsertShiftTemplate,
   type DbShiftTemplate,
+  type MutationResult,
   type UpsertTemplateResult,
 } from '@/services/rosterService';
 import type { ShiftTemplate } from '@/utils/schedulerMetrics';
+import { newUuid, validateShiftTemplateInput } from '@/utils/schedulingValidation';
+import { removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
 
-const dbToTemplate = (db: DbShiftTemplate): ShiftTemplate => ({
+const dbToTemplate = (db: Pick<DbShiftTemplate, 'id' | 'name' | 'role' | 'startTime' | 'endTime' | 'coverage'>): ShiftTemplate => ({
   id: db.id,
   name: db.name,
   role: db.role,
@@ -18,65 +27,78 @@ const dbToTemplate = (db: DbShiftTemplate): ShiftTemplate => ({
   coverage: db.coverage,
 });
 
-const generateId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const loadTemplates = async (): Promise<LoadResult<ShiftTemplate>> => {
+  const result = await fetchShiftTemplates();
+  if (!result.ok) return result;
+  log.debug('TEMPLATE', 'Templates loaded', { count: result.data.length });
+  return { ok: true, data: result.data.map(dbToTemplate), truncated: result.truncated };
 };
 
+export type ShiftTemplateChanges = { name: string; role: string; startTime: string; endTime: string; coverage: number };
+
+/** `accountId` only names the tenant (a new one reloads); the proxy takes it from the session. */
 export const useShiftTemplates = (accountId: string) => {
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const list = usePersistedList<ShiftTemplate>(accountId, loadTemplates);
+  const { items, write } = list;
 
-  const loadTemplates = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const templates = await listShiftTemplates(accountId);
-    const mapped = templates.map(dbToTemplate);
-    setShiftTemplates(mapped);
-    log.debug('TEMPLATE', 'Templates loaded', { count: mapped.length });
-    setLoading(false);
-  }, [accountId]);
-
-  useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
-
-  const addShiftTemplate = useCallback(
-    async (
-      name: string,
-      role: string,
-      startTime: string,
-      endTime: string,
-      coverage: number
-    ): Promise<UpsertTemplateResult> => {
-      const newTemplate: DbShiftTemplate = {
-        id: generateId(),
-        accountId,
-        name,
-        role,
-        startTime,
-        endTime,
-        coverage,
-      };
-      // Optimistic update — always show the template immediately in local state
-      setShiftTemplates((prev) => [...prev, dbToTemplate(newTemplate)]);
-      const result = await upsertShiftTemplate(newTemplate);
-      if (!result.success) {
-        // DB unavailable (e.g. pre-migration); local state already updated above
-        log.warn('TEMPLATE', 'Template upsert DB unavailable, optimistic only', {
-          templateId: newTemplate.id,
-          reason: 'db-unavailable',
-        });
-        return { success: true, template: newTemplate };
-      }
-      log.info('TEMPLATE', 'Template added successfully', { templateId: newTemplate.id });
+  const saveTemplate = useCallback(
+    async (id: string, changes: ShiftTemplateChanges, isNew: boolean): Promise<UpsertTemplateResult> => {
+      const checked = validateShiftTemplateInput({ ...changes, id });
+      if (!checked.ok) return { success: false, error: checked.error };
+      const input = { ...checked.value, id, accountId };
+      const index = items.findIndex((t) => t.id === id);
+      const previous = index === -1 ? null : items[index];
+      const result = await write({
+        apply: (prev) => upsertById(prev, dbToTemplate(input)),
+        commit: () => upsertShiftTemplate(input),
+        rollback: (prev) => (previous ? prev.map((t) => (t.id === id ? previous : t)) : removeById(prev, id)),
+        reconcile: (prev, r) => (r.success ? upsertById(prev, dbToTemplate(r.template)) : prev),
+      });
+      if (result.success) log.info('TEMPLATE', isNew ? 'Template added' : 'Template updated', { templateId: id });
+      else log.warn('TEMPLATE', 'Template save rolled back', { templateId: id, reason: result.error });
       return result;
     },
-    [accountId]
+    [accountId, items, write],
   );
 
-  return { shiftTemplates, loading, error, addShiftTemplate, refresh: loadTemplates };
+  const addShiftTemplate = useCallback(
+    (name: string, role: string, startTime: string, endTime: string, coverage: number): Promise<UpsertTemplateResult> =>
+      saveTemplate(newUuid(), { name, role, startTime, endTime, coverage }, true),
+    [saveTemplate],
+  );
+
+  const updateShiftTemplate = useCallback(
+    (id: string, changes: ShiftTemplateChanges): Promise<UpsertTemplateResult> =>
+      items.some((t) => t.id === id) ? saveTemplate(id, changes, false) : Promise.resolve({ success: false, error: 'Template not found' }),
+    [items, saveTemplate],
+  );
+
+  /** The proxy refuses (409) while roster shifts use the template. */
+  const removeShiftTemplate = useCallback(
+    async (id: string): Promise<MutationResult> => {
+      const index = items.findIndex((t) => t.id === id);
+      if (index === -1) return { success: false, error: 'Template not found' };
+      const previous = items[index];
+      const result = await write({
+        apply: (prev) => removeById(prev, id),
+        commit: () => deleteShiftTemplate(id),
+        rollback: (prev) => restoreAt(prev, previous, index),
+      });
+      if (!result.success) log.warn('TEMPLATE', 'Template delete rolled back', { templateId: id, reason: result.error });
+      return result;
+    },
+    [items, write],
+  );
+
+  return {
+    shiftTemplates: items,
+    loading: list.loading,
+    loaded: list.loaded,
+    error: list.error,
+    truncated: list.truncated,
+    addShiftTemplate,
+    updateShiftTemplate,
+    removeShiftTemplate,
+    refresh: list.refresh,
+  };
 };

@@ -21,6 +21,7 @@
     "**/*.test.tsx",
     "e2e/**",
     "server/testUtils/**",
+    "hooks/testUtils/**",
     ".claude/**"
   ]
 }

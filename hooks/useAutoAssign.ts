@@ -15,6 +15,7 @@ import {
   type DbRosterShift,
   type UpsertRosterShiftResult,
 } from '@/services/rosterService';
+import { newUuid } from '@/utils/schedulingValidation';
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
 import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
@@ -156,15 +157,6 @@ const computeCoverageGaps = (
   }, []);
 };
 
-// ─── Unique ID generator ──────────────────────────────────────────────────────
-
-const generateId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-};
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -274,7 +266,8 @@ export const useAutoAssign = (accountId: string) => {
       await Promise.all(
         assignResult.assignments.map(async (shift) => {
           const result: UpsertRosterShiftResult = await upsertRosterShift({
-            id: generateId(),
+            // The proxy only accepts UUID ids (CHG-088).
+            id: newUuid(),
             date: shift.date,
             workerId: shift.workerId,
             templateId: shift.templateId,

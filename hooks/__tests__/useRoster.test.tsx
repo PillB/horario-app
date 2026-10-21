@@ -1,222 +1,210 @@
-import React, { useEffect } from 'react';
-import renderer, { act } from 'react-test-renderer';
+import { act } from 'react-test-renderer';
 
 import { useRoster } from '../useRoster';
+import { callsOf, deferred, flush, installFakeProxy, renderHook, type ProxyReply } from '../testUtils/fakeProxy';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+const W1 = '11111111-1111-4111-8111-111111111111';
+const T1 = '33333333-3333-4333-8333-333333333333';
+const S1 = '44444444-4444-4444-8444-444444444444';
+const S2 = '55555555-5555-4555-8555-555555555555';
 
-const mockFetch = (responseMap: Record<string, unknown>) => {
-  (global as unknown as { fetch: jest.Mock }).fetch = jest
-    .fn()
-    .mockImplementation((_url: string, options: RequestInit) => {
-      const body = JSON.parse(options.body as string) as { action: string };
-      const data = responseMap[body.action];
-      return Promise.resolve({
-        ok: true,
-        json: jest.fn().mockResolvedValue(data ?? {}),
-      });
-    });
-};
-
-const mockFetchReject = (message: string) => {
-  (global as unknown as { fetch: jest.Mock }).fetch = jest
-    .fn()
-    .mockRejectedValue(new Error(message));
-};
-
-const dbShift = {
-  id: 'shift-1',
+const dbShift = (id: string, overrides: Record<string, unknown> = {}) => ({
+  id,
   accountId: 'acc-1',
-  date: '2026-04-01',
-  workerId: 'w-1',
-  templateId: 'tmpl-1',
+  date: '2026-11-02',
+  workerId: W1,
+  templateId: T1,
   location: 'HQ',
   status: 'Draft',
   notified: false,
-};
+  ...overrides,
+});
 
-const schedulerShift = {
-  id: 'shift-1',
-  date: '2026-04-01',
-  workerId: 'w-1',
-  templateId: 'tmpl-1',
-  location: 'HQ',
-  status: 'Draft',
-  notified: false,
-};
+const proxy = (overrides: Record<string, ProxyReply | (() => ProxyReply | Promise<ProxyReply>)> = {}) =>
+  installFakeProxy((body) => {
+    const override = overrides[body.action];
+    if (override) return typeof override === 'function' ? override() : override;
+    switch (body.action) {
+      case 'listRoster':
+        return { body: { shifts: [dbShift(S1), dbShift(S2, { status: 'Published', notified: true, date: '2026-11-03' })], hasMore: false } };
+      case 'upsertRosterShift':
+        return { body: { success: true, shift: { accountId: 'acc-1', ...(body.shift as object) } } };
+      case 'updateShiftStatus':
+        return { body: { success: true, shift: dbShift(body.id as string, { status: body.status, notified: false }) } };
+      case 'markShiftNotified':
+        return { body: { success: true, shift: dbShift(body.id as string, { status: 'Published', notified: true }) } };
+      default:
+        return { body: { success: true } };
+    }
+  });
 
-// ─── tests ───────────────────────────────────────────────────────────────────
+type Hook = ReturnType<typeof useRoster>;
+const useRosterProps = ({ accountId, filters }: { accountId: string; filters?: { fromDate?: string; toDate?: string } }): Hook =>
+  useRoster(accountId, filters);
 
 describe('useRoster', () => {
   let warnSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    jest.clearAllMocks();
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
+  afterEach(() => warnSpy.mockRestore());
 
-  afterEach(() => {
-    warnSpy.mockRestore();
+  it('loads the stored roster with status and notified', async () => {
+    proxy();
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    expect(hook.result.loaded).toBe(true);
+    expect(hook.result.roster).toEqual([
+      { id: S1, date: '2026-11-02', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false },
+      { id: S2, date: '2026-11-03', workerId: W1, templateId: T1, location: 'HQ', status: 'Published', notified: true },
+    ]);
   });
 
-  it('loads roster shifts on mount', async () => {
-    mockFetch({ listRoster: { shifts: [dbShift] } });
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-
-    expect(hookState!.loading).toBe(false);
-    expect(hookState!.roster).toHaveLength(1);
-    expect(hookState!.roster[0]).toEqual(schedulerShift);
+  it('sends date filters, and does not reload for an equal filters object', async () => {
+    const fetchMock = proxy();
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1', filters: { fromDate: '2026-11-01', toDate: '2026-11-07' } });
+    expect(callsOf(fetchMock, 'listRoster')).toEqual([{ action: 'listRoster', fromDate: '2026-11-01', toDate: '2026-11-07', page: 0 }]);
+    await hook.rerender({ accountId: 'acc-1', filters: { fromDate: '2026-11-01', toDate: '2026-11-07' } });
+    expect(callsOf(fetchMock, 'listRoster')).toHaveLength(1);
   });
 
-  it('returns empty roster on network failure', async () => {
-    mockFetchReject('Network error');
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-
-    expect(hookState!.roster).toEqual([]);
-    expect(hookState!.loading).toBe(false);
+  it('reports a failed load', async () => {
+    proxy({ listRoster: { status: 503, body: { error: 'Database is not configured' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    expect(hook.result.error).toBe('Database is not configured');
+    expect(hook.result.loaded).toBe(false);
   });
 
-  it('addShift persists and appends to local roster', async () => {
-    mockFetch({
-      listRoster: { shifts: [] },
-      upsertRosterShift: { success: true, shift: dbShift },
-    });
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-    expect(hookState!.roster).toEqual([]);
-
+  it('adds a shift and rolls it back when the server refuses it', async () => {
+    proxy({ upsertRosterShift: { status: 409, body: { error: 'Conflicting record' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['addShift']>>;
     await act(async () => {
-      await hookState!.addShift({
-        date: '2026-04-01',
-        workerId: 'w-1',
-        templateId: 'tmpl-1',
-        location: 'HQ',
-        status: 'Draft',
-        notified: false,
-      });
+      result = await hook.result.addShift({ date: '2026-11-02', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false });
     });
-
-    expect(hookState!.roster).toHaveLength(1);
-    // ID is locally generated (optimistic update), not the mock DB response ID
-    expect(hookState!.roster[0].id).toBeTruthy();
+    expect(result).toEqual({ success: false, error: 'Conflicting record' });
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
   });
 
-  it('setShiftStatus updates status and resets notified locally', async () => {
-    mockFetch({
-      listRoster: { shifts: [{ ...dbShift, notified: true }] },
-      updateShiftStatus: { success: true },
-    });
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-    expect(hookState!.roster[0].status).toBe('Draft');
-
+  it('keeps an added shift the server stores', async () => {
+    const fetchMock = proxy();
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
     await act(async () => {
-      await hookState!.setShiftStatus('shift-1', 'Published');
+      await hook.result.addShift({ date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false });
     });
-
-    expect(hookState!.roster[0].status).toBe('Published');
-    expect(hookState!.roster[0].notified).toBe(false);
+    const sent = callsOf(fetchMock, 'upsertRosterShift')[0].shift as Record<string, unknown>;
+    expect(sent).toMatchObject({ date: '2026-11-09', status: 'Draft', notified: false });
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2, sent.id]);
   });
 
-  it('notifyShift sets notified to true locally', async () => {
-    mockFetch({
-      listRoster: { shifts: [{ ...dbShift, status: 'Published' }] },
-      markShiftNotified: { success: true },
+  it('refuses a notified draft before sending it', async () => {
+    const fetchMock = proxy();
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['addShift']>>;
+    await act(async () => {
+      result = await hook.result.addShift({ date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: true });
     });
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-    expect(hookState!.roster[0].notified).toBe(false);
-
-    await act(async () => { await hookState!.notifyShift('shift-1'); });
-
-    expect(hookState!.roster[0].notified).toBe(true);
+    expect(result.success).toBe(false);
+    expect(callsOf(fetchMock, 'upsertRosterShift')).toHaveLength(0);
   });
 
-  it('removeShift removes the shift from local roster', async () => {
-    mockFetch({
-      listRoster: { shifts: [dbShift] },
-      deleteRosterShift: { success: true },
+  it('publishes optimistically (clearing notified) and keeps the stored shift', async () => {
+    const save = deferred<ProxyReply>();
+    proxy({ updateShiftStatus: () => save.promise });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = hook.result.setShiftStatus(S2, 'Draft');
     });
-
-    let hookState: ReturnType<typeof useRoster> | null = null;
-
-    const TestComponent = () => {
-      const hook = useRoster('acc-1');
-      useEffect(() => { hookState = hook; }, [hook]);
-      return null;
-    };
-
-    await act(async () => { renderer.create(<TestComponent />); });
-    expect(hookState!.roster).toHaveLength(1);
-
-    await act(async () => { await hookState!.removeShift('shift-1'); });
-
-    expect(hookState!.roster).toHaveLength(0);
+    await flush();
+    expect(hook.result.roster[1]).toMatchObject({ status: 'Draft', notified: false });
+    await act(async () => {
+      save.resolve({ body: { success: true, shift: dbShift(S2, { status: 'Draft', notified: false, date: '2026-11-03' }) } });
+      await pending;
+    });
+    expect(hook.result.roster[1]).toMatchObject({ id: S2, status: 'Draft', notified: false });
   });
 
-  it('sends date filters to listRoster when provided', async () => {
-    mockFetch({ listRoster: { shifts: [] } });
+  it('restores status and notified when a status change is refused', async () => {
+    proxy({ updateShiftStatus: { status: 404, body: { error: 'Not found' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['setShiftStatus']>>;
+    await act(async () => {
+      result = await hook.result.setShiftStatus(S2, 'Draft');
+    });
+    expect(result).toEqual({ success: false, error: 'Not found' });
+    expect(hook.result.roster[1]).toMatchObject({ status: 'Published', notified: true });
+  });
 
-    const TestComponent = () => {
-      useRoster('acc-1', { fromDate: '2026-04-01', toDate: '2026-04-07' });
-      return null;
-    };
+  it('rolls back notified when the server refuses to notify a draft', async () => {
+    proxy({ markShiftNotified: { status: 409, body: { error: 'Publish the shift before notifying' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['notifyShift']>>;
+    await act(async () => {
+      result = await hook.result.notifyShift(S1);
+    });
+    expect(result).toEqual({ success: false, error: 'Publish the shift before notifying' });
+    expect(hook.result.roster[0].notified).toBe(false);
+  });
 
-    await act(async () => { renderer.create(<TestComponent />); });
+  it('marks a published shift notified', async () => {
+    const fetchMock = proxy();
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    await act(async () => {
+      await hook.result.setShiftStatus(S1, 'Published');
+      await hook.result.notifyShift(S1);
+    });
+    expect(callsOf(fetchMock, 'markShiftNotified')).toEqual([{ action: 'markShiftNotified', id: S1 }]);
+    expect(hook.result.roster[0]).toMatchObject({ status: 'Published', notified: true });
+  });
 
-    const fetchMock = (global as unknown as { fetch: jest.Mock }).fetch;
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: JSON.stringify({
-          action: 'listRoster',
-          accountId: 'acc-1',
-          fromDate: '2026-04-01',
-          toDate: '2026-04-07',
-        }),
-      })
-    );
+  it('updates a shift and restores it when the update fails', async () => {
+    proxy({ upsertRosterShift: { status: 400, body: { error: 'date must be a real YYYY-MM-DD date' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    await act(async () => {
+      await hook.result.updateShift(S1, { location: 'Bar' });
+    });
+    expect(hook.result.roster[0].location).toBe('HQ');
+  });
+
+  it('puts a deleted shift back when the delete fails, and drops it when it succeeds', async () => {
+    proxy({ deleteRosterShift: { status: 500, body: { error: 'Database request failed' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    await act(async () => {
+      await hook.result.removeShift(S1);
+    });
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
+
+    proxy();
+    await act(async () => {
+      await hook.result.removeShift(S1);
+    });
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S2]);
+  });
+
+  it('reloads after a write that raced a load, so the stored row is not lost', async () => {
+    const slowList = deferred<ProxyReply>();
+    let listCalls = 0;
+    const fetchMock = proxy({
+      listRoster: () => {
+        listCalls += 1;
+        if (listCalls === 2) return slowList.promise;
+        return { body: { shifts: [dbShift(S1)], hasMore: false } };
+      },
+    });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    act(() => {
+      void hook.result.refresh();
+    });
+    await act(async () => {
+      await hook.result.addShift({ date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false });
+    });
+    expect(callsOf(fetchMock, 'listRoster')).toHaveLength(3);
+    await act(async () => {
+      slowList.resolve({ body: { shifts: [dbShift(S1)], hasMore: false } });
+    });
+    await flush();
+    // The third (latest) load won; the slow second one was ignored.
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1]);
   });
 });

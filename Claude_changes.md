@@ -64,6 +64,50 @@
 - There is no override editor in the UI; overrides arrive only through the API.
 - `zonedToUtc` resolves a gap time with the offset 6 h before the naive instant. For zones at UTC+6 or more (Sydney), that is already the post-gap offset, so 02:30 on Sydney's spring-forward day resolves to 01:30 AEST (before the gap), not after it as documented. Both engines share it, so they still agree. It was found while testing and not fixed.
 - History rows are kept forever (no retention job). `changed_by` is a Clerk user id; the UI shows it raw.
+### CHG-088 — 2026-10-21 UTC
+**Type:** FIX / FEATURE (a manager's scheduling data survives a reload and reaches other devices)
+
+**Audit (before, at 2a87a41):**
+
+| Entity | Proxy CRUD | Loaded on start | Gap |
+|---|---|---|---|
+| Workers | list / upsert / delete | `useWorkers` | `hooks/useWorkers.ts:100-110` returned `success:true` when the proxy refused ("optimistic only"), so a rejected save looked saved and vanished on reload; `services/rosterService.ts` `list*` turned errors into `[]` (failed load = empty account); no request-id guard; no update / delete in the hook; `.limit(500)` with no paging; non-UUID fallback ids the proxy rejects |
+| Availability | upsert / delete | via `useWorkers` | slot ids not kept, so slots could not be removed; limit 2000, no paging |
+| Shift templates | list / upsert / delete | `useShiftTemplates` | `hooks/useShiftTemplates.ts:64-74` same false success; no update / delete in the hook |
+| Roster (status, notified) | list / upsert / status / notified / delete | `useRoster` | `hooks/useRoster.ts:156-166,184-190,204-210,220-226` false success; proxy `updateShiftStatus` set status only while the client also cleared `notified` (diverged after reload); `markShiftNotified` allowed on drafts; upsert spread unvalidated fields; no unique slot, so two devices could insert the same assignment; `listRoster` oldest first, silently cut at 500; publish / notify handlers passed to `RosterSection` but never rendered |
+| Demand overrides | load / upsert | `useDemandForecast` | `loadTargets` read the oldest 500 rows of every source and the client filtered to overrides; no delete; `upsertTargets` spread client fields (source could be `model`, notes / confidence / bounds unchecked); load error swallowed |
+| Locations | list / upsert / delete | `useLocations` | none: request guard, pessimistic writes, admin-only, validated, integration-tested |
+
+`persistShiftStatus` / `persistShiftNotification` and the December 2024 sample shifts were already gone from production code (`useSchedulerHandlers` uses `useRoster`); only tests use 2024 dates. The scheduler's ghost empty states showed while loading and after a failed load, and the tour could seed sample rows before workers had loaded.
+
+**After:** every entity above has load (paged, error reported), create, update and delete through the proxy, tenant-scoped (`id AND account_id`, 404 on no match, 409 on a cross-tenant id or duplicate), optimistic in the UI with rollback and a visible error.
+
+**Changes by file:**
+- `utils/schedulingValidation.ts` (new): explicit-object validators shared by client and proxy for workers, availability, templates, roster shifts (status defaults Draft, `notified` only when Published) and demand override keys / rows; `isUuid`, `newUuid`.
+- `app/api/secure-proxy+api.ts`: uses those validators; `LIST_PAGE_SIZE` 500 / `LIST_MAX_PAGES` 20 paging (`page`, `hasMore`, id tie-breaker) for workers, availability, templates, roster (`fromDate` / `toDate`) and overrides; `updateShiftStatus` writes `{status, notified:false}` and returns the shift; `markShiftNotified` needs Published (409); `upsertTargets` writes explicit override rows; `loadTargets` returns overrides only; new `deleteDemandTarget` (manager only).
+- `services/rosterService.ts`: `fetch*` read every page and return `{ok, rows, truncated} | {ok:false, error}`; upserts send explicit fields only; the deprecated `list*` wrappers stay (Home still uses them).
+- `services/demandForecast.ts`: `fetchOverrideTargets` (paged, errors reported), `deleteDemandTarget`; `upsertDemandTarget` sends explicit fields.
+- `hooks/usePersistedList.ts` (new): request-id guarded load, `write({apply, commit, rollback, reconcile})` with rollback, and a reload when a write raced a load.
+- `hooks/useWorkers.ts`, `hooks/useShiftTemplates.ts`, `hooks/useRoster.ts`: rebuilt on it, with update / remove, `loaded` / `error` / `truncated`. `hooks/useDemandForecast.ts`: `targetsLoaded`, `targetsError`, `removeOverride` with rollback.
+- `hooks/useSchedulerHandlers.ts`: `syncStatus` / `retrySync`, remove handlers, save errors in the banner (`scheduler.sync.saveFailed`), upcoming shifts are today or later, tour seeding only after workers loaded empty without error.
+- `components/scheduler/SyncNotice.tsx`, `ConfirmRemoveButton.tsx` (new); `WorkerSection`, `ShiftTemplateSection`, `RosterSection` (remove, publish / unpublish / notify buttons, empty states only once loaded); `app/(tabs)/scheduler.tsx` wires them.
+- `hooks/useAutoAssign.ts`: suggestion ids from `newUuid` (the proxy accepts only UUIDs). `types/scheduler.ts`: `Availability.id`.
+- `supabase/migrations/20261021000001_roster_unique_slot.sql` (new, idempotent): unique index `roster_account_slot_key` (account_id, date, worker_id, template_id); when duplicates already exist it raises a WARNING and skips the index instead of failing or deleting rows.
+
+**Decisions:**
+- A status change always clears `notified` (server and client agree); notify requires Published.
+- `loadTargets` returns overrides only. The baseline client already dropped model rows for every caller, so no caller changes.
+- `deleteDemandTarget` is manager-only, like the other writes in `MANAGER_ACTIONS`.
+- Update exists in the hooks, but no edit forms were built. Override removal has no button yet.
+- The non-destructive unique index (skip + WARNING) was chosen so existing duplicates are never deleted by a migration.
+
+**Locales:** new keys `scheduler.sync.*`, `scheduler.remove.*` and `scheduler.roster.{publishHint, unpublishHint, notifyHint, upcomingEmpty}` in `en` and `es` (translated). de, fr, hi, it, sw, tl and zh fall back to the English text through the locale merge.
+
+**Migration applied locally with psql**, not `supabase migration up --local`. The shared local DB has another session's `20261021000089` in its history, so the CLI fails with MigrationMissingLocalError. The file was run twice (idempotent, both `DO`). Its version row was not added to `supabase_migrations.schema_migrations`.
+
+**Tests:** jest 902 passed, 20 skipped (74 suites, 1 skipped); new `server/__tests__/schedulingProxy.test.ts` (29, validation 400s with no DB, member 403), `components/__tests__/SyncNotice.test.tsx` (4); rewritten `useWorkers` (14), `useRoster` (13), `useShiftTemplates` (8); `useDemandForecast` +4. Integration against local Supabase 20/20 (+6: persistence and cross-tenant isolation per entity, duplicate-slot 409, paging past 500 rows, overrides list / delete). pgTAP 63/63 (plan 57 → 63: unique index, duplicate 23505, authenticated writes refused). tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**CLAUDE.md:** feature rows (Home, Scheduler UI, Workers, Templates, Roster, Availability, Overrides), §5 roster index, §10 key files, §11 items 1–4, 6, 7, 9, 10, 12 re-verified and updated.
 
 ### CHG-087 — 2026-10-20 UTC
 **Type:** FIX (QA red team of step 3b, findings F1–F6: `/mnt/project-files/qa/redteam-step3b-2026-10-20.md`)

@@ -84,7 +84,7 @@ describe('listWorkers', () => {
       expect.any(String),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ action: 'listWorkers', accountId: 'acc-1' }),
+        body: JSON.stringify({ action: 'listWorkers', page: 0 }),
       })
     );
   });
@@ -245,9 +245,9 @@ describe('listRoster', () => {
       expect.objectContaining({
         body: JSON.stringify({
           action: 'listRoster',
-          accountId: 'acc-1',
           fromDate: '2026-04-01',
           toDate: '2026-04-07',
+          page: 0,
         }),
       })
     );

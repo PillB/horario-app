@@ -9,9 +9,10 @@ import {
   ForecastGenerationMetadata,
   ForecastNotices,
   ForecastOptions,
+  deleteDemandTarget,
+  fetchOverrideTargets,
   generateDemandForecast,
   getForecastDataStatus,
-  loadDemandTargets,
   upsertDemandTarget,
 } from '@/services/demandForecast';
 
@@ -36,9 +37,15 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const [demandTargets, setDemandTargets] = useState<DemandForecast[]>([]);
+  const demandTargetsRef = useRef(demandTargets);
+  demandTargetsRef.current = demandTargets;
   const [loading, setLoading] = useState(false);
   const [forecasting, setForecasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** True once the stored overrides have loaded (CHG-088). */
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
+  /** The last load of the stored overrides failed (kept apart from forecast errors). */
+  const [targetsError, setTargetsError] = useState<string | null>(null);
   const [lastGenerationMetadata, setLastGenerationMetadata] = useState<ForecastGenerationMetadata | null>(null);
   const [dataStatus, setDataStatus] = useState<ForecastDataStatus>({
     hasHistorical: false,
@@ -59,17 +66,26 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     try {
       setLoading(true);
       const [existing, status] = await Promise.all([
-        loadDemandTargets(filters),
+        fetchOverrideTargets(filters),
         getForecastDataStatus(filters),
       ]);
       if (hydrateRequestIdRef.current !== requestId) return;
-      setDemandTargets(existing);
       setDataStatus(status);
+      if (!existing.ok) {
+        // Keep what is shown; a failed load is not "no overrides".
+        setError('Unable to load demand targets');
+        setTargetsError(existing.error);
+        return;
+      }
+      setDemandTargets(existing.targets);
+      setTargetsLoaded(true);
+      setTargetsError(null);
       setError(null);
     } catch (err) {
       console.warn('Unable to hydrate demand targets', err);
       if (hydrateRequestIdRef.current !== requestId) return;
       setError('Unable to load demand targets');
+      setTargetsError(err instanceof Error ? err.message : 'Unable to load demand targets');
     } finally {
       if (hydrateRequestIdRef.current === requestId) {
         setLoading(false);
@@ -141,6 +157,24 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     }
   }, []);
 
+  /**
+   * Removes the stored override for a date and role. Optimistic: the row goes
+   * at once and comes back, with the server's error, if the delete fails.
+   */
+  const removeOverride = useCallback(async (target: { date: string; role: string }) => {
+    const key = forecastKey({ ...target, required: 0 });
+    const removed = demandTargetsRef.current.find((f) => forecastKey(f) === key && f.source === 'override');
+    if (removed) setDemandTargets((prev) => prev.filter((f) => forecastKey(f) !== key));
+    const result = await deleteDemandTarget(target);
+    if (!result.success) {
+      if (removed) setDemandTargets((prev) => (prev.some((f) => forecastKey(f) === key) ? prev : mergeForecasts([removed], prev)));
+      setError(result.error ?? 'Unable to remove override');
+      return { success: false, error: result.error ?? 'Unable to remove override' } as const;
+    }
+    setError(null);
+    return { success: true, error: null } as const;
+  }, []);
+
   const seedBaselineTargets = useCallback(async (targets: DemandForecast[]) => {
     try {
       setLoading(true);
@@ -196,6 +230,8 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
 
   return {
     demandTargets,
+    targetsLoaded,
+    targetsError,
     loading,
     error,
     forecasting,
@@ -208,6 +244,7 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     refresh: hydrate,
     triggerForecast,
     overrideTarget,
+    removeOverride,
     seedBaselineTargets,
   } as const;
 };

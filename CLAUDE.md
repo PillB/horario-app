@@ -89,14 +89,14 @@ Location setup (components/locations/LocationSetupCard.tsx)
 
 | Feature | Status | Notes |
 |---|---|---|
-| Home dashboard | Partial | Static hardcoded data; no live queries |
-| Scheduler UI | Partial | Works but all state is in-memory, resets on reload |
-| Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20; no edit/delete UI |
-| Shift template management | Partial | In-memory only, no DB persistence |
-| Roster (shift assignment) | Partial | In-memory only; fake persistence functions |
-| Availability tracking | Partial | In-memory, validated, no DB |
+| Home dashboard | Partial | Live roster summary (`hooks/useLiveRosterSummary.ts`: upcoming shifts, staffing gaps from stored overrides); its load errors still show as empty lists (deprecated `list*` wrappers) — re-verified 2026-10-21 |
+| Scheduler UI | Partial | Workers, availability, templates, roster and overrides load from the proxy and survive a reload (`useSchedulerHandlers`); first-load / error / truncated notice with retry (`components/scheduler/SyncNotice.tsx`); optimistic writes roll back with the server error in the banner — re-verified 2026-10-21 (CHG-088). Not run on a device or browser |
+| Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20. Remove (two-tap) in the UI; `updateWorker` in the hook, no edit form (CHG-088) |
+| Shift template management | Working | Persisted through the proxy (`useShiftTemplates`: load / add / update / remove, paged, rollback); delete refused with 409 while roster shifts use it; no edit form — re-verified 2026-10-21 (CHG-088) |
+| Roster (shift assignment) | Working | Persisted through the proxy (`useRoster`: load / add / update / status / notify / remove, paged); a status change clears `notified`, notify needs Published (409); one row per (account, date, worker, template) (`20261021000001_roster_unique_slot.sql`, 409 on duplicate); Publish / Unpublish / Notify / Remove buttons on each row — re-verified 2026-10-21 (CHG-088). Notify sets the flag only; no push |
+| Availability tracking | Working | Persisted through the proxy (`worker_availability`, via `useWorkers` add / remove slot), validated by `utils/schedulingValidation.ts` on both sides — re-verified 2026-10-21 (CHG-088) |
 | Demand forecasting | Working | Statistical forecaster fitted in the client (`services/forecasting/`): seasonal naive, weekday profile with recency weighting, Holt-Winters (additive weekly season, damped trend); chosen per role by rolling-origin backtest on MASE vs. seasonal naive; intervals from backtest-error quantiles; `required` = forecast at the service level (default P80), rounded up. Proxy only pages history (`forecastHistory`, `listForecastSignals`). External API (EXPO_PUBLIC_FORECAST_API_URL) optional, tried first — added 2026-10-20 (CHG-086) |
-| Demand target overrides | Working | Persisted to Supabase via proxy |
+| Demand target overrides | Working | Persisted via proxy: `loadTargets` returns overrides only (paged, date / role filters), `upsertTargets` writes validated override rows, `deleteDemandTarget` (manager only, 404 when none); `useDemandForecast.removeOverride` rolls back on failure. No remove button in the UI yet — re-verified 2026-10-21 (CHG-088) |
 | Uncovered-loss metric | Working | Pure function, well-tested |
 | Onboarding checklist | Working | Persisted to Supabase via proxy |
 | Streak counter | Working | Persisted to AsyncStorage |
@@ -124,7 +124,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 - `external_signals` — demand boost signals (date, role, signal_type, weight)
 - `demand_targets` — model/override demand forecasts (date, role, required, source, …)
 - `onboarding_progress` — account-level onboarding flags
-- `workers`, `worker_availability`, `shift_templates`, `roster` — core scheduling data
+- `workers`, `worker_availability`, `shift_templates`, `roster` — core scheduling data. `roster` has the unique index `roster_account_slot_key` (account_id, date, worker_id, template_id) (`20261021000001_roster_unique_slot.sql`; skipped with a WARNING if duplicates already exist)
 - `usage_limits`, `pos_sales`, `subscriptions`, `referrals`, `referral_redemptions`, `shift_messages`
 - `locations` — business locations: country / region / city codes, confirmed `jurisdiction_code` (from `services/labor/jurisdictions.ts`), IANA `time_zone`, `industry`, `employer_headcount`, `locations_count`, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at` (`20261020000001_locations.sql`). Law follows the work location: the jurisdiction is stored here, never per user or device. `overrides` is an array of typed stricter-only limits (`services/labor/overrides.ts`).
 - `location_history` — audit log of `locations` (`20261021000089_location_history.sql`): written only by the `locations_history` trigger (SECURITY DEFINER); `changed_by` = transaction setting `horario.actor` (set by `delete_location()`), else `confirmed_by`. anon / authenticated / service_role cannot insert or update it; tenant RLS SELECT.
@@ -253,6 +253,10 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `services/optimizer/autoAssignClient.ts` | `runAutoAssign`: Web Worker ILP with timeout / cancel, greedy fallback |
 | `services/optimizer/assignmentModel.ts` | ILP model and LP text (HiGHS) for auto-assign |
 | `utils/workerLaborValidation.ts` | Worker labor attributes validation shared by client and proxy |
+| `utils/schedulingValidation.ts` | Worker / availability / template / roster shift / demand override validation shared by client and proxy |
+| `hooks/usePersistedList.ts` | Request-id guarded list load + optimistic write with rollback (used by useWorkers, useShiftTemplates, useRoster) |
+| `services/rosterService.ts` | Proxy calls for workers, availability, templates, roster (`fetch*` page through every page and report errors) |
+| `components/scheduler/SyncNotice.tsx` | Loading / load-error / truncated notice for the scheduler's stored data |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
 | `hooks/useStreak.ts` | Streak counter with AsyncStorage |
 | `hooks/useSessionWellness.ts` | Break-prompt wellness hook |
@@ -263,18 +267,18 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 
 ## 11. Known Technical Debt & Issues
 
-1. `scheduler.tsx` is ~600+ lines — must be split into sub-components/hooks.
-2. Workers, templates, and roster are entirely in-memory; they reset on every reload.
-3. `persistShiftStatus` and `persistShiftNotification` are stubs (just `console.log` + setTimeout).
-4. Home screen data (upcomingShifts, staffingGaps) is hardcoded; no live queries.
+1. `scheduler.tsx` is ~460 lines (logic in `hooks/useSchedulerHandlers.ts`) — still worth splitting further.
+2. ~~Workers, templates, and roster are entirely in-memory~~ — persisted through the proxy and loaded on start (CHG-088). No edit forms yet (hooks expose update).
+3. ~~`persistShiftStatus` / `persistShiftNotification` stubs~~ — gone; `useRoster.setShiftStatus` / `notifyShift` call the proxy (CHG-088).
+4. Home screen data is live (`useLiveRosterSummary`) but uses the deprecated `list*` / `loadDemandTargets` wrappers, so a failed load looks like an empty account.
 5. Form inputs use raw text for dates and times — no date/time picker components.
-6. No authentication — `accountId` and `userId` are hardcoded env vars.
-7. No error boundaries in the component tree.
+6. ~~No authentication~~ — Clerk sessions verified in the API routes (`server/proxyAuth.ts`); the tenant comes from the session, not from env vars.
+7. ~~No error boundaries~~ — `ErrorBoundary` wraps the app in `app/_layout.tsx`.
 8. The `explore.tsx` tab is the default Expo placeholder with no real content.
-9. Sample shift dates are hardcoded to December 2024 (past dates).
-10. No rate limiting or authentication validation on the secure proxy.
+9. ~~Sample shift dates hardcoded to December 2024~~ — no sample data in production code; the tour seeds sample rows only after workers loaded empty without error (CHG-088). Tests still use 2024 dates.
+10. No rate limiting on the secure proxy (authentication is enforced, see #6).
 11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else the device zone (CHG-082). The scheduler's auto-assign only has a location when the account has exactly one (no location picker yet). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
-12. The `shifts` table in Supabase is for historical data only; the live roster is never persisted.
+12. The live roster is persisted in `roster` (CHG-088), but it is never written to the `shifts` history table, so forecasting does not learn from it.
 
 ---
 

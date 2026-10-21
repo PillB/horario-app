@@ -18,6 +18,7 @@ import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { TemplateIdPicker } from './TemplateIdPicker';
+import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -39,6 +40,9 @@ type TemplateFormState = {
 
 type Props = {
   shiftTemplates: ShiftTemplate[];
+  /** False until the stored templates have loaded: the empty state waits for it. */
+  templatesLoaded?: boolean;
+  onRemoveTemplate?: (templateId: string) => void;
   templateForm: TemplateFormState;
   updateTemplateField: (key: keyof TemplateFormState) => (value: string) => void;
   handleAddTemplate: () => void;
@@ -119,10 +123,16 @@ const makeLocalStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
     ghostBar: {
       backgroundColor: colors.border,
     },
+    templateActions: {
+      alignItems: 'flex-end',
+      gap: 6,
+    },
   });
 
 export const ShiftTemplateSection = ({
   shiftTemplates,
+  templatesLoaded = true,
+  onRemoveTemplate,
   templateForm,
   updateTemplateField,
   handleAddTemplate,
@@ -177,12 +187,22 @@ export const ShiftTemplateSection = ({
                   {template.role} • {template.start} - {template.end}
                 </ThemedText>
               </View>
-              <ThemedText style={styles.badgeText}>
-                {t('scheduler.templates.needed', { n: String(template.coverage) })}
-              </ThemedText>
+              <View style={local.templateActions}>
+                <ThemedText style={styles.badgeText}>
+                  {t('scheduler.templates.needed', { n: String(template.coverage) })}
+                </ThemedText>
+                {onRemoveTemplate ? (
+                  <ConfirmRemoveButton
+                    onConfirm={() => onRemoveTemplate(template.id)}
+                    accessibilityLabel={t('scheduler.remove.templateA11y', { name: template.name })}
+                    accessibilityHint={t('scheduler.remove.templateHint')}
+                    testID={`remove-template-${template.id}`}
+                  />
+                ) : null}
+              </View>
             </View>
           ))}
-          {shiftTemplates.length === 0 && (
+          {templatesLoaded && shiftTemplates.length === 0 && (
             <View>
               {/* Ghost preview — shows what shift templates look like populated */}
               <View style={styles.ghostContainer} accessibilityElementsHidden>
