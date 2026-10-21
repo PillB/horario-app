@@ -97,15 +97,15 @@ describe('useRoster', () => {
     expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2, sent.id]);
   });
 
-  it('refuses a notified draft before sending it', async () => {
+  it('saves a new shift un-notified, even when the caller sends notified (CHG-091)', async () => {
     const fetchMock = proxy();
     const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
     let result!: Awaited<ReturnType<Hook['addShift']>>;
     await act(async () => {
       result = await hook.result.addShift({ date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: true });
     });
-    expect(result.success).toBe(false);
-    expect(callsOf(fetchMock, 'upsertRosterShift')).toHaveLength(0);
+    expect(result.success).toBe(true);
+    expect((callsOf(fetchMock, 'upsertRosterShift')[0].shift as { notified: boolean }).notified).toBe(false);
   });
 
   it('publishes optimistically (clearing notified) and keeps the stored shift', async () => {

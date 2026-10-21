@@ -63,13 +63,38 @@ const fail = (status: number, error: string): Result => ({ status, body: { error
 const badRequest = (error: string) => fail(400, error);
 const notFound = () => fail(404, 'Not found');
 
-/** Deletes and billing changes need a personal account or an org admin. */
-const MANAGER_ACTIONS = new Set([
+/**
+ * Every scheduling write is manager-only (CHG-091, QA G1). Before, an org
+ * member could create workers, opt a worker out of the weekly limit (in the
+ * EU that must be the worker's own written consent), publish rosters and mark
+ * them notified. Members keep every read. Reversible: drop an action from
+ * this set to open it to members again.
+ */
+const SCHEDULING_WRITE_ACTIONS = new Set([
+  'upsertWorker', // includes the labor attributes (birth date, night worker, weekly-limit opt-out, no fixed hours)
   'deleteWorker',
+  'upsertAvailability',
   'deleteAvailability',
+  'upsertShiftTemplate',
   'deleteShiftTemplate',
+  'upsertRosterShift',
+  'updateShiftStatus',
+  'markShiftNotified',
   'deleteRosterShift',
+  'upsertTargets',
   'deleteDemandTarget',
+  // POS sales feed the demand forecast.
+  'uploadPosSales',
+]);
+
+/**
+ * Actions that need `canManage` (a personal account, or an admin of the
+ * organization). Open to members: reads, a forecast (which stores model rows
+ * only for a manager), and the member's own per-user data (onboarding, usage
+ * count; referrals live in their own route).
+ */
+const MANAGER_ACTIONS = new Set([
+  ...SCHEDULING_WRITE_ACTIONS,
   // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
   'upsertLocation',
   'deleteLocation',
@@ -360,8 +385,9 @@ async function generateForecast(client: SupabaseClient, ctx: AuthContext, filter
   stored.filter((t) => t.source === 'override').forEach((o) => lookup.set(buildKey(o), o));
   const merged = Array.from(lookup.values());
 
+  // A member may read a forecast; only a manager's request stores the model rows (CHG-091).
   const modelRows = merged.filter((f) => f.source !== 'override').map((f) => toTargetRow(ctx, f, 'model'));
-  if (modelRows.length) {
+  if (modelRows.length && ctx.canManage) {
     const { error } = await client.from('demand_targets').upsert(modelRows, { onConflict: 'account_id,date,role' });
     if (error) console.warn('[secure-proxy] unable to persist demand targets:', error.message);
   }
@@ -833,10 +859,18 @@ async function listRoster(client: SupabaseClient, ctx: AuthContext, p: Record<st
   return ok({ ...meta, shifts: rows.map(rowToRosterShift) });
 }
 
+/**
+ * `notified` is never taken from the client (CHG-091, QA G4); only
+ * markShiftNotified sets it. A new shift is stored un-notified. An update
+ * keeps the stored value, and clears it when the date, worker, template or
+ * status changes: that assignment has not been sent (a status change clears
+ * it in updateShiftStatus too). The update matches the values it was decided
+ * on, so a change made in between gives 409 instead of keeping a stale flag.
+ */
 async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
   const checked = validateRosterShiftInput(shift);
   if (!checked.ok) return badRequest(checked.error);
-  const { id, date, workerId, templateId, location, status, notified } = checked.value;
+  const { id, date, workerId, templateId, location, status } = checked.value;
 
   const [ownsWorker, ownsTemplate] = await Promise.all([
     ownsAll(client, 'workers', ctx, [workerId]),
@@ -845,11 +879,33 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   if (ownsWorker !== true) return ownsWorker === false ? notFound() : ownsWorker;
   if (ownsTemplate !== true) return ownsTemplate === false ? notFound() : ownsTemplate;
 
-  const result = await updateOrInsert<RosterRow>(
-    client, 'roster', ctx, id,
-    { date, worker_id: workerId, template_id: templateId, location, status, notified },
-    ROSTER_COLUMNS,
-  );
+  const values = { date, worker_id: workerId, template_id: templateId, location, status };
+  if (id !== undefined) {
+    const existing = await ownRosterRow(client, ctx, id);
+    if (isResult(existing)) return existing;
+    if (existing) {
+      const reassigned =
+        existing.date !== date || existing.worker_id !== workerId || existing.template_id !== templateId || existing.status !== status;
+      const { data, error } = await client
+        .from('roster')
+        .update(reassigned ? { ...values, notified: false } : values)
+        .eq('id', id)
+        .eq('account_id', ctx.accountId)
+        .eq('date', existing.date)
+        .eq('worker_id', existing.worker_id)
+        .eq('template_id', existing.template_id)
+        .eq('status', existing.status)
+        .select(ROSTER_COLUMNS)
+        .maybeSingle();
+      if (error) return dbFailure('update roster', error);
+      if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
+      return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+    }
+  }
+
+  // New shift (or a client id with no row of this tenant): never notified.
+  // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
+  const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
 }
 
@@ -1287,7 +1343,14 @@ export async function POST(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.ok) return respond(fail(auth.status, auth.error));
   if (MANAGER_ACTIONS.has(payload.action) && !auth.ctx.canManage) {
-    return respond(fail(403, 'Only an admin of this business can do this'));
+    return respond(
+      fail(
+        403,
+        SCHEDULING_WRITE_ACTIONS.has(payload.action)
+          ? 'Only an admin of this business can change the schedule. Ask an admin to make this change'
+          : 'Only an admin of this business can do this',
+      ),
+    );
   }
 
   const client = getServiceClient();

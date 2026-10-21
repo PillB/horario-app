@@ -104,6 +104,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Personalized feed | Working | In-memory ranking, no server |
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
+| Permissions (manager vs member) | Working | `canManage` = personal account, or org role `admin` / `org:admin`. Manager-only (`MANAGER_ACTIONS` in `app/api/secure-proxy+api.ts`, 403 for a member): every scheduling write (workers incl. labor attributes, availability, templates, roster upsert / status / notify / delete, demand overrides, POS upload), locations, billing. Members: every read, `forecast` (model rows stored only for a manager), their own onboarding and usage count. The client has no role signal, so write controls stay visible and the 403 text shows in the banner / form error — added 2026-10-21 (CHG-091). Reversible decision |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
 | Shift optimization algorithm | Working (web) / Partial (native) | Web: exact ILP (`services/optimizer/`, HiGHS 1.15 WASM, single-threaded) in a Web Worker, lexicographic coverage → fairness → continuity, 2 s budget, compared with the greedy and never worse; falls back to the greedy on no Worker / WASM failure / timeout (CHG-085). Native: greedy + 2-opt only (`services/shiftAssigner.ts`, no WebAssembly in Hermes). Both overnight-aware, IANA time zone, elapsed-time hours and rest, every shortfall reported with a reason — added 2026-10-20 (CHG-085). Not run in a real browser yet |
 | Analytics screen | Missing | explore.tsx is placeholder |
@@ -124,10 +125,10 @@ Location setup (components/locations/LocationSetupCard.tsx)
 - `external_signals` — demand boost signals (date, role, signal_type, weight)
 - `demand_targets` — model/override demand forecasts (date, role, required, source, …)
 - `onboarding_progress` — account-level onboarding flags
-- `workers`, `worker_availability`, `shift_templates`, `roster` — core scheduling data. `roster` has the unique index `roster_account_slot_key` (account_id, date, worker_id, template_id) (`20261021000001_roster_unique_slot.sql`; skipped with a WARNING if duplicates already exist)
+- `workers`, `worker_availability`, `shift_templates`, `roster` — core scheduling data. `roster` has the unique index `roster_account_slot_key` (account_id, date, worker_id, template_id) (`20261021000001_roster_unique_slot.sql`; required since `20261021000091_audit_and_slot_guards.sql`: `private.ensure_roster_slot_key()` creates it, or raises so the push fails when duplicates exist). `upsertRosterShift` ignores a client `notified`: new shifts are stored false, an edit keeps the stored value and clears it when date, worker, template or status change (CHG-091)
 - `usage_limits`, `pos_sales`, `subscriptions`, `referrals`, `referral_redemptions`, `shift_messages`
 - `locations` — business locations: country / region / city codes, confirmed `jurisdiction_code` (from `services/labor/jurisdictions.ts`), IANA `time_zone`, `industry`, `employer_headcount`, `locations_count`, `detected_hint`, `overrides`, `confirmed_by` / `confirmed_at` (`20261020000001_locations.sql`). Law follows the work location: the jurisdiction is stored here, never per user or device. `overrides` is an array of typed stricter-only limits (`services/labor/overrides.ts`).
-- `location_history` — audit log of `locations` (`20261021000089_location_history.sql`): written only by the `locations_history` trigger (SECURITY DEFINER); `changed_by` = transaction setting `horario.actor` (set by `delete_location()`), else `confirmed_by`. anon / authenticated / service_role cannot insert or update it; tenant RLS SELECT.
+- `location_history` — audit log of `locations` (`20261021000089_location_history.sql`): written only by the `locations_history` trigger (SECURITY DEFINER); `changed_by` = transaction setting `horario.actor` (set by `delete_location()`), else `confirmed_by`. anon / authenticated / service_role cannot insert, update or delete it (DELETE revoked from service_role in `20261021000091`); rows go only through `purge_location_history(p_older_than)` (SECURITY DEFINER, service_role only, age ≥ 2 years); tenant RLS SELECT.
 
 ### Tables that need to be created:
 - `accounts` — tenant accounts (today the tenant is the Clerk org / user id)
@@ -158,6 +159,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 ### Security
 - **Service-role key NEVER leaves the server** (`app/api/secure-proxy/route.ts`).
 - All write operations to Supabase must go through the secure proxy.
+- A new proxy write action that changes scheduling data goes in `SCHEDULING_WRITE_ACTIONS` (manager-only); `server/__tests__/memberPermissions.test.ts` fails until every dispatch case is classified.
 - Validate all user inputs on both client and server.
 - Never store secrets in `EXPO_PUBLIC_*` env vars.
 - Sanitize all form data before constructing Supabase queries.
@@ -254,7 +256,7 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `services/optimizer/assignmentModel.ts` | ILP model and LP text (HiGHS) for auto-assign |
 | `utils/workerLaborValidation.ts` | Worker labor attributes validation shared by client and proxy |
 | `utils/schedulingValidation.ts` | Worker / availability / template / roster shift / demand override validation shared by client and proxy |
-| `hooks/usePersistedList.ts` | Request-id guarded list load + optimistic write with rollback (used by useWorkers, useShiftTemplates, useRoster) |
+| `hooks/usePersistedList.ts` | Request-id guarded list load + optimistic write with rollback (used by useWorkers, useShiftTemplates, useRoster); a write rolls back / reconciles only while its item is still what it applied, else reloads; its outcome is dropped after a tenant switch (CHG-091) |
 | `services/rosterService.ts` | Proxy calls for workers, availability, templates, roster (`fetch*` page through every page and report errors) |
 | `components/scheduler/SyncNotice.tsx` | Loading / load-error / truncated notice for the scheduler's stored data |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |

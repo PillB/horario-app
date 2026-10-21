@@ -5,7 +5,7 @@
 -- directly, not even the service role.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(29);
 
 -- ── Fixtures (as the table owner) ────────────────────────────────────────────
 insert into public.locations (id, account_id, name, country_code, jurisdiction_code, time_zone, industry, employer_headcount, confirmed_by) values
@@ -81,6 +81,29 @@ select results_eq(
   'a delete records the old values and who deleted it');
 select is(current_setting('horario.actor', true), '', 'delete_location clears the actor afterwards');
 select throws_ok($$insert into public.location_history (account_id, location_id, location_name, action) values ('hist_a', gen_random_uuid(), 'X', 'rename')$$, '23514', null, 'unknown action rejected');
+
+-- ── Nobody erases history; purging takes an age of at least 2 years (CHG-091) ─
+insert into public.location_history (account_id, location_id, location_name, action, changed_at) values
+  ('hist_old', '00000000-0000-0000-0000-00000000ab09', 'Three years ago', 'insert', now() - interval '3 years'),
+  ('hist_old', '00000000-0000-0000-0000-00000000ab09', 'One year ago', 'update', now() - interval '1 year');
+
+set local role service_role;
+select throws_ok($$delete from public.location_history where account_id = 'hist_a'$$, '42501', null, 'the service role cannot delete history rows');
+select throws_ok($$select public.purge_location_history(interval '1 year')$$, '22023', null, 'a purge younger than 2 years is refused');
+select throws_ok($$select public.purge_location_history(interval '729 days')$$, '22023', null, 'a purge of 729 days is refused');
+select throws_ok($$select public.purge_location_history(null)$$, '22023', null, 'a purge without an age is refused');
+select ok(public.purge_location_history(interval '2 years') >= 1, 'the service role purges rows older than 2 years');
+reset role;
+select is_empty($$select 1 from public.location_history where location_name = 'Three years ago'$$, 'the 3-year-old row was purged');
+select results_eq($$select location_name from public.location_history where account_id = 'hist_old'$$, $$values ('One year ago'::text)$$, 'the 1-year-old row is kept');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"hist_a","role":"authenticated"}';
+select throws_ok($$select public.purge_location_history(interval '5 years')$$, '42501', null, 'signed-in users cannot purge history');
+reset role;
+set local role anon;
+select throws_ok($$select public.purge_location_history(interval '5 years')$$, '42501', null, 'anon cannot purge history');
+reset role;
 
 select * from finish();
 rollback;

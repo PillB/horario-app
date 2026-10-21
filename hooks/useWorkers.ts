@@ -100,6 +100,7 @@ export const useWorkers = (accountId: string) => {
       const input = { ...checked.value, id: checked.value.id as string, accountId };
       const optimistic = toStoredWorker(input, []);
       const result = await write({
+        id: input.id,
         apply: (prev) => [...prev, optimistic],
         commit: () => upsertWorker(input),
         rollback: (prev) => removeById(prev, input.id),
@@ -121,6 +122,7 @@ export const useWorkers = (accountId: string) => {
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id, accountId };
       const result = await write({
+        id,
         apply: (prev) => prev.map((w) => (w.id === id ? { ...w, ...checked.value, id } : w)),
         commit: () => upsertWorker(input),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
@@ -139,6 +141,7 @@ export const useWorkers = (accountId: string) => {
       if (index === -1) return { success: false, error: 'Worker not found' };
       const previous = items[index];
       const result = await write({
+        id,
         apply: (prev) => removeById(prev, id),
         commit: () => deleteWorker(id),
         rollback: (prev) => restoreAt(prev, previous, index),
@@ -155,6 +158,7 @@ export const useWorkers = (accountId: string) => {
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id: checked.value.id as string, accountId };
       const result = await write({
+        id: workerId,
         apply: (prev) => withSlots(prev, workerId, (slots) => [...slots, { id: input.id, day, from, to }]),
         commit: () => upsertAvailability(input),
         rollback: (prev) => withSlots(prev, workerId, (slots) => slots.filter((s) => s.id !== input.id)),
@@ -177,6 +181,7 @@ export const useWorkers = (accountId: string) => {
       if (!worker || index === -1) return { success: false, error: 'Availability not found' };
       const previous = worker.availability[index];
       const result = await write({
+        id: workerId,
         apply: (prev) => withSlots(prev, workerId, (slots) => slots.filter((s) => s.id !== slotId)),
         commit: () => deleteAvailability(slotId),
         rollback: (prev) =>

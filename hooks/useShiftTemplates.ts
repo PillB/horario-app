@@ -49,6 +49,7 @@ export const useShiftTemplates = (accountId: string) => {
       const index = items.findIndex((t) => t.id === id);
       const previous = index === -1 ? null : items[index];
       const result = await write({
+        id,
         apply: (prev) => upsertById(prev, dbToTemplate(input)),
         commit: () => upsertShiftTemplate(input),
         rollback: (prev) => (previous ? prev.map((t) => (t.id === id ? previous : t)) : removeById(prev, id)),
@@ -80,6 +81,7 @@ export const useShiftTemplates = (accountId: string) => {
       if (index === -1) return { success: false, error: 'Template not found' };
       const previous = items[index];
       const result = await write({
+        id,
         apply: (prev) => removeById(prev, id),
         commit: () => deleteShiftTemplate(id),
         rollback: (prev) => restoreAt(prev, previous, index),

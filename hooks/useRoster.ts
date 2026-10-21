@@ -48,12 +48,14 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
   const list = usePersistedList<Shift>(`${accountId}|${filtersKey}`, load);
   const { items, write } = list;
 
+  /** A new shift is never notified (the server stores false whatever is sent, CHG-091). */
   const addShift = useCallback(
     async (shift: Omit<Shift, 'id'>): Promise<UpsertRosterShiftResult> => {
-      const checked = validateRosterShiftInput({ ...shift, id: newUuid() });
+      const checked = validateRosterShiftInput({ ...shift, notified: false, id: newUuid() });
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id: checked.value.id as string, accountId };
       const result = await write({
+        id: input.id,
         apply: (prev) => [...prev, dbToShift(input)],
         commit: () => upsertRosterShift(input),
         rollback: (prev) => removeById(prev, input.id),
@@ -66,15 +68,27 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     [accountId, write],
   );
 
-  /** Saves new values (date, worker, template, location, status, notified) for an existing shift. */
+  /**
+   * Saves new values (date, worker, template, location, status) for an
+   * existing shift. `notified` follows the server's rule (CHG-091): a
+   * `notified` in `changes` is ignored; the stored value is kept, and cleared
+   * when the date, worker, template or status changes. Use notifyShift to set it.
+   */
   const updateShift = useCallback(
     async (id: string, changes: RosterShiftChanges): Promise<UpsertRosterShiftResult> => {
       const previous = items.find((s) => s.id === id);
       if (!previous) return { success: false, error: 'Shift not found' };
-      const checked = validateRosterShiftInput({ ...previous, ...changes, id });
+      const next = { ...previous, ...changes };
+      const reassigned =
+        next.date !== previous.date ||
+        next.workerId !== previous.workerId ||
+        next.templateId !== previous.templateId ||
+        next.status !== previous.status;
+      const checked = validateRosterShiftInput({ ...next, notified: previous.notified && !reassigned, id });
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id, accountId };
       const result = await write({
+        id,
         apply: (prev) => prev.map((s) => (s.id === id ? dbToShift(input) : s)),
         commit: () => upsertRosterShift(input),
         rollback: (prev) => prev.map((s) => (s.id === id ? previous : s)),
@@ -92,6 +106,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const previous = items.find((s) => s.id === id);
       if (!previous) return { success: false, error: 'Shift not found' };
       const result = await write({
+        id,
         apply: (prev) => prev.map((s) => (s.id === id && s.status !== status ? { ...s, status, notified: false } : s)),
         commit: () => updateShiftStatus(id, status),
         rollback: (prev) => prev.map((s) => (s.id === id ? previous : s)),
@@ -110,6 +125,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const previous = items.find((s) => s.id === id);
       if (!previous) return { success: false, error: 'Shift not found' };
       const result = await write({
+        id,
         apply: (prev) => prev.map((s) => (s.id === id ? { ...s, notified: true } : s)),
         commit: () => markShiftNotified(id),
         rollback: (prev) => prev.map((s) => (s.id === id ? previous : s)),
@@ -128,6 +144,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       if (index === -1) return { success: false, error: 'Shift not found' };
       const previous = items[index];
       const result = await write({
+        id,
         apply: (prev) => removeById(prev, id),
         commit: () => deleteRosterShift(id),
         rollback: (prev) => restoreAt(prev, previous, index),
