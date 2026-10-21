@@ -12,6 +12,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { HISTORY_GAP_NOTICE_DAYS, type DemandForecast, type ForecastNotices } from '@/services/demandForecast';
 import { type ForecastModelName } from '@/services/forecasting/models';
 import { type RoleModelSummary } from '@/services/forecasting/statisticalForecast';
+import { normaliseDateInput } from '@/utils/dateKeys';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
@@ -356,23 +357,6 @@ export const DemandSection = ({
     return isFinite(n) ? n : null;
   }, []);
 
-  const normaliseDateFn = useCallback((raw: string): string | null => {
-    const s = raw.trim();
-    if (!s) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      const d = new Date(s + 'T00:00:00');
-      return isNaN(d.getTime()) ? null : s;
-    }
-    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (mdy) {
-      const [, m, d, y] = mdy;
-      const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      const dt = new Date(iso + 'T00:00:00');
-      return isNaN(dt.getTime()) ? null : iso;
-    }
-    return null;
-  }, []);
-
   const parsePosPreview = useCallback((text: string): { rows: { date: string; revenue: number; covers: number | null; notes: string | null }[]; errors: string[] } => {
     const rawLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     const lines = rawLines.filter(l => l.trim() !== '');
@@ -389,7 +373,8 @@ export const DemandSection = ({
     const errors: string[] = [];
     for (let i = 0; i < dataLines.length; i++) {
       const cells = splitCsvLine(dataLines[i]);
-      const normDate = normaliseDateFn((cells[dateIdx] ?? '').trim());
+      // Real calendar days only: 2026-02-31 is rejected, not rolled over (CHG-089).
+      const normDate = normaliseDateInput((cells[dateIdx] ?? '').trim());
       if (!normDate) { errors.push(`Row ${i + 1}: invalid date`); continue; }
       const revenue = parseRevenueFn((cells[revenueIdx] ?? '').trim());
       if (revenue === null || revenue < 0) { errors.push(`Row ${i + 1}: invalid revenue`); continue; }
@@ -398,7 +383,7 @@ export const DemandSection = ({
       rows.push({ date: normDate, revenue, covers, notes });
     }
     return { rows, errors };
-  }, [splitCsvLine, normaliseDateFn, parseRevenueFn]);
+  }, [splitCsvLine, parseRevenueFn]);
 
   const handlePosPreview = useCallback(() => {
     const { rows, errors } = parsePosPreview(pasteText);

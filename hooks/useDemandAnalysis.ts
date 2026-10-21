@@ -93,10 +93,13 @@ const WEEKDAY_PREMIUM_MULTIPLIERS: Record<number, number> = {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function parseIsoDate(dateStr: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return isNaN(d.getTime()) ? null : d;
+/**
+ * UTC midnight of a real 'YYYY-MM-DD' day, else null (2026-02-31 is refused, not
+ * rolled over to March) (CHG-089). Exported for tests.
+ */
+export function parseIsoDate(dateStr: string): Date | null {
+  if (typeof dateStr !== 'string' || !isDateKey(dateStr)) return null;
+  return new Date(`${dateStr}T00:00:00Z`);
 }
 
 function utcWeekday(dateStr: string): number | null {

@@ -7,6 +7,7 @@
  * No external ML libraries — all algorithms implemented from scratch.
  * All functions are pure (no I/O, no side effects).
  */
+import { isDateKey } from '@/utils/dateKeys';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,13 +50,12 @@ export type DemandRecommendation = {
 
 /**
  * Parse an ISO-8601 date string ("YYYY-MM-DD") into a UTC midnight Date.
- * Returns null for invalid strings.
+ * Returns null for invalid strings, including days that do not exist
+ * (2026-02-31: `Date` would roll it over to March) (CHG-089).
  */
 function parseDate(dateStr: string): Date | null {
-  // Validate basic format before constructing Date to avoid NaN surprises
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return isNaN(d.getTime()) ? null : d;
+  if (typeof dateStr !== 'string' || !isDateKey(dateStr)) return null;
+  return new Date(`${dateStr}T00:00:00Z`);
 }
 
 /**
@@ -194,7 +194,7 @@ export function computeTrend(sales: PosSalesRow[]): TrendResult {
   if (sales.length === 0) return { ...FLAT_RESULT };
 
   // Build (x, y) pairs, skipping invalid dates
-  const points: Array<{ x: number; y: number }> = [];
+  const points: { x: number; y: number }[] = [];
   for (const row of sales) {
     const d = parseDate(row.date);
     if (d === null) continue;
@@ -373,7 +373,7 @@ const EFFICIENCY_DEVIATION_THRESHOLD = 0.2;
  * @returns Array of DemandRecommendation, one per item in baseForecast.
  */
 export function applyForecastEnhancements(
-  baseForecast: Array<{ date: string; role: string; required: number }>,
+  baseForecast: { date: string; role: string; required: number }[],
   sales: PosSalesRow[],
   scheduledHoursByDate: Record<string, number>
 ): DemandRecommendation[] {

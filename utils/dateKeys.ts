@@ -63,6 +63,24 @@ export const isDateKey = (key: string): boolean => {
 };
 
 /**
+ * A date typed or uploaded by a user (POS / demand CSV rows) as a date key:
+ * "YYYY-MM-DD" or US "M/D/YYYY". Days that do not exist (2026-02-31,
+ * 2/30/2026) return null instead of rolling over to the next month (CHG-089).
+ */
+export const normaliseDateInput = (raw: string): string | null => {
+  const s = raw.trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return isDateKey(s) ? s : null;
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) {
+    const [, m, d, y] = mdy;
+    const key = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    return isDateKey(key) ? key : null;
+  }
+  return null;
+};
+
+/**
  * Returns the calendar date (YYYY-MM-DD) of the instant `date` as seen in the
  * IANA `timeZone` (e.g. "America/Lima"). When `timeZone` is omitted the
  * device's local zone is used.

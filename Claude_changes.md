@@ -6,6 +6,55 @@
 
 ---
 
+### CHG-089 — 2026-10-21 UTC
+**Type:** FIX + FEATURE (open items from CHG-083 / CHG-087: labor DST gap, location change history, stricter-only overrides, client date validation)
+
+1. **Labor engine, DST gap** (`utils/zonedTime.ts`).
+   - Root cause: `zonedShiftSpan` (used by `hooks/useCompliance.ts` and the labor tests) read both ends with `zonedToUtc`, so 02:00–03:00 New York on 2026-03-08 became 07:00Z–07:00Z. The engine's `validShifts` saw end ≤ start and reported `input.invalid`, while auto-assign (CHG-087 `zonedSpan`) treated the same shift as 03:00–04:00 EDT.
+   - Fix: the same rule in `zonedShiftSpan`: when the elapsed span comes out ≤ 0, it moves to after the gap with its wall-clock length. Spans ending after the gap keep their elapsed length. The engine itself was not changed for this.
+   - Test `hooks/__tests__/complianceDstGap.test.ts` (12): `zonedShiftSpan` equals the assigner's `zonedSpan` on gap, partial-gap, overnight and fall-back cases (New York, Madrid, Sydney); the engine and `evaluateCompliance` give no `input.invalid`; a Madrid gap shift then a 15:00 start gives an 11 h rest finding. 7 of the tests fail without the fix. QA's golden tests are unchanged and pass.
+2. **Location change history** (`supabase/migrations/20261021000089_location_history.sql`).
+   - Design: an AFTER INSERT / UPDATE / DELETE trigger on `locations` (`private.record_location_history`, SECURITY DEFINER) writes `location_history` in the same transaction. A trigger is more robust than a proxy write: no path (proxy, migration, SQL console) can change a location without a row, and a failed history insert rolls the change back. Each row has account, location id and name, action, `changed_by`, `changed_at`, and old / new jurisdiction, time zone, industry, headcount and overrides. There is no FK, so the history outlives a delete. Every upsert records a row, including no-op ones.
+   - Who: the service-role connection cannot see the Clerk user. `changed_by` = the transaction setting `horario.actor` when set, else `confirmed_by`, which the proxy sets to the session user on every upsert. `deleteLocation` now calls `public.delete_location(p_account_id, p_location_id, p_actor)` (service_role only). The function sets `horario.actor` locally, deletes by id AND account, returns whether a row went, and clears the setting. A delete outside the proxy records `changed_by = null` ("a change outside the app").
+   - Writes: anon and authenticated have no write grants. **service_role also loses INSERT / UPDATE** (it keeps SELECT and DELETE for retention), so even the proxy cannot forge or edit history. Reads: tenant RLS (`account_id = private.current_account_id()`), anon nothing. The migration is idempotent (re-run with psql). It was applied with `supabase migration up --local`, with no reset.
+   - Proxy: new `listLocationHistory` action (members may read; optional `locationId` UUID, `limit` 1–200, default 50, newest first, account-scoped). `LocationHistoryEntry` type lives in `utils/locationValidation.ts`, and `listLocationHistory()` in `services/locationService.ts`.
+   - UI: `components/locations/LocationHistoryList.tsx`, behind a "Show change history" toggle in the Profile `LocationsManager`. It loads only when opened and reloads after a delete. It is read-only (no controls in the list). Each row shows date and time, location, who, and per-field "old → new" (only changed fields; jurisdiction names, industry labels and overrides in words). Locale keys `locations.history.*` are in all 9 files; `es` is translated, and de, fr, hi, it, sw, tl and zh use English.
+   - pgTAP: new file `supabase/tests/database/location_history.test.sql`, plan(20). It is a separate file so the plan count of `tenant_isolation.test.sql` (also edited by the persistence work) does not conflict. It covers insert / update / delete rows with values and actor, `horario.actor`, anon / A / org-B visibility, no direct writes by authenticated or service_role, `delete_location` grants and tenant scoping, and the action check.
+   - Integration: new `server/__tests__/locationHistory.integration.test.ts` (3). `test:integration` now runs `server/__tests__/.*\.integration\.test\.ts`.
+3. **Overrides only stricter** (`services/labor/overrides.ts`, `types.ts` `LocationOverride`, `dated.ts`).
+   - Schema (max 20, no extra keys, optional `note` ≤ 200):
+     - `rest.minHours` (0 < v ≤ 24)
+     - `daily.maxHours` (0 < v ≤ 24)
+     - `weekly.maxHours` (0 < v ≤ 168)
+     - `breaks.minMinutes` (whole minutes 1–480, plus `afterHours` 0 ≤ a < 24; one per `afterHours`)
+     - Other rules appear once at most.
+   - Stricter means tighter than the resolved pack value for the jurisdiction on the location's local today:
+     - rest: `restBetweenShifts.minHours`;
+     - daily: the lower of `dailyTotalMax` and a `dailyOrdinaryMax` whose excess is a violation, where shift-kind limits take the strictest kind;
+     - weekly: `weeklyMax`;
+     - breaks: what the triggers require just over `afterHours`.
+     - No pack rule: any value is stricter. An equal value counts only when the pack's rule is a warning (it becomes a hard limit).
+   - Failure: `OVERRIDE_NOT_STRICTER`, 400 from the proxy, for example "overrides[0]: a minimum rest of 10 h between shifts is not stricter than the law in Spain on 2026-10-21, which sets a minimum rest of 12 h between shifts. A location override can only make a rule stricter." Untyped objects, which were accepted before, now give `OVERRIDES_INVALID`. An update that leaves `overrides` out but changes the jurisdiction re-checks the stored ones against the new pack (400 "The saved overrides do not fit the new jurisdiction: … Send overrides with this change.").
+   - Engine: `EvaluationContext.overrides`. `evaluateShifts` uses `applyOverrides(resolvePack(…), ctx.overrides)`; this one line is the only logic change in `engine.ts`. `resolveDated` moved to `dated.ts` and is re-exported, so there is no import cycle.
+   - `applyOverrides` is stricter-wins on every date. Rest uses `max` over dated values; daily and weekly replace the cap only when lower; breaks add a trigger. A laxer stored override changes nothing. An applied override is a violation, and its cite reads "Location override (note); stricter than <legal source>".
+     - Rest drops Ontario's pair exemption: the business limit applies to every pair.
+     - A break override turns the whole break rule into a violation, including legal triggers that were warnings (MX, CL, EU, GENERIC).
+   - Wiring: `legalConstraintsFor(jurisdiction, date, overrides?)`, so rest, daily and weekly overrides become assigner constraints (breaks are not an assigner constraint). `AutoAssignLocation.overrides` goes through `autoAssignSettings` (`parseStoredOverrides`, which drops invalid entries), and `useCompliance` passes `parseStoredOverrides(location.overrides)`.
+   - Tests: `services/labor/__tests__/overrides.test.ts` (34) and `hooks/__tests__/locationOverridesWiring.test.ts` (3); `locationsProxy.test.ts` +5; `locationValidation.test.ts` +1 (the old untyped override case now expects `OVERRIDES_INVALID`). Without the engine line, 5 engine / wiring tests fail.
+4. **Client-side dates.**
+   - Root cause: bare `^\d{4}-\d{2}-\d{2}$` regexes plus `new Date(…)`, which rolls 2026-02-31 over to 2026-03-03.
+   - `services/forecastEngine.ts` `parseDate` and `hooks/useDemandAnalysis.ts` `parseIsoDate` (now exported for tests) use `isDateKey`. `hooks/useAvailabilityGrid.ts` `addException` refuses an impossible date.
+   - New `normaliseDateInput` in `utils/dateKeys.ts` ("YYYY-MM-DD" or "M/D/YYYY", checked with `isDateKey`) replaces the copies in `PosUploadSection` (whose unreachable DD/MM branch is removed; `parseCsv` is exported for tests) and `DemandSection`'s POS preview.
+   - `utils/schedulerUtils.isValidDate` and `utils/workerLaborValidation.isRealDateKey` already round-trip, so they were left as they are.
+   - Test `components/__tests__/clientDateValidation.test.tsx` (12): the parser, the POS CSV, the DemandSection paste preview, `computeSeasonality` / `computeTrend`, `parseIsoDate` and `addException`. 11 fail with the regex-only checks.
+
+**Tests:** jest 912 passed, 17 skipped (78 suites; the 17 skipped are the two DB suites), also under TZ=Asia/Tokyo and TZ=America/Lima (full suite). Integration against local Supabase: 17/17 (14 + 3). pgTAP: 77/77 (57 + 20). tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not changed / follow-ups:**
+- There is no override editor in the UI; overrides arrive only through the API.
+- `zonedToUtc` resolves a gap time with the offset 6 h before the naive instant. For zones at UTC+6 or more (Sydney), that is already the post-gap offset, so 02:30 on Sydney's spring-forward day resolves to 01:30 AEST (before the gap), not after it as documented. Both engines share it, so they still agree. It was found while testing and not fixed.
+- History rows are kept forever (no retention job). `changed_by` is a Clerk user id; the UI shows it raw.
+
 ### CHG-087 — 2026-10-20 UTC
 **Type:** FIX (QA red team of step 3b, findings F1–F6: `/mnt/project-files/qa/redteam-step3b-2026-10-20.md`)
 

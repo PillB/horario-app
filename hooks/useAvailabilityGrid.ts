@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { log } from '@/services/logger';
 import type { DayOfWeek } from '@/services/rosterService';
+import { isDateKey } from '@/utils/dateKeys';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -297,9 +298,9 @@ export const useAvailabilityGrid = (workerId: string) => {
    */
   const addException = useCallback(
     async (date: string, reason: string): Promise<void> => {
-      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!isoDateRegex.test(date)) {
-        log.warn('UI', 'addException: invalid date format (expected YYYY-MM-DD)', {
+      // A real calendar day: 2026-02-31 is refused (CHG-089).
+      if (typeof date !== 'string' || !isDateKey(date)) {
+        log.warn('UI', 'addException: invalid date (expected a real YYYY-MM-DD day)', {
           date,
         });
         return;
