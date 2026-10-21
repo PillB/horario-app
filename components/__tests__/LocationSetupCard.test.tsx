@@ -252,6 +252,62 @@ describe('LocationsManager', () => {
     expect(exists(tree, 'location-setup-card')).toBe(true);
   });
 
+  it('shows a read-only change history on request (CHG-089)', async () => {
+    const history = [
+      {
+        id: 2, locationId: lima.id, locationName: 'Lima', action: 'update', changedBy: 'user_admin', changedAt: '2026-10-21T15:04:00Z',
+        old: { jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'retail', employerHeadcount: 12, overrides: [] },
+        new: { jurisdictionCode: 'ES', timeZone: 'Europe/Madrid', industry: 'retail', employerHeadcount: 40, overrides: [{ rule: 'rest.minHours', value: 13 }] },
+      },
+      {
+        id: 1, locationId: lima.id, locationName: 'Lima', action: 'insert', changedBy: null, changedAt: '2026-10-20T10:00:00Z',
+        old: null,
+        new: { jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'retail', employerHeadcount: 12, overrides: [] },
+      },
+    ];
+    const calls: string[] = [];
+    jest.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      const body = init?.body ? (JSON.parse(String(init.body)) as { action: string }) : { action: 'geo' };
+      calls.push(body.action);
+      if (body.action === 'listLocations') return new Response(JSON.stringify({ locations: [lima] }), { status: 200 });
+      if (body.action === 'listLocationHistory') return new Response(JSON.stringify({ history }), { status: 200 });
+      return new Response(JSON.stringify(NO_GEO), { status: 200 });
+    });
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<LocationsManager accountId="acc" />);
+    });
+    // Loaded only when asked for.
+    expect(calls).not.toContain('listLocationHistory');
+    expect(exists(tree, 'location-history')).toBe(false);
+    const toggle = tree.root.findAll((n) => n.props.testID === 'location-history-toggle' && typeof n.props.onPress === 'function')[0];
+    expect(toggle.props.accessibilityLabel).toBe('Show change history');
+    expect(toggle.props.accessibilityHint).toBeTruthy();
+    await press(tree, 'location-history-toggle');
+    expect(calls).toContain('listLocationHistory');
+
+    const texts = tree.root
+      .findAll((n) => typeof n.type === 'string' && n.props.testID === undefined)
+      .map((n) => (Array.isArray(n.props.children) ? n.props.children.join('') : n.props.children))
+      .filter((c): c is string => typeof c === 'string');
+    expect(texts).toEqual(expect.arrayContaining([
+      'Changed by user_admin',
+      'Rules: Peru → Spain',
+      'Time zone: America/Lima → Europe/Madrid',
+      'Employees: 12 → 40',
+      'Stricter limits: none → rest at least 13 h',
+      'Added by a change outside the app',
+      'Rules: Peru',
+    ]));
+    // Unchanged fields are not listed for an update; there is no edit control in the list.
+    expect(texts).not.toContain('Industry: Retail → Retail');
+    const historyNode = tree.root.findAll((n) => n.props.testID === 'location-history' && typeof n.type === 'string')[0];
+    expect(historyNode.findAll((n) => typeof n.props.onPress === 'function')).toHaveLength(0);
+
+    await press(tree, 'location-history-toggle');
+    expect(exists(tree, 'location-history')).toBe(false);
+  });
+
   it('does not crash when the proxy refuses (no auth configured)', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ error: 'Authentication is not configured' }), { status: 503 }));

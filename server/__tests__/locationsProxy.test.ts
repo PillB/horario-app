@@ -49,6 +49,11 @@ describe('secure proxy location actions (no database)', () => {
     ['a long name', { ...valid, name: 'x'.repeat(81) }, /name/],
     ['an unknown industry', { ...valid, industry: 'casino' }, /industry/],
     ['a bad country code', { ...valid, countryCode: 'USA' }, /countryCode/],
+    // CHG-089: overrides may only make the rules stricter.
+    ['an override laxer than the law', { ...valid, countryCode: 'ES', regionCode: null, cityCode: null, jurisdictionCode: 'ES', timeZone: 'Europe/Madrid', overrides: [{ rule: 'rest.minHours', value: 10 }] }, /overrides\[0\]: a minimum rest of 10 h between shifts is not stricter than the law in Spain on \d{4}-\d{2}-\d{2}, which sets a minimum rest of 12 h between shifts\. A location override can only make a rule stricter\./],
+    ['an override equal to the law', { ...valid, countryCode: 'FR', regionCode: null, cityCode: null, jurisdictionCode: 'FR', timeZone: 'Europe/Paris', overrides: [{ rule: 'weekly.maxHours', value: 48 }] }, /not stricter/],
+    ['an override of an unknown rule', { ...valid, overrides: [{ rule: 'minWage', value: 20 }] }, /rule must be one of/],
+    ['an untyped override', { ...valid, overrides: [{ note: 'free text' }] }, /rule must be one of/],
   ])('rejects %s with 400', async (_label, location, message) => {
     const res = await call(signToken('user_x'), { action: 'upsertLocation', location });
     expect(res.status).toBe(400);
@@ -59,6 +64,13 @@ describe('secure proxy location actions (no database)', () => {
     const member = signToken('user_m', { claims: { o: { id: 'org_m', rol: 'org:member' } } });
     expect((await call(member, { action: 'deleteLocation', id: '00000000-0000-0000-0000-000000000001' })).status).toBe(403);
     expect((await call(member, { action: 'upsertLocation', location: valid })).status).toBe(403);
+  });
+
+  it('rejects history queries with a bad location id or limit', async () => {
+    for (const body of [{ locationId: 'abc' }, { limit: 0 }, { limit: 201 }, { limit: 1.5 }]) {
+      const res = await call(signToken('user_x'), { action: 'listLocationHistory', ...body });
+      expect(res.status).toBe(400);
+    }
   });
 
   it('rejects a delete without a UUID', async () => {

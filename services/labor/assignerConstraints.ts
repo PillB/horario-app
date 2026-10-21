@@ -6,15 +6,24 @@
  */
 import type { LaborConstraints } from '@/services/shiftAssigner';
 import { resolveDated, resolvePack } from './engine';
-import type { DateKey } from './types';
+import { applyOverrides } from './overrides';
+import type { DateKey, LocationOverride } from './types';
 
 const minDefined = (...values: (number | undefined)[]): number | undefined => {
   const defined = values.filter((v): v is number => v !== undefined);
   return defined.length ? Math.min(...defined) : undefined;
 };
 
-export const legalConstraintsFor = (jurisdiction: string, date: DateKey): LaborConstraints => {
-  const pack = resolvePack(jurisdiction);
+/**
+ * `overrides` are the location's own stricter limits (services/labor/overrides.ts);
+ * applied ones are hard limits, so rest, daily and weekly overrides become constraints.
+ */
+export const legalConstraintsFor = (
+  jurisdiction: string,
+  date: DateKey,
+  overrides?: readonly LocationOverride[],
+): LaborConstraints => {
+  const pack = applyOverrides(resolvePack(jurisdiction), overrides);
   const rest = pack.restBetweenShifts;
   const ordinary = pack.dailyOrdinaryMax;
   const ordinaryHours = ordinary && ordinary.excess === 'violation' ? resolveDated(ordinary.hours, date) : undefined;

@@ -12,7 +12,7 @@
     "lint": "expo lint",
     "test": "jest",
     "prepare": "husky",
-    "test:integration": "jest --runInBand server/__tests__/proxyTenantIsolation.integration.test.ts",
+    "test:integration": "jest --runInBand server/__tests__/.*\\.integration\\.test\\.ts",
     "test:db": "supabase test db",
     "bench:assign": "jest --runInBand --testPathIgnorePatterns \"<rootDir>/node_modules/\" -- scripts/benchmark"
   },

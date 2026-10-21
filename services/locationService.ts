@@ -3,9 +3,9 @@
  * signed-in tenant and re-validates the jurisdiction server-side.
  */
 import { getSessionToken } from '@/services/authToken';
-import type { BusinessLocation, LocationInput } from '@/utils/locationValidation';
+import type { BusinessLocation, LocationHistoryEntry, LocationInput } from '@/utils/locationValidation';
 
-export type { BusinessLocation, LocationInput };
+export type { BusinessLocation, LocationHistoryEntry, LocationInput };
 
 /** What GET /api/geo-hint returns (app/api/geo-hint+api.ts). */
 export type GeoHint = {
@@ -55,6 +55,14 @@ export const upsertLocation = async (location: LocationInput): Promise<LocationR
 export const deleteLocation = async (id: string): Promise<LocationResult<true>> => {
   const result = await postToProxy<{ success?: boolean }>({ action: 'deleteLocation', id });
   return result.ok ? { ok: true, data: true } : result;
+};
+
+/** Change history of the tenant's locations, newest first (read-only; written by a database trigger). */
+export const listLocationHistory = async (
+  options: { locationId?: string; limit?: number } = {},
+): Promise<LocationResult<LocationHistoryEntry[]>> => {
+  const result = await postToProxy<{ history?: LocationHistoryEntry[] }>({ action: 'listLocationHistory', ...options });
+  return result.ok ? { ok: true, data: result.data.history ?? [] } : result;
 };
 
 const EMPTY_HINT: GeoHint = { ipCountry: null, ipRegion: null, ipCity: null, ipTimeZone: null };

@@ -4,9 +4,13 @@
  *
  * Law follows the work location: a location's jurisdiction code must be the
  * one its confirmed country / region / city resolve to, so a client cannot
- * attach a rule pack that does not match the place.
+ * attach a rule pack that does not match the place. Its overrides may only
+ * make the pack's rules stricter (services/labor/overrides.ts, CHG-089).
  */
+import { resolvePack } from '@/services/labor/engine';
 import { isJurisdictionCode, resolveJurisdiction } from '@/services/labor/jurisdictions';
+import { validateOverrides, type LocationOverride } from '@/services/labor/overrides';
+import { isDateKey, todayKey } from '@/utils/dateKeys';
 import { isValidTimeZone } from '@/utils/zonedTime';
 
 export const INDUSTRIES = [
@@ -28,8 +32,6 @@ export type Industry = (typeof INDUSTRIES)[number];
 export const LOCATION_NAME_MAX = 80;
 export const MAX_EMPLOYER_HEADCOUNT = 10_000_000;
 export const MAX_LOCATIONS_COUNT = 100_000;
-const MAX_OVERRIDES = 50;
-const MAX_OVERRIDES_JSON = 16_000;
 const HINT_KEYS = ['status', 'ipCountry', 'ipRegion', 'ipCity', 'ipTimeZone', 'deviceRegion', 'deviceTimeZone'] as const;
 
 export type DetectedHint = Partial<Record<(typeof HINT_KEYS)[number], string | null>>;
@@ -47,17 +49,40 @@ export type LocationInput = {
   employerHeadcount?: number | null;
   locationsCount?: number | null;
   detectedHint?: DetectedHint | null;
-  overrides?: Record<string, unknown>[];
+  /** Stricter-only business limits (services/labor/overrides.ts). */
+  overrides?: LocationOverride[];
 };
 
 /** A stored location as the proxy returns it. */
 export type BusinessLocation = Required<Omit<LocationInput, 'overrides' | 'detectedHint'>> & {
   detectedHint: DetectedHint | null;
+  /** As stored; read it with parseStoredOverrides. */
   overrides: Record<string, unknown>[];
   confirmedBy: string;
   confirmedAt: string;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** One row of a location's change history (public.location_history, CHG-089). */
+export type LocationHistoryEntry = {
+  id: number;
+  locationId: string;
+  locationName: string;
+  action: 'insert' | 'update' | 'delete';
+  /** Clerk user id; null when the change was made outside the app. */
+  changedBy: string | null;
+  changedAt: string;
+  old: LocationHistoryValues | null;
+  new: LocationHistoryValues | null;
+};
+
+export type LocationHistoryValues = {
+  jurisdictionCode: string | null;
+  timeZone: string | null;
+  industry: string | null;
+  employerHeadcount: number | null;
+  overrides: unknown[] | null;
 };
 
 export type LocationErrorCode =
@@ -73,7 +98,8 @@ export type LocationErrorCode =
   | 'HEADCOUNT_INVALID'
   | 'LOCATIONS_COUNT_INVALID'
   | 'HINT_INVALID'
-  | 'OVERRIDES_INVALID';
+  | 'OVERRIDES_INVALID'
+  | 'OVERRIDE_NOT_STRICTER';
 
 /** Normalized values ready for the database (snake_case columns). */
 export type CleanLocation = {
@@ -89,7 +115,7 @@ export type CleanLocation = {
   locations_count: number | null;
   detected_hint: DetectedHint | null;
   /** Undefined when the client sent none (keeps the stored value on update). */
-  overrides?: Record<string, unknown>[];
+  overrides?: LocationOverride[];
 };
 
 export type LocationValidation =
@@ -136,8 +162,14 @@ const cleanHint = (v: unknown): DetectedHint | null | undefined => {
 
 const fail = (code: LocationErrorCode, message: string): LocationValidation => ({ ok: false, code, message });
 
-export function validateLocationInput(raw: unknown): LocationValidation {
+export type LocationValidationOptions = {
+  /** Date the overrides are checked against (default: today in the location's zone). */
+  today?: string;
+};
+
+export function validateLocationInput(raw: unknown, options: LocationValidationOptions = {}): LocationValidation {
   if (!isRecord(raw)) return fail('LOCATION_REQUIRED', 'location is required');
+  if (options.today !== undefined && !isDateKey(options.today)) throw new RangeError(`Invalid date key: "${options.today}"`);
 
   if (raw.id !== undefined && (typeof raw.id !== 'string' || !UUID_RE.test(raw.id))) {
     return fail('LOCATION_REQUIRED', 'id must be a UUID');
@@ -181,17 +213,12 @@ export function validateLocationInput(raw: unknown): LocationValidation {
   const hint = cleanHint(raw.detectedHint);
   if (hint === undefined) return fail('HINT_INVALID', 'detectedHint must be an object of short strings');
 
-  let overrides: Record<string, unknown>[] | undefined;
+  let overrides: LocationOverride[] | undefined;
   if (raw.overrides !== undefined) {
-    if (
-      !Array.isArray(raw.overrides) ||
-      raw.overrides.length > MAX_OVERRIDES ||
-      !raw.overrides.every(isRecord) ||
-      JSON.stringify(raw.overrides).length > MAX_OVERRIDES_JSON
-    ) {
-      return fail('OVERRIDES_INVALID', `overrides must be an array of up to ${MAX_OVERRIDES} objects`);
-    }
-    overrides = raw.overrides as Record<string, unknown>[];
+    const date = options.today ?? todayKey(timeZone);
+    const checked = validateOverrides(raw.overrides, resolvePack(resolved), date);
+    if (!checked.ok) return fail(checked.code, checked.message);
+    overrides = checked.value;
   }
 
   return {

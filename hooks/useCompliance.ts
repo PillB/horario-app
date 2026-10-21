@@ -14,6 +14,7 @@
 import { useMemo } from 'react';
 
 import { evaluateRoster } from '@/services/labor/engine';
+import { parseStoredOverrides } from '@/services/labor/overrides';
 import type { Finding, LaborShift, LaborWorker, Verdict } from '@/services/labor/types';
 import type { Worker } from '@/types/scheduler';
 import { addDaysToKey, weekdayOfKey } from '@/utils/dateKeys';
@@ -108,7 +109,12 @@ export function evaluateCompliance({ shifts, locations, locationsLoaded, weekSta
   for (const { location, shifts: shiftsByWorker, workers } of byLocation.values()) {
     const laborWorkers = Array.from(workers, ([id, worker]) => toLaborWorker(id, worker));
     const raw = evaluateRoster(
-      { jurisdiction: location.jurisdictionCode, timeZone: location.timeZone, industry: location.industry },
+      {
+        jurisdiction: location.jurisdictionCode,
+        timeZone: location.timeZone,
+        industry: location.industry,
+        overrides: parseStoredOverrides(location.overrides),
+      },
       laborWorkers,
       Object.fromEntries(shiftsByWorker),
     );

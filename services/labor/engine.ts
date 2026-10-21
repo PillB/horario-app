@@ -13,12 +13,13 @@
  */
 import { addDaysToKey, daysBetweenKeys, weekdayOfKey } from '@/utils/dateKeys';
 import { parseHHMM, wallClockAt, zonedToUtc } from '@/utils/zonedTime';
+import { resolveDated } from './dated';
 import { getJurisdiction, jurisdictionChain } from './jurisdictions';
+import { applyOverrides } from './overrides';
 import { PACKS } from './packs';
 import type {
   BreakTrigger,
   DateKey,
-  Dated,
   EvaluationContext,
   EvaluationResult,
   Finding,
@@ -52,15 +53,7 @@ export const resolvePack = (code: string): RulePack => {
   return { ...merged, code, currency: merged.currency ?? 'USD' } as RulePack;
 };
 
-export const resolveDated = <T>(value: Dated<T>, date: DateKey): T => {
-  if (!Array.isArray(value) || !value.length || typeof value[0] !== 'object' || value[0] === null || !('from' in (value[0] as object))) {
-    return value as T;
-  }
-  const entries = value as { from: DateKey; value: T }[];
-  let current = entries[0].value;
-  for (const e of entries) if (e.from <= date) current = e.value;
-  return current;
-};
+export { resolveDated };
 
 // ─── Time helpers ────────────────────────────────────────────────────────────
 
@@ -207,7 +200,8 @@ const breakTriggerMinutes = (triggers: BreakTrigger[], workedHours: number): num
 type Emit = (f: Omit<Finding, 'jurisdiction' | 'workerId'>) => void;
 
 export function evaluateShifts(ctx: EvaluationContext, worker: LaborWorker, shifts: LaborShift[]): EvaluationResult {
-  const pack = resolvePack(ctx.jurisdiction);
+  // Location overrides can only tighten the pack (services/labor/overrides.ts, CHG-089).
+  const pack = applyOverrides(resolvePack(ctx.jurisdiction), ctx.overrides);
   const tz = ctx.timeZone;
   const startsOn = ctx.weekStartsOn ?? 1;
   const findings: Finding[] = [];

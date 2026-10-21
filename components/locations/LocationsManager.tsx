@@ -1,10 +1,12 @@
 /**
  * LocationsManager — the business's locations on the profile screen: list,
- * add, edit and delete (delete is admin-only on the server).
+ * add, edit and delete (delete is admin-only on the server), plus a read-only
+ * change history (CHG-089).
  */
 import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { LocationHistoryList } from '@/components/locations/LocationHistoryList';
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -24,6 +26,9 @@ export function LocationsManager({ accountId }: { accountId: string }) {
   const [editing, setEditing] = useState<Editing>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  // Bumped after a delete so an open history reloads (an edit remounts it).
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   const handleDelete = useCallback(
     async (location: BusinessLocation) => {
@@ -33,6 +38,7 @@ export function LocationsManager({ accountId }: { accountId: string }) {
       }
       setConfirmingDelete(null);
       const result = await remove(location.id);
+      if (result.ok) setHistoryVersion((v) => v + 1);
       setMessage(result.ok ? null : t('locations.deleteFailed', { error: result.error }));
     },
     [confirmingDelete, remove, t],
@@ -124,6 +130,23 @@ export function LocationsManager({ accountId }: { accountId: string }) {
           <ThemedText style={styles.addButtonText}>{t('locations.add')}</ThemedText>
         </Pressable>
       ) : null}
+
+      {loaded ? (
+        <Pressable
+          onPress={() => setShowHistory((v) => !v)}
+          testID="location-history-toggle"
+          accessibilityRole="button"
+          accessibilityLabel={showHistory ? t('locations.history.hide') : t('locations.history.show')}
+          accessibilityHint={t('locations.history.toggleHint')}
+          aria-expanded={showHistory}
+          style={({ pressed }) => [styles.smallButton, styles.historyToggle, pressed && styles.pressed]}
+        >
+          <ThemedText style={styles.smallButtonText}>
+            {showHistory ? t('locations.history.hide') : t('locations.history.show')}
+          </ThemedText>
+        </Pressable>
+      ) : null}
+      {loaded && showHistory ? <LocationHistoryList version={historyVersion} /> : null}
     </View>
   );
 }
@@ -154,6 +177,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     smallButtonText: { fontSize: 13, fontWeight: '600', color: colors.text },
     deleteButton: { borderColor: brand.error + '55' },
+    historyToggle: { alignSelf: 'flex-start' },
     deleteText: { fontSize: 13, fontWeight: '600', color: colors.error },
     addButton: {
       borderWidth: 1.5,

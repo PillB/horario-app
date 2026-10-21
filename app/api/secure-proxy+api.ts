@@ -25,9 +25,16 @@ import {
   ForecastGenerationMetadata,
   ForecastGenerationResult,
 } from '@/services/demandForecast';
+import { resolvePack } from '@/services/labor/engine';
+import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
-import { isDateKey } from '@/utils/dateKeys';
-import { type BusinessLocation, validateLocationInput } from '@/utils/locationValidation';
+import { isDateKey, todayKey } from '@/utils/dateKeys';
+import {
+  type BusinessLocation,
+  type LocationHistoryEntry,
+  type LocationHistoryValues,
+  validateLocationInput,
+} from '@/utils/locationValidation';
 import { validateWorkerLabor } from '@/utils/workerLaborValidation';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
@@ -817,12 +824,100 @@ async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location
   const checked = validateLocationInput(location);
   if (!checked.ok) return badRequest(checked.message);
   const { id, ...values } = checked.value;
+  if (values.overrides === undefined && id !== undefined && isUuid(id)) {
+    // An update that keeps the stored overrides may change the jurisdiction:
+    // they must still be stricter than the new place's rules (CHG-089).
+    const { data, error } = await client
+      .from('locations')
+      .select('jurisdiction_code, overrides')
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (error) return dbFailure('read location overrides', error);
+    const stored = data as { jurisdiction_code: string; overrides: unknown } | null;
+    if (stored && stored.jurisdiction_code !== values.jurisdiction_code && Array.isArray(stored.overrides) && stored.overrides.length) {
+      const recheck = validateOverrides(stored.overrides, resolvePack(values.jurisdiction_code), todayKey(values.time_zone));
+      if (!recheck.ok) {
+        return badRequest(`The saved overrides do not fit the new jurisdiction: ${recheck.message} Send overrides with this change.`);
+      }
+    }
+  }
   const result = await updateOrInsert<LocationRow>(
     client, 'locations', ctx, id,
     { ...values, confirmed_by: ctx.userId, confirmed_at: new Date().toISOString() },
     LOCATION_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, location: rowToLocation(result.row) });
+}
+
+/**
+ * Deletes through public.delete_location so the history trigger records who
+ * deleted it (the service-role connection cannot see the Clerk user).
+ */
+async function deleteLocation(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client.rpc('delete_location', {
+    p_account_id: ctx.accountId,
+    p_location_id: id,
+    p_actor: ctx.userId,
+  });
+  if (error) return dbFailure('delete locations', error);
+  return data === true ? ok({ success: true }) : notFound();
+}
+
+// Change history, written only by the locations trigger
+// (20261021000089_location_history.sql). Read-only here.
+const LOCATION_HISTORY_COLUMNS =
+  'id, location_id, location_name, action, changed_by, changed_at, old_jurisdiction_code, new_jurisdiction_code, ' +
+  'old_time_zone, new_time_zone, old_industry, new_industry, old_employer_headcount, new_employer_headcount, old_overrides, new_overrides';
+const LOCATION_HISTORY_DEFAULT_LIMIT = 50;
+const LOCATION_HISTORY_MAX_LIMIT = 200;
+type LocationHistoryRow = {
+  id: number; location_id: string; location_name: string; action: LocationHistoryEntry['action']; changed_by: string | null;
+  changed_at: string; old_jurisdiction_code: string | null; new_jurisdiction_code: string | null; old_time_zone: string | null;
+  new_time_zone: string | null; old_industry: string | null; new_industry: string | null; old_employer_headcount: number | null;
+  new_employer_headcount: number | null; old_overrides: unknown[] | null; new_overrides: unknown[] | null;
+};
+
+const rowToHistoryEntry = (row: LocationHistoryRow): LocationHistoryEntry => {
+  const side = (which: 'old' | 'new'): LocationHistoryValues | null => {
+    if ((which === 'old' && row.action === 'insert') || (which === 'new' && row.action === 'delete')) return null;
+    return {
+      jurisdictionCode: row[`${which}_jurisdiction_code`],
+      timeZone: row[`${which}_time_zone`],
+      industry: row[`${which}_industry`],
+      employerHeadcount: row[`${which}_employer_headcount`],
+      overrides: row[`${which}_overrides`],
+    };
+  };
+  return {
+    id: row.id,
+    locationId: row.location_id,
+    locationName: row.location_name,
+    action: row.action,
+    changedBy: row.changed_by,
+    changedAt: row.changed_at,
+    old: side('old'),
+    new: side('new'),
+  };
+};
+
+async function listLocationHistory(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  if (p.locationId !== undefined && !isUuid(p.locationId)) return badRequest('locationId must be a UUID');
+  if (p.limit !== undefined && (!Number.isInteger(p.limit) || (p.limit as number) < 1 || (p.limit as number) > LOCATION_HISTORY_MAX_LIMIT)) {
+    return badRequest(`limit must be a whole number from 1 to ${LOCATION_HISTORY_MAX_LIMIT}`);
+  }
+  let query = client
+    .from('location_history')
+    .select(LOCATION_HISTORY_COLUMNS)
+    .eq('account_id', ctx.accountId);
+  if (p.locationId !== undefined) query = query.eq('location_id', p.locationId as string);
+  const { data, error } = await query
+    .order('changed_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit((p.limit as number | undefined) ?? LOCATION_HISTORY_DEFAULT_LIMIT);
+  if (error) return dbFailure('list location history', error);
+  return ok({ history: (data as unknown as LocationHistoryRow[]).map(rowToHistoryEntry) });
 }
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
@@ -1020,7 +1115,9 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'upsertLocation':
       return upsertLocation(client, ctx, p.location);
     case 'deleteLocation':
-      return deleteOwned(client, 'locations', ctx, p.id);
+      return deleteLocation(client, ctx, p.id);
+    case 'listLocationHistory':
+      return listLocationHistory(client, ctx, p);
     case 'getUsageLimit':
       return getUsageLimit(client, ctx);
     case 'incrementAutoAssign':
