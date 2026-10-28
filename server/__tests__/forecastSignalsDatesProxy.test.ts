@@ -90,7 +90,8 @@ describe('secure proxy: forecast signals and date validation (CHG-087)', () => {
 
   /**
    * A table of 1200 past signals (two a day, 2024-01-01 … 2025-08-22) and 20 future ones
-   * (from 2026-03-08), answered like Postgres would: filtered by the window, sorted, limited.
+   * (from 2026-03-08), answered like PostgREST would: filtered by the window, sorted,
+   * limited, and never more than its max_rows (1000, `supabase/config.toml`).
    */
   const past = signals('2024-01-01', 600);
   const store = [...past, ...past.map((s) => ({ ...s, signal_type: 'weather' })), ...signals('2026-03-08', 20)];
@@ -101,7 +102,7 @@ describe('secure proxy: forecast signals and date validation (CHG-087)', () => {
     const limit = Number(calls.find((c) => c.method === 'limit')?.args[0]);
     const rows = store.filter((s) => s.date >= gte && s.date < lt).sort((a, b) => (a.date < b.date ? -1 : 1));
     if (!order.ascending) rows.reverse();
-    return { data: rows.slice(0, limit), error: null };
+    return { data: rows.slice(0, Math.min(limit, 1000)), error: null };
   };
 
   describe('F4: listForecastSignals', () => {
@@ -110,7 +111,7 @@ describe('secure proxy: forecast signals and date validation (CHG-087)', () => {
       const res = await call({ action: 'listForecastSignals', from: '2024-01-01', to: '2026-03-28', targetsFrom: '2026-03-08' });
       expect(res.status).toBe(200);
       const dates = (res.body.signals as { date: string }[]).map((s) => s.date);
-      expect(dates).toHaveLength(1000);
+      expect(dates).toHaveLength(999);
       expect(dates.filter((d) => d >= '2026-03-08')).toHaveLength(20);
       // The newest past signals are kept, the oldest dropped.
       expect(dates).toContain('2025-08-22');
@@ -131,6 +132,18 @@ describe('secure proxy: forecast signals and date validation (CHG-087)', () => {
       const res = await call({ action: 'listForecastSignals', from: '2024-01-01', to: '2026-03-28' });
       const dates = (res.body.signals as { date: string }[]).map((s) => s.date);
       expect(dates.filter((d) => d >= '2026-03-08')).toHaveLength(20);
+      expect(res.body.truncated).toBe(true);
+    });
+
+    it('flags truncation when the target span alone exceeds the API row cap', async () => {
+      const many = signals('2026-01-01', 1200);
+      mockAnswer = (_table, calls) => {
+        const limit = Number(calls.find((c) => c.method === 'limit')?.args[0]);
+        return { data: many.slice(0, Math.min(limit, 1000)), error: null };
+      };
+      const res = await call({ action: 'listForecastSignals', from: '2025-12-01', to: '2028-12-01', targetsFrom: '2026-01-01' });
+      expect(res.status).toBe(200);
+      expect((res.body.signals as unknown[]).length).toBe(999);
       expect(res.body.truncated).toBe(true);
     });
 

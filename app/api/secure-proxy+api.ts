@@ -458,8 +458,12 @@ async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Reco
   });
 }
 
-/** Most signals one listForecastSignals call returns. */
-const FORECAST_SIGNALS_LIMIT = 1000;
+/**
+ * Most signals one listForecastSignals call returns. Each query asks for one more, so
+ * the limit stays below the API's max_rows (1000, `supabase/config.toml`): a probe at
+ * the cap would be cut to it and never report truncation.
+ */
+const FORECAST_SIGNALS_LIMIT = 999;
 
 type SignalRow = { date: string; role: string | null; signal_type: string | null; weight: number | string | null };
 

@@ -6,6 +6,15 @@
 
 ---
 
+### CHG-092 — 2026-10-28 UTC
+**Type:** FIX (review finding on PR #54, Codex P2)
+
+- Root cause: `listForecastSignals` asked for `FORECAST_SIGNALS_LIMIT + 1` = 1001 rows to detect truncation, but the API caps a response at `max_rows` = 1000 (`supabase/config.toml`), so a window with more than 1000 signals came back as exactly 1000 and `truncated` stayed false; the forecast then used incomplete event multipliers with no data-quality warning.
+- Fix (`app/api/secure-proxy+api.ts`): `FORECAST_SIGNALS_LIMIT` = 999, so the probe row stays within the cap. `FORECAST_HISTORY_PAGE_SIZE` (1000, uses `range` and an exact count) is unaffected.
+- Tests (`server/__tests__/forecastSignalsDatesProxy.test.ts`): the fake store now caps at 1000 rows like PostgREST; new case with 1200 future signals reports `truncated: true`. Three cases fail on the old limit.
+
+---
+
 ### CHG-091 — 2026-10-21 UTC
 **Type:** FIX (QA red team step 3c, `qa/redteam-step3c-2026-10-21.md`, G1–G6)
 
