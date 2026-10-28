@@ -19,11 +19,17 @@
  *   I7  per template: assigned + missing === required, assigned <= required, and the
  *       shortfall entry exists iff assigned < required, with consistent numbers
  *   I8  no open slot while some worker could still legally take it (greedy completeness)
+ *
+ * The suite runs twice: with the deprecated fixed offset (every day 24h), and with a
+ * random IANA zone on dates around DST changes. In the zoned run the reference model
+ * places wall times with `zonedToUtc` (tested on its own in utils/__tests__/zonedTime)
+ * and measures everything in elapsed minutes.
  */
 import { assignShifts, type AssignmentInput, type AssignmentResult, type LaborConstraints } from '../shiftAssigner';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import { getWeekdayFromDate } from '@/utils/schedulerUtils';
+import { zonedToUtc } from '@/utils/zonedTime';
 
 // ─── Seeded PRNG (mulberry32) ────────────────────────────────────────────────
 
@@ -60,9 +66,27 @@ const durationOf = (t: ShiftTemplate): number => {
   const d = (toMin(t.end) - toMin(t.start) + DAY) % DAY;
   return d === 0 ? DAY : d;
 };
-const absInterval = (t: ShiftTemplate, date: string) => {
-  const start = dayNumber(date) * DAY + toMin(t.start);
-  return { start, end: start + durationOf(t) };
+/** Reference wall-clock → absolute minutes: fixed 24h days, or an IANA zone. */
+type Clock = { key: string; abs: (date: string, minutes: number) => number };
+const FIXED_CLOCK: Clock = { key: 'fixed', abs: (date, minutes) => dayNumber(date) * DAY + minutes };
+const zoneCache = new Map<string, number>();
+const zoneClock = (timeZone: string): Clock => ({
+  key: timeZone,
+  abs: (date, minutes) => {
+    const k = `${timeZone}|${date}|${minutes}`;
+    let v = zoneCache.get(k);
+    if (v === undefined) {
+      v = Math.round(zonedToUtc(date, minutes, timeZone) / 60_000);
+      zoneCache.set(k, v);
+    }
+    return v;
+  },
+});
+const clockOf = (input: AssignmentInput): Clock => (input.timeZone ? zoneClock(input.timeZone) : FIXED_CLOCK);
+
+const absInterval = (t: ShiftTemplate, date: string, clock: Clock) => {
+  const startMin = toMin(t.start);
+  return { start: clock.abs(date, startMin), end: clock.abs(date, startMin + durationOf(t)) };
 };
 const isoWeekKey = (date: string): number => {
   const n = dayNumber(date);
@@ -72,36 +96,37 @@ const isoWeekKey = (date: string): number => {
 const requiredOf = (t: ShiftTemplate): number =>
   Number.isFinite(t.coverage) && t.coverage >= 1 ? Math.round(t.coverage) : 1;
 
-/** Availability bitmap over [D-1 00:00, D+2 00:00). */
-const availabilityBitmap = (worker: Worker, date: string, tz: number): Uint8Array => {
-  const bits = new Uint8Array(3 * DAY);
+/** Availability bitmap over the elapsed minutes of [D-1 00:00, D+2 00:00) local. */
+const availabilityBitmap = (worker: Worker, date: string, clock: Clock): { origin: number; bits: Uint8Array } => {
+  const origin = clock.abs(addDays(date, -1), 0);
+  const bits = new Uint8Array(clock.abs(addDays(date, 2), 0) - origin);
   for (let k = -1; k <= 1; k++) {
-    const label = getWeekdayFromDate(addDays(date, k), tz);
+    const day = addDays(date, k);
+    const label = getWeekdayFromDate(day);
     for (const slot of worker.availability) {
       if (slot.day !== label) continue;
       const from = toMin(slot.from);
       let to = toMin(slot.to);
       if (to === DAY - 1) to = DAY;
       if (to <= from) to += DAY;
-      const base = (k + 1) * DAY;
-      for (let m = base + from; m < Math.min(base + to, 3 * DAY); m++) bits[m] = 1;
+      const end = Math.min(clock.abs(day, to) - origin, bits.length);
+      for (let m = clock.abs(day, from) - origin; m < end; m++) bits[m] = 1;
     }
   }
-  return bits;
+  return { origin, bits };
 };
 
-const bitmapCache = new WeakMap<Worker, { key: string; bits: Uint8Array }>();
-const covers = (worker: Worker, t: ShiftTemplate, date: string, tz: number): boolean => {
-  const key = `${date}|${tz}`;
+const bitmapCache = new WeakMap<Worker, { key: string; origin: number; bits: Uint8Array }>();
+const covers = (worker: Worker, t: ShiftTemplate, date: string, clock: Clock): boolean => {
+  const key = `${date}|${clock.key}`;
   let cached = bitmapCache.get(worker);
   if (!cached || cached.key !== key) {
-    cached = { key, bits: availabilityBitmap(worker, date, tz) };
+    cached = { key, ...availabilityBitmap(worker, date, clock) };
     bitmapCache.set(worker, cached);
   }
-  const bits = cached.bits;
-  const start = DAY + toMin(t.start);
-  const end = start + durationOf(t);
-  for (let m = start; m < end; m++) if (!bits[m]) return false;
+  const { origin, bits } = cached;
+  const iv = absInterval(t, date, clock);
+  for (let m = iv.start - origin; m < iv.end - origin; m++) if (!bits[m]) return false;
   return true;
 };
 
@@ -113,12 +138,12 @@ const legal = (
   t: ShiftTemplate,
   date: string,
   entries: RefEntry[],
-  tz: number,
+  clock: Clock,
   c: LaborConstraints | undefined
 ): boolean => {
   if (worker.role !== t.role) return false;
-  if (!covers(worker, t, date, tz)) return false;
-  const iv = absInterval(t, date);
+  if (!covers(worker, t, date, clock)) return false;
+  const iv = absInterval(t, date, clock);
   const mine = entries.filter((e) => e.workerId === worker.id);
   if (mine.some((e) => e.start < iv.end && iv.start < e.end)) return false;
   const dur = iv.end - iv.start;
@@ -180,9 +205,28 @@ const randomConstraints = (rng: Rng): LaborConstraints | undefined => {
   return c;
 };
 
-const generateCase = (seed: number): AssignmentInput => {
+/**
+ * Zones for the zoned run (DST north and south, no DST, a non-hour offset) with the
+ * 2026 dates their clocks change; zones without DST borrow the others' dates.
+ */
+const US_EU_AU = ['2026-03-08', '2026-11-01', '2026-03-29', '2026-10-25', '2026-04-05', '2026-10-04'];
+const ZONE_DATES: Record<string, string[]> = {
+  'America/New_York': ['2026-03-08', '2026-11-01'],
+  'Europe/Madrid': ['2026-03-29', '2026-10-25'],
+  'Australia/Sydney': ['2026-04-05', '2026-10-04'],
+  'America/Lima': US_EU_AU,
+  'Asia/Kolkata': US_EU_AU,
+  UTC: US_EU_AU,
+};
+const ZONES = Object.keys(ZONE_DATES);
+
+const generateCase = (seed: number, zoned = false): AssignmentInput => {
   const rng = mulberry32(seed);
-  const date = addDays(BASE_DATE, int(rng, 0, 13));
+  const timeZone = zoned ? pick(rng, ZONES) : undefined;
+  // Zoned: mostly the change day or the day before (night shifts across the change).
+  const date = timeZone
+    ? addDays(pick(rng, ZONE_DATES[timeZone]), chance(rng, 0.7) ? int(rng, -1, 0) : int(rng, -4, 3))
+    : addDays(BASE_DATE, int(rng, 0, 13));
   const templates = Array.from({ length: int(rng, 1, 5) }, (_, i) => randomTemplate(rng, `t${i}`));
   const extra = Array.from({ length: int(rng, 0, 3) }, (_, i) => randomTemplate(rng, `x${i}`));
   const workers = Array.from({ length: int(rng, 1, 7) }, (_, i) => randomWorker(rng, `w${i}`, date));
@@ -203,7 +247,7 @@ const generateCase = (seed: number): AssignmentInput => {
     templateCatalog: catalog,
     workers,
     existingRoster,
-    timezoneOffsetMinutes: TZ,
+    ...(timeZone ? { timeZone } : { timezoneOffsetMinutes: TZ }),
     constraints: randomConstraints(rng),
   };
 };
@@ -213,12 +257,12 @@ const generateCase = (seed: number): AssignmentInput => {
 const checkInvariants = (input: AssignmentInput, result: AssignmentResult): string[] => {
   const errors: string[] = [];
   const { date, templates, workers, existingRoster, constraints } = input;
-  const tz = input.timezoneOffsetMinutes ?? TZ;
+  const clock = clockOf(input);
   const catalog = new Map((input.templateCatalog ?? templates).map((t) => [t.id, t]));
 
   const existing: RefEntry[] = existingRoster.flatMap((s) => {
     const t = catalog.get(s.templateId);
-    return t ? [{ workerId: s.workerId, date: s.date, ...absInterval(t, s.date), isNew: false }] : [];
+    return t ? [{ workerId: s.workerId, date: s.date, ...absInterval(t, s.date, clock), isNew: false }] : [];
   });
   const fresh: RefEntry[] = [];
 
@@ -231,8 +275,8 @@ const checkInvariants = (input: AssignmentInput, result: AssignmentResult): stri
       continue;
     }
     if (w.role !== t.role) errors.push(`I2 role mismatch ${w.id}/${t.id}`);
-    if (!covers(w, t, date, tz)) errors.push(`I3 availability ${w.id} does not cover ${t.id} ${t.start}-${t.end}`);
-    fresh.push({ workerId: w.id, date, ...absInterval(t, date), isNew: true });
+    if (!covers(w, t, date, clock)) errors.push(`I3 availability ${w.id} does not cover ${t.id} ${t.start}-${t.end}`);
+    fresh.push({ workerId: w.id, date, ...absInterval(t, date, clock), isNew: true });
   }
 
   // I4–I6
@@ -273,7 +317,7 @@ const checkInvariants = (input: AssignmentInput, result: AssignmentResult): stri
       }
     }
     if (count < required) {
-      const taker = workers.find((w) => legal(w, t, date, all, tz, constraints));
+      const taker = workers.find((w) => legal(w, t, date, all, clock, constraints));
       if (taker) errors.push(`I8 ${t.id} left open although ${taker.id} could take it`);
     }
   }
@@ -283,6 +327,7 @@ const checkInvariants = (input: AssignmentInput, result: AssignmentResult): stri
 // ─── The property test ───────────────────────────────────────────────────────
 
 const CASES = 5000;
+const ZONED_CASES = 3000;
 
 describe('assignShifts — property-based fuzz', () => {
   it(`holds all invariants over ${CASES} random cases (incl. overnight shifts)`, () => {
@@ -300,6 +345,28 @@ describe('assignShifts — property-based fuzz', () => {
     // Sanity: the generator really exercises overnight shifts and shortfalls.
     expect(overnightTemplates).toBeGreaterThan(CASES / 4);
     expect(shortfallCases).toBeGreaterThan(CASES / 10);
+    expect(failures.slice(0, 10)).toEqual([]);
+  });
+
+  it(`holds all invariants over ${ZONED_CASES} random cases in IANA zones around DST changes`, () => {
+    const failures: string[] = [];
+    const zones = new Set<string>();
+    let dstLengthShifts = 0;
+    for (let seed = 1; seed <= ZONED_CASES; seed++) {
+      const input = generateCase(100_000 + seed, true);
+      const clock = clockOf(input);
+      zones.add(input.timeZone ?? '');
+      for (const t of input.templates) {
+        const iv = absInterval(t, input.date, clock);
+        if (iv.end - iv.start !== durationOf(t)) dstLengthShifts++;
+      }
+      const result = assignShifts(input);
+      const errors = checkInvariants(input, result);
+      if (errors.length > 0) failures.push(`seed ${100_000 + seed} (${input.timeZone} ${input.date}): ${errors.slice(0, 3).join('; ')}`);
+    }
+    // Sanity: every zone is drawn and some shifts really are 23h-day / 25h-day lengths.
+    expect(zones.size).toBe(ZONES.length);
+    expect(dstLengthShifts).toBeGreaterThan(50);
     expect(failures.slice(0, 10)).toEqual([]);
   });
 });

@@ -4,7 +4,7 @@
 -- users must see only their own tenant and must not write directly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(57);
 
 -- ── Fixtures (as the table owner) ────────────────────────────────────────────
 insert into public.workers (id, account_id, name, role) values
@@ -31,6 +31,9 @@ insert into public.subscriptions (account_id, tier, status) values ('org_b', 'pr
 insert into public.referrals (account_id, referrer_user_id, code, expires_at, max_redemptions)
   values ('user_a', 'user_a', 'CODEA1', now() + interval '30 days', 2),
          ('org_b',  'user_b', 'OLDB01', now() - interval '1 day', 5);
+insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values
+  ('user_a', 'Lima Centro', 'PE', 'PE', 'America/Lima', 'food_service', 'user_a'),
+  ('org_b',  'Berkeley',    'US', 'US-CA-BERKELEY', 'America/Los_Angeles', 'retail', 'user_b');
 
 -- ── Tenant id helper ─────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"user_b","o":{"id":"org_b","rol":"admin"}}';
@@ -55,6 +58,7 @@ select throws_ok('select * from public.referrals', '42501', null, 'anon cannot r
 select throws_ok('select * from public.pos_sales', '42501', null, 'anon cannot read pos_sales');
 select throws_ok('select * from public.usage_limits', '42501', null, 'anon cannot read usage_limits');
 select throws_ok($$insert into public.onboarding_progress (account_id, user_id) values ('x','x')$$, '42501', null, 'anon cannot write onboarding_progress');
+select throws_ok('select * from public.locations', '42501', null, 'anon cannot read locations');
 reset role;
 
 -- ── Tenant A (personal account) ──────────────────────────────────────────────
@@ -76,6 +80,10 @@ select throws_ok($$update public.subscriptions set tier = 'pro'$$, '42501', null
 select throws_ok($$select public.increment_auto_assign('user_a','user_a')$$, '42501', null, 'usage counter is server-only');
 select throws_ok($$select public.redeem_referral('CODEA1','user_a')$$, '42501', null, 'referral redeem is server-only');
 select throws_ok('select * from public.referral_redemptions', '42501', null, 'redemptions are server-only');
+select results_eq('select name from public.locations', $$values ('Lima Centro'::text)$$, 'A sees only its locations');
+select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','X','PE','PE','America/Lima','retail','user_a')$$, '42501', null, 'signed-in users cannot insert locations directly');
+select throws_ok($$update public.locations set jurisdiction_code = 'GENERIC'$$, '42501', null, 'signed-in users cannot update locations directly');
+select throws_ok($$delete from public.locations$$, '42501', null, 'signed-in users cannot delete locations directly');
 reset role;
 
 -- ── Tenant B (organization) ──────────────────────────────────────────────────
@@ -83,12 +91,27 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"user_b","o":{"id":"org_b"},"role":"authenticated"}';
 select results_eq('select name from public.workers', $$values ('Bruno'::text)$$, 'org member sees org workers');
 select results_eq('select tier from public.subscriptions', $$values ('pro'::text)$$, 'org member sees own subscription');
+select results_eq('select jurisdiction_code from public.locations', $$values ('US-CA-BERKELEY'::text)$$, 'org member sees only org locations');
 reset role;
 
 -- ── Overnight windows ────────────────────────────────────────────────────────
 select lives_ok($$insert into public.shift_templates (account_id, name, role, start_time, end_time) values ('user_a','Late','Barista','23:00','07:00')$$, 'overnight template allowed');
 select throws_ok($$insert into public.shift_templates (account_id, name, role, start_time, end_time) values ('user_a','Zero','Barista','08:00','08:00')$$, '23514', null, 'zero-length template rejected');
 select throws_ok($$insert into public.demand_targets (date, role, required) values ('2026-10-20','Cook',1)$$, '23514', null, 'demand target needs an account');
+
+-- ── Location checks ──────────────────────────────────────────────────────────
+select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','pe','PE','America/Lima','retail','user_a')$$, '23514', null, 'location rejects a lower-case country code');
+select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','PER','PE','America/Lima','retail','user_a')$$, '23514', null, 'location rejects a 3-letter country code');
+select throws_ok($$insert into public.locations (account_id, name, country_code, jurisdiction_code, time_zone, industry, confirmed_by) values ('user_a','Bad','PE','PE','America/Lima','casino','user_a')$$, '23514', null, 'location rejects an unknown industry');
+
+-- ── Worker labor attributes (CHG-082) ────────────────────────────────────────
+select col_type_is('public', 'workers', 'birth_date', 'date', 'workers.birth_date is a date');
+select results_eq(
+  $$select night_worker, weekly_limit_opt_out, no_fixed_hours from public.workers where id = '00000000-0000-0000-0000-0000000000a1'$$,
+  $$values (false, false, false)$$,
+  'worker labor flags default to false');
+select throws_ok($$update public.workers set birth_date = '1899-12-31' where id = '00000000-0000-0000-0000-0000000000a1'$$, '23514', null, 'birth date before 1900 rejected');
+select lives_ok($$update public.workers set birth_date = '2001-04-17', night_worker = true where id = '00000000-0000-0000-0000-0000000000a1'$$, 'valid labor attributes accepted');
 
 -- ── Server-only functions ────────────────────────────────────────────────────
 select is(public.increment_auto_assign('user_b','org_b'), 4, 'counter increments an existing row');

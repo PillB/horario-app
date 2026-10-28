@@ -75,7 +75,7 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   jumpCalendarText: {
     fontSize: 13,
     fontWeight: '600',
-    color: brand.primary,
+    color: colors.tintText,
   },
   banner: {
     padding: 12,

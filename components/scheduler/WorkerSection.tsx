@@ -17,6 +17,8 @@ import { AvailabilityLabel } from './AvailabilityLabel';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
+import { WorkerLaborFields } from './WorkerLaborFields';
+import type { WorkerFormState } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -29,16 +31,10 @@ type AvailabilityFormState = {
   to: string;
 };
 
-type WorkerFormState = {
-  name: string;
-  role: string;
-  skills: string;
-};
-
 type Props = {
   workers: Worker[];
   workerForm: WorkerFormState;
-  updateWorkerField: (key: keyof WorkerFormState) => (value: string) => void;
+  updateWorkerField: <K extends keyof WorkerFormState>(key: K) => (value: WorkerFormState[K]) => void;
   handleAddWorker: () => void;
   workerError: string | null;
   workerSuccessMessage: string | null;
@@ -225,6 +221,7 @@ export const WorkerSection = ({
             returnKeyType="done"
             onSubmitEditing={() => Keyboard.dismiss()}
           />
+          <WorkerLaborFields workerForm={workerForm} updateWorkerField={updateWorkerField} />
           {/* [3] primaryButton background must be brand.primary (#0D9488) or brand.primaryDark —
               never brand.accent (#F59E0B) with white text (only 2.25:1).
               [8] pressed state: opacity + darker background for clear visual feedback;

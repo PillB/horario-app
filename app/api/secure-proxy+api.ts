@@ -26,6 +26,8 @@ import {
   ForecastGenerationResult,
 } from '@/services/demandForecast';
 import { OnboardingProgress } from '@/services/onboardingProgress';
+import { type BusinessLocation, validateLocationInput } from '@/utils/locationValidation';
+import { validateWorkerLabor } from '@/utils/workerLaborValidation';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
 
@@ -46,6 +48,9 @@ const MANAGER_ACTIONS = new Set([
   'deleteAvailability',
   'deleteShiftTemplate',
   'deleteRosterShift',
+  // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
+  'upsertLocation',
+  'deleteLocation',
   'cancelSubscription',
   'createCheckoutSession',
   'createBillingPortalSession',
@@ -435,8 +440,12 @@ async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags:
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
 
-const WORKER_COLUMNS = 'id, account_id, name, role, skills, created_at';
-type WorkerRow = { id: string; account_id: string; name: string; role: string; skills: string[] | null; created_at?: string };
+const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at';
+type WorkerRow = {
+  id: string; account_id: string; name: string; role: string; skills: string[] | null;
+  birth_date: string | null; night_worker: boolean | null; weekly_limit_opt_out: boolean | null; no_fixed_hours: boolean | null;
+  created_at?: string;
+};
 
 const rowToWorker = (row: WorkerRow) => ({
   id: row.id,
@@ -444,6 +453,10 @@ const rowToWorker = (row: WorkerRow) => ({
   name: row.name,
   role: row.role,
   skills: row.skills ?? [],
+  birthDate: row.birth_date ?? null,
+  nightWorker: Boolean(row.night_worker),
+  weeklyLimitOptOut: Boolean(row.weekly_limit_opt_out),
+  noFixedHours: Boolean(row.no_fixed_hours),
   createdAt: row.created_at,
 });
 
@@ -464,10 +477,22 @@ async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: un
   if (!isNonEmptyString(worker.role, 100)) return badRequest('role is required (max 100 chars)');
   const skills = Array.isArray(worker.skills) ? worker.skills : [];
   if (skills.length > 50 || !skills.every((s) => isNonEmptyString(s, 100))) return badRequest('skills must be up to 50 short strings');
+  // Labor attributes: absent fields are left as stored (or the column default on insert).
+  const labor = validateWorkerLabor(worker);
+  if (!labor.ok) return badRequest(labor.error);
+  const { birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = labor.values;
 
   const result = await updateOrInsert<WorkerRow>(
     client, 'workers', ctx, worker.id as string | undefined,
-    { name: worker.name.trim(), role: worker.role.trim(), skills },
+    {
+      name: worker.name.trim(),
+      role: worker.role.trim(),
+      skills,
+      ...(birthDate !== undefined ? { birth_date: birthDate } : {}),
+      ...(nightWorker !== undefined ? { night_worker: nightWorker } : {}),
+      ...(weeklyLimitOptOut !== undefined ? { weekly_limit_opt_out: weeklyLimitOptOut } : {}),
+      ...(noFixedHours !== undefined ? { no_fixed_hours: noFixedHours } : {}),
+    },
     WORKER_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });
@@ -640,6 +665,63 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
     ROSTER_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
+
+// ─── Business locations ───────────────────────────────────────────────────────
+// Labor law follows the work location, so the jurisdiction lives here. The
+// jurisdiction code must be the one the confirmed place resolves to
+// (utils/locationValidation.ts), and the server records who confirmed it.
+
+const LOCATION_COLUMNS =
+  'id, account_id, name, country_code, region_code, city_code, jurisdiction_code, time_zone, industry, ' +
+  'employer_headcount, locations_count, detected_hint, overrides, confirmed_by, confirmed_at, created_at, updated_at';
+type LocationRow = {
+  id: string; account_id: string; name: string; country_code: string; region_code: string | null; city_code: string | null;
+  jurisdiction_code: string; time_zone: string; industry: BusinessLocation['industry']; employer_headcount: number | null;
+  locations_count: number | null; detected_hint: BusinessLocation['detectedHint']; overrides: BusinessLocation['overrides'] | null;
+  confirmed_by: string; confirmed_at: string; created_at?: string; updated_at?: string;
+};
+
+const rowToLocation = (row: LocationRow): BusinessLocation => ({
+  id: row.id,
+  name: row.name,
+  countryCode: row.country_code,
+  regionCode: row.region_code,
+  cityCode: row.city_code,
+  jurisdictionCode: row.jurisdiction_code,
+  timeZone: row.time_zone,
+  industry: row.industry,
+  employerHeadcount: row.employer_headcount,
+  locationsCount: row.locations_count,
+  detectedHint: row.detected_hint,
+  overrides: row.overrides ?? [],
+  confirmedBy: row.confirmed_by,
+  confirmedAt: row.confirmed_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+async function listLocations(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  const { data, error } = await client
+    .from('locations')
+    .select(LOCATION_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  if (error) return dbFailure('list locations', error);
+  return ok({ locations: (data as unknown as LocationRow[]).map(rowToLocation) });
+}
+
+async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location: unknown): Promise<Result> {
+  const checked = validateLocationInput(location);
+  if (!checked.ok) return badRequest(checked.message);
+  const { id, ...values } = checked.value;
+  const result = await updateOrInsert<LocationRow>(
+    client, 'locations', ctx, id,
+    { ...values, confirmed_by: ctx.userId, confirmed_at: new Date().toISOString() },
+    LOCATION_COLUMNS,
+  );
+  return 'error' in result ? result.error : ok({ success: true, location: rowToLocation(result.row) });
 }
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
@@ -817,6 +899,12 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return updateOwned(client, 'roster', ctx, p.id, { notified: true });
     case 'deleteRosterShift':
       return deleteOwned(client, 'roster', ctx, p.id);
+    case 'listLocations':
+      return listLocations(client, ctx);
+    case 'upsertLocation':
+      return upsertLocation(client, ctx, p.location);
+    case 'deleteLocation':
+      return deleteOwned(client, 'locations', ctx, p.id);
     case 'getUsageLimit':
       return getUsageLimit(client, ctx);
     case 'incrementAutoAssign':

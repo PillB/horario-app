@@ -5,14 +5,17 @@
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
+  MINUTES_PER_DAY,
   defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   getWeekdayFromDate,
   isValidTime,
   normalizeDay,
+  normalizeWindow,
   parseTimeToMinutes,
   windowsOverlap,
 } from './schedulerUtils';
+import { addDaysToKey } from './dateKeys';
 
 // ─── ValidationErrorItem ─────────────────────────────────────────────────────
 
@@ -35,8 +38,14 @@ export function localizeValidationErrors(
 
 // ─── findCoveringAvailability ─────────────────────────────────────────────────
 
-/** Returns the availability slot (if any) that fully covers the template window,
- *  taking the business timezone offset into account. */
+/** Returns the availability slot (if any) that fully covers the template window on `date`.
+ *
+ *  Overnight windows are supported on both sides: a template or slot whose end is at or
+ *  before its start runs into the next day (21:00–07:00 covers 22:00–06:00), a slot
+ *  ending at 23:59 counts as ending at midnight, and an overnight slot from the previous
+ *  weekday covers the early hours of `date` (Mon 21:00–07:00 covers Tue 01:00–05:00).
+ *  The weekday is that of the business-local date key; the offset argument is
+ *  deprecated and ignored. */
 export const findCoveringAvailability = (
   worker: Worker,
   template: ShiftTemplate,
@@ -47,18 +56,21 @@ export const findCoveringAvailability = (
   if (!weekdayLabel) {
     return { coveringSlot: undefined, weekdayLabel: null };
   }
+  const previousLabel = getWeekdayFromDate(addDaysToKey(date, -1));
 
-  const templateWindow = getTemplateWindow(template);
+  const shift = normalizeWindow(getTemplateWindow(template));
 
   const coveringSlot = worker.availability.find((slot) => {
-    if (slot.day !== weekdayLabel) return false;
-    const availabilityWindow = {
+    const dayShift = slot.day === weekdayLabel ? 0 : slot.day === previousLabel ? -MINUTES_PER_DAY : null;
+    if (dayShift === null) return false;
+    const rawEnd = parseTimeToMinutes(slot.to);
+    const window = normalizeWindow({
       startMinutes: parseTimeToMinutes(slot.from),
-      endMinutes: parseTimeToMinutes(slot.to),
-    };
+      endMinutes: rawEnd === MINUTES_PER_DAY - 1 ? MINUTES_PER_DAY : rawEnd,
+    });
     return (
-      availabilityWindow.startMinutes <= templateWindow.startMinutes &&
-      availabilityWindow.endMinutes >= templateWindow.endMinutes
+      window.startMinutes + dayShift <= shift.startMinutes &&
+      window.endMinutes + dayShift >= shift.endMinutes
     );
   });
 

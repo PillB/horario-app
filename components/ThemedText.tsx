@@ -25,24 +25,17 @@ export function ThemedText({
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
-  // Resolve link colour through the token system for both modes:
-  // light: Colors.light.primaryDeep (#115E59) → 5.87:1 on white ✓ AA
-  // dark:  Colors.dark.tint (#2DD4BF)         → 8.95:1 on #0F172A ✓ AAA
-  const linkColor = useThemeColor(
-    { light: Colors.light.tint === Colors.light.tint ? Colors.light.borderFocus : Colors.light.borderFocus, dark: Colors.dark.tint },
-    'tint',
-  );
-
-  // Use a safe resolved link colour: primaryDeep for light, tint for dark
+  // Link colour: primaryDeep (#115E59, 5.87:1 on white) in light mode,
+  // tint (#2DD4BF, 8.95:1 on #0F172A) in dark mode.
   const resolvedLinkColor = useThemeColor(
     { light: '#115E59', dark: Colors.dark.tint },
     'tint',
   );
 
-  // Pressed-state colour for link affordance
+  // Pressed-state colour for link affordance (text, so the text-safe teal)
   const linkPressedColor = useThemeColor(
-    { light: Colors.light.tint, dark: Colors.dark.borderFocus },
-    'tint',
+    { light: Colors.light.tintText, dark: Colors.dark.borderFocus },
+    'tintText',
   );
 
   const [isPressed, setIsPressed] = useState(false);

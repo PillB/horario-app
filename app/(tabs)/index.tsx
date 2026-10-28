@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
 import { PersonalizedFeed } from '@/components/PersonalizedFeed';
 import { ProfileAchievements } from '@/components/ProfileAchievements';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
@@ -12,6 +13,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
+import { useLocations } from '@/hooks/useLocations';
 import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useStreak } from '@/hooks/useStreak';
 import { useTeamInvite } from '@/hooks/useTeamInvite';
@@ -20,6 +22,7 @@ import { useIdentity } from '@/contexts/IdentityContext';
 import { TourStep } from '@/components/TourStep';
 import { Colors, brand, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { PageTitle } from '@/components/PageTitle';
 
 export default function HomeScreen() {
   const { t } = useT();
@@ -34,11 +37,14 @@ export default function HomeScreen() {
   const { tier } = useEthicalReward(streakCount);
   const { upcomingShifts, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
+  // First-run: ask where the business is until it has a confirmed location.
+  const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
   const styles = makeStyles(colors, colorScheme ?? 'light');
 
   return (
     <>
+    <PageTitle title={t('nav.home')} />
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#0F766E', dark: '#134E4A' }}
       headerImage={
@@ -71,6 +77,12 @@ export default function HomeScreen() {
         </Pressable>
       </ThemedView>
       </TourStep>
+
+      {locationsLoaded && locations.length === 0 ? (
+        <ErrorBoundary>
+          <LocationSetupCard onSave={saveLocation} />
+        </ErrorBoundary>
+      ) : null}
 
       <TourStep target="week-stats">
       <ThemedView style={styles.card}>
@@ -403,7 +415,7 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
       alignSelf: 'flex-start',
     },
     inviteButtonText: {
-      color: brand.primary,   // #0D9488 — 4.52:1 on white ✓ AA
+      color: colors.tintText, // light #0F766E 5.47:1 on white ✓ AA (#0D9488 was 3.74:1)
       fontWeight: '600',
       fontSize: 14,
     },

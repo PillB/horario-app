@@ -5,22 +5,32 @@ import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
 import { ComponentProps } from 'react';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
-type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
-type IconSymbolName = keyof typeof MAPPING;
+type IconMapping = Partial<
+  Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>
+>;
+/**
+ * Only names that have a Material mapping. `satisfies` (not `as`) keeps the
+ * literal keys, so passing an unmapped SF Symbol name is a type error instead
+ * of an empty icon on Android and web.
+ */
+export type IconSymbolName = keyof typeof MAPPING;
 
 /**
  * Add your SF Symbols to Material Icons mappings here.
  * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
-const MAPPING = {
+export const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   calendar: 'calendar-today',
   'chevron.right': 'chevron-right',
   'chart.bar.fill': 'bar-chart',
-} as IconMapping;
+  'person.crop.circle.fill': 'account-circle',
+  'wrench.and.screwdriver.fill': 'build',
+  'rectangle.portrait.and.arrow.right': 'logout',
+} as const satisfies IconMapping;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

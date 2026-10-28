@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/ThemedText'
 import { Colors, brand, type ThemeColors } from '@/constants/Colors'
 import { useColorScheme } from '@/hooks/useColorScheme'
 import { useT } from '@/contexts/LocaleContext'
+import { useHasMounted } from '@/hooks/useHasMounted'
 
 function getUtcOffsetString(): string {
   const offsetMinutes = new Date().getTimezoneOffset()
@@ -60,13 +61,19 @@ export function TimezoneBar(): React.JSX.Element {
     }
   }, [])
 
-  const tzName = getTimezoneName()
-  const utcOffset = getUtcOffsetString()
-  const timeStr = formatTime(now)
-  const dateStr = formatDate(now)
-  const tzDisplay = `${tzName} (${utcOffset})`
+  // The zone, date and time come from the viewer's device. The static web HTML
+  // is rendered at build time on another machine, so they are only shown after
+  // mount; rendering them earlier breaks hydration (QA U3, React error #418).
+  const hasMounted = useHasMounted()
+  const tzName = hasMounted ? getTimezoneName() : ''
+  const utcOffset = hasMounted ? getUtcOffsetString() : ''
+  const timeStr = hasMounted ? formatTime(now) : ''
+  const dateStr = hasMounted ? formatDate(now) : ''
+  const tzDisplay = hasMounted ? `${tzName} (${utcOffset})` : ''
 
-  const accessibilityLabel = `${t('timezone.schedulingIn')} ${tzName}, ${timeStr}`
+  const accessibilityLabel = hasMounted
+    ? `${t('timezone.schedulingIn')} ${tzName}, ${timeStr}`
+    : t('timezone.schedulingIn')
 
   const styles = StyleSheet.create({
     container: {
@@ -123,9 +130,13 @@ export function TimezoneBar(): React.JSX.Element {
       </ThemedText>
       <ThemedText style={styles.tzText}>{tzDisplay}</ThemedText>
       <View style={styles.spacer} />
-      <ThemedText style={styles.dateText}>{dateStr}</ThemedText>
-      <ThemedText style={styles.separator}>·</ThemedText>
-      <ThemedText style={styles.timeText}>{timeStr}</ThemedText>
+      {hasMounted ? (
+        <>
+          <ThemedText style={styles.dateText}>{dateStr}</ThemedText>
+          <ThemedText style={styles.separator}>·</ThemedText>
+          <ThemedText style={styles.timeText}>{timeStr}</ThemedText>
+        </>
+      ) : null}
     </View>
   )
 }

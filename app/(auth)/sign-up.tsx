@@ -13,6 +13,7 @@ import { useSignUp } from '@clerk/expo/legacy';
 import { Link, useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
+import { PageTitle } from '@/components/PageTitle';
 import { trackEvent } from '@/services/analytics';
 
 export default function SignUpScreen() {
@@ -80,6 +81,7 @@ export default function SignUpScreen() {
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <PageTitle title="Verify your email" />
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
@@ -164,6 +166,7 @@ export default function SignUpScreen() {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <PageTitle title="Create account" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -368,7 +371,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emailHighlight: {
-    color: brand.primary,
+    color: brand.primaryDark,
     fontWeight: '600',
   },
   // Fields
@@ -452,7 +455,7 @@ const styles = StyleSheet.create({
   },
   pricingNote: {
     fontSize: 11,
-    color: '#0D9488',
+    color: brand.primaryDark,
     textAlign: 'center',
     fontWeight: '500',
     marginTop: 2,
@@ -471,7 +474,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 14,
-    color: brand.primary,
+    color: brand.primaryDark,
     fontWeight: '600',
   },
   backLink: {

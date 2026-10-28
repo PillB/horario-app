@@ -23,6 +23,11 @@ export type DbWorker = {
   name: string;
   role: string;
   skills: string[];
+  /** Labor attributes (CHG-082); absent on rows from an older proxy. */
+  birthDate?: string | null;
+  nightWorker?: boolean;
+  weeklyLimitOptOut?: boolean;
+  noFixedHours?: boolean;
   createdAt?: string;
 };
 

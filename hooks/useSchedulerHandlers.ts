@@ -17,14 +17,17 @@ import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type OnboardingStep, type Worker } from '@/types/scheduler';
 import {
   createChangeHandler,
-  defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   isValidDate,
   isValidTime,
   isoDate,
   windowsOverlap,
 } from '@/utils/schedulerUtils';
-import { addDaysToKey, isDateKey } from '@/utils/dateKeys';
+import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
+import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
+import { autoAssignSettings } from '@/utils/autoAssignSettings';
+import { resolveShiftLocation } from '@/utils/scheduleLocation';
+import { useLocations } from '@/hooks/useLocations';
 import {
   findCoveringAvailability,
   validateAvailabilitySubmission,
@@ -50,6 +53,27 @@ import { useIdentity } from '@/contexts/IdentityContext';
 
 type ActionBanner = { type: 'success' | 'error' | 'info'; message: string } | null;
 
+export type WorkerFormState = {
+  name: string;
+  role: string;
+  skills: string;
+  /** 'YYYY-MM-DD' or '' when unknown. */
+  birthDate: string;
+  nightWorker: boolean;
+  weeklyLimitOptOut: boolean;
+  noFixedHours: boolean;
+};
+
+const EMPTY_WORKER_FORM: WorkerFormState = {
+  name: '',
+  role: '',
+  skills: '',
+  birthDate: '',
+  nightWorker: false,
+  weeklyLimitOptOut: false,
+  noFixedHours: false,
+};
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSchedulerHandlers() {
@@ -74,6 +98,7 @@ export function useSchedulerHandlers() {
   const { workers, addWorker, addAvailability } = useWorkers(accountId);
   const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
   const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
+  const { locations, loaded: locationsLoaded } = useLocations(accountId);
   const { canAutoAssign, count: usageCount, increment: incrementUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
@@ -99,6 +124,10 @@ export function useSchedulerHandlers() {
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
 
   // ── Form state ────────────────────────────────────────────────────────────
+  // Default dates are relative to the viewer's "today". They start empty and
+  // are filled in after mount: the web HTML is rendered at build time, and a
+  // date computed then would not match the client's first render (QA U3,
+  // React hydration error #418).
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: 'W-01',
     day: 'Fri',
@@ -108,15 +137,15 @@ export function useSchedulerHandlers() {
   const [shiftForm, setShiftForm] = useState({
     workerId: 'W-01',
     templateId: 'morning',
-    date: isoDate(2),
+    date: '',
   });
   const [targetForm, setTargetForm] = useState({
-    date: isoDate(3),
+    date: '',
     role: 'Support',
     required: '3',
     notes: 'Weekend backlog',
   });
-  const [workerForm, setWorkerForm] = useState({ name: '', role: '', skills: '' });
+  const [workerForm, setWorkerForm] = useState<WorkerFormState>(EMPTY_WORKER_FORM);
   const [templateForm, setTemplateForm] = useState({
     name: '',
     role: '',
@@ -127,7 +156,7 @@ export function useSchedulerHandlers() {
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
-    startDate: isoDate(0),
+    startDate: '',
     days: '7',
     homogeneousDemand: '4',
     shiftsPerDay: '2',
@@ -149,6 +178,12 @@ export function useSchedulerHandlers() {
   const [templateSectionOffset, setTemplateSectionOffset] = useState<number | null>(null);
   const [demandSectionOffset, setDemandSectionOffset] = useState<number | null>(null);
 
+  useEffect(() => {
+    setShiftForm((prev) => (prev.date ? prev : { ...prev, date: isoDate(2) }));
+    setTargetForm((prev) => (prev.date ? prev : { ...prev, date: isoDate(3) }));
+    setFallbackForm((prev) => (prev.startDate ? prev : { ...prev, startDate: isoDate(0) }));
+  }, []);
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const forecastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -161,10 +196,20 @@ export function useSchedulerHandlers() {
   const demandSectionRef = useRef<View>(null);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
-  const businessTimezoneOffsetMinutes = useMemo(() => defaultTimezoneOffsetMinutes, []);
+  // Auto-assign has no location picker yet, so it uses the account's only
+  // location; with none (or several) no jurisdiction is applied.
+  const autoAssignLocation = useMemo(() => resolveShiftLocation(locations), [locations]);
+  const scheduleLocations = useMemo(
+    () => ({ locations, loaded: locationsLoaded }),
+    [locations, locationsLoaded]
+  );
 
-  const updateWorkerField = useMemo(
-    () => createChangeHandler(setWorkerForm, recordInteraction),
+  const updateWorkerField = useCallback(
+    <K extends keyof WorkerFormState>(key: K) =>
+      (value: WorkerFormState[K]) => {
+        recordInteraction();
+        setWorkerForm((prev) => ({ ...prev, [key]: value }));
+      },
     [recordInteraction]
   );
   const updateTemplateField = useMemo(
@@ -592,11 +637,22 @@ export function useSchedulerHandlers() {
     if (!trimmedRole) { setWorkerError('Role is required.'); return; }
     if (trimmedRole.length > 80) { setWorkerError('Role must be 80 characters or fewer.'); return; }
     if (trimmedSkills.length > 200) { setWorkerError('Skills must be 200 characters or fewer.'); return; }
+    const birthDate = workerForm.birthDate.trim();
+    const birthDateError = birthDate ? validateBirthDate(birthDate, todayKey()) : null;
+    if (birthDateError) {
+      setWorkerError(t(`workerLabor.errors.${birthDateError}`, { n: String(MIN_WORKER_AGE) }));
+      return;
+    }
     setWorkerError(null);
     const skills = workerForm.skills.split(',').map((s) => s.trim()).filter(Boolean);
-    const result = await addWorker(trimmedName, trimmedRole, skills);
+    const result = await addWorker(trimmedName, trimmedRole, skills, {
+      birthDate: birthDate || null,
+      nightWorker: workerForm.nightWorker,
+      weeklyLimitOptOut: workerForm.weeklyLimitOptOut,
+      noFixedHours: workerForm.noFixedHours,
+    });
     if (result.success) {
-      setWorkerForm({ name: '', role: '', skills: '' });
+      setWorkerForm(EMPTY_WORKER_FORM);
       // Auto-populate availability and shift forms with the new worker's ID
       setAvailabilityForm((prev) => ({ ...prev, workerId: result.worker.id }));
       setShiftForm((prev) => ({ ...prev, workerId: result.worker.id }));
@@ -614,7 +670,7 @@ export function useSchedulerHandlers() {
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, recordTourAction, workerForm, workers.length]);
+  }, [addWorker, recordTourAction, t, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -686,7 +742,7 @@ export function useSchedulerHandlers() {
     const worker = workers.find((w) => w.id === trimmedWorkerId);
     const { coveringSlot, weekdayLabel } =
       template && worker
-        ? findCoveringAvailability(worker, template, trimmedDate, businessTimezoneOffsetMinutes)
+        ? findCoveringAvailability(worker, template, trimmedDate)
         : {
             coveringSlot: undefined,
             weekdayLabel: null,
@@ -752,7 +808,6 @@ export function useSchedulerHandlers() {
     }
   }, [
     addShift,
-    businessTimezoneOffsetMinutes,
     recordTourAction,
     roster,
     rosterLookup,
@@ -879,7 +934,7 @@ export function useSchedulerHandlers() {
       if (!shift) return;
 
       const { errors } = validateShiftReadiness(
-        shift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+        shift, roster, shiftTemplates, workers
       );
       if (errors.length) { showActionBanner(errors.map((e) => e.message).join(' '), 'error'); return; }
 
@@ -888,7 +943,7 @@ export function useSchedulerHandlers() {
         const latestShift = roster.find((s) => s.id === shiftId);
         if (!latestShift) return;
         const validation = validateShiftReadiness(
-          latestShift, roster, shiftTemplates, workers, businessTimezoneOffsetMinutes
+          latestShift, roster, shiftTemplates, workers
         );
         if (validation.errors.length) {
           showActionBanner(validation.errors.map((e) => e.message).join(' '), 'error'); return;
@@ -916,7 +971,6 @@ export function useSchedulerHandlers() {
       }
     },
     [
-      businessTimezoneOffsetMinutes,
       celebrateRosterPublish,
       roster,
       setShiftStatus,
@@ -977,12 +1031,15 @@ export function useSchedulerHandlers() {
       showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
       return;
     }
+    // No business-level limits are configured in this screen yet; the law's apply.
+    const settings = autoAssignSettings(date, autoAssignLocation);
     const result = assignShifts({
       date,
       templates: shiftTemplates,
       workers,
       existingRoster: roster,
-      timezoneOffsetMinutes: businessTimezoneOffsetMinutes,
+      constraints: settings.constraints,
+      timeZone: settings.timeZone,
     });
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
@@ -1006,7 +1063,7 @@ export function useSchedulerHandlers() {
         : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
       'info'
     );
-  }, [businessTimezoneOffsetMinutes, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
+  }, [autoAssignLocation, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
@@ -1018,7 +1075,7 @@ export function useSchedulerHandlers() {
         date: suggestion.date,
         workerId: suggestion.workerId,
         templateId: suggestion.templateId,
-        location: 'HQ',
+        location: autoAssignLocation?.id ?? 'HQ',
         status: 'Draft',
         notified: false,
       });
@@ -1036,7 +1093,7 @@ export function useSchedulerHandlers() {
       `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).`,
       successCount === autoAssignSuggestions.length ? 'success' : 'info'
     );
-  }, [addShift, autoAssignSuggestions, incrementUsage, showActionBanner]);
+  }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     let savedCount = 0;
@@ -1186,6 +1243,7 @@ export function useSchedulerHandlers() {
 
     // Derived / computed
     rosterByDate,
+    scheduleLocations,
     upcomingShifts,
     staffingGaps,
     onboardingSteps,

@@ -494,12 +494,18 @@ export const DemandSection = ({
         <ThemedText style={styles.mutedText}>
           {t('scheduler.demand.quickSetupDesc')}
         </ThemedText>
-        <View style={styles.inlineActions}>
-          {/* [5][6] Inactive chip uses textSecondary (6.86:1); active has white on teal (6.88:1) */}
+        <View
+          style={styles.inlineActions}
+          accessibilityRole="radiogroup"
+          accessibilityLabel={t('scheduler.demand.modeGroupA11y')}
+        >
+          {/* [5][6] Inactive chip uses textSecondary (6.86:1); active has white on teal */}
           <Pressable
             onPress={() => setFallbackMode('homogeneous')}
             accessibilityRole="radio"
-            accessibilityState={{ selected: fallbackMode === 'homogeneous' }}
+            aria-checked={fallbackMode === 'homogeneous'}
+            accessibilityLabel={t('scheduler.demand.homogeneous')}
+            accessibilityHint={t('scheduler.demand.modeHint')}
             style={[
               local.toggleChip,
               fallbackMode === 'homogeneous' && local.toggleChipActive,
@@ -517,7 +523,9 @@ export const DemandSection = ({
           <Pressable
             onPress={() => setFallbackMode('manual')}
             accessibilityRole="radio"
-            accessibilityState={{ selected: fallbackMode === 'manual' }}
+            aria-checked={fallbackMode === 'manual'}
+            accessibilityLabel={t('scheduler.demand.manualCounts')}
+            accessibilityHint={t('scheduler.demand.modeHint')}
             style={[
               local.toggleChip,
               fallbackMode === 'manual' && local.toggleChipActive,
@@ -536,7 +544,9 @@ export const DemandSection = ({
           <Pressable
             onPress={() => setFallbackMode('pos')}
             accessibilityRole="radio"
-            accessibilityState={{ selected: fallbackMode === 'pos' }}
+            aria-checked={fallbackMode === 'pos'}
+            accessibilityLabel={t('scheduler.demand.posTab')}
+            accessibilityHint={t('scheduler.demand.modeHint')}
             style={[local.toggleChip, fallbackMode === 'pos' && local.toggleChipActive]}
           >
             <ThemedText style={[local.toggleChipText, fallbackMode === 'pos' && local.toggleChipTextActive]}>
@@ -633,14 +643,19 @@ export const DemandSection = ({
             </ThemedText>
 
             {/* b) Preset picker chips */}
-            <View style={local.presetRow}>
+            <View
+              style={local.presetRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('scheduler.demand.posMixPresetsA11y')}
+            >
               {PRESET_KEYS.map((key) => (
                 <Pressable
                   key={key}
                   onPress={() => handlePresetSelect(key)}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: selectedPreset === key }}
+                  aria-checked={selectedPreset === key}
                   accessibilityLabel={getPresetLabel(key)}
+                  accessibilityHint={t('scheduler.demand.posMixPresetHint')}
                   style={[local.presetChip, selectedPreset === key && local.presetChipActive]}
                 >
                   <ThemedText
@@ -685,12 +700,17 @@ export const DemandSection = ({
                   accessibilityLabel={t('scheduler.demand.posMixRole')}
                 />
                 {/* Ratio mode toggle */}
-                <View style={[local.ratioToggle, { flex: 2 }]}>
+                <View
+                  style={[local.ratioToggle, { flex: 2 }]}
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel={t('scheduler.demand.posMixRatioA11y')}
+                >
                   <Pressable
                     onPress={() => updateRoleRowFn(idx, { ratioMode: 'covers' })}
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: f.ratioMode === 'covers' }}
+                    aria-checked={f.ratioMode === 'covers'}
                     accessibilityLabel={t('scheduler.demand.posMixCovers')}
+                    accessibilityHint={t('scheduler.demand.posMixRatioHint')}
                     style={[
                       local.ratioToggleOption,
                       f.ratioMode === 'covers' && local.ratioToggleOptionActive,
@@ -708,8 +728,9 @@ export const DemandSection = ({
                   <Pressable
                     onPress={() => updateRoleRowFn(idx, { ratioMode: 'revenue' })}
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: f.ratioMode === 'revenue' }}
+                    aria-checked={f.ratioMode === 'revenue'}
                     accessibilityLabel={t('scheduler.demand.posMixRevenue')}
+                    accessibilityHint={t('scheduler.demand.posMixRatioHint')}
                     style={[
                       local.ratioToggleOption,
                       f.ratioMode === 'revenue' && local.ratioToggleOptionActive,

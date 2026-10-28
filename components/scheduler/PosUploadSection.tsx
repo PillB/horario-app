@@ -492,10 +492,10 @@ export default function PosUploadSection({
               style={[styles.uploadButton, { opacity: 0.75 }]}
               onPress={handleChooseFile}
               accessibilityRole="button"
-              accessibilityLabel={t('scheduler.pos.chooseFileButton')}
+              accessibilityLabel={t('scheduler.pos.uploadButton')}
             >
               <Text style={styles.uploadButtonText}>
-                {t('scheduler.pos.chooseFileButton')}
+                {t('scheduler.pos.uploadButton')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -9,13 +9,7 @@
  */
 
 import React, { useCallback } from 'react';
-import {
-  FlatList,
-  ListRenderItemInfo,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -83,7 +77,7 @@ function EntryRow({ entry, colors }: EntryRowProps): React.JSX.Element {
   return (
     <View
       style={[styles.row, { borderBottomColor: colors.border ?? '#E2E8F0' }]}
-      accessibilityRole="text"
+      role="listitem"
       accessibilityLabel={`${entry.level} ${entry.category} ${entry.message} at ${formatTimeOnly(entry.timestamp)}`}
     >
       {/* Left: badge + meta */}
@@ -110,6 +104,7 @@ function EntryRow({ entry, colors }: EntryRowProps): React.JSX.Element {
 interface ActionButtonProps {
   label: string;
   accessibilityLabel: string;
+  accessibilityHint: string;
   onPress: () => void;
   variant?: 'default' | 'danger' | 'primary';
 }
@@ -117,6 +112,7 @@ interface ActionButtonProps {
 function ActionButton({
   label,
   accessibilityLabel,
+  accessibilityHint,
   onPress,
   variant = 'default',
 }: ActionButtonProps): React.JSX.Element {
@@ -128,13 +124,15 @@ function ActionButton({
       : brand.primarySurface;
 
   const fgColor =
-    variant === 'primary' || variant === 'danger' ? '#FFFFFF' : brand.primary;
+    // Teal text on the light primarySurface chip: primaryDark (#0F766E) passes AA.
+    variant === 'primary' || variant === 'danger' ? '#FFFFFF' : brand.primaryDark;
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       style={({ pressed }) => [
         styles.actionButton,
         { backgroundColor: bgColor, opacity: pressed ? 0.75 : 1 },
@@ -164,18 +162,6 @@ export function DiagnosticsPanel(): React.JSX.Element {
   const handleCopy = useCallback(async () => {
     await copyToClipboard();
   }, [copyToClipboard]);
-
-  const keyExtractor = useCallback(
-    (item: LogEntry, index: number) => `${item.timestamp}-${index}`,
-    [],
-  );
-
-  const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<LogEntry>) => (
-      <EntryRow entry={item} colors={colors} />
-    ),
-    [colors],
-  );
 
   const ListEmpty = (
     <View style={styles.emptyContainer}>
@@ -215,17 +201,20 @@ export function DiagnosticsPanel(): React.JSX.Element {
           <ActionButton
             label="Refresh"
             accessibilityLabel="Refresh log entries"
+            accessibilityHint="Reloads the list with the latest entries"
             onPress={refresh}
           />
           <ActionButton
             label="Copy logs"
             accessibilityLabel="Copy all log entries to clipboard"
+            accessibilityHint="Copies the log so you can paste it into a support ticket"
             onPress={handleCopy}
             variant="primary"
           />
           <ActionButton
             label="Clear"
             accessibilityLabel="Clear all log entries"
+            accessibilityHint="Deletes every entry from the log"
             onPress={clear}
             variant="danger"
           />
@@ -248,22 +237,24 @@ export function DiagnosticsPanel(): React.JSX.Element {
           { borderColor: colors.border ?? '#E2E8F0' },
         ]}
       >
-        <FlatList<LogEntry>
-          data={reversedEntries}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          ListEmptyComponent={ListEmpty}
-          style={styles.list}
-          contentContainerStyle={
-            reversedEntries.length === 0 ? styles.listContentEmpty : undefined
-          }
-          scrollEnabled
-          showsVerticalScrollIndicator
-          accessibilityRole="list"
-          accessibilityLabel="Log entries list"
-          // Perf: items are small and ring buffer ≤ 100 — no windowing needed
-          removeClippedSubviews={false}
-        />
+        {/*
+          The list role sits on a plain View whose direct children are the
+          rows (role="listitem"), so on web it renders as <ul><li>. On a
+          FlatList the role landed on the scroller, whose only child is the
+          content container, giving a <ul> with no <li> (QA U8). The ring
+          buffer holds at most 100 small rows, so no virtualisation is needed.
+        */}
+        {reversedEntries.length === 0 ? (
+          ListEmpty
+        ) : (
+          <ScrollView style={styles.list} showsVerticalScrollIndicator>
+            <View role="list" accessibilityLabel="Log entries list" testID="log-entries-list">
+              {reversedEntries.map((entry, index) => (
+                <EntryRow key={`${entry.timestamp}-${index}`} entry={entry} colors={colors} />
+              ))}
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       {/* ── Privacy notice ── */}
@@ -356,11 +347,6 @@ const styles = StyleSheet.create({
   list: {
     maxHeight: LIST_MAX_HEIGHT,
   },
-  listContentEmpty: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-
   // ── Empty state ──
   emptyContainer: {
     paddingVertical: 32,
