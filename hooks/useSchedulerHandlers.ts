@@ -167,15 +167,17 @@ export function useSchedulerHandlers() {
   // are filled in after mount: the web HTML is rendered at build time, and a
   // date computed then would not match the client's first render (QA U3,
   // React hydration error #418).
+  // Worker / template start empty: a made-up id ('W-01') shows a "not found"
+  // warning on every account that has no such row.
   const [availabilityForm, setAvailabilityForm] = useState({
-    workerId: 'W-01',
+    workerId: '',
     day: 'Fri',
     from: '09:00',
     to: '17:00',
   });
   const [shiftForm, setShiftForm] = useState({
-    workerId: 'W-01',
-    templateId: 'morning',
+    workerId: '',
+    templateId: '',
     date: '',
   });
   const [targetForm, setTargetForm] = useState({
@@ -412,9 +414,11 @@ export function useSchedulerHandlers() {
     () => ({
       workers: workers.length > 0,
       templates: shiftTemplates.length > 0,
-      forecast: demandTargets.length > 0 || forecasting || forecastLoading,
+      // Only real targets count: a forecast that is loading or running may
+      // still fail, and the persist effect below would store it as done.
+      forecast: demandTargets.length > 0,
     }),
-    [demandTargets.length, forecastLoading, forecasting, shiftTemplates.length, workers.length]
+    [demandTargets.length, shiftTemplates.length, workers.length]
   );
 
   const effectiveOnboardingFlags = useMemo(() => {
@@ -801,13 +805,15 @@ export function useSchedulerHandlers() {
   }, [addAvailability, availabilityForm, recordTourAction, workers]);
 
   const handleShiftSubmit = useCallback(async () => {
-    const trimmedWorkerId = shiftForm.workerId.trim();
+    const workerInput = shiftForm.workerId.trim();
     const trimmedTemplateId = shiftForm.templateId.trim();
     const trimmedDate = shiftForm.date.trim();
     const errors: string[] = [];
 
     const template = shiftTemplates.find((t) => t.id === trimmedTemplateId);
-    const worker = workers.find((w) => w.id === trimmedWorkerId);
+    // The picker fills the short id ("W-1"); a pasted UUID works too.
+    const worker = workers.find((w) => w.displayId === workerInput) ?? workers.find((w) => w.id === workerInput);
+    const trimmedWorkerId = worker?.id ?? workerInput;
     const { coveringSlot, weekdayLabel } =
       template && worker
         ? findCoveringAvailability(worker, template, trimmedDate)
@@ -820,7 +826,7 @@ export function useSchedulerHandlers() {
       errors.push('All fields are required.');
     if (trimmedDate && !isValidDate(trimmedDate))
       errors.push('Date must use the YYYY-MM-DD format.');
-    if (trimmedWorkerId && !workers.some((w) => w.id === trimmedWorkerId))
+    if (trimmedWorkerId && !worker)
       errors.push('Worker ID must match an existing worker.');
     if (trimmedTemplateId && !shiftTemplates.some((t) => t.id === trimmedTemplateId))
       errors.push('Template ID must match an existing template.');
@@ -863,7 +869,9 @@ export function useSchedulerHandlers() {
       date: trimmedDate,
       workerId: trimmedWorkerId,
       templateId: trimmedTemplateId,
-      location: 'HQ',
+      // The account's only location (as auto-assign does); with several, no
+      // picker yet, so the entry names none and compliance says so.
+      location: autoAssignLocation?.id ?? '',
       status: 'Draft',
       notified: false,
     });
@@ -876,6 +884,7 @@ export function useSchedulerHandlers() {
     }
   }, [
     addShift,
+    autoAssignLocation,
     recordTourAction,
     roster,
     rosterLookup,
@@ -1213,7 +1222,7 @@ export function useSchedulerHandlers() {
         date: suggestion.date,
         workerId: suggestion.workerId,
         templateId: suggestion.templateId,
-        location: autoAssignLocation?.id ?? 'HQ',
+        location: autoAssignLocation?.id ?? '',
         status: 'Draft',
         notified: false,
       });

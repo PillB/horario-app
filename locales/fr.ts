@@ -172,7 +172,7 @@ export const fr = {
     achievements: {
       title: 'Réalisations',
       coverageChecks: 'Vérifications de couverture régulières',
-      coverageChecksDesc: 'Mises à jour enregistrées 5 des 7 derniers jours.',
+      coverageChecksDesc: 'Consultez le planning 7 jours de suite.',
       draftsPublished: 'Brouillons publiés',
       draftsPublishedDesc: 'Publiez les brouillons lorsque les équipes sont prêtes.',
       notStarted: 'Non commencé'
@@ -993,7 +993,7 @@ export const fr = {
     saveFailed: 'Impossible d\'enregistrer l\'établissement : {error}',
     deleteFailed: 'Impossible de supprimer l\'établissement : {error}',
     industries: { retail: 'Commerce de détail', food_service: 'Restauration', fast_food: 'Restauration rapide', full_service_restaurant: 'Restaurant avec service à table', hospitality: 'Hôtellerie-restauration', hotel: 'Hôtel', warehouse: 'Entrepôt', manufacturing: 'Industrie', healthcare: 'Santé', building_services: 'Services aux bâtiments', other: 'Autre' },
-    errors: { NAME_INVALID: 'Saisissez un nom de 80 caractères maximum.', COUNTRY_INVALID: 'Choisissez un pays.', TIME_ZONE_INVALID: 'Saisissez un fuseau horaire valide, par exemple Europe/Paris ou America/Lima.', INDUSTRY_INVALID: 'Choisissez un secteur.', HEADCOUNT_INVALID: 'Saisissez un nombre entier d\'employés.', generic: 'Vérifiez les informations de l\'établissement.' },
+    errors: { NAME_INVALID: 'Saisissez un nom de 80 caractères maximum.', COUNTRY_INVALID: 'Choisissez un pays.', TIME_ZONE_INVALID: 'Saisissez un fuseau horaire valide, par exemple Europe/Paris ou America/Lima.', TIME_ZONE_COUNTRY_MISMATCH: 'Ce fuseau horaire n\'est pas celui du pays de l\'établissement. Choisissez le fuseau où travaille l\'établissement, par exemple Europe/Paris.', INDUSTRY_INVALID: 'Choisissez un secteur.', HEADCOUNT_INVALID: 'Saisissez un nombre entier d\'employés.', generic: 'Vérifiez les informations de l\'établissement.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

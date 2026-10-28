@@ -222,6 +222,7 @@ export function evaluateShifts(ctx: EvaluationContext, worker: LaborWorker, shif
   checkBreaks(pack, duties, emit);
   checkNight(pack, ctx, worker, duties, emit);
   checkWeekly(pack, ctx, worker, duties, ordinaryByDay, startsOn, emit);
+  checkWeeklyRestDays(pack, ctx, duties, startsOn, emit);
   checkNotice(pack, ctx, worker, duties, emit);
   checkMinors(pack, ctx, worker, duties, startsOn, emit);
   const pay = computeOvertimePay(pack, duties, startsOn, emit);
@@ -292,6 +293,11 @@ function checkDaily(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
           emit({
             rule: 'daily.ordinaryMax', verdict: 'violation', shiftIds, hours: round2(excess), cite: rule.cite,
             message: `${round2(ordinary)} h of ordinary time exceeds the ${limit} h daily maximum.`,
+          });
+        } else if (rule.excess === 'review') {
+          emit({
+            rule: 'daily.ordinaryMax', verdict: 'review', shiftIds, hours: round2(ordinary), cite: rule.cite,
+            message: `${round2(ordinary)} h of ordinary time in one day: check it against the agreed daily distribution; hours beyond it are overtime.`,
           });
         } else {
           overtime += excess;
@@ -394,7 +400,7 @@ function checkRest(pack: RulePack, ctx: EvaluationContext, duties: Duty[], emit:
       if (clop.consentRequired && !next.shifts[0].restConsent) {
         emit({
           rule: 'fairWorkweek.clopening', verdict: 'violation', shiftIds: pair, hours: round2(gapH), cite: clop.cite,
-          message: `Only ${round2(gapH)} h between shifts; under ${clop.minHours} h needs the employee's written consent.`,
+          message: `Only ${round2(gapH)} h between shifts; under ${clop.minHours} h needs the employee's ${clop.consentWritten === false ? '' : 'written '}consent.`,
         });
         continue;
       }
@@ -462,6 +468,29 @@ function checkNight(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
           message: `${round2(h)} h of night work earn a ${night.premiumPct}% premium.`,
         });
       }
+    }
+  }
+  const floor = night?.monthlyPayFloor;
+  if (floor) {
+    // One finding per calendar month with night work; the minimum wage in force at the month's last night shift applies.
+    const byMonth = new Map<string, { duties: Duty[]; hours: number; date: DateKey }>();
+    for (const d of duties) {
+      const h = msInWindow(d.work, resolveDated(night.window, d.date), tz) / HOUR;
+      if (h <= EPS) continue;
+      const m = byMonth.get(d.date.slice(0, 7)) ?? { duties: [], hours: 0, date: d.date };
+      m.duties.push(d);
+      m.hours += h;
+      if (d.date > m.date) m.date = d.date;
+      byMonth.set(d.date.slice(0, 7), m);
+    }
+    for (const m of byMonth.values()) {
+      const wage = resolveDated(floor.minimumMonthlyWage, m.date);
+      const value = round2(wage * (1 + floor.pctOverMinimum / 100));
+      emit({
+        rule: 'night.payFloor', verdict: 'review', shiftIds: m.duties.flatMap(ids), hours: round2(m.hours),
+        amount: { value, currency: pack.currency }, cite: night!.cite,
+        message: `${round2(m.hours)} h of night work: a night worker's monthly pay must be at least ${pack.currency} ${value} (minimum wage ${wage} + ${floor.pctOverMinimum}%). Check the pay; this is a floor, not a surcharge.`,
+      });
     }
   }
   const nd = pack.nightDuty;
@@ -611,14 +640,51 @@ function checkWeekly(
         // If treating the unseen days as free would satisfy the rule, the
         // shortfall rests on an assumption, so it is only a warning.
         const assumed = longestOf([{ start: -Infinity, end: head.end }, ...gaps, { start: tail.start, end: Infinity }]) >= wr.minHours * HOUR - 1;
+        const verdict = assumed ? 'warning' : wr.verdict ?? 'violation';
+        const paid = verdict === 'premium' && wr.premiumMultiplier !== undefined;
         emit({
-          rule: 'rest.weekly', verdict: assumed ? 'warning' : wr.verdict ?? 'violation', shiftIds: weeks.get(key)!.duties.flatMap(ids),
-          hours: round2(longest / HOUR), cite: wr.cite,
+          rule: 'rest.weekly', verdict, shiftIds: weeks.get(key)!.duties.flatMap(ids),
+          hours: round2(longest / HOUR), cite: wr.cite, ...(paid ? { multiplier: wr.premiumMultiplier } : {}),
           message: assumed
             ? `No weekly rest of ${wr.minHours} consecutive hours inside the week of ${key} unless the days just outside this schedule are free.`
-            : `No weekly rest of ${wr.minHours} consecutive hours in the week of ${key}.`,
+            : `No weekly rest of ${wr.minHours} consecutive hours in the week of ${key}${paid ? `; time worked in that rest period is paid at ${wr.premiumMultiplier}×` : ''}.`,
         });
       }
+    }
+  }
+}
+
+/**
+ * Whole local calendar days without work in each workweek (Brazil: 2 days).
+ * A day touched by any work, including the tail of an overnight shift, is
+ * worked. Days of the week outside the schedule count as free, because the
+ * engine can't see them.
+ */
+function checkWeeklyRestDays(pack: RulePack, ctx: EvaluationContext, duties: Duty[], startsOn: number, emit: Emit) {
+  const rule = pack.weeklyRestDays;
+  if (!rule || !duties.length) return;
+  const worked = new Set<DateKey>();
+  for (const d of duties) {
+    for (const w of d.work) {
+      let day = wallClockAt(w.start, ctx.timeZone).dateKey;
+      const last = wallClockAt(w.end - 1, ctx.timeZone).dateKey;
+      while (day <= last) { worked.add(day); day = addDaysToKey(day, 1); }
+    }
+  }
+  const byWeek = new Map<DateKey, Duty[]>();
+  for (const d of duties) {
+    const k = weekStartOf(d.date, startsOn);
+    byWeek.set(k, [...(byWeek.get(k) ?? []), d]);
+  }
+  for (const [key, list] of byWeek) {
+    // A week across a change uses the stricter (later) requirement, as the weekly hour limit does.
+    const required = Math.max(resolveDated(rule.days, key), resolveDated(rule.days, addDaysToKey(key, 6)));
+    const free = Array.from({ length: 7 }, (_, i) => addDaysToKey(key, i)).filter((k) => !worked.has(k)).length;
+    if (free < required) {
+      emit({
+        rule: 'rest.weeklyDays', verdict: 'violation', shiftIds: list.flatMap(ids), cite: rule.cite,
+        message: `Only ${free} of the required ${required} days of weekly rest in the week of ${key}.`,
+      });
     }
   }
 }

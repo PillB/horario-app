@@ -28,7 +28,7 @@ import {
   resolveJurisdiction,
 } from '@/services/labor/jurisdictions';
 import type { BusinessLocation, LocationInput, LocationResult } from '@/services/locationService';
-import { INDUSTRIES, type Industry, type LocationErrorCode, validateLocationInput } from '@/utils/locationValidation';
+import { INDUSTRIES, type Industry, type LocationErrorCode, validateLocationInput, zoneFitsCountry } from '@/utils/locationValidation';
 import { isValidTimeZone } from '@/utils/zonedTime';
 
 type Props = {
@@ -41,7 +41,7 @@ type Props = {
 
 const PACK_COUNTRIES = Array.from(new Set(JURISDICTIONS.map((j) => j.country).filter(Boolean)));
 const PACK_COUNTRY_SET = new Set(PACK_COUNTRIES);
-const FORM_ERRORS: LocationErrorCode[] = ['NAME_INVALID', 'COUNTRY_INVALID', 'TIME_ZONE_INVALID', 'INDUSTRY_INVALID', 'HEADCOUNT_INVALID'];
+const FORM_ERRORS: LocationErrorCode[] = ['NAME_INVALID', 'COUNTRY_INVALID', 'TIME_ZONE_INVALID', 'TIME_ZONE_COUNTRY_MISMATCH', 'INDUSTRY_INVALID', 'HEADCOUNT_INVALID'];
 
 /** Localized country names; falls back to the code where Intl.DisplayNames is missing (e.g. Hermes). */
 const useCountryName = (bcp47: string) =>
@@ -161,7 +161,8 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
   const regions = useMemo(() => (country ? regionsFor(country) : []), [country]);
   const cities = useMemo(() => (country && region ? citiesFor(country, region) : []), [country, region]);
   const jurisdictionCode = country ? resolveJurisdiction({ country, region, city }) : null;
-  const isBaseline = jurisdictionCode === 'GENERIC' || jurisdictionCode === 'EU';
+  // Packs that are only a floor for the place (no national / provincial law encoded).
+  const isBaseline = jurisdictionCode === 'GENERIC' || jurisdictionCode === 'EU' || jurisdictionCode === 'CA-OTHER';
 
   const rulesName = useMemo(() => {
     if (!jurisdictionCode || !country) return null;
@@ -189,6 +190,7 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
   }, [query, countryName]);
 
   const timeZoneInvalid = timeZone.trim().length > 0 && !isValidTimeZone(timeZone.trim());
+  const timeZoneMismatch = !timeZoneInvalid && timeZone.trim().length > 0 && !!country && !zoneFitsCountry(timeZone.trim(), country);
 
   const handleSave = useCallback(async () => {
     const input: LocationInput = {
@@ -374,6 +376,7 @@ export function LocationSetupCard({ initial, onSave, onSaved, onCancel }: Props)
               testID="location-timezone"
             />
             {timeZoneInvalid ? <ThemedText style={styles.errorText}>{t('locations.errors.TIME_ZONE_INVALID')}</ThemedText> : null}
+            {timeZoneMismatch ? <ThemedText style={styles.errorText}>{t('locations.errors.TIME_ZONE_COUNTRY_MISMATCH')}</ThemedText> : null}
           </View>
 
           <View style={styles.field}>

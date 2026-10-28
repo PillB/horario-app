@@ -18,9 +18,8 @@ const baseItem = {
 };
 
 describe('PersonalizedFeed', () => {
-  it('clamps displayed scores to between 0% and 100%', () => {
+  it('does not show the ranking score as a percentage (QA 2026-10-28)', () => {
     let tree: renderer.ReactTestRenderer | null = null;
-
     act(() => {
       tree = renderer.create(
         <PersonalizedFeed
@@ -31,22 +30,11 @@ describe('PersonalizedFeed', () => {
         />,
       );
     });
-
-    if (!tree) {
-      throw new Error('Tree failed to render');
-    }
-
-    const badgeValues = tree.root
-      .findAll((node) => {
-        const styles = Array.isArray(node.props?.style) ? node.props.style : [node.props?.style];
-        return styles.some((style) => style?.fontWeight === '700');
-      })
-      .map((node) => {
-        const children = node.props.children;
-        return Array.isArray(children) ? children.join('') : children;
-      });
-
-    expect(badgeValues).toContain('0%');
-    expect(badgeValues).toContain('100%');
+    const texts = tree!.root
+      .findAll((node) => typeof node.props?.children === 'string' || Array.isArray(node.props?.children))
+      .map((node) => [].concat(node.props.children).filter((c) => typeof c === 'string' || typeof c === 'number').join(''));
+    expect(texts.some((text) => /%/.test(text))).toBe(false);
+    expect(texts).toContain('Low');
+    expect(texts).toContain('High');
   });
 });

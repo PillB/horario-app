@@ -16,6 +16,7 @@ import React, {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -48,6 +49,12 @@ type TourState = {
   isActive: boolean;
   currentStepIndex: number;
   hasCompleted: boolean;
+  /**
+   * True only after the user finished a guide in this session (not skipped,
+   * not restored from storage), until the scheduler takes the sample-data
+   * offer with `takeSampleDataOffer`. Sample rows are real rows in the account.
+   */
+  sampleDataOffered: boolean;
   stepLayouts: Record<string, StepLayout>;
   userRole: 'manager' | 'worker' | null;
   completedActions: string[];
@@ -65,7 +72,8 @@ type TourAction =
   | { type: 'SET_HAS_COMPLETED'; payload: boolean }
   | { type: 'REGISTER_LAYOUT'; target: string; layout: StepLayout }
   | { type: 'SET_USER_ROLE'; payload: 'manager' | 'worker' }
-  | { type: 'RECORD_TOUR_ACTION'; payload: string };
+  | { type: 'RECORD_TOUR_ACTION'; payload: string }
+  | { type: 'TAKE_SAMPLE_DATA_OFFER' };
 
 type WelcomeTourContextValue = TourState & {
   /** The active step list derived from tourMode / userRole. */
@@ -92,6 +100,8 @@ type WelcomeTourContextValue = TourState & {
   completeTour: () => void;
   resetTour: () => void;
   registerLayout: (target: string, layout: StepLayout) => void;
+  /** Returns whether sample data may be seeded now, and clears the offer. */
+  takeSampleDataOffer: () => boolean;
   /** Persists role to AsyncStorage and updates state. */
   setUserRole: (role: 'manager' | 'worker') => void;
   /**
@@ -233,6 +243,7 @@ const initialState: TourState = {
   isActive: false,
   currentStepIndex: 0,
   hasCompleted: false,
+  sampleDataOffered: false,
   stepLayouts: {},
   userRole: null,
   completedActions: [],
@@ -257,7 +268,7 @@ function tourReducer(state: TourState, action: TourAction): TourState {
     case 'NEXT_STEP': {
       const last = lastStepIndex(state.tourMode, state.userRole);
       if (state.currentStepIndex >= last) {
-        return { ...state, isActive: false, hasCompleted: true };
+        return { ...state, isActive: false, hasCompleted: true, sampleDataOffered: true };
       }
       return { ...state, currentStepIndex: state.currentStepIndex + 1 };
     }
@@ -267,15 +278,19 @@ function tourReducer(state: TourState, action: TourAction): TourState {
       return { ...state, currentStepIndex: state.currentStepIndex - 1 };
 
     case 'COMPLETE_TOUR':
-      return { ...state, isActive: false, hasCompleted: true };
+      return { ...state, isActive: false, hasCompleted: true, sampleDataOffered: true };
 
     case 'SKIP_TOUR':
-      return { ...state, isActive: false, hasCompleted: true };
+      return { ...state, isActive: false, hasCompleted: true, sampleDataOffered: false };
+
+    case 'TAKE_SAMPLE_DATA_OFFER':
+      return state.sampleDataOffered ? { ...state, sampleDataOffered: false } : state;
 
     case 'RESET_TOUR':
       return {
         ...state,
         hasCompleted: false,
+        sampleDataOffered: false,
         currentStepIndex: 0,
         isActive: false,
         completedActions: [],
@@ -431,6 +446,15 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
     persistCompletion(true);
   }, [persistCompletion]);
 
+  const sampleOfferRef = useRef(state.sampleDataOffered);
+  sampleOfferRef.current = state.sampleDataOffered;
+  const takeSampleDataOffer = useCallback(() => {
+    if (!sampleOfferRef.current) return false;
+    sampleOfferRef.current = false;
+    dispatch({ type: 'TAKE_SAMPLE_DATA_OFFER' });
+    return true;
+  }, []);
+
   const resetTour = useCallback(() => {
     dispatch({ type: 'RESET_TOUR' });
     persistCompletion(false);
@@ -485,6 +509,7 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       completeTour,
       resetTour,
       registerLayout,
+      takeSampleDataOffer,
       setUserRole,
       recordTourAction,
     }),
@@ -503,6 +528,7 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
       completeTour,
       resetTour,
       registerLayout,
+      takeSampleDataOffer,
       setUserRole,
       recordTourAction,
     ],

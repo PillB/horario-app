@@ -36,12 +36,8 @@ export function PersonalizedFeed({ items, onSelectItem }: PersonalizedFeedProps)
             accessibilityRole="button"
             accessibilityLabel={`${item.title}. ${item.summary}`}
           >
-            <View style={styles.rowBetween}>
-              <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-              <ThemedText style={styles.badge}>
-                {Math.round(Math.min(1, Math.max(0, item.score)) * 100)}%
-              </ThemedText>
-            </View>
+            {/* The ranking score orders the list; shown as a percentage it read as progress. */}
+            <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
             <ThemedText style={styles.helperText}>{item.summary}</ThemedText>
           </Pressable>
         ))}
@@ -69,23 +65,9 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    rowBetween: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
     helperText: {
       color: colors.textSecondary,
       lineHeight: 22,
-    },
-    badge: {
-      fontWeight: '700',
-      color: '#FFFFFF',
-      backgroundColor: colors.tint,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 10,
-      overflow: 'hidden',
     },
   });
 

@@ -158,10 +158,6 @@ export default function ProfileScreen() {
     }
   }, [signOut]);
 
-  const handleSignIn = useCallback(() => {
-    router.push('/(auth)/sign-in');
-  }, [router]);
-
   const handleDiagnostics = useCallback(() => {
     router.push('/diagnostics');
   }, [router]);
@@ -368,15 +364,16 @@ export default function ProfileScreen() {
       </ThemedView>
 
       {/* ── Account actions ───────────────────────────────────────────── */}
-      <ThemedView style={styles.card}>
-        <SectionHeader
-          title={t('profile.actions.sectionTitle')}
-          subtitle={t('profile.actions.sectionSubtitle')}
-          tooltip={t('profile.actions.tooltip')}
-          styles={styles}
-        />
-
-        {AUTH_ENABLED ? (
+      {/* Only with sign-in configured: in development mode there is no sign-in
+          screen to go to (QA 2026-10-28). */}
+      {AUTH_ENABLED ? (
+        <ThemedView style={styles.card}>
+          <SectionHeader
+            title={t('profile.actions.sectionTitle')}
+            subtitle={t('profile.actions.sectionSubtitle')}
+            tooltip={t('profile.actions.tooltip')}
+            styles={styles}
+          />
           <Pressable
             onPress={handleSignOut}
             style={({ pressed }) => [
@@ -391,23 +388,8 @@ export default function ProfileScreen() {
               {t('profile.actions.signOutButton')}
             </ThemedText>
           </Pressable>
-        ) : (
-          <Pressable
-            onPress={handleSignIn}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && { opacity: 0.75 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.actions.signInA11y')}
-            accessibilityHint={t('profile.actions.signInHint')}
-          >
-            <ThemedText style={styles.secondaryButtonText}>
-              {t('profile.actions.signInButton')}
-            </ThemedText>
-          </Pressable>
-        )}
-      </ThemedView>
+        </ThemedView>
+      ) : null}
 
       {/* ── Guides & Tour ─────────────────────────────────────────────── */}
       <ThemedView style={styles.card}>

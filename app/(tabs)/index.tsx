@@ -35,7 +35,7 @@ export default function HomeScreen() {
   const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
   const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
   const { tier } = useEthicalReward(streakCount);
-  const { upcomingShifts, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
+  const { upcomingShifts, shiftCount, publishedCount, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
@@ -90,7 +90,7 @@ export default function HomeScreen() {
         {rosterLoading ? <SkeletonCard rows={1} /> : (
           <View style={styles.kpiRow}>
             <View style={styles.kpiCell}>
-              <ThemedText type="title" style={styles.kpiValue}>{String(upcomingShifts.length)}</ThemedText>
+              <ThemedText type="title" style={styles.kpiValue}>{String(shiftCount)}</ThemedText>
               <ThemedText style={styles.mutedText}>{t('home.weekStats.scheduled')}</ThemedText>
             </View>
             <View style={styles.kpiDivider} />
@@ -113,8 +113,8 @@ export default function HomeScreen() {
           longestStreak={longestStreak}
           progress={progress}
           isFresh={isFresh}
-          rewardTitle={tier.title}
-          rewardMessage={tier.message}
+          rewardTitle={tier?.title}
+          rewardMessage={tier?.message}
           onRecordToday={() => recordAction()}
         />
       </ThemedView>
@@ -237,6 +237,8 @@ export default function HomeScreen() {
             if (item.category === 'availability') {
               recordAction();
             }
+            // Every task except the break is done in the Scheduler.
+            if (item.category !== 'wellness') router.push('/(tabs)/scheduler');
           }}
         />
       </ThemedView>
@@ -244,20 +246,23 @@ export default function HomeScreen() {
       <ThemedView style={styles.card}>
         <ProfileAchievements
           items={[
+            // Real counts only: the streak, and this week's published shifts.
             {
               id: 'ach-1',
               title: t('home.achievements.coverageChecks'),
               description: t('home.achievements.coverageChecksDesc'),
-              progress: Math.max(streakCount, 1),
+              progress: streakCount,
               goal: 7,
             },
-            {
-              id: 'ach-2',
-              title: t('home.achievements.draftsPublished'),
-              description: t('home.achievements.draftsPublishedDesc'),
-              progress: 3,
-              goal: 5,
-            },
+            ...(shiftCount > 0
+              ? [{
+                id: 'ach-2',
+                title: t('home.achievements.draftsPublished'),
+                description: t('home.achievements.draftsPublishedDesc'),
+                progress: publishedCount,
+                goal: shiftCount,
+              }]
+              : []),
           ]}
         />
       </ThemedView>

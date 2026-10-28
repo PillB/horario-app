@@ -94,6 +94,7 @@ export type LocationErrorCode =
   | 'JURISDICTION_UNKNOWN'
   | 'JURISDICTION_MISMATCH'
   | 'TIME_ZONE_INVALID'
+  | 'TIME_ZONE_COUNTRY_MISMATCH'
   | 'INDUSTRY_INVALID'
   | 'HEADCOUNT_INVALID'
   | 'LOCATIONS_COUNT_INVALID'
@@ -126,6 +127,53 @@ const COUNTRY_RE = /^[A-Z]{2}$/;
 const REGION_RE = /^[A-Z0-9]{1,3}$/;
 const CITY_RE = /^[A-Z0-9_]{1,40}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * IANA zones of the countries that have a rule pack (tzdata zone.tab). The
+ * zone sets the business day, week and night for the labor rules, so a device
+ * zone from somewhere else (or UTC) must not be stored for these countries.
+ */
+const COUNTRY_ZONES: Readonly<Record<string, readonly string[]>> = {
+  US: ['America/New_York', 'America/Detroit', 'America/Kentucky/Louisville', 'America/Kentucky/Monticello', 'America/Indiana/Indianapolis', 'America/Indiana/Vincennes', 'America/Indiana/Winamac', 'America/Indiana/Marengo', 'America/Indiana/Petersburg', 'America/Indiana/Vevay', 'America/Chicago', 'America/Indiana/Tell_City', 'America/Indiana/Knox', 'America/Menominee', 'America/North_Dakota/Center', 'America/North_Dakota/New_Salem', 'America/North_Dakota/Beulah', 'America/Denver', 'America/Boise', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'America/Juneau', 'America/Sitka', 'America/Metlakatla', 'America/Yakutat', 'America/Nome', 'America/Adak', 'Pacific/Honolulu'],
+  CA: ['America/St_Johns', 'America/Halifax', 'America/Glace_Bay', 'America/Moncton', 'America/Goose_Bay', 'America/Blanc-Sablon', 'America/Toronto', 'America/Iqaluit', 'America/Atikokan', 'America/Winnipeg', 'America/Resolute', 'America/Rankin_Inlet', 'America/Regina', 'America/Swift_Current', 'America/Edmonton', 'America/Cambridge_Bay', 'America/Inuvik', 'America/Vancouver', 'America/Creston', 'America/Dawson_Creek', 'America/Fort_Nelson', 'America/Whitehorse', 'America/Dawson'],
+  MX: ['America/Mexico_City', 'America/Cancun', 'America/Merida', 'America/Monterrey', 'America/Matamoros', 'America/Chihuahua', 'America/Ciudad_Juarez', 'America/Ojinaga', 'America/Mazatlan', 'America/Bahia_Banderas', 'America/Hermosillo', 'America/Tijuana'],
+  PE: ['America/Lima'],
+  CO: ['America/Bogota'],
+  CL: ['America/Santiago', 'America/Coyhaique', 'America/Punta_Arenas', 'Pacific/Easter'],
+  AR: ['America/Argentina/Buenos_Aires', 'America/Argentina/Cordoba', 'America/Argentina/Salta', 'America/Argentina/Jujuy', 'America/Argentina/Tucuman', 'America/Argentina/Catamarca', 'America/Argentina/La_Rioja', 'America/Argentina/San_Juan', 'America/Argentina/Mendoza', 'America/Argentina/San_Luis', 'America/Argentina/Rio_Gallegos', 'America/Argentina/Ushuaia'],
+  BR: ['America/Noronha', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Araguaina', 'America/Maceio', 'America/Bahia', 'America/Sao_Paulo', 'America/Campo_Grande', 'America/Cuiaba', 'America/Santarem', 'America/Porto_Velho', 'America/Boa_Vista', 'America/Manaus', 'America/Eirunepe', 'America/Rio_Branco'],
+  GB: ['Europe/London'],
+  IE: ['Europe/Dublin'],
+  FR: ['Europe/Paris'],
+  ES: ['Europe/Madrid', 'Africa/Ceuta', 'Atlantic/Canary'],
+  DE: ['Europe/Berlin', 'Europe/Busingen'],
+  IT: ['Europe/Rome'],
+  PT: ['Europe/Lisbon', 'Atlantic/Madeira', 'Atlantic/Azores'],
+  NL: ['Europe/Amsterdam'],
+  BE: ['Europe/Brussels'],
+  PL: ['Europe/Warsaw'],
+  AU: ['Australia/Lord_Howe', 'Antarctica/Macquarie', 'Australia/Hobart', 'Australia/Melbourne', 'Australia/Sydney', 'Australia/Broken_Hill', 'Australia/Brisbane', 'Australia/Lindeman', 'Australia/Adelaide', 'Australia/Darwin', 'Australia/Perth', 'Australia/Eucla'],
+};
+
+/** ICU's name for a zone, so aliases (US/Eastern, America/Buenos_Aires) compare equal. */
+const canonicalZone = (zone: string): string => {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return zone;
+  }
+};
+
+/**
+ * Whether `zone` can be the local time of a business in `country`: never UTC
+ * or an Etc/ offset, and one of the country's zones when it has a rule pack.
+ */
+export function zoneFitsCountry(zone: string, country: string): boolean {
+  const canonical = canonicalZone(zone);
+  if (/^(Etc\/|UTC$|UCT$|GMT$|Zulu$|Universal$|Greenwich$)/.test(canonical) || /^(Etc\/|UTC$|GMT$)/.test(zone)) return false;
+  const zones = COUNTRY_ZONES[country];
+  return !zones || zones.some((z) => z === zone || canonicalZone(z) === canonical);
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -201,6 +249,9 @@ export function validateLocationInput(raw: unknown, options: LocationValidationO
 
   const timeZone = typeof raw.timeZone === 'string' ? raw.timeZone.trim() : '';
   if (!isValidTimeZone(timeZone)) return fail('TIME_ZONE_INVALID', 'timeZone must be an IANA time zone');
+  if (!zoneFitsCountry(timeZone, country)) {
+    return fail('TIME_ZONE_COUNTRY_MISMATCH', 'timeZone must be a local time zone of the location country');
+  }
 
   if (!isIndustry(raw.industry)) return fail('INDUSTRY_INVALID', 'industry is not supported');
 

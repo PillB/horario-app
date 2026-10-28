@@ -172,7 +172,7 @@ export const it = {
     achievements: {
       title: 'Risultati',
       coverageChecks: 'Controlli di copertura costanti',
-      coverageChecksDesc: 'Aggiornamenti registrati 5 degli ultimi 7 giorni.',
+      coverageChecksDesc: 'Controlla il turno per 7 giorni di fila.',
       draftsPublished: 'Bozze pubblicate',
       draftsPublishedDesc: 'Sposta le bozze in pubblicato quando i team sono pronti.',
       notStarted: 'Non iniziato'
@@ -993,7 +993,7 @@ export const it = {
     saveFailed: 'Impossibile salvare la sede: {error}',
     deleteFailed: 'Impossibile eliminare la sede: {error}',
     industries: { retail: 'Commercio al dettaglio', food_service: 'Ristorazione', fast_food: 'Fast food', full_service_restaurant: 'Ristorante con servizio al tavolo', hospitality: 'Ospitalità', hotel: 'Hotel', warehouse: 'Magazzino', manufacturing: 'Manifattura', healthcare: 'Sanità', building_services: 'Servizi per edifici', other: 'Altro' },
-    errors: { NAME_INVALID: 'Inserisci un nome di massimo 80 caratteri.', COUNTRY_INVALID: 'Scegli un paese.', TIME_ZONE_INVALID: 'Inserisci un fuso orario valido, ad esempio Europe/Rome o America/Lima.', INDUSTRY_INVALID: 'Scegli un settore.', HEADCOUNT_INVALID: 'Inserisci un numero intero di dipendenti.', generic: 'Controlla i dati della sede.' },
+    errors: { NAME_INVALID: 'Inserisci un nome di massimo 80 caratteri.', COUNTRY_INVALID: 'Scegli un paese.', TIME_ZONE_INVALID: 'Inserisci un fuso orario valido, ad esempio Europe/Rome o America/Lima.', TIME_ZONE_COUNTRY_MISMATCH: 'Questo fuso orario non è del paese della sede. Scegli il fuso in cui lavora la sede, ad esempio Europe/Rome.', INDUSTRY_INVALID: 'Scegli un settore.', HEADCOUNT_INVALID: 'Inserisci un numero intero di dipendenti.', generic: 'Controlla i dati della sede.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

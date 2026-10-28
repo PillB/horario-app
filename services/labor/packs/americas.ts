@@ -100,7 +100,7 @@ export const AMERICAS: Record<string, RulePack> = {
       coverage: 'Chicago Fair Workweek covers 100+ employees (250 for non-profits) in covered industries, for employees earning up to $33.85/h from 2026-07-01.',
       clopening: {
         minHours: 10, consentRequired: true, premium: { kind: 'wholeShift', multiplier: 1.25 },
-        cite: { source: 'Chicago Fair Workweek Ordinance (base of 1.25× not verified)', url: 'https://www.illinoislegalaid.org/legal-information/what-are-my-rights-my-work-schedule-chicago', confidence: 'medium' },
+        cite: { source: 'Chicago Fair Workweek FAQ Q27 (consent documented in writing), Q30 (entire shift at 1.25× the base rate)', url: 'https://chicago.gov/content/dam/city/depts/bacp/OSL/faqfairworkweekv2final.pdf', confidence: 'high' },
       },
       notice: { hours: 14 * 24, verdict: 'violation', cite: { source: 'Chicago Fair Workweek Ordinance', confidence: 'medium' } },
     },
@@ -111,8 +111,8 @@ export const AMERICAS: Record<string, RulePack> = {
     fairWorkweek: {
       coverage: 'Evanston Fair Workweek covers 100+ employees globally in covered industries; food service needs 30+ locations and 200+ employees.',
       clopening: {
-        minHours: 11, consentRequired: true, premium: { kind: 'unknown' },
-        cite: { source: 'Evanston Fair Workweek Ordinance', url: 'https://www.cityofevanston.org/business/fair_workweek.php', confidence: 'medium' },
+        minHours: 11, consentRequired: true, premium: { kind: 'hoursInsideGap', multiplier: 1.5 },
+        cite: { source: 'Evanston City Code 3-34-7 (Ordinance 24-O-23): written consent; 1.5× for hours worked less than 11 h after the previous shift', url: 'https://www.cityofevanston.org/Documents/Business/Fair%20Workweek/Correctly%20Amended%2024O23.pdf', confidence: 'high' },
       },
       notice: { hours: 14 * 24, verdict: 'violation', cite: { source: 'Evanston Fair Workweek Ordinance', confidence: 'medium' } },
     },
@@ -123,8 +123,8 @@ export const AMERICAS: Record<string, RulePack> = {
     fairWorkweek: {
       coverage: 'Philadelphia Fair Workweek covers retail, food and hospitality employers with 250+ employees and 30+ locations worldwide.',
       clopening: {
-        minHours: 9, consentRequired: false, premium: { kind: 'flat', amount: 40 },
-        cite: { source: 'Philadelphia Fair Workweek', url: 'https://www.phila.gov/media/20200213173852/Fair-Workweek-Poster-Translations.pdf', confidence: 'high' },
+        minHours: 9, consentRequired: true, consentWritten: false, premium: { kind: 'flat', amount: 40 },
+        cite: { source: 'Philadelphia Fair Workweek FAQ (Dec 2023): not within 9 h "unless the employee provides consent and payment of $40"', url: 'https://www.phila.gov/media/20231218102835/FWW-FAQ-December-2023.pdf', confidence: 'high' },
       },
       notice: { hours: 14 * 24, verdict: 'violation', cite: { source: 'Philadelphia Fair Workweek', confidence: 'high' } },
     },
@@ -178,6 +178,9 @@ export const AMERICAS: Record<string, RulePack> = {
   },
 
   // ── Canada ────────────────────────────────────────────────────────────────
+  // CA is the Canada Labour Code: only federally regulated employers (banks,
+  // airlines, telecoms, interprovincial transport). Everyone else follows
+  // their province; provinces without a pack resolve to CA-OTHER.
   CA: {
     code: 'CA',
     currency: 'CAD',
@@ -203,6 +206,38 @@ export const AMERICAS: Record<string, RulePack> = {
     weeklyMax: { hours: 48, cite: { source: 'Ontario ESA 2000 s.17 (more needs a written agreement)', confidence: 'high' } },
     overtimePay: { weekly: { after: 44, multiplier: 1.5 }, cite: { source: 'Ontario ESA 2000 s.22', confidence: 'high' } },
     weeklyRest: { minHours: 24, cite: { source: 'Ontario ESA 2000 s.18 (or 48 h per 2 weeks)', confidence: 'high' } },
+  },
+  'CA-BC': {
+    code: 'CA-BC',
+    currency: 'CAD',
+    restBetweenShifts: {
+      minHours: 8,
+      cite: { source: 'BC Employment Standards Act s.36(2) (not in an emergency, s.36(3))', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-36', confidence: 'high' },
+    },
+    breaks: {
+      triggers: [{ afterHours: 5, minMinutes: 30 }],
+      cite: { source: 'BC Employment Standards Act s.32 (no more than 5 consecutive hours without a 30 min meal break)', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-32', confidence: 'high' },
+    },
+    // s.40(3): only the first 8 h of each day count toward the 40 h week (the engine's daily-then-weekly order).
+    overtimePay: {
+      weekly: { after: 40, multiplier: 1.5 },
+      daily: [{ after: 8, multiplier: 1.5 }, { after: 12, multiplier: 2 }],
+      cite: { source: 'BC Employment Standards Act ss.35, 40', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-40', confidence: 'high' },
+    },
+    weeklyRest: {
+      minHours: 32, verdict: 'premium', premiumMultiplier: 1.5,
+      cite: { source: 'BC Employment Standards Act s.36(1): 32 consecutive hours free each week, or 1.5× for time worked in that period', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-36', confidence: 'high' },
+    },
+  },
+  'CA-OTHER': {
+    code: 'CA-OTHER',
+    currency: 'CAD',
+    baselineOnly: 'Your province\'s employment standards law applies here; the Canada Labour Code covers only federally regulated employers (choose that option if your business is one). Horario has no pack for this province yet: conservative generic limits are shown as warnings; set your local rules.',
+    restBetweenShifts: { minHours: 11, verdict: 'warning', cite: { source: 'Generic conservative default', confidence: 'low' } },
+    dailyTotalMax: { hours: 8, verdict: 'warning', cite: { source: 'Generic conservative default', confidence: 'low' } },
+    weeklyMax: { hours: 48, verdict: 'warning', cite: { source: 'Generic conservative default', confidence: 'low' } },
+    breaks: { triggers: [{ afterHours: 6, minMinutes: 30 }], verdict: 'warning', cite: { source: 'Generic conservative default', confidence: 'low' } },
+    weeklyRest: { minHours: 24, verdict: 'warning', cite: { source: 'Generic conservative default', confidence: 'low' } },
   },
   'CA-QC': {
     code: 'CA-QC',
@@ -235,9 +270,18 @@ export const AMERICAS: Record<string, RulePack> = {
       triggers: [{ afterHours: 6, minMinutes: 45 }], verdict: 'warning',
       cite: { source: 'D.S. 007-2002-TR art. 7 (refrigerio ≥ 45 min in continuous schedules). The 6 h trigger is Horario\'s default, not law.', confidence: 'medium' },
     },
+    // Not a surcharge on actual pay: a night worker's pay may not be below the
+    // RMV plus 35% (SERVIR Informe Técnico 0947-2021 reads it the same way).
     night: {
-      window: ['22:00', '06:00'], premiumPct: 35,
-      cite: { source: 'MTPE: night pay ≥ RMV + 35%', url: 'https://www.buk.pe/blog/ley-jornada-trabajo-horario-sobretiempo', confidence: 'medium' },
+      window: ['22:00', '06:00'],
+      monthlyPayFloor: {
+        minimumMonthlyWage: [
+          { from: '2025-01-01', value: 1130 },
+          { from: '2026-10-01', value: 1230 },
+        ],
+        pctOverMinimum: 35,
+      },
+      cite: { source: 'D.S. 007-2002-TR art. 8 (night pay ≥ RMV + 35%); RMV S/ 1,230 from 2026-10-01 (D.S. 015-2026-TR), S/ 1,130 before (D.S. 006-2024-TR)', url: 'https://elperuano.pe/noticia/305879-desde-hoy-rige-la-nueva-rmv-sueldo-minimo-sube-a-s-1230-y-cambia-otros-conceptos-laborales', confidence: 'high' },
     },
     weeklyRest: { minHours: 24, cite: { source: 'D.Leg. 713', confidence: 'medium' } },
   },
@@ -268,9 +312,12 @@ export const AMERICAS: Record<string, RulePack> = {
   CO: {
     code: 'CO',
     currency: 'COP',
+    // CST 161 (Ley 2101 art. 2) has no daily cap for adults: 42 h a week split
+    // over 5 or 6 days by agreement. Above 9 h (the jornada flexible maximum)
+    // a person checks the agreed split instead of the engine assuming overtime.
     dailyOrdinaryMax: {
-      hours: 8, excess: 'overtime',
-      cite: { source: 'CST art. 161. A jornada flexible agreement (lit. c) allows 4-10 ordinary hours a day; record it as a location override.', confidence: 'medium' },
+      hours: 9, excess: 'review',
+      cite: { source: 'CST art. 161 (Ley 2101/2021 art. 2): no adult daily cap; 42 h/week over 5-6 days by agreement; jornada flexible (lit. d) 4-9 ordinary hours a day', url: 'https://cancilleria.gov.co/sites/default/files/Normograma/docs/ley_2101_2021.htm', confidence: 'high' },
     },
     weeklyOrdinaryMax: {
       hours: [
@@ -313,14 +360,33 @@ export const AMERICAS: Record<string, RulePack> = {
     currency: 'BRL',
     restBetweenShifts: { minHours: 11, cite: { source: 'CLT art. 66', url: 'https://www.planalto.gov.br/ccivil_03/decreto-lei/del5452compilado.htm', confidence: 'high' } },
     dailyOrdinaryMax: { hours: 8, excess: 'overtime', cite: { source: 'CLT art. 58', confidence: 'high' } },
-    weeklyOrdinaryMax: { hours: 44, cite: { source: 'Constituição art. 7 XIII; CLT art. 58', confidence: 'high' } },
+    // EC 141/2026 (DOU 2026-10-16) art. 6: 42 h two months after publication,
+    // 40 h one year later. Dates counted from publication day to day.
+    weeklyOrdinaryMax: {
+      hours: [
+        { from: '1988-10-05', value: 44 },
+        { from: '2026-12-16', value: 42 },
+        { from: '2027-12-16', value: 40 },
+      ],
+      cite: { source: 'Constituição art. 7 XIII; EC 141/2026 art. 6', url: 'https://planalto.gov.br/ccivil_03/constituicao/emendas/emc/emc141.htm', confidence: 'high' },
+    },
     dailyOvertimeMax: { hours: 2, cite: { source: 'CLT art. 59', confidence: 'high' } },
     breaks: {
       triggers: [{ afterHours: 4, minMinutes: 15 }, { afterHours: 6, minMinutes: 60 }],
       cite: { source: 'CLT art. 71', confidence: 'high' },
     },
     night: { window: ['22:00', '05:00'], premiumPct: 20, hourMinutes: 52.5, cite: { source: 'CLT art. 73', confidence: 'high' } },
-    weeklyRest: { minHours: 24, cite: { source: 'CLT art. 67', confidence: 'high' } },
+    weeklyRest: { minHours: 24, cite: { source: 'CLT art. 67 (24 consecutive hours)', confidence: 'high' } },
+    // EC 141/2026 art. 7 XV (in force two months after publication, art. 10 I):
+    // 2 paid rest days a week, one preferably Sunday. A collective agreement may
+    // average 2 days a week over the month with at least 1 each week (art. 7 §2).
+    weeklyRestDays: {
+      days: [
+        { from: '1988-10-05', value: 1 },
+        { from: '2026-12-16', value: 2 },
+      ],
+      cite: { source: 'Constituição art. 7 XV; EC 141/2026 art. 10 I (a collective agreement may average over the month, art. 7 §2)', url: 'https://planalto.gov.br/ccivil_03/constituicao/emendas/emc/emc141.htm', confidence: 'high' },
+    },
   },
   AR: {
     code: 'AR',

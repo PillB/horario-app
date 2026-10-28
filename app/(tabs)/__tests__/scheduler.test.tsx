@@ -206,6 +206,31 @@ describe('scheduler fallback quick setup', () => {
   });
 });
 
+describe('scheduler onboarding checklist (QA 2026-10-28)', () => {
+  it('does not mark or store the forecast step while targets are still loading', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    // Every proxy call stays pending, so the demand hook is loading the whole test.
+    (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(() => new Promise(() => {}));
+    (getSupabaseClient as jest.Mock).mockReturnValue(null);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { upsertOnboardingProgress } = require('@/services/onboardingProgress');
+    (upsertOnboardingProgress as jest.Mock).mockClear();
+
+    let tree: renderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      tree = renderer.create(<SchedulerScreen />);
+    });
+
+    expect(upsertOnboardingProgress).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ forecast: true }),
+      expect.anything()
+    );
+    act(() => { tree!.unmount(); });
+    warnSpy.mockRestore();
+  });
+});
+
 describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
   let warnSpy: jest.SpyInstance;
 

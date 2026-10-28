@@ -25,11 +25,12 @@ function AuthGuardedLayout() {
  * Auth route group layout.
  * If the user is already signed in, redirect them to the app.
  * When authEnabled is false (dev-bypass mode) ClerkProvider is not mounted,
- * so we must not call useAuth() at all.
+ * so we must not call useAuth() at all, and the sign-in / sign-up screens
+ * (which call Clerk hooks) would crash: send the visitor to the app instead.
  */
 export default function AuthLayout() {
   if (!authEnabled) {
-    return <AuthStack />;
+    return <Redirect href="/" />;
   }
 
   return <AuthGuardedLayout />;

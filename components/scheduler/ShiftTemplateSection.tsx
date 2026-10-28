@@ -21,7 +21,7 @@ import { TemplateIdPicker } from './TemplateIdPicker';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
-import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { Colors, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 type ShiftFormState = {
@@ -94,18 +94,17 @@ const makeLocalStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
       fontSize: 13,
       marginTop: 4,
     },
-    // [2] Fix: secondaryButton text uses dark text on light/outlined background for AA compliance
-    // brand.primaryDeep (#115E59) achieves 5.87:1 on white ✅
+    // The shared secondaryButton is filled with colors.text, so its label is
+    // the surface colour (teal on near-black was about 2:1, QA 2026-10-28).
     secondaryButtonText: {
-      color: colorScheme === 'dark' ? colors.tint : brand.primaryDeep,
+      color: colors.surface,
       fontWeight: '600',
       fontSize: 15,
     },
-    // [4][8] Fix: disabledButton uses Slate 300 background (#CBD5E1) with dark text for ≥13:1
-    // opacity 0.45 also provides clear visual disabled state distinction
+    // [4][8] Fix: disabledButton uses Slate 300 background (#CBD5E1) with dark text for ≥13:1.
+    // No extra opacity: at 0.45 the label faded to about 3:1 (QA 2026-10-28).
     disabledButton: {
       backgroundColor: colorScheme === 'dark' ? colors.border : '#CBD5E1',
-      opacity: 0.45,
     },
     // [4] Fix: disabled button label uses dark text to ensure contrast on light disabled bg
     disabledButtonText: {

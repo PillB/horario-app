@@ -57,7 +57,7 @@ export const de = {
     upcomingShifts: { title: 'Bevorstehende Schichten', empty: 'Noch keine Schichten geplant.', buildFirst: 'Ersten Dienstplan erstellen →', buildFirstA11y: 'Ersten Dienstplan erstellen' },
     staffingGaps: { title: 'Personallücken', allStaffed: 'Alle Schichten sind vollständig besetzt.', noTargets: 'Noch keine Bedarfsziele — führen Sie im Dienstplan eine Prognose aus.', open: '{n} offen', requiredCount: '{n} erforderlich' },
     quickActions: { title: 'Schnellaktionen', addAvailability: 'Verfügbarkeit hinzufügen', addAvailabilityA11y: 'Verfügbarkeitsaktualisierung hinzufügen', addAvailabilityHint: 'Neue Verfügbarkeitsdetails im Dienstplan erfassen', addAvailabilityDesc: 'Änderungen vom Betrieb erfassen', buildShifts: 'Schichten erstellen', buildShiftsA11y: 'Schichten aus Vorlagen erstellen', buildShiftsHint: 'Öffnet den Dienstplan, um Schichten anhand von Vorlagen zu generieren', buildShiftsDesc: 'Mit Vorlagen beginnen', publishRoster: 'Dienstplan veröffentlichen', publishRosterA11y: 'Dienstplan veröffentlichen', publishRosterHint: 'Ziele überprüfen und Dienstplan für Ihr Team veröffentlichen', publishRosterDesc: 'Ziele vs. Abdeckung prüfen' },
-    achievements: { title: 'Erfolge', coverageChecks: 'Konsistente Abdeckungsprüfungen', coverageChecksDesc: '5 der letzten 7 Tage Aktualisierungen protokolliert.', draftsPublished: 'Entwürfe veröffentlicht', draftsPublishedDesc: 'Verschieben Sie Entwürfe zur Veröffentlichung, wenn Teams bereit sind.', notStarted: 'Nicht begonnen' },
+    achievements: { title: 'Erfolge', coverageChecks: 'Konsistente Abdeckungsprüfungen', coverageChecksDesc: 'Prüfen Sie den Dienstplan 7 Tage in Folge.', draftsPublished: 'Entwürfe veröffentlicht', draftsPublishedDesc: 'Verschieben Sie Entwürfe zur Veröffentlichung, wenn Teams bereit sind.', notStarted: 'Nicht begonnen' },
     weekStats: {
       title: 'Diese Woche',
       scheduled: 'Geplante Schichten',
@@ -515,7 +515,7 @@ export const de = {
     saveFailed: 'Standort konnte nicht gespeichert werden: {error}',
     deleteFailed: 'Standort konnte nicht gelöscht werden: {error}',
     industries: { retail: 'Einzelhandel', food_service: 'Gastronomie', fast_food: 'Schnellrestaurant', full_service_restaurant: 'Restaurant mit Bedienung', hospitality: 'Gastgewerbe', hotel: 'Hotel', warehouse: 'Lager', manufacturing: 'Produktion', healthcare: 'Gesundheitswesen', building_services: 'Gebäudedienste', other: 'Sonstige' },
-    errors: { NAME_INVALID: 'Gib einen Namen mit bis zu 80 Zeichen ein.', COUNTRY_INVALID: 'Wähle ein Land.', TIME_ZONE_INVALID: 'Gib eine gültige Zeitzone ein, zum Beispiel Europe/Berlin oder America/Lima.', INDUSTRY_INVALID: 'Wähle eine Branche.', HEADCOUNT_INVALID: 'Gib eine ganze Zahl von Beschäftigten ein.', generic: 'Prüfe die Angaben zum Standort.' },
+    errors: { NAME_INVALID: 'Gib einen Namen mit bis zu 80 Zeichen ein.', COUNTRY_INVALID: 'Wähle ein Land.', TIME_ZONE_INVALID: 'Gib eine gültige Zeitzone ein, zum Beispiel Europe/Berlin oder America/Lima.', TIME_ZONE_COUNTRY_MISMATCH: 'Diese Zeitzone liegt nicht im Land des Standorts. Wähle die Zeitzone, in der der Standort arbeitet, zum Beispiel Europe/Berlin.', INDUSTRY_INVALID: 'Wähle eine Branche.', HEADCOUNT_INVALID: 'Gib eine ganze Zahl von Beschäftigten ein.', generic: 'Prüfe die Angaben zum Standort.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

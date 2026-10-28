@@ -34,6 +34,13 @@ describe('suggestJurisdiction', () => {
     expect(suggestJurisdiction(NO_GEO, { deviceRegion: 'ES', deviceTimeZone: 'Not/AZone' }).timeZone).toBe('Europe/Madrid');
   });
 
+  it('ignores a device zone that is not in the suggested country (QA 2026-10-28)', () => {
+    expect(suggestJurisdiction(NO_GEO, { deviceRegion: 'US', deviceTimeZone: 'UTC' }).timeZone).toBe(
+      suggestJurisdiction(NO_GEO, { deviceRegion: 'US', deviceTimeZone: null }).timeZone,
+    );
+    expect(suggestJurisdiction(NO_GEO, { deviceRegion: 'PE', deviceTimeZone: 'Europe/Madrid' }).timeZone).toBe('America/Lima');
+  });
+
   it('offers both countries when IP and device disagree', () => {
     expect(suggestJurisdiction({ ...NO_GEO, ipCountry: 'CL' }, { deviceRegion: 'PE', deviceTimeZone: null })).toMatchObject({
       status: 'conflict', country: 'CL', choices: ['CL', 'PE'], timeZone: 'America/Santiago',

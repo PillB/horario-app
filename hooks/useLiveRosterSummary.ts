@@ -35,7 +35,12 @@ export type LiveStaffingGap = DemandForecast & {
 };
 
 export type LiveRosterSummary = {
+  /** The next MAX_UPCOMING shifts, for the list. */
   upcomingShifts: LiveUpcomingShift[];
+  /** Every shift in the next UPCOMING_DAYS (not capped like upcomingShifts). */
+  shiftCount: number;
+  /** How many of those are published. */
+  publishedCount: number;
   staffingGaps: LiveStaffingGap[];
   loading: boolean;
   error: string | null;
@@ -52,6 +57,7 @@ const MAX_UPCOMING = 10;
 export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
   const [upcomingShifts, setUpcomingShifts] = useState<LiveUpcomingShift[]>([]);
   const [staffingGaps, setStaffingGaps] = useState<LiveStaffingGap[]>([]);
+  const [counts, setCounts] = useState({ shiftCount: 0, publishedCount: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
@@ -105,7 +111,9 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
           const template = templateMap.get(shift.templateId);
           if (!template) return acc;
           const key = `${shift.date}::${template.role}`;
-          acc[key] = (acc[key] ?? 0) + (template.coverage ?? 1);
+          // A roster row is one worker in one position; `coverage` is how many
+          // the template needs, not how many this row supplies.
+          acc[key] = (acc[key] ?? 0) + 1;
           return acc;
         }, {});
 
@@ -117,11 +125,13 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
         .filter((t) => t.gap > 0);
 
       setUpcomingShifts(resolved);
+      setCounts({ shiftCount: shifts.length, publishedCount: shifts.filter((s) => s.status === 'Published').length });
       setStaffingGaps(gaps);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load roster summary.');
       setUpcomingShifts([]);
+      setCounts({ shiftCount: 0, publishedCount: 0 });
       setStaffingGaps([]);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
@@ -132,5 +142,5 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
     load();
   }, [load]);
 
-  return { upcomingShifts, staffingGaps, loading, error, refresh: load };
+  return { upcomingShifts, ...counts, staffingGaps, loading, error, refresh: load };
 }

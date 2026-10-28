@@ -102,7 +102,7 @@ function BackButton({ colors }: { colors: ThemeColors }) {
 
 /** Guide mode picker shown before the tour starts */
 function GuideModePicker({ colors }: { colors: ThemeColors }) {
-  const { startTourMode } = useWelcomeTour();
+  const { startTourMode, skipTour } = useWelcomeTour();
   const { t, langCode, setLanguage } = useT();
   const styles = makeStyles(colors);
 
@@ -151,7 +151,7 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
   ];
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={skipTour}>
       <View style={styles.roleBackdrop}>
         <ScrollView
           contentContainerStyle={styles.roleScrollContent}
@@ -232,6 +232,17 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
                 </Pressable>
               ))}
             </View>
+
+            {/* Without this the first-run picker can only be left by starting a tour. */}
+            <Pressable
+              onPress={skipTour}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.nav.skip')}
+              accessibilityHint="Closes the guide; you can start it again from the help button"
+              style={({ pressed }) => [styles.textButton, pressed && { opacity: 0.5 }]}
+            >
+              <ThemedText style={styles.textButtonLabel}>{t('tour.nav.skip')}</ThemedText>
+            </Pressable>
           </View>
         </ScrollView>
       </View>
