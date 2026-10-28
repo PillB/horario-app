@@ -162,7 +162,7 @@ export const sw = {
     achievements: {
       title: 'Mafanikio',
       coverageChecks: 'Ukaguzi wa ufunikaji thabiti',
-      coverageChecksDesc: 'Imerekodiwa masasisho siku 5 kati ya 7 zilizopita.',
+      coverageChecksDesc: 'Kagua ratiba kwa siku 7 mfululizo.',
       draftsPublished: 'Rasimu zimechapishwa',
       draftsPublishedDesc: 'Hamisha rasimu hadi zilizochapishwa timu zinapokuwa tayari.',
       notStarted: 'Haijaanza'
@@ -977,7 +977,7 @@ export const sw = {
     saveFailed: 'Imeshindwa kuhifadhi eneo: {error}',
     deleteFailed: 'Imeshindwa kufuta eneo: {error}',
     industries: { retail: 'Rejareja', food_service: 'Huduma za chakula', fast_food: 'Chakula cha haraka', full_service_restaurant: 'Mgahawa wa huduma kamili', hospitality: 'Ukarimu', hotel: 'Hoteli', warehouse: 'Ghala', manufacturing: 'Uzalishaji', healthcare: 'Afya', building_services: 'Huduma za majengo', other: 'Nyingine' },
-    errors: { NAME_INVALID: 'Weka jina lenye hadi herufi 80.', COUNTRY_INVALID: 'Chagua nchi.', TIME_ZONE_INVALID: 'Weka saa za eneo halali, kwa mfano Africa/Nairobi au America/Lima.', INDUSTRY_INVALID: 'Chagua sekta.', HEADCOUNT_INVALID: 'Weka idadi kamili ya wafanyakazi.', generic: 'Kagua maelezo ya eneo.' },
+    errors: { NAME_INVALID: 'Weka jina lenye hadi herufi 80.', COUNTRY_INVALID: 'Chagua nchi.', TIME_ZONE_INVALID: 'Weka saa za eneo halali, kwa mfano Africa/Nairobi au America/Lima.', TIME_ZONE_COUNTRY_MISMATCH: 'Saa hizi za eneo si za nchi ya eneo hili. Chagua saa za eneo ambapo eneo hili linafanya kazi, kwa mfano Africa/Nairobi.', INDUSTRY_INVALID: 'Chagua sekta.', HEADCOUNT_INVALID: 'Weka idadi kamili ya wafanyakazi.', generic: 'Kagua maelezo ya eneo.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

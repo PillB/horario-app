@@ -149,6 +149,32 @@ describe('useLiveRosterSummary', () => {
     expect(capturedHook!.loading).toBe(false);
   });
 
+  it('counts each published roster row as one person, not the template coverage', async () => {
+    // A 3-person template with one published row is still 2 short.
+    const trio = { ...MORNING_TEMPLATE, coverage: 3 };
+    (global as { fetch?: unknown }).fetch = jest.fn().mockImplementation((_url: string, options: RequestInit) => {
+      const body = JSON.parse(options.body as string) as { action?: string };
+      const data =
+        body.action === 'listShiftTemplates' ? { templates: [trio] }
+        : body.action === 'listWorkers' ? { workers: [ALICE_WORKER] }
+        : body.action === 'listRoster'
+          ? { shifts: [
+              { id: 's1', accountId: 'demo', date: TODAY, workerId: 'alice', templateId: 'morning', location: '', status: 'Published', notified: false },
+              { id: 's2', accountId: 'demo', date: TODAY, workerId: 'bob', templateId: 'morning', location: '', status: 'Draft', notified: false },
+            ] }
+        : body.action === 'loadTargets'
+          ? { targets: [{ date: TODAY, role: 'Support', required: 3, source: 'override' }], page: 0, pageSize: 500, hasMore: false }
+        : {};
+      return Promise.resolve({ ok: true, status: 200, json: jest.fn().mockResolvedValue(data) });
+    });
+
+    await act(async () => { renderer.create(<TestHook accountId="demo" />); });
+
+    expect(capturedHook!.staffingGaps).toEqual([expect.objectContaining({ role: 'Support', required: 3, scheduled: 1, gap: 2 })]);
+    expect(capturedHook!.shiftCount).toBe(2);
+    expect(capturedHook!.publishedCount).toBe(1);
+  });
+
   it('completes gracefully when all fetches fail (services swallow errors)', async () => {
     // All service functions (listWorkers, listRoster, etc.) have internal try/catch
     // that return empty arrays on network failure. So the hook finishes without error.

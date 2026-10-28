@@ -162,7 +162,7 @@ export const tl = {
     achievements: {
       title: 'Mga tagumpay',
       coverageChecks: 'Tuloy-tuloy na pagsusuri ng saklaw',
-      coverageChecksDesc: 'Nag-log ng mga update sa 5 sa nakaraang 7 araw.',
+      coverageChecksDesc: 'Suriin ang roster nang 7 araw nang sunod-sunod.',
       draftsPublished: 'Mga draft na nai-publish',
       draftsPublishedDesc: 'Ilipat ang mga draft sa nai-publish kapag handa na ang mga team.',
       notStarted: 'Hindi pa sinimulan'
@@ -977,7 +977,7 @@ export const tl = {
     saveFailed: 'Hindi ma-save ang lokasyon: {error}',
     deleteFailed: 'Hindi mabura ang lokasyon: {error}',
     industries: { retail: 'Retail', food_service: 'Serbisyo ng pagkain', fast_food: 'Fast food', full_service_restaurant: 'Full-service na restawran', hospitality: 'Hospitality', hotel: 'Hotel', warehouse: 'Bodega', manufacturing: 'Pagmamanupaktura', healthcare: 'Pangangalagang pangkalusugan', building_services: 'Serbisyo sa gusali', other: 'Iba pa' },
-    errors: { NAME_INVALID: 'Maglagay ng pangalang hanggang 80 character.', COUNTRY_INVALID: 'Pumili ng bansa.', TIME_ZONE_INVALID: 'Maglagay ng wastong time zone, halimbawa Asia/Manila o America/Lima.', INDUSTRY_INVALID: 'Pumili ng industriya.', HEADCOUNT_INVALID: 'Maglagay ng buong bilang ng empleyado.', generic: 'Suriin ang mga detalye ng lokasyon.' },
+    errors: { NAME_INVALID: 'Maglagay ng pangalang hanggang 80 character.', COUNTRY_INVALID: 'Pumili ng bansa.', TIME_ZONE_INVALID: 'Maglagay ng wastong time zone, halimbawa Asia/Manila o America/Lima.', TIME_ZONE_COUNTRY_MISMATCH: 'Hindi sa bansa ng lokasyon ang time zone na ito. Piliin ang time zone kung saan nagtatrabaho ang lokasyon, halimbawa Asia/Manila.', INDUSTRY_INVALID: 'Pumili ng industriya.', HEADCOUNT_INVALID: 'Maglagay ng buong bilang ng empleyado.', generic: 'Suriin ang mga detalye ng lokasyon.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

@@ -1,4 +1,4 @@
-import { validateLocationInput, type LocationInput } from '../locationValidation';
+import { validateLocationInput, zoneFitsCountry, type LocationInput } from '../locationValidation';
 
 const base: LocationInput = {
   name: 'Lima Centro',
@@ -63,6 +63,24 @@ describe('validateLocationInput', () => {
     expect(codeOf({ cityCode: 'LIMA' })).toBe('CITY_INVALID');
     expect(codeOf({ id: 'not-a-uuid' })).toBe('LOCATION_REQUIRED');
     expect(validateLocationInput(null)).toMatchObject({ ok: false, code: 'LOCATION_REQUIRED' });
+  });
+
+  it('rejects a time zone outside the location country (QA 2026-10-28)', () => {
+    expect(codeOf({ timeZone: 'UTC' })).toBe('TIME_ZONE_COUNTRY_MISMATCH');
+    expect(codeOf({ timeZone: 'Etc/GMT+5' })).toBe('TIME_ZONE_COUNTRY_MISMATCH');
+    expect(codeOf({ timeZone: 'Europe/Madrid' })).toBe('TIME_ZONE_COUNTRY_MISMATCH');
+    expect(codeOf({ countryCode: 'US', jurisdictionCode: 'US', timeZone: 'America/Lima' })).toBe('TIME_ZONE_COUNTRY_MISMATCH');
+    expect(codeOf({ countryCode: 'US', jurisdictionCode: 'US', timeZone: 'Pacific/Honolulu' })).toBe('OK');
+    expect(codeOf({ countryCode: 'ES', jurisdictionCode: 'ES', timeZone: 'Atlantic/Canary' })).toBe('OK');
+    // A country without a pack accepts any real local zone, never UTC.
+    expect(codeOf({ countryCode: 'JP', jurisdictionCode: 'GENERIC', timeZone: 'UTC' })).toBe('TIME_ZONE_COUNTRY_MISMATCH');
+  });
+
+  it('accepts zone aliases for the country', () => {
+    expect(zoneFitsCountry('US/Eastern', 'US')).toBe(true);
+    expect(zoneFitsCountry('America/Buenos_Aires', 'AR')).toBe(true);
+    expect(zoneFitsCountry('America/Argentina/Buenos_Aires', 'AR')).toBe(true);
+    expect(zoneFitsCountry('America/Toronto', 'US')).toBe(false);
   });
 
   it('rejects bad time zones, industries and sizes', () => {

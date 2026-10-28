@@ -38,7 +38,11 @@ describe('computeNextStreak', () => {
 describe('pickRewardTier', () => {
   it('returns the highest eligible tier', () => {
     const tier = pickRewardTier(8);
-    expect(tier.title).toMatch(/Weekly/);
+    expect(tier?.title).toMatch(/Weekly/);
+  });
+
+  it('awards nothing before the first action', () => {
+    expect(pickRewardTier(0)).toBeNull();
   });
 });
 

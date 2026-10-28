@@ -176,7 +176,7 @@ export const en = {
       title: 'Achievements',
       notStarted: 'Not started',
       coverageChecks: 'Consistent coverage checks',
-      coverageChecksDesc: 'Logged updates 5 of the last 7 days.',
+      coverageChecksDesc: 'Check the roster on 7 days in a row.',
       draftsPublished: 'Drafts published',
       draftsPublishedDesc: 'Move drafts into published when teams are ready.',
     },
@@ -1123,7 +1123,7 @@ export const en = {
     saveFailed: 'Couldn\'t save the location: {error}',
     deleteFailed: 'Couldn\'t delete the location: {error}',
     industries: { retail: 'Retail', food_service: 'Food service', fast_food: 'Fast food', full_service_restaurant: 'Full-service restaurant', hospitality: 'Hospitality', hotel: 'Hotel', warehouse: 'Warehouse', manufacturing: 'Manufacturing', healthcare: 'Healthcare', building_services: 'Building services', other: 'Other' },
-    errors: { NAME_INVALID: 'Enter a name of up to 80 characters.', COUNTRY_INVALID: 'Choose a country.', TIME_ZONE_INVALID: 'Enter a valid time zone, for example America/Lima or Europe/Madrid.', INDUSTRY_INVALID: 'Choose an industry.', HEADCOUNT_INVALID: 'Enter a whole number of employees.', generic: 'Check the location details.' },
+    errors: { NAME_INVALID: 'Enter a name of up to 80 characters.', COUNTRY_INVALID: 'Choose a country.', TIME_ZONE_INVALID: 'Enter a valid time zone, for example America/Lima or Europe/Madrid.', TIME_ZONE_COUNTRY_MISMATCH: 'This time zone is not in the location\'s country. Pick the zone where the location works, for example America/New_York.', INDUSTRY_INVALID: 'Choose an industry.', HEADCOUNT_INVALID: 'Enter a whole number of employees.', generic: 'Check the location details.' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

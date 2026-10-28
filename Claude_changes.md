@@ -6,6 +6,25 @@
 
 ---
 
+### CHG-093 — 2026-10-28 UTC
+**Type:** FIX (QA red team: browser walkthrough of every screen, research audit)
+
+Each item: root cause, then fix. Found by driving the web build against a local Supabase (Playwright, 1280 and 390 px).
+- **Sample staff written on skip.** `scheduler.tsx` seeded 3 workers, 2 templates and 4 shifts (2 published) whenever `hasCompleted` was true, and skipping the guide sets it; the guard was a per-mount ref, so an account whose workers were all removed was re-seeded on the next visit. Now `WelcomeTourContext.sampleDataOffered` is set only when a guide is finished (not skipped, not restored), and `takeSampleDataOffer()` hands it out once.
+- **"Run forecast" saved as done on an empty account.** `derivedOnboardingFlags.forecast` counted `forecastLoading` / `forecasting`, and the persist effect stored it. Now only real demand targets count. Rows already stored true stay true (the checklist is sticky by design).
+- **Shift form rejected the worker picked from the chips.** `WorkerIdPicker` fills the short id (`W-1`), `handleShiftSubmit` matched only the UUID. It now resolves the short id or the UUID, like availability. Form defaults `W-01` / `morning` (warning on every account) are now empty.
+- **Manual shifts stored `location: 'HQ'`**, which names no stored location. They now store the account's only location id (as auto-assign does), else empty.
+- **/sign-in and /sign-up crashed without a Clerk key** (Clerk hooks outside `ClerkProvider`). The auth layout redirects to `/` in dev-bypass mode; Profile hides the Account card there (its only button led to that screen).
+- **Location time zone not checked against the country.** A US location was saved as `UTC` (device zone). `zoneFitsCountry` (`utils/locationValidation.ts`): never UTC / `Etc/*`; for countries with a pack, one of its tzdata `zone.tab` zones (aliases compared via ICU). New code `TIME_ZONE_COUNTRY_MISMATCH` (client and proxy, all locales); `suggestJurisdiction` ignores a detected zone outside the country.
+- **Home figures.** Staffing gaps added `template.coverage` per roster row (one row is one person); the "Shifts scheduled" KPI was capped by the 5-row preview; achievements and the reward tier were hard-coded (a tier at 0 actions). Feed items now open the scheduler, and the ranking score is no longer shown as a percentage.
+- **First-run guide picker had no way out**: added a skip button and `onRequestClose`.
+- **Accessibility.** The checklist announced every step as "completed"; the Auto-assign label was teal on near-black (~2:1); a disabled button faded to ~3:1.
+- **Labor packs (research audit, primary sources in each cite):** Brazil EC 141/2026 (44 → 42 h from 2026-12-16, 40 h from 2027-12-16; 2 weekly rest days, new `rest.weeklyDays`); Philadelphia clopening consent required; Evanston 1.5× inside the window; Chicago cite verified; Colombia no adult 8 h daily cap (9 h is a `review` item); Peru night work is a pay floor (minimum wage × 1.35, S/ 1,230 from 2026-10-01); Canada: `CA-BC` pack, provinces without a pack → `CA-OTHER` (baseline), federal code (`CA`) only when the "federally regulated" option (region `FED`) is chosen; France under-16 limits. Stored Canadian locations without a region keep `CA` until re-saved.
+
+**Tests:** 1073 passed (new: shift form, auth layout, checklist, tour offer, zone checks, labor audit cases); integration 33/33 against local Supabase; tsc clean; lint 0 errors.
+
+---
+
 ### CHG-092 — 2026-10-28 UTC
 **Type:** FIX (review finding on PR #54, Codex P2)
 

@@ -99,7 +99,7 @@ export const Checklist = ({ steps, progress }: Props) => {
           onPress={step.onPress}
           style={[schedulerStyles.rowBetween, schedulerStyles.onboardingStep]}
           accessibilityRole="button"
-          accessibilityLabel={t('scheduler.onboarding.completedA11y', { step: step.title }) + (step.completed ? '' : '')}
+          accessibilityLabel={step.completed ? t('scheduler.onboarding.completedA11y', { step: step.title }) : step.title}
         >
           <View style={[styles.stepIndicator, step.completed && styles.stepIndicatorDone]}>
             <ThemedText style={styles.stepIndicatorText}>

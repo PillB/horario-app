@@ -29,11 +29,12 @@ const rewardTiers: RewardTier[] = [
   },
 ];
 
-export const pickRewardTier = (progressCount: number) => {
+/** The highest tier reached, or null before the first action (nothing has been earned yet). */
+export const pickRewardTier = (progressCount: number): RewardTier | null => {
   const eligible = rewardTiers
     .filter((tier) => progressCount >= tier.threshold)
     .sort((a, b) => b.threshold - a.threshold);
-  return eligible[0] ?? rewardTiers[0];
+  return eligible[0] ?? null;
 };
 
 export function useEthicalReward(progressCount: number) {

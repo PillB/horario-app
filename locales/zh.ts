@@ -155,7 +155,7 @@ export const zh = {
     achievements: {
       title: '成就',
       coverageChecks: '持续覆盖检查',
-      coverageChecksDesc: '过去7天中有5天记录了更新。',
+      coverageChecksDesc: '连续 7 天检查排班。',
       draftsPublished: '草稿已发布',
       draftsPublishedDesc: '团队准备就绪后将草稿转为已发布。', notStarted: '未开始'
     },
@@ -921,7 +921,7 @@ export const zh = {
     saveFailed: '无法保存地点：{error}',
     deleteFailed: '无法删除地点：{error}',
     industries: { retail: '零售', food_service: '餐饮服务', fast_food: '快餐', full_service_restaurant: '全服务餐厅', hospitality: '酒店餐饮业', hotel: '酒店', warehouse: '仓储', manufacturing: '制造业', healthcare: '医疗保健', building_services: '楼宇服务', other: '其他' },
-    errors: { NAME_INVALID: '请输入不超过 80 个字符的名称。', COUNTRY_INVALID: '请选择一个国家。', TIME_ZONE_INVALID: '请输入有效的时区，例如 Asia/Shanghai 或 America/Lima。', INDUSTRY_INVALID: '请选择一个行业。', HEADCOUNT_INVALID: '请输入员工人数（整数）。', generic: '请检查地点信息。' },
+    errors: { NAME_INVALID: '请输入不超过 80 个字符的名称。', COUNTRY_INVALID: '请选择一个国家。', TIME_ZONE_INVALID: '请输入有效的时区，例如 Asia/Shanghai 或 America/Lima。', TIME_ZONE_COUNTRY_MISMATCH: '该时区不属于此地点所在的国家。请选择该地点实际使用的时区，例如 Asia/Shanghai。', INDUSTRY_INVALID: '请选择一个行业。', HEADCOUNT_INVALID: '请输入员工人数（整数）。', generic: '请检查地点信息。' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

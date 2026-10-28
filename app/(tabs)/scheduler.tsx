@@ -158,17 +158,17 @@ export default function SchedulerScreen() {
     seedTourData,
   } = useSchedulerHandlers();
 
-  // ── Seed sample data when tour completes for the first time ─────────────
-  // Only once the stored workers have loaded (and are none): before CHG-088
-  // this also ran while the list was still loading or had failed to load.
-  const { hasCompleted } = useWelcomeTour();
-  const seededRef = useRef(false);
+  // ── Seed sample data right after the user finishes a guide ─────────────
+  // Only once the stored workers have loaded (CHG-088), only into an account
+  // with none, and only for a guide finished just now: skipping the guide, a
+  // completion restored from storage or a later visit to an account whose
+  // workers were all removed must not write sample rows (QA 2026-10-28).
+  const { sampleDataOffered, takeSampleDataOffer } = useWelcomeTour();
   useEffect(() => {
-    if (hasCompleted && !seededRef.current && workersLoaded && workers.length === 0) {
-      seededRef.current = true;
-      seedTourData();
-    }
-  }, [hasCompleted, workersLoaded, workers.length, seedTourData]);
+    if (!sampleDataOffered || !workersLoaded) return;
+    if (!takeSampleDataOffer()) return;
+    if (workers.length === 0) seedTourData();
+  }, [sampleDataOffered, takeSampleDataOffer, workersLoaded, workers.length, seedTourData]);
 
   const [selectedShiftForNotes, setSelectedShiftForNotes] = React.useState<{
     shiftId: string;

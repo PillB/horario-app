@@ -110,8 +110,8 @@ describe('QA golden: rest between shifts / clopenings', () => {
     expect(p[0].multiplier).toBe(1.25);
   });
 
-  it('PHL-01 8 h gap earns a $40 premium', () => {
-    const r = run('US-PA-PHILADELPHIA', [at('US-PA-PHILADELPHIA', MON, '15:00', '23:00'), at('US-PA-PHILADELPHIA', TUE, '07:00', '13:00')]);
+  it('PHL-01 8 h gap with consent earns a $40 premium (consent required: research audit 2026-10-28)', () => {
+    const r = run('US-PA-PHILADELPHIA', [at('US-PA-PHILADELPHIA', MON, '15:00', '23:00'), at('US-PA-PHILADELPHIA', TUE, '07:00', '13:00', { restConsent: true })]);
     const p = has(r.findings, 'fairWorkweek.clopening', 'premium');
     expect(p).toHaveLength(1);
     expect(p[0].amount).toEqual({ value: 40, currency: 'USD' });
@@ -135,7 +135,8 @@ describe('QA golden: rest between shifts / clopenings', () => {
     const r = run('PE', [at('PE', MON, '22:00', '06:00', { breaks: [['02:00', '02:45']] }), at('PE', TUE, '08:00', '16:00', { breaks: [['12:00', '12:45']] })]);
     expect(has(r.findings, 'rest.betweenShifts', 'warning')).toHaveLength(1);
     expect(verdicts(r.findings, 'violation')).toHaveLength(0);
-    expect(has(r.findings, 'night.premium', 'premium')).toHaveLength(1);
+    // Peru's night rule is a monthly pay floor (RMV + 35%), shown for review (research audit 2026-10-28).
+    expect(has(r.findings, 'night.payFloor', 'review')).toHaveLength(1);
   });
 
   it('a covered location with unknown coverage asks for review instead of guessing', () => {
@@ -217,10 +218,11 @@ describe('QA golden: daily maxima, overtime, overnight', () => {
     expect(has(before.findings, 'night.premium')[0].hours).toBe(1);
   });
 
-  it('CO-02 44 ordinary hours in the week of 2026-07-20 are 2 h overtime; 3 h overtime in a day is a violation', () => {
+  it('CO-02 44 ordinary hours in the week of 2026-07-20 are 2 h overtime; 3 h of overtime in a day is a violation', () => {
     const week = [0, 1, 2, 3, 4].map((d) => at('CO', addDaysToKey('2026-07-20', d), '08:00', '16:00')).concat(at('CO', '2026-07-25', '08:00', '12:00'));
     expect(has(run('CO', week).findings, 'weekly.overtime', 'premium')[0].hours).toBe(2);
-    const day = run('CO', [at('CO', '2026-07-20', '07:00', '18:00')]);
+    // No adult daily cap after Ley 2101, so the 3 h are designated overtime (research audit 2026-10-28).
+    const day = run('CO', [at('CO', '2026-07-20', '07:00', '18:00', { overtimeHours: 3 })]);
     expect(has(day.findings, 'daily.overtimeMax', 'violation')).toHaveLength(1);
   });
 

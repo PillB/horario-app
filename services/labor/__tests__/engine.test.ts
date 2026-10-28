@@ -121,7 +121,7 @@ describe('engine', () => {
     const tz = 'America/Lima';
     const shifts = [shift('2026-10-19', '22:00', '06:00', tz), shift('2026-10-20', '08:00', '12:00', tz)];
     const r = evaluateShifts({ jurisdiction: 'PE', timeZone: tz }, { id: 'w' }, shifts);
-    expect(r.findings.find((f) => f.rule === 'night.premium')?.hours).toBe(8);
+    expect(r.findings.find((f) => f.rule === 'night.payFloor')?.hours).toBe(8);
     expect(r.findings.find((f) => f.rule === 'rest.betweenShifts')?.hours).toBe(2);
   });
 

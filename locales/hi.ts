@@ -162,7 +162,7 @@ export const hi = {
     achievements: {
       title: 'उपलब्धियां',
       coverageChecks: 'नियमित कवरेज जांच',
-      coverageChecksDesc: 'पिछले 7 दिनों में से 5 दिन अपडेट लॉग किए।',
+      coverageChecksDesc: 'लगातार 7 दिन रोस्टर जाँचें।',
       draftsPublished: 'मसौदे प्रकाशित',
       draftsPublishedDesc: 'जब टीमें तैयार हों तो मसौदों को प्रकाशित में स्थानांतरित करें।',
       notStarted: 'शुरू नहीं हुआ'
@@ -977,7 +977,7 @@ export const hi = {
     saveFailed: 'स्थान सहेजा नहीं जा सका: {error}',
     deleteFailed: 'स्थान हटाया नहीं जा सका: {error}',
     industries: { retail: 'खुदरा', food_service: 'खाद्य सेवा', fast_food: 'फ़ास्ट फ़ूड', full_service_restaurant: 'पूर्ण-सेवा रेस्तराँ', hospitality: 'आतिथ्य', hotel: 'होटल', warehouse: 'गोदाम', manufacturing: 'विनिर्माण', healthcare: 'स्वास्थ्य सेवा', building_services: 'भवन सेवाएँ', other: 'अन्य' },
-    errors: { NAME_INVALID: '80 अक्षरों तक का नाम दर्ज करें।', COUNTRY_INVALID: 'एक देश चुनें।', TIME_ZONE_INVALID: 'एक मान्य समय क्षेत्र दर्ज करें, उदाहरण के लिए Asia/Kolkata या America/Lima।', INDUSTRY_INVALID: 'एक उद्योग चुनें।', HEADCOUNT_INVALID: 'कर्मचारियों की पूर्ण संख्या दर्ज करें।', generic: 'स्थान का विवरण जाँचें।' },
+    errors: { NAME_INVALID: '80 अक्षरों तक का नाम दर्ज करें।', COUNTRY_INVALID: 'एक देश चुनें।', TIME_ZONE_INVALID: 'एक मान्य समय क्षेत्र दर्ज करें, उदाहरण के लिए Asia/Kolkata या America/Lima।', TIME_ZONE_COUNTRY_MISMATCH: 'यह समय क्षेत्र स्थान के देश का नहीं है। वह क्षेत्र चुनें जहाँ स्थान काम करता है, उदाहरण के लिए Asia/Kolkata।', INDUSTRY_INVALID: 'एक उद्योग चुनें।', HEADCOUNT_INVALID: 'कर्मचारियों की पूर्ण संख्या दर्ज करें।', generic: 'स्थान का विवरण जाँचें।' },
     history: {
       show: 'Show change history',
       hide: 'Hide change history',

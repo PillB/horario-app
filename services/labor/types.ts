@@ -61,8 +61,10 @@ export type ClopeningPremium =
 /** Fair-workweek "right to rest" between a closing and the next opening shift. */
 export type ClopeningRule = {
   minHours: number;
-  /** Working inside the window needs the employee's (written) consent. */
+  /** Working inside the window needs the employee's consent. */
   consentRequired: boolean;
+  /** The consent must be in writing. Default true; Philadelphia only asks for consent. */
+  consentWritten?: boolean;
   premium: ClopeningPremium;
   industries?: Industry[];
   cite: Cite;
@@ -85,9 +87,11 @@ export type DailyOrdinaryRule = {
   /**
    * What hours above the limit are when the employer did not mark them as
    * overtime: 'violation' (Spain, Chile: ordinary time may not exceed it) or
-   * 'overtime' (they are paid as overtime and count toward overtime caps).
+   * 'overtime' (they are paid as overtime and count toward overtime caps) or
+   * 'review' (no statutory daily cap; the daily split is agreed, so a person
+   * checks it: Colombia, Ley 2101).
    */
-  excess: 'violation' | 'overtime';
+  excess: 'violation' | 'overtime' | 'review';
   cite: Cite;
 };
 
@@ -112,6 +116,12 @@ export type NightRule = {
   window: Dated<[HHMM, HHMM]>;
   /** Premium shown on findings, e.g. 35 = +35%. */
   premiumPct?: number;
+  /**
+   * Peru: no surcharge on actual pay, but a night worker's monthly pay may not
+   * be below the minimum wage plus `pctOverMinimum`%. The engine has no pay
+   * data, so it shows the floor for review.
+   */
+  monthlyPayFloor?: { minimumMonthlyWage: Dated<number>; pctOverMinimum: number };
   /** Brazil: a legal night hour is 52.5 minutes, so night time counts for more. */
   hourMinutes?: number;
   cite: Cite;
@@ -169,7 +179,16 @@ export type OvertimePayRule = {
   cite: Cite;
 };
 
-export type WeeklyRestRule = { minHours: number; verdict?: 'violation' | 'warning'; cite: Cite };
+export type WeeklyRestRule = {
+  minHours: number;
+  /** 'premium': the rest may be worked if paid extra (British Columbia: 1.5×). */
+  verdict?: 'violation' | 'warning' | 'premium';
+  premiumMultiplier?: number;
+  cite: Cite;
+};
+
+/** Brazil (CF art. 7 XV): whole calendar days without work in each workweek, consecutive or not. */
+export type WeeklyRestDaysRule = { days: Dated<number>; cite: Cite };
 
 export type SpreadOfHoursRule = { overHours: number; premiumHours: number; cite: Cite };
 
@@ -229,6 +248,7 @@ export type RulePack = {
   weeklyMax?: HoursCap & { verdict?: 'violation' | 'warning' };
   averageWeeklyMax?: AverageRule[];
   weeklyRest?: WeeklyRestRule;
+  weeklyRestDays?: WeeklyRestDaysRule;
   night?: NightRule;
   nightDuty?: NightDutyRule;
   nightWorker?: NightWorkerRule;

@@ -9,7 +9,7 @@ import { getCalendars, getLocales } from 'expo-localization';
 
 import { getJurisdiction, regionsFor, resolveJurisdiction } from '@/services/labor/jurisdictions';
 import { fetchGeoHint, type GeoHint } from '@/services/locationService';
-import type { DetectedHint } from '@/utils/locationValidation';
+import { zoneFitsCountry, type DetectedHint } from '@/utils/locationValidation';
 import { isValidTimeZone } from '@/utils/zonedTime';
 
 export type SuggestionStatus = 'detected' | 'conflict' | 'unknown';
@@ -53,8 +53,12 @@ export function suggestJurisdiction(geo: GeoHint, device: DeviceSignals): Jurisd
       ? ipRegion
       : null;
 
+  // A detected zone is used only when it is a local zone of the suggested
+  // country: a device set to UTC, or travelling abroad, must not set the
+  // business day and week of the location.
+  const fits = (zone: string | null) => (zone && (!country || zoneFitsCountry(zone, country)) ? zone : null);
   const timeZone =
-    toZone(geo.ipTimeZone) ?? toZone(device.deviceTimeZone) ?? (country ? defaultTimeZoneFor(country, region) : null);
+    fits(toZone(geo.ipTimeZone)) ?? fits(toZone(device.deviceTimeZone)) ?? (country ? defaultTimeZoneFor(country, region) : null);
 
   return {
     status,

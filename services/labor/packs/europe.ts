@@ -58,13 +58,14 @@ export const EUROPE: Record<string, RulePack> = {
     night: { window: ['21:00', '06:00'], cite: { source: 'Code du travail L3122-2 (without an agreement)', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F2212', confidence: 'high' } },
     minors: [
       {
-        ageFrom: 0, ageTo: 15, maxDailyHours: 7, minRestHours: 14, bannedWindows: [['20:00', '06:00']],
-        cite: { source: 'Code du travail L3162-1, L3163, L3164', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F2216', confidence: 'high' },
+        ageFrom: 0, ageTo: 15, maxDailyHours: 7, maxWeeklyHours: 35, minRestHours: 14, bannedWindows: [['20:00', '06:00']],
+        breaks: [{ afterHours: 4.5, minMinutes: 30 }], weeklyRestHours: 48, noOvertime: true,
+        cite: { source: 'Code du travail L3162-1 to -3, L3163, L3164 (2 consecutive days of weekly rest; no overtime)', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F2216', confidence: 'high' },
       },
       {
         ageFrom: 16, ageTo: 17, maxDailyHours: 8, maxWeeklyHours: 35, minRestHours: 12, bannedWindows: [['22:00', '06:00']],
-        breaks: [{ afterHours: 4.5, minMinutes: 30 }],
-        cite: { source: 'Code du travail L3162-1 to -3, L3163, L3164', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F2216', confidence: 'high' },
+        breaks: [{ afterHours: 4.5, minMinutes: 30 }], weeklyRestHours: 48,
+        cite: { source: 'Code du travail L3162-1 to -3, L3163, L3164 (2 consecutive days of weekly rest; 36 h by agreement)', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F2216', confidence: 'high' },
       },
     ],
   },

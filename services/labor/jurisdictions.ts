@@ -10,6 +10,11 @@
  * A country with no pack of its own resolves to its regional floor (EU member
  * states → "EU", the Working Time Directive) or to "GENERIC", a conservative
  * pack flagged as unverified that asks the business to review its rules.
+ *
+ * Canada: the national code (CA, Canada Labour Code) covers only federally
+ * regulated employers, so it is offered as its own choice (region "FED",
+ * not an ISO code) next to the provinces. A province without a pack, or no
+ * province, resolves to CA-OTHER, a generic pack that asks for review.
  */
 
 export type JurisdictionCode = string;
@@ -28,6 +33,12 @@ export type JurisdictionInfo = {
 };
 
 const J = (info: JurisdictionInfo): JurisdictionInfo => info;
+
+/** Canada: the pseudo-region for federally regulated employers (Canada Labour Code). */
+const FEDERAL_REGION = 'FED';
+
+/** Countries whose national pack does not apply to most employers: a place without a regional pack resolves here. */
+const SUBNATIONAL_FALLBACK: Record<string, JurisdictionCode> = { CA: 'CA-OTHER' };
 
 export const JURISDICTIONS: readonly JurisdictionInfo[] = [
   J({ code: 'GENERIC', name: 'Other country (generic rules)', country: '' }),
@@ -72,9 +83,11 @@ export const JURISDICTIONS: readonly JurisdictionInfo[] = [
   J({ code: 'GB', name: 'United Kingdom', country: 'GB', timeZone: 'Europe/London' }),
 
   // Canada and Australia
-  J({ code: 'CA', name: 'Canada (federal)', country: 'CA', timeZone: 'America/Toronto' }),
+  J({ code: 'CA', name: 'Federally regulated (Canada Labour Code)', country: 'CA', region: FEDERAL_REGION, timeZone: 'America/Toronto' }),
+  J({ code: 'CA-OTHER', name: 'Canada (province without rules in Horario)', country: 'CA', timeZone: 'America/Toronto' }),
   J({ code: 'CA-ON', name: 'Ontario', country: 'CA', region: 'ON', timeZone: 'America/Toronto' }),
   J({ code: 'CA-QC', name: 'Quebec', country: 'CA', region: 'QC', timeZone: 'America/Toronto' }),
+  J({ code: 'CA-BC', name: 'British Columbia', country: 'CA', region: 'BC', timeZone: 'America/Vancouver' }),
   J({ code: 'AU', name: 'Australia', country: 'AU', timeZone: 'Australia/Sydney' }),
 ];
 
@@ -108,7 +121,9 @@ export const resolveJurisdiction = (place: { country: string; region?: string | 
   const region = place.region?.trim().toUpperCase();
   const city = place.city?.trim().toUpperCase();
   if (region && city && BY_CODE.has(`${country}-${region}-${city}`)) return `${country}-${region}-${city}`;
-  if (region && BY_CODE.has(`${country}-${region}`)) return `${country}-${region}`;
+  const regional = region ? JURISDICTIONS.find((j) => j.country === country && j.region === region && !j.city) : undefined;
+  if (regional) return regional.code;
+  if (SUBNATIONAL_FALLBACK[country]) return SUBNATIONAL_FALLBACK[country];
   if (BY_CODE.has(country)) return country;
   if (EU_MEMBER_STATES.has(country)) return 'EU';
   return 'GENERIC';
