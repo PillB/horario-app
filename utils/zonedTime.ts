@@ -111,8 +111,10 @@ export const zonedToUtc = (dateKey: string, minutes: number, timeZone: string): 
   if (matches.length) return Math.min(...matches);
 
   // Inside a spring-forward gap: use the offset in force before the gap, which
-  // lands just after it.
-  const before = offsetMinutesAt(naive - 6 * 3600_000, timeZone);
+  // lands just after it. A gap only opens when the offset grows, so the offset
+  // before it is the smaller one (reading "6 h earlier" fails for zones at
+  // UTC+6 and beyond, where that instant is already past the change).
+  const before = Math.min(...offsets);
   return naive - before * MS_PER_MINUTE;
 };
 
@@ -123,6 +125,13 @@ export const zonedHHMMToUtc = (dateKey: string, hhmm: string, timeZone: string):
 /**
  * Absolute span of a shift given as local start/end times. An end at or before
  * the start means the shift ends the next local day (overnight).
+ *
+ * A span that a spring-forward gap makes zero or negative (02:00–03:00 New York
+ * on 2026-03-08: both ends resolve to 07:00Z) moves to after the gap with its
+ * wall-clock length (03:00–04:00 EDT). This is the auto-assigner's rule
+ * (`zonedSpan` in services/shiftAssigner.ts, CHG-087), so the compliance view
+ * and auto-assign measure such a shift the same way (CHG-089). Spans that end
+ * after the gap keep their elapsed length (01:00–04:00 = 2 h).
  */
 export const zonedShiftSpan = (
   dateKey: string,
@@ -133,5 +142,7 @@ export const zonedShiftSpan = (
   const startMin = parseHHMM(startHHMM);
   let endMin = parseHHMM(endHHMM);
   if (endMin <= startMin) endMin += 1440;
-  return { start: zonedToUtc(dateKey, startMin, timeZone), end: zonedToUtc(dateKey, endMin, timeZone) };
+  const start = zonedToUtc(dateKey, startMin, timeZone);
+  const end = zonedToUtc(dateKey, endMin, timeZone);
+  return { start, end: end <= start ? start + (endMin - startMin) * MS_PER_MINUTE : end };
 };

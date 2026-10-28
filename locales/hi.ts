@@ -410,7 +410,7 @@ export const hi = {
       posCsvA11yHint: 'CSV पेस्ट करें जिसमें कॉलम हों: date, revenue, covers, notes',
       posPreviewCount: '{total} में से {n} पंक्तियाँ दिखाई जा रही हैं',
       beforeForecast: 'पूर्वानुमान से पहले',
-      afterForecast: 'पूर्वानुमान के बाद'
+      afterForecast: 'पूर्वानुमान के बाद', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}', historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.', signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.'
     },
 
     roster: {
@@ -978,6 +978,30 @@ export const hi = {
     deleteFailed: 'स्थान हटाया नहीं जा सका: {error}',
     industries: { retail: 'खुदरा', food_service: 'खाद्य सेवा', fast_food: 'फ़ास्ट फ़ूड', full_service_restaurant: 'पूर्ण-सेवा रेस्तराँ', hospitality: 'आतिथ्य', hotel: 'होटल', warehouse: 'गोदाम', manufacturing: 'विनिर्माण', healthcare: 'स्वास्थ्य सेवा', building_services: 'भवन सेवाएँ', other: 'अन्य' },
     errors: { NAME_INVALID: '80 अक्षरों तक का नाम दर्ज करें।', COUNTRY_INVALID: 'एक देश चुनें।', TIME_ZONE_INVALID: 'एक मान्य समय क्षेत्र दर्ज करें, उदाहरण के लिए Asia/Kolkata या America/Lima।', INDUSTRY_INVALID: 'एक उद्योग चुनें।', HEADCOUNT_INVALID: 'कर्मचारियों की पूर्ण संख्या दर्ज करें।', generic: 'स्थान का विवरण जाँचें।' },
+    history: {
+      show: 'Show change history',
+      hide: 'Hide change history',
+      toggleHint: 'Shows who changed each location\'s rules, and when',
+      title: 'Change history',
+      empty: 'No changes recorded yet.',
+      loadFailed: 'Couldn\'t load the change history.',
+      retryHint: 'Loads the change history again',
+      added: 'Added by {who}',
+      changed: 'Changed by {who}',
+      deleted: 'Deleted by {who}',
+      outsideApp: 'a change outside the app',
+      jurisdiction: 'Rules',
+      timeZone: 'Time zone',
+      industry: 'Industry',
+      headcount: 'Employees',
+      overrides: 'Stricter limits',
+      none: 'none',
+      noRuleChange: 'Rules, time zone and size unchanged.',
+      ruleRest: 'rest at least {value} h',
+      ruleDaily: 'at most {value} h a day',
+      ruleWeekly: 'at most {value} h a week',
+      ruleBreak: '{value} min break after {after} h',
+    },
   },
 
   profile: {

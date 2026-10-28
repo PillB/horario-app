@@ -6,6 +6,278 @@
 
 ---
 
+### CHG-092 — 2026-10-28 UTC
+**Type:** FIX (review finding on PR #54, Codex P2)
+
+- Root cause: `listForecastSignals` asked for `FORECAST_SIGNALS_LIMIT + 1` = 1001 rows to detect truncation, but the API caps a response at `max_rows` = 1000 (`supabase/config.toml`), so a window with more than 1000 signals came back as exactly 1000 and `truncated` stayed false; the forecast then used incomplete event multipliers with no data-quality warning.
+- Fix (`app/api/secure-proxy+api.ts`): `FORECAST_SIGNALS_LIMIT` = 999, so the probe row stays within the cap. `FORECAST_HISTORY_PAGE_SIZE` (1000, uses `range` and an exact count) is unaffected.
+- Tests (`server/__tests__/forecastSignalsDatesProxy.test.ts`): the fake store now caps at 1000 rows like PostgREST; new case with 1200 future signals reports `truncated: true`. Three cases fail on the old limit.
+
+---
+
+### CHG-091 — 2026-10-21 UTC
+**Type:** FIX (QA red team step 3c, `qa/redteam-step3c-2026-10-21.md`, G1–G6)
+
+1. **G1, authorization** (`app/api/secure-proxy+api.ts`, decision, reversible).
+   - Root cause: `MANAGER_ACTIONS` held only deletes, locations and billing, so an `org:member` could create workers, set labor attributes (including `weeklyLimitOptOut`), edit the roster, publish, mark notified and set demand overrides.
+   - Fix: every scheduling write is manager-only (`canManage`: personal account or org admin). New `SCHEDULING_WRITE_ACTIONS` (upsertWorker with its labor attributes, deleteWorker, upsert/deleteAvailability, upsert/deleteShiftTemplate, upsertRosterShift, updateShiftStatus, markShiftNotified, deleteRosterShift, upsertTargets, deleteDemandTarget, uploadPosSales) is spread into `MANAGER_ACTIONS`. Its 403 reads "Only an admin of this business can change the schedule. Ask an admin to make this change"; other manager actions keep "Only an admin of this business can do this".
+   - Open to members, and why: every read (`status`, `forecastHistory`, `listForecastSignals`, `loadTargets`, `list*`, `listLocationHistory`, `getUsageLimit`, `listPosSales`, `getSubscription`, which provisions a free row on first read); `forecast` (a read, but it upserted model rows into `demand_targets`, so now only a manager's call stores them); the member's own per-user rows: `getOnboarding` / `upsertOnboarding` (keyed by account and user) and `incrementAutoAssign` (keyed by user; it only follows applying suggestions, which needs roster writes). Referrals live in `app/api/referrals+api.ts`, per user, unchanged.
+   - Client: there is no role signal on the client (no Clerk `useOrganization` / membership read anywhere), so no client role check was added. Write controls stay visible; a member's write rolls back and the 403 text reaches the banner through `scheduler.sync.saveFailed` ("Not saved: … Your change was undone.") or the form error.
+   - Tests: `server/__tests__/memberPermissions.test.ts` (55): 403 for a member on each of the 19 manager actions, admins and personal accounts pass the check, members pass on the 17 open actions, and a test that parses the dispatcher and fails if an action is in neither list. 9 fail on the old proxy. `server/__tests__/schedulingPermissions.integration.test.ts`: a member gets 403 on 15 writes against real rows and nothing changes; members read and save their own onboarding; a member's `forecast` stores no model row, an admin's does. `hooks/__tests__/persistedListRaces.test.tsx`: a 403 rolls back and returns the message.
+2. **G2, out-of-order writes** (`hooks/usePersistedList.ts`).
+   - Root cause: rollback restored the snapshot taken before the write, so edit 1 failing after edit 2 succeeded put the original value back while the server held edit 2.
+   - Fix (chosen over serializing per id: no head-of-line blocking, the screen keeps answering, and a reload in between is covered by the same check): each write names its item `id`; the list is mirrored in a ref, and after the request the write rolls back or reconciles only if the item is still the object its `apply` produced. Otherwise it marks the id stale, and when the last write in flight for that id settles the list reloads. Callers in useWorkers / useShiftTemplates / useRoster pass `id` (the parent worker for availability). The unused `setItems` export was removed.
+   - Tests (`persistedListRaces.test.tsx`): edit 2 succeeds then edit 1 fails, and the list shows edit 2 and reloads (fails before); edit 1 succeeding last shows the server's value; a single failure still rolls back.
+3. **G3, tenant switch mid-write** (same file). An epoch counter is bumped on every key change; a write from an older epoch returns its result without apply, rollback, reconcile or reload. Tests: A's saved roster shift does not appear in B's list; A's failed worker delete does not put A's worker into B's list (both fail before).
+4. **G4, roster `notified`** (`upsertRosterShift`, `hooks/useRoster.ts`).
+   - Root cause: the upsert wrote the client's `notified`, so a reassigned notified shift stayed notified and a new shift could be created notified.
+   - Fix: the proxy never writes the client's `notified`. A new shift (or an id with no row of this tenant) is inserted with false. An update reads the stored row, keeps `notified`, and sets false when date, worker_id, template_id or status changed (status added for consistency with `updateShiftStatus`, and so Published→Draft through an upsert cannot leave a notified draft). The update matches the values it was decided on, so a concurrent change gives 409 "The shift changed while saving. Reload and try again". `useRoster.addShift` sends false; `updateShift` ignores `changes.notified` and applies the same rule optimistically.
+   - Tests: integration (new un-notified with and without id; location-only edit keeps true even when false is sent; worker / date / template change clears it even when true is sent; status change via upsert); hook tests for the same rule (fail before). `useRoster.test.tsx` "refuses a notified draft" became "saves a new shift un-notified".
+5. **G5, history deletes** (`supabase/migrations/20261021000091_audit_and_slot_guards.sql`). DELETE on `location_history` revoked from service_role (and anon / authenticated). `public.purge_location_history(p_older_than interval)` (SECURITY DEFINER, `search_path = ''`, execute for service_role only) deletes rows older than the age and refuses null or anything under 2 years by calendar (`now() - age > now() - 2 years`, so 729 days is refused) with 22023. pgTAP `location_history.test.sql` plan 20 → 29 (service-role delete 42501, 1 year / 729 days / null refused, old row purged, 1-year row kept, authenticated and anon cannot purge). Integration: a PostgREST delete with the service key now returns 42501.
+6. **G6, slot index required** (same migration). `private.ensure_roster_slot_key()` returns when `roster_account_slot_key` is a unique index on `public.roster`, raises when an index of that name is not unique, raises 23505 with the duplicate-group count and a hint when duplicates exist, and otherwise creates the index. The migration calls it, so `supabase db push` (and `migrate.yml`, unchanged) fails on such a database. On a fresh reset the index exists from 000001 and the call is a no-op. New pgTAP `roster_slot_key.test.sql` (8): drops the index in the test transaction, adds duplicates, and checks the raise, the recreate after cleanup, the non-unique case and that authenticated cannot call it.
+
+**Tests:** jest 1038 passed, 33 skipped (83 suites). Integration against local Supabase: 33/33 (23 + 10). pgTAP: 100/100 (63 + 29 + 8). tsc 0 errors; lint 0 errors (6 pre-existing warnings). Migration applied with `supabase migration up --local --include-all` (no reset).
+
+**Not changed / follow-ups:**
+- No client role signal: a member still sees write buttons. Reading the Clerk org role on the client (`useOrganization().membership.role`) would let the screens hide them; not added (no existing signal, and the server is the boundary).
+- The 2-year minimum in `purge_location_history` is a product default, not a legal figure; there is still no retention job calling it.
+- Fresh-reset check without `db reset`: every migration applied in order to a throwaway database in the local Postgres (auth.role / jwt / uid stubbed): all pass, the index is unique, service_role has no DELETE, and re-running 000091 passes. With the index dropped and a duplicate inserted, 000001 passes with its WARNING and 000091 fails with the error and hint. The throwaway database was dropped.
+
+---
+
+### CHG-090 — 2026-10-21 UTC
+**Type:** FIX (`zonedToUtc` inside a spring-forward gap, zones at UTC+6 and beyond)
+
+- `utils/zonedTime.ts` read "the offset before the gap" 6 h before the naive time. In zones at UTC+6 or more that instant is already past the change, so 02:30 on Sydney's spring-forward day resolved to 01:30 AEST instead of 03:30 AEDT. It now takes the smaller of the nearby offsets (a gap only opens when the offset grows). Reported by the CHG-089 worker.
+- Test: Sydney 2026-10-04 and Auckland 2026-09-27 at 02:30 resolve to 03:30 local; fails without the fix.
+
+**Tests:** jest 913 passed, 17 skipped; services/utils/hooks also under TZ=Asia/Tokyo; tsc 0 errors.
+
+---
+
+### CHG-089 — 2026-10-21 UTC
+**Type:** FIX + FEATURE (open items from CHG-083 / CHG-087: labor DST gap, location change history, stricter-only overrides, client date validation)
+
+1. **Labor engine, DST gap** (`utils/zonedTime.ts`).
+   - Root cause: `zonedShiftSpan` (used by `hooks/useCompliance.ts` and the labor tests) read both ends with `zonedToUtc`, so 02:00–03:00 New York on 2026-03-08 became 07:00Z–07:00Z. The engine's `validShifts` saw end ≤ start and reported `input.invalid`, while auto-assign (CHG-087 `zonedSpan`) treated the same shift as 03:00–04:00 EDT.
+   - Fix: the same rule in `zonedShiftSpan`: when the elapsed span comes out ≤ 0, it moves to after the gap with its wall-clock length. Spans ending after the gap keep their elapsed length. The engine itself was not changed for this.
+   - Test `hooks/__tests__/complianceDstGap.test.ts` (12): `zonedShiftSpan` equals the assigner's `zonedSpan` on gap, partial-gap, overnight and fall-back cases (New York, Madrid, Sydney); the engine and `evaluateCompliance` give no `input.invalid`; a Madrid gap shift then a 15:00 start gives an 11 h rest finding. 7 of the tests fail without the fix. QA's golden tests are unchanged and pass.
+2. **Location change history** (`supabase/migrations/20261021000089_location_history.sql`).
+   - Design: an AFTER INSERT / UPDATE / DELETE trigger on `locations` (`private.record_location_history`, SECURITY DEFINER) writes `location_history` in the same transaction. A trigger is more robust than a proxy write: no path (proxy, migration, SQL console) can change a location without a row, and a failed history insert rolls the change back. Each row has account, location id and name, action, `changed_by`, `changed_at`, and old / new jurisdiction, time zone, industry, headcount and overrides. There is no FK, so the history outlives a delete. Every upsert records a row, including no-op ones.
+   - Who: the service-role connection cannot see the Clerk user. `changed_by` = the transaction setting `horario.actor` when set, else `confirmed_by`, which the proxy sets to the session user on every upsert. `deleteLocation` now calls `public.delete_location(p_account_id, p_location_id, p_actor)` (service_role only). The function sets `horario.actor` locally, deletes by id AND account, returns whether a row went, and clears the setting. A delete outside the proxy records `changed_by = null` ("a change outside the app").
+   - Writes: anon and authenticated have no write grants. **service_role also loses INSERT / UPDATE** (it keeps SELECT and DELETE for retention), so even the proxy cannot forge or edit history. Reads: tenant RLS (`account_id = private.current_account_id()`), anon nothing. The migration is idempotent (re-run with psql). It was applied with `supabase migration up --local`, with no reset.
+   - Proxy: new `listLocationHistory` action (members may read; optional `locationId` UUID, `limit` 1–200, default 50, newest first, account-scoped). `LocationHistoryEntry` type lives in `utils/locationValidation.ts`, and `listLocationHistory()` in `services/locationService.ts`.
+   - UI: `components/locations/LocationHistoryList.tsx`, behind a "Show change history" toggle in the Profile `LocationsManager`. It loads only when opened and reloads after a delete. It is read-only (no controls in the list). Each row shows date and time, location, who, and per-field "old → new" (only changed fields; jurisdiction names, industry labels and overrides in words). Locale keys `locations.history.*` are in all 9 files; `es` is translated, and de, fr, hi, it, sw, tl and zh use English.
+   - pgTAP: new file `supabase/tests/database/location_history.test.sql`, plan(20). It is a separate file so the plan count of `tenant_isolation.test.sql` (also edited by the persistence work) does not conflict. It covers insert / update / delete rows with values and actor, `horario.actor`, anon / A / org-B visibility, no direct writes by authenticated or service_role, `delete_location` grants and tenant scoping, and the action check.
+   - Integration: new `server/__tests__/locationHistory.integration.test.ts` (3). `test:integration` now runs `server/__tests__/.*\.integration\.test\.ts`.
+3. **Overrides only stricter** (`services/labor/overrides.ts`, `types.ts` `LocationOverride`, `dated.ts`).
+   - Schema (max 20, no extra keys, optional `note` ≤ 200):
+     - `rest.minHours` (0 < v ≤ 24)
+     - `daily.maxHours` (0 < v ≤ 24)
+     - `weekly.maxHours` (0 < v ≤ 168)
+     - `breaks.minMinutes` (whole minutes 1–480, plus `afterHours` 0 ≤ a < 24; one per `afterHours`)
+     - Other rules appear once at most.
+   - Stricter means tighter than the resolved pack value for the jurisdiction on the location's local today:
+     - rest: `restBetweenShifts.minHours`;
+     - daily: the lower of `dailyTotalMax` and a `dailyOrdinaryMax` whose excess is a violation, where shift-kind limits take the strictest kind;
+     - weekly: `weeklyMax`;
+     - breaks: what the triggers require just over `afterHours`.
+     - No pack rule: any value is stricter. An equal value counts only when the pack's rule is a warning (it becomes a hard limit).
+   - Failure: `OVERRIDE_NOT_STRICTER`, 400 from the proxy, for example "overrides[0]: a minimum rest of 10 h between shifts is not stricter than the law in Spain on 2026-10-21, which sets a minimum rest of 12 h between shifts. A location override can only make a rule stricter." Untyped objects, which were accepted before, now give `OVERRIDES_INVALID`. An update that leaves `overrides` out but changes the jurisdiction re-checks the stored ones against the new pack (400 "The saved overrides do not fit the new jurisdiction: … Send overrides with this change.").
+   - Engine: `EvaluationContext.overrides`. `evaluateShifts` uses `applyOverrides(resolvePack(…), ctx.overrides)`; this one line is the only logic change in `engine.ts`. `resolveDated` moved to `dated.ts` and is re-exported, so there is no import cycle.
+   - `applyOverrides` is stricter-wins on every date. Rest uses `max` over dated values; daily and weekly replace the cap only when lower; breaks add a trigger. A laxer stored override changes nothing. An applied override is a violation, and its cite reads "Location override (note); stricter than <legal source>".
+     - Rest drops Ontario's pair exemption: the business limit applies to every pair.
+     - A break override turns the whole break rule into a violation, including legal triggers that were warnings (MX, CL, EU, GENERIC).
+   - Wiring: `legalConstraintsFor(jurisdiction, date, overrides?)`, so rest, daily and weekly overrides become assigner constraints (breaks are not an assigner constraint). `AutoAssignLocation.overrides` goes through `autoAssignSettings` (`parseStoredOverrides`, which drops invalid entries), and `useCompliance` passes `parseStoredOverrides(location.overrides)`.
+   - Tests: `services/labor/__tests__/overrides.test.ts` (34) and `hooks/__tests__/locationOverridesWiring.test.ts` (3); `locationsProxy.test.ts` +5; `locationValidation.test.ts` +1 (the old untyped override case now expects `OVERRIDES_INVALID`). Without the engine line, 5 engine / wiring tests fail.
+4. **Client-side dates.**
+   - Root cause: bare `^\d{4}-\d{2}-\d{2}$` regexes plus `new Date(…)`, which rolls 2026-02-31 over to 2026-03-03.
+   - `services/forecastEngine.ts` `parseDate` and `hooks/useDemandAnalysis.ts` `parseIsoDate` (now exported for tests) use `isDateKey`. `hooks/useAvailabilityGrid.ts` `addException` refuses an impossible date.
+   - New `normaliseDateInput` in `utils/dateKeys.ts` ("YYYY-MM-DD" or "M/D/YYYY", checked with `isDateKey`) replaces the copies in `PosUploadSection` (whose unreachable DD/MM branch is removed; `parseCsv` is exported for tests) and `DemandSection`'s POS preview.
+   - `utils/schedulerUtils.isValidDate` and `utils/workerLaborValidation.isRealDateKey` already round-trip, so they were left as they are.
+   - Test `components/__tests__/clientDateValidation.test.tsx` (12): the parser, the POS CSV, the DemandSection paste preview, `computeSeasonality` / `computeTrend`, `parseIsoDate` and `addException`. 11 fail with the regex-only checks.
+
+**Tests:** jest 912 passed, 17 skipped (78 suites; the 17 skipped are the two DB suites), also under TZ=Asia/Tokyo and TZ=America/Lima (full suite). Integration against local Supabase: 17/17 (14 + 3). pgTAP: 77/77 (57 + 20). tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not changed / follow-ups:**
+- There is no override editor in the UI; overrides arrive only through the API.
+- `zonedToUtc` resolves a gap time with the offset 6 h before the naive instant. For zones at UTC+6 or more (Sydney), that is already the post-gap offset, so 02:30 on Sydney's spring-forward day resolves to 01:30 AEST (before the gap), not after it as documented. Both engines share it, so they still agree. It was found while testing and not fixed.
+- History rows are kept forever (no retention job). `changed_by` is a Clerk user id; the UI shows it raw.
+### CHG-088 — 2026-10-21 UTC
+**Type:** FIX / FEATURE (a manager's scheduling data survives a reload and reaches other devices)
+
+**Audit (before, at 2a87a41):**
+
+| Entity | Proxy CRUD | Loaded on start | Gap |
+|---|---|---|---|
+| Workers | list / upsert / delete | `useWorkers` | `hooks/useWorkers.ts:100-110` returned `success:true` when the proxy refused ("optimistic only"), so a rejected save looked saved and vanished on reload; `services/rosterService.ts` `list*` turned errors into `[]` (failed load = empty account); no request-id guard; no update / delete in the hook; `.limit(500)` with no paging; non-UUID fallback ids the proxy rejects |
+| Availability | upsert / delete | via `useWorkers` | slot ids not kept, so slots could not be removed; limit 2000, no paging |
+| Shift templates | list / upsert / delete | `useShiftTemplates` | `hooks/useShiftTemplates.ts:64-74` same false success; no update / delete in the hook |
+| Roster (status, notified) | list / upsert / status / notified / delete | `useRoster` | `hooks/useRoster.ts:156-166,184-190,204-210,220-226` false success; proxy `updateShiftStatus` set status only while the client also cleared `notified` (diverged after reload); `markShiftNotified` allowed on drafts; upsert spread unvalidated fields; no unique slot, so two devices could insert the same assignment; `listRoster` oldest first, silently cut at 500; publish / notify handlers passed to `RosterSection` but never rendered |
+| Demand overrides | load / upsert | `useDemandForecast` | `loadTargets` read the oldest 500 rows of every source and the client filtered to overrides; no delete; `upsertTargets` spread client fields (source could be `model`, notes / confidence / bounds unchecked); load error swallowed |
+| Locations | list / upsert / delete | `useLocations` | none: request guard, pessimistic writes, admin-only, validated, integration-tested |
+
+`persistShiftStatus` / `persistShiftNotification` and the December 2024 sample shifts were already gone from production code (`useSchedulerHandlers` uses `useRoster`); only tests use 2024 dates. The scheduler's ghost empty states showed while loading and after a failed load, and the tour could seed sample rows before workers had loaded.
+
+**After:** every entity above has load (paged, error reported), create, update and delete through the proxy, tenant-scoped (`id AND account_id`, 404 on no match, 409 on a cross-tenant id or duplicate), optimistic in the UI with rollback and a visible error.
+
+**Changes by file:**
+- `utils/schedulingValidation.ts` (new): explicit-object validators shared by client and proxy for workers, availability, templates, roster shifts (status defaults Draft, `notified` only when Published) and demand override keys / rows; `isUuid`, `newUuid`.
+- `app/api/secure-proxy+api.ts`: uses those validators; `LIST_PAGE_SIZE` 500 / `LIST_MAX_PAGES` 20 paging (`page`, `hasMore`, id tie-breaker) for workers, availability, templates, roster (`fromDate` / `toDate`) and overrides; `updateShiftStatus` writes `{status, notified:false}` and returns the shift; `markShiftNotified` needs Published (409); `upsertTargets` writes explicit override rows; `loadTargets` returns overrides only; new `deleteDemandTarget` (manager only).
+- `services/rosterService.ts`: `fetch*` read every page and return `{ok, rows, truncated} | {ok:false, error}`; upserts send explicit fields only; the deprecated `list*` wrappers stay (Home still uses them).
+- `services/demandForecast.ts`: `fetchOverrideTargets` (paged, errors reported), `deleteDemandTarget`; `upsertDemandTarget` sends explicit fields.
+- `hooks/usePersistedList.ts` (new): request-id guarded load, `write({apply, commit, rollback, reconcile})` with rollback, and a reload when a write raced a load.
+- `hooks/useWorkers.ts`, `hooks/useShiftTemplates.ts`, `hooks/useRoster.ts`: rebuilt on it, with update / remove, `loaded` / `error` / `truncated`. `hooks/useDemandForecast.ts`: `targetsLoaded`, `targetsError`, `removeOverride` with rollback.
+- `hooks/useSchedulerHandlers.ts`: `syncStatus` / `retrySync`, remove handlers, save errors in the banner (`scheduler.sync.saveFailed`), upcoming shifts are today or later, tour seeding only after workers loaded empty without error.
+- `components/scheduler/SyncNotice.tsx`, `ConfirmRemoveButton.tsx` (new); `WorkerSection`, `ShiftTemplateSection`, `RosterSection` (remove, publish / unpublish / notify buttons, empty states only once loaded); `app/(tabs)/scheduler.tsx` wires them.
+- `hooks/useAutoAssign.ts`: suggestion ids from `newUuid` (the proxy accepts only UUIDs). `types/scheduler.ts`: `Availability.id`.
+- `supabase/migrations/20261021000001_roster_unique_slot.sql` (new, idempotent): unique index `roster_account_slot_key` (account_id, date, worker_id, template_id); when duplicates already exist it raises a WARNING and skips the index instead of failing or deleting rows.
+
+**Decisions:**
+- A status change always clears `notified` (server and client agree); notify requires Published.
+- `loadTargets` returns overrides only. The baseline client already dropped model rows for every caller, so no caller changes.
+- `deleteDemandTarget` is manager-only, like the other writes in `MANAGER_ACTIONS`.
+- Update exists in the hooks, but no edit forms were built. Override removal has no button yet.
+- The non-destructive unique index (skip + WARNING) was chosen so existing duplicates are never deleted by a migration.
+
+**Locales:** new keys `scheduler.sync.*`, `scheduler.remove.*` and `scheduler.roster.{publishHint, unpublishHint, notifyHint, upcomingEmpty}` in `en` and `es` (translated). de, fr, hi, it, sw, tl and zh fall back to the English text through the locale merge.
+
+**Migration applied locally with psql**, not `supabase migration up --local`. The shared local DB has another session's `20261021000089` in its history, so the CLI fails with MigrationMissingLocalError. The file was run twice (idempotent, both `DO`). Its version row was not added to `supabase_migrations.schema_migrations`.
+
+**Tests:** jest 902 passed, 20 skipped (74 suites, 1 skipped); new `server/__tests__/schedulingProxy.test.ts` (29, validation 400s with no DB, member 403), `components/__tests__/SyncNotice.test.tsx` (4); rewritten `useWorkers` (14), `useRoster` (13), `useShiftTemplates` (8); `useDemandForecast` +4. Integration against local Supabase 20/20 (+6: persistence and cross-tenant isolation per entity, duplicate-slot 409, paging past 500 rows, overrides list / delete). pgTAP 63/63 (plan 57 → 63: unique index, duplicate 23505, authenticated writes refused). tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**CLAUDE.md:** feature rows (Home, Scheduler UI, Workers, Templates, Roster, Availability, Overrides), §5 roster index, §10 key files, §11 items 1–4, 6, 7, 9, 10, 12 re-verified and updated.
+
+### CHG-087 — 2026-10-20 UTC
+**Type:** FIX (QA red team of step 3b, findings F1–F6: `/mnt/project-files/qa/redteam-step3b-2026-10-20.md`)
+
+1. **F1 — DST-gap slot filled by one worker** (`services/shiftAssigner.ts`, `services/optimizer/assignmentModel.ts`, `utils/schedulerValidators.ts`).
+   - Root cause: `zonedToUtc` reads a gap time with the pre-gap offset, so 02:00 and 03:00 New York on 2026-03-08 both resolve to 07:00Z. The template became a zero-length span. A zero-length span never "overlaps" anything (`e.start < iv.end && iv.start < e.end`), so with no rest rule one worker passed `checkEligibility` for every position of the slot (coverage 3 → `solo` ×3, no shortfall). The ILP has one variable per (worker, slot), so its own solution could not repeat a worker. Its re-check dropped those positions, and it then lost to the greedy's duplicates (`greedy_better`).
+   - Rule in `checkEligibility` (both engines): a worker already on (date, template) is ineligible (`overlap`), whatever the length. Overlap is now `intervalsOverlap`, where a zero-length interval occupies its instant. The ILP clique rows use the same effective end (`max(end + rest, start + 1)`). `finalizeSchedule` already refused a second position of one slot. The validator's `validateShiftReadiness` also treats the same template on the same date as `SHIFT_OVERLAP`, even when the window cannot be measured.
+   - Zero or negative spans: **moved to after the gap with their wall-clock length** (`zonedSpan`), not a shortfall. This matches `zonedToUtc`: a gap time resolves after the gap, read with the pre-gap offset. Reading both ends that way gives 02:00–03:00 → 03:00–04:00 EDT and 02:30–03:00 → 03:30–04:00 EDT. That is also what `zonedToUtc` already did for spans ending inside the gap (02:00–02:59 → 03:00–03:59). It applies only when the elapsed span comes out ≤ 0. Spans that end after the gap keep their elapsed length (01:00–04:00 = 2 h). Availability slots use the same rule. Greedy and ILP share `shiftInterval`. `schedulerValidators` compares wall-clock windows, which always keep their wall-clock length, so it needed no change for this. No slot is zero-length any more; the zero-length rules are defence in depth.
+2. **F2 — closed weekday staffed** (`services/forecasting/selection.ts`).
+   - Root cause: the interval and service-level quantiles pooled backtest errors over all weekdays, so a day with a mean of 0 got the busy days' +3.
+   - Weekday-aware quantiles: when the target's weekday has ≥ `MIN_WEEKDAY_ERRORS` (12) backtest errors (all horizons), its quantile is blended with the pooled one, weekday weight n / (n + `WEEKDAY_SHRINKAGE` = 20), so ½ at 10 origins. Below 12 errors the pooled quantile is used.
+   - Why not the weekday's raw quantiles or a mean/MAD rescale: raw quantiles of 20 correlated errors covered 69 % on the Gaussian test (needs > 74 %). Mean/MAD let one 100× spike day raise that weekday's plan from 19 to 50.
+   - In-sample intervals (history < 35 days) stay pooled.
+   - `CLOSED_WEEKDAY_WEEKS = 4`: a weekday that was 0 in each of its last 4 occurrences is forecast 0 (expected, interval, required). `SeriesPoint.closedWeekday` marks it.
+   - QA probe (40 seeds; before → after): 80 % interval coverage 0.80 → 0.76 (seasonal), 0.80 → 0.79 (level shift), 0.88 → 0.85 (sparse), 0.79 → 0.78 (trend). Service level met 0.85 → 0.84, 0.89 → 0.88, 0.95 → 0.91, 0.86 → 0.85. Closed Mondays: required 3 → 0. A mostly closed Monday (one shift 3 weeks before) plans ≤ 1 (2 with pooled quantiles).
+3. **F3 — history that stops** (`services/forecasting/statisticalForecast.ts`, `services/demandForecast.ts`, `components/scheduler/DemandSection.tsx`).
+   - Root cause: `buildRoleSeries` ended at the last date with data. When shifts stopped being logged, the trailing empty days were dropped and the old level continued.
+   - New optional `historyEnd` (exclusive window end) on `StatisticalForecastInput` / `buildRoleSeries`. Every series ends the day before it, so trailing days count as 0. `generateDemandForecast` passes the fetched window end (`end`). Without `historyEnd` the old behaviour stays.
+   - New fields: `RoleSeries.lastDataDate`, `RoleModelSummary.lastDataDate` / `historyEndsDaysAgo`, `StatisticalForecastResult.historyEndsDaysAgo` and `ForecastGenerationMetadata.historyEndsDaysAgo` (the business-wide minimum).
+   - `useDemandForecast` returns `forecastNotices` ({ historyEndsDaysAgo, signalsTruncated }), passed through `useSchedulerHandlers` and the scheduler to `DemandSection`. From `HISTORY_GAP_NOTICE_DAYS` (14) it shows "Shift history ends N days ago; the days since count as no demand."
+   - Caveat: the live roster is still not written to `shifts` (debt #12), so an account whose history stopped now gets a forecast of 0 and that note, not the old level.
+4. **F4 — future signals dropped** (`app/api/secure-proxy+api.ts`, `services/demandForecast.ts`).
+   - Root cause: `listForecastSignals` read [from, to) `order asc limit 1000`, so the newest signals (the forecast dates) were cut first, with no flag.
+   - New optional `targetsFrom` (the client sends the first target date). The proxy reads [targetsFrom, to) ascending and [from, targetsFrom) descending, in parallel, each with limit 1001. It keeps up to 1000 rows, target-span rows first, and returns `truncated`. Without `targetsFrom` the whole window is read newest first.
+   - `fetchForecastSignals` returns `{ signals, truncated }`. The flag reaches `metadata.signalsTruncated` and a DemandSection note ("Too many demand signals to load: the oldest past signals were left out.").
+5. **F5 — impossible dates** (`app/api/secure-proxy+api.ts`).
+   - Root cause: `isISODate` used `Date.parse`, which rolls 2026-02-31 over to March, so Postgres rejected it with a 500.
+   - `isISODate` now uses `isDateKey` (round trip of the parts). Every caller was checked: `forecastHistory` / `listForecastSignals` windows, `targetsFrom`, `upsertTargets`, `listRoster` fromDate / toDate, `upsertRosterShift`, `uploadPosSales` rows, and the external-API response filter (bad rows are dropped).
+   - `cleanFilters` used to drop an invalid `filters.date` silently, which widened the query. `forecast`, `status` and `loadTargets` now return 400 for one.
+6. **F6 — multi-date ILP fuzz** (`services/__tests__/shiftAssigner.fuzz.test.ts`): 150 seeded `dates[]` cases (2–7 days), adapted from QA's probe. They cover Madrid, New York, Lima and Sydney DST weeks, overnight templates, a template inside the spring-forward gap (30 % of cases, coverage 2–3), roster entries before, inside and after the span, and ISO-week boundaries. Each case is checked with the file's independent reference model: each assignment is legal against all other shifts (role, availability, overlap, rest, daily / weekly hours), no worker holds two positions of a slot, no over-coverage, filled + missing = required, and no fillable slot left open. The greedy must pass the same checks. The ILP must not cover fewer positions than the greedy or score worse (`compareScores`). The re-check must drop nothing, and the only fallback allowed is `greedy_better`. It runs in about 3 s. Without the F1 fix it fails (seeds 700022, 700034, …: "w0 holds two positions of 2026-03-08 gap"). The fuzz reference (`absSpan`) applies the same DST-gap rule.
+
+**Locales:** 2 new keys, `scheduler.demand.historyEndsNote` and `scheduler.demand.signalsTruncatedNote`, in all 9 files. `es` is translated. de, fr, hi, it, sw, tl and zh use the English text for now.
+
+**CLAUDE.md §8:** notes the DST-gap rule and the same-slot rule.
+
+**Tests:** jest 844 passed, 14 skipped (72 suites). Each new test fails before its fix:
+- `services/__tests__/shiftAssigner.dstGap.test.ts` (9): spans, greedy, ILP, `checkEligibility` same slot / zero-length, `intervalsOverlap`.
+- `utils/__tests__/schedulerValidators.test.ts` (+1).
+- `services/__tests__/shiftAssigner.fuzz.test.ts` (+1, multi-date).
+- `services/forecasting/__tests__/closedDaysAndHistoryEnd.test.ts` (7).
+- `services/__tests__/demandForecast.test.ts` (+2).
+- `components/__tests__/DemandSectionModel.test.tsx` (+3).
+- `server/__tests__/forecastSignalsDatesProxy.test.ts` (15).
+- Existing forecasting tests updated for the new fields (`lastDataDate`, `closedWeekday`, `historyEndsDaysAgo`).
+
+The touched suites (services, utils, server, hooks, DemandSection) also pass under TZ=Asia/Tokyo and TZ=America/Lima. tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not changed:** `services/labor/` (its own `zonedToUtc` spans still give a zero-length span for a template inside the gap; the compliance panel was not touched). Client-side date regexes in `services/forecastEngine.ts`, `hooks/useDemandAnalysis.ts`, `hooks/useAvailabilityGrid.ts` and the POS / demand form parsers are not `isISODate` and were left as they are.
+
+### CHG-085 — 2026-10-20 UTC
+**Type:** FEATURE (exact ILP auto-assign with HiGHS, in a Web Worker, never worse than the greedy)
+
+1. **Solver package: `highs` 1.15.3** (npm, MIT, highs-js by lovasoa; bundles HiGHS 1.15.1). Pinned exactly; 1.15.4 came out 2026-10-16, too new. The README and `types.d.ts` say the WASM build is single-threaded ("built without native worker threads"); the glue has no `SharedArrayBuffer`, no pthreads and no `new Worker`, so it needs no cross-origin isolation. Sizes: `highs.wasm` 3.53 MB (1.22 MB gzip), JS glue 168 KB (39 KB gzip). glpk.js was the alternative and was not chosen: it is GPL-3.0.
+2. **Model** (`services/optimizer/assignmentModel.ts`). Binary x[w,s] for every (worker, slot) pair that passes the greedy's own single-shift check (`checkEligibility`, now exported with `buildCheckContext`, `buildCatalog`, `resolveRoster`, `timelineFor`, `shiftInterval`, `shortfallReason`, `describeReason`; the greedy's behaviour is unchanged). Rows:
+   - coverage Σx ≤ required;
+   - one row per maximal clique of a worker's slots that overlap or sit closer than the minimum rest (an interval graph on [start, end + rest));
+   - daily and ISO-weekly minutes minus the existing roster's.
+   - Rows that cannot bind are left out.
+   - Objective is lexicographic, in three stages: (1) maximize filled positions; (2) with coverage ≥ stage 1, minimize Σ over role groups of max |hours − group mean| (hours in the run's ISO weeks; linear because the mean is linear in x); (3) with spread ≤ stage 2 + 1 min, maximize continuity (2 for the same template on the same weekday in the existing roster, 1 for the same template). Workers have no preference fields, so continuity is the only soft preference.
+   - `OptimizeInput.dates` lets one model cover several days.
+3. **Run** (`services/optimizer/shiftOptimizer.ts`, `optimizeAssignments`): greedy first. Then the stages run with one budget (default 2 s, HiGHS `time_limit`); a stage that ends without an incumbent stops the chain. Each solver assignment is re-checked against every hard constraint (`solver.dropped` counts any dropped; the tests require 0). Slots that someone can still legally take are filled, and every shortfall gets the greedy's reason code. Greedy and each stage are scored by (coverage, spread, continuity) and the best is returned (ties go to the ILP). `solver.engine` / `fallbackReason` (`no_solver`, `solver_error`, `no_solution`, `greedy_better`, `timeout`, `worker_error`) say which won. `highsSolver.ts` uses the persistent model API, because the one-shot `solve()` returns zeros after a time limit whether or not it has an incumbent; `primal_solution_status` tells them apart.
+4. **Worker plumbing.**
+   - `solverWorker.ts` is the worker entry. `createSolverWorker.web.ts` starts it with `require.unstable_resolveWorker` (Expo SDK 53 Metro bundles it as `solverWorker-<hash>.js`); `new Worker(new URL(…, import.meta.url))` also bundles, but it leaves `import.meta` in the classic-script main bundle, which is a syntax error.
+   - `highs` is loaded with `require` so Metro takes its CommonJS build; the ESM build uses `import.meta.url`, also fatal in a classic worker.
+   - `metro.config.js` adds `wasm` to assetExts, so `require('highs/runtime')` is the WASM's URL.
+   - `createSolverWorker.ts` (native, Jest) returns null.
+   - `autoAssignClient.ts` (`runAutoAssign`) shares one worker. Timeout = budget + 8 s grace, then the worker is terminated and the greedy runs inline. An AbortSignal rejects with `AbortError` and terminates the worker; other runs waiting on it get the greedy. Crash or post errors fall back too. No Worker (native, old web) → greedy inline; HiGHS is not run on the main thread.
+5. **Callers.** `useAutoAssign.autoAssign`, `useDemandAwareSchedule.demandAwareAutoAssign` and the scheduler's `handleAutoAssign` (the button users press; the two hooks are not used by any screen) call `runAutoAssign`. Their signatures are unchanged. `handleAutoAssign` is now async: a newer run or unmount cancels the previous one, and an error shows a banner.
+6. **Benchmark:** `npm run bench:assign` (`scripts/benchmark/`, ignored by `npm test`). Node, one week (7 days), 3 roles, ES limits (9 h/day, 40 h/week, 12 h rest), two seeds per size:
+
+   | workers | positions | greedy filled / ms | ILP per day filled / total ms (worst day) | ILP whole week filled / ms |
+   |---|---|---|---|---|
+   | 10 | 70 | 41 / 18 · 44 / 34 | 42 / 108 (20) · 45 / 171 (37) | 42 / 102 · 45 / 114, optimal |
+   | 50 | 238 | 209 / 84 · 188 / 89 | 212 / 683 (257) · 191 / 904 (211) | 215 / 371 · 193 / 361, optimal |
+   | 150 | 658 | 633 / 820 · 637 / 685 | 643 / 5167 (2169) · 638 / 7990 (2196) | 653 / 2545 · 643 / 3029, optimal |
+
+   At 150 workers the per-day fairness stage sometimes reaches the 2 s limit; its incumbent is kept. One day fell back to the greedy (`greedy_better`) on fairness.
+
+**Bundle (web export, `--clear`, scratch copy):** entry 2,398,182 → 2,411,788 bytes (+13.6 KB, +4.5 KB gzip). New files, loaded only when auto-assign runs: `solverWorker-*.js` 126 KB (39 KB gzip) and `assets/node_modules/highs/build/highs.<hash>.wasm` 3.53 MB (1.22 MB gzip). `dist/client` 3.30 → 6.97 MB. Neither bundle contains `import.meta`. The exported worker bundle was run in a bare worker-like VM context (no Node globals, fetch served from `dist/client`): it fetched the WASM from its asset URL and returned the ILP schedule.
+
+**Not verified:** a real browser (no Chromium could be downloaded here); `expo start` dev mode (the worker URL comes from split-bundle paths and may not resolve in dev; the client then falls back to the greedy); Cloudflare's MIME type for `.wasm` (Emscripten falls back from streaming compile). The native export fails before this change (`services/analyticsTransport.ts` imports `timers`), so no native bundle was checked; the native path has no `highs` import.
+
+**Tests:** jest 732 passed, 14 skipped (68 more than before; 38 of them are the regression and time-zone suites run a second time by the fixtures test):
+- `shiftOptimizer.test.ts` (14): LP text (candidates, coverage, cliques with rest, hours rows, fairness rows); the first-fit trap (greedy 1/2, ILP 2/2, optimal); fairness; continuity; a week in one model; shortfall codes; fallbacks (no solver, WASM load failure, no incumbent, worse or broken solutions, budget).
+- `shiftOptimizer.fixtures.test.ts`: every fixture of the regression and time-zone suites through the ILP. Nothing is dropped, coverage is never below the greedy's, and when coverage is equal the shortfall codes are the same.
+- The fuzz file adds 600 ILP cases (fixed offset and DST zones) under the same reference invariants I1–I8. The ILP never covers less than the greedy and covered more in 4 cases. On 256 small cases the brute-force optimum is matched.
+- `autoAssignClient.test.ts` (10): a fake Worker running the real optimizer, worker reuse, native inline, creation failure, error reply, crash, timeout, abort, a waiting run after an abort, invalid input.
+- `autoAssignOptimizerPath.test.tsx` (3): the hooks use the client.
+- Also passes under TZ=Asia/Tokyo and America/Lima. tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+### CHG-086 — 2026-10-20 UTC
+**Type:** FEATURE (statistical demand forecaster, fitted in the client)
+
+**Old method and its weaknesses.** Without the external API, the proxy's `computeDailyAverages` set `required` for a date × role to the mean `hours` of the shifts recorded on that same date, plus the summed signal weights.
+- Units: it averaged shift hours (≈ 8), not headcount, and the scheduler reads `required` as headcount.
+- No projection: it only "forecast" dates that already had shifts. A future date got the default 4 (+ signals). The proxy also filtered the history by the target date, so a future date always got 4.
+- Signals were added (`mean + weight`), although `project_migrations.md` documents `weight` as a demand multiplier. With a role filter, global signals were dropped.
+- No seasonality, trend, recency or accuracy check; the "interval" was ±1 SD of the hours that day (±1.22 with no data), and confidence was a function of row count.
+- `.limit(500)` oldest-first, so a long history was cut to its oldest 500 shifts.
+- It ran in the API route, which Workers Free limits to 10 ms of CPU.
+
+**New method** (`services/forecasting/`, pure TypeScript, no dependencies):
+- The series is shifts per date × role (headcount), dense from the role's first day to the last day of history (missing days = 0), with weekday by position. Dates are keys from `utils/dateKeys.ts`; "today" comes from `todayKey(businessZone)` (the account's only location, else the device zone).
+- Models and the minimum history each needs: seasonal naive (same weekday last week; 7 days, mean for unseen weekdays below that); weekday profile with exponential recency weighting (half-life 1/2/4/8/16/520 weeks picked by in-sample one-step error; 14 days); Holt-Winters ETS(A,Ad,A), additive weekly season and damped trend. Its α, β ≤ α, γ ≤ 1−α, φ ∈ [0.8, 0.98] are fitted by a bounded search on in-sample one-step SSE (a 4×3×3×3 grid, then a Hooke-Jeeves pattern search). It needs 28 days and fits on the last 53 weeks.
+- Selection: rolling-origin backtest, horizon 14, up to 10 origins a week apart. MASE = forecast MAE / in-sample weekly seasonal-naive MAE, averaged over the origins. A model takes part only if it can be scored on ≥ 3 origins: seasonal naive needs 35 days, weekday profile 42, Holt-Winters 56. Below 35 days seasonal naive is used without a score. A simpler model within 2 % of the best MASE wins. Holt-Winters warm-starts each origin from the previous one.
+- Intervals: empirical quantiles of the chosen model's backtest errors, pooled over horizons ±3 days (all horizons when the window has < 20 errors). With no backtest: quantiles of the in-sample lag-7 differences (≥ 6), else none.
+- `required` = ceil(forecast + error quantile at the service level, default 0.8). `expected` holds the mean. `lowerBound`/`upperBound` hold the 80 % interval.
+- Signals: `weight` is a multiplier (doc'd meaning; the old code added it). Several signals on a day multiply. A role's own signals take precedence over `global` ones. Weights outside (0, 10] are ignored. History is divided by the day's multiplier before fitting, and forecasts (and their intervals) are multiplied by the target day's multiplier.
+
+**Plumbing.**
+- Proxy: `computeDailyAverages` removed. `forecast` returns only external-API rows plus stored overrides. New `forecastHistory`: a [from, to) window ≤ 1100 days, newest first, 1000 rows/page summed per date × role, total count on page 0, pages 0–39. New `listForecastSignals`: a role's signals plus the global ones. `status` checks history by role only (`limit(1)`).
+- `generateDemandForecast(filters, options)`: tries the external API when configured, else fits on the client. It fetches up to 2 years of history (pages after page 0 in parallel, 4 at a time; past 40 pages the oldest shifts and the oldest partial day are left out, `historyTruncated`). Statistical model forecasts are not written to `demand_targets`: nothing read them back (`loadDemandTargets` keeps overrides only).
+- `useDemandForecast(filters?, options?)`: same return shape plus `forecastModels`. `DemandForecast` gains optional `expected`, `serviceLevel`, `intervalLevel`, `model`, `mase`, `signalMultiplier`; metadata gains `method`, `models`, levels, `fitMs`, `historyTruncated`. A stored override now beats a model forecast for the same date and role (before, the new forecast replaced it in state).
+- UI (`DemandSection`, ThemedText): the model per role with its MASE and backtest count, or the short-history notice; per target "Plans for the 80th percentile (expected x)" and "80% range: low – high". The "Forecast API unavailable" helper no longer shows, since the forecast works without the API.
+- Locales: 9 new `scheduler.demand.*` keys in all 9 files. `es` is translated; de, fr, hi, it, sw, tl and zh use the English text for now.
+
+**Timing (2 years × 5 roles, 14-day horizon).** Plain Node 22 on this container: 56 ms first run, 27 ms warm median (35 ms max), 4.5–6.5 ms per role. Under Jest: 50–100 ms. `statisticalForecastAsync` yields to the event loop before each role, so no single task is longer than one role's fit. No Web Worker: Metro (SDK 53) has no worker bundling and React Native has no worker API without a new dependency. Not measured on a phone or on Hermes, which has no JIT and may be several times slower.
+
+**Synthetic backtests (MASE, 400 days).**
+- Trend + season: Holt-Winters 0.72, seasonal naive 1.14, weekday profile 1.45 → Holt-Winters.
+- Stable weekly pattern + noise (SD 2): weekday profile 0.83, Holt-Winters 0.83, seasonal naive 1.19 → weekday profile.
+- Seasonal random walk: seasonal naive 1.51, Holt-Winters 1.53, weekday profile 1.75 → seasonal naive.
+- 80 % interval coverage on Gaussian noise: 0.80 (40 series × 14 days); the P80 plan covered demand 0.79 of the time.
+
+**Tests:** 75 new across `services/forecasting/__tests__/` (models, selection, statisticalForecast: seasonality recovery, damping ratio φ⁷ and bounded trend, parameter bounds, selection on constructed cases, coverage, short-history fallback, signals, DST weeks, device time zones, no `toISOString()`), `services/__tests__/demandForecast.test.ts` (paging, truncation, business-zone today, API fallback), `server/__tests__/forecastHistoryProxy.test.ts` (validation, tenant scope, aggregation, signals, no averages), `hooks/__tests__/useDemandForecast.test.tsx` (models, overrides, options) and `components/__tests__/DemandSectionModel.test.tsx`. jest 739 passed, 14 skipped; tsc 0 errors; lint 0 errors (6 pre-existing warnings).
+
+**Not done / follow-ups:** a server-side `group by` (SQL view or RPC) would replace up to 40 history pages with one request. It needs a migration, which this change does not include. The external-API path still sends the proxy's 500 oldest shifts. Intervals assume past errors look like future ones: 14-day backtests do not cover longer horizons, which reuse the last window.
+
+
+**Browser check (2026-10-20):** the exported worker bundle ran in headless Chromium 141 served over HTTP: the WASM loaded as `application/wasm`, the engine was `ilp`, and the first-fit-trap case was assigned optimally (w2 morning, w1 late) in 151 ms with no console errors.
+---
+
 ### CHG-084 — 2026-10-20 UTC
 **Type:** FIX (merge of CHG-081 and CHG-082)
 

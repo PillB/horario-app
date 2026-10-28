@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import { log } from '@/services/logger';
 import { trackEvent } from '@/services/analytics';
 import {
-  assignShifts,
   requiredSlots,
   type AssignedShift,
   type AssignmentResult as EngineResult,
@@ -16,8 +15,10 @@ import {
   type DbRosterShift,
   type UpsertRosterShiftResult,
 } from '@/services/rosterService';
+import { newUuid } from '@/utils/schedulingValidation';
 import type { ShiftTemplate, Shift } from '@/utils/schedulerMetrics';
 import type { Worker } from '@/types/scheduler';
+import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
 import type { BusinessLocation } from '@/utils/locationValidation';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
@@ -156,22 +157,14 @@ const computeCoverageGaps = (
   }, []);
 };
 
-// ─── Unique ID generator ──────────────────────────────────────────────────────
-
-const generateId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-};
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
  * useAutoAssign
  *
  * Provides a single `autoAssign` action that:
- *   1. Calls `shiftAssigner.assignShifts` (greedy + 2-opt algorithm)
+ *   1. Calls `runAutoAssign` (HiGHS ILP in a Web Worker on web, never worse than the
+ *      greedy + 2-opt `assignShifts`; the greedy alone on native)
  *   2. Persists each produced assignment via `upsertRosterShift`
  *   3. Builds human-readable `AssignmentExplanation` objects for the UI
  *   4. Surfaces `CoverageGap` entries for any under-staffed templates
@@ -223,13 +216,19 @@ export const useAutoAssign = (accountId: string) => {
       let assignResult: EngineResult;
       try {
         const settings = autoAssignSettings(date, businessLocation, constraints);
-        assignResult = assignShifts({
+        const optimized = await runAutoAssign({
           date,
           templates,
           workers,
           existingRoster,
           constraints: settings.constraints,
           timeZone: settings.timeZone,
+        });
+        assignResult = optimized;
+        log.info('ROSTER', 'Auto-assign engine', {
+          engine: optimized.solver.engine,
+          fallbackReason: optimized.solver.fallbackReason ?? null,
+          solveMs: optimized.solver.solveMs,
         });
       } catch (err) {
         const message =
@@ -267,7 +266,8 @@ export const useAutoAssign = (accountId: string) => {
       await Promise.all(
         assignResult.assignments.map(async (shift) => {
           const result: UpsertRosterShiftResult = await upsertRosterShift({
-            id: generateId(),
+            // The proxy only accepts UUID ids (CHG-088).
+            id: newUuid(),
             date: shift.date,
             workerId: shift.workerId,
             templateId: shift.templateId,

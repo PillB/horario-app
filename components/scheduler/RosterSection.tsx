@@ -14,6 +14,7 @@ import { type DemandForecast } from '@/services/demandForecast';
 import { SectionCard } from './SectionCard';
 import { WeekCalendar } from './WeekCalendar';
 import { CompliancePanel } from './CompliancePanel';
+import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { useCompliance } from '@/hooks/useCompliance';
 import type { BusinessLocation } from '@/utils/locationValidation';
 import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
@@ -32,6 +33,9 @@ type Props = {
   handlePublishShift: (shiftId: string) => void;
   handleUnpublishShift: (shiftId: string) => void;
   handleNotifyShift: (shiftId: string) => void;
+  onRemoveShift?: (shiftId: string) => void;
+  /** False until the stored roster has loaded: the empty note waits for it. */
+  rosterLoaded?: boolean;
   onSelectShiftForNotes?: (shift: RosterShift) => void;
   upcomingShifts: RosterShift[];
   staffingGaps: StaffingGap[];
@@ -106,6 +110,33 @@ const makeLocalStyles = (colors: ThemeColors, isDark: boolean) =>
     shiftTime: {
       fontSize: 12,
       color: colors.textSecondary,
+    },
+    listItem: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingBottom: 8,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    actionBtn: {
+      borderWidth: 1,
+      borderColor: colors.tint,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      minHeight: 32,
+      justifyContent: 'center',
+    },
+    actionBtnText: {
+      color: colors.tintText,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    pressed: {
+      opacity: 0.7,
     },
     ghostNameBar: {
       backgroundColor: isDark ? Colors.dark.border : Colors.light.border,
@@ -276,6 +307,8 @@ export const RosterSection = ({
   handlePublishShift,
   handleUnpublishShift,
   handleNotifyShift,
+  onRemoveShift,
+  rosterLoaded = true,
   onSelectShiftForNotes,
   upcomingShifts,
   staffingGaps,
@@ -433,37 +466,94 @@ export const RosterSection = ({
           ) : null}
         </>
       ) : (
-        /* List view — render upcomingShifts */
-        upcomingShifts.map((shift) => (
-          <Pressable
-            key={shift.id}
-            onPress={() => onSelectShiftForNotes?.(shift)}
-            accessibilityRole="button"
-          >
-            <View style={local.shiftRow}>
-              <View style={local.shiftRowLeft}>
-                <ThemedText style={local.shiftWorkerName}>
-                  {shift.worker?.name ?? t('scheduler.roster.unassigned')}
-                </ThemedText>
-                <ThemedText style={[local.shiftTime, local.mutedText]}>
-                  {shift.template?.name ?? shift.date}
-                </ThemedText>
-              </View>
-              <View style={local.statusPill}>
-                <ThemedText
-                  style={[
-                    local.statusPillText,
-                    shift.status === 'Draft' ? local.draftStatus : local.publishedStatus,
-                  ]}
-                >
-                  {shift.status === 'Draft'
-                    ? t('common.draft')
-                    : t('common.published')}
-                </ThemedText>
+        /* List view — the next shifts, with publish / notify / remove */
+        <>
+          {rosterLoaded && upcomingShifts.length === 0 ? (
+            <ThemedText style={local.mutedText}>{t('scheduler.roster.upcomingEmpty')}</ThemedText>
+          ) : null}
+          {upcomingShifts.map((shift) => (
+            <View key={shift.id} style={local.listItem}>
+              <Pressable
+                onPress={() => onSelectShiftForNotes?.(shift)}
+                accessibilityRole="button"
+                accessibilityLabel={t('shiftNotes.openNotes')}
+                accessibilityHint={`${shift.worker?.name ?? shift.workerId} · ${shift.date}`}
+              >
+                <View style={local.shiftRow}>
+                  <View style={local.shiftRowLeft}>
+                    <ThemedText style={local.shiftWorkerName}>
+                      {shift.worker?.name ?? t('scheduler.roster.unassigned')}
+                    </ThemedText>
+                    <ThemedText style={[local.shiftTime, local.mutedText]}>
+                      {shift.template?.name ? `${shift.template.name} · ${shift.date}` : shift.date}
+                    </ThemedText>
+                  </View>
+                  <View style={local.statusPill}>
+                    <ThemedText
+                      style={[
+                        local.statusPillText,
+                        shift.status === 'Draft' ? local.draftStatus : local.publishedStatus,
+                      ]}
+                    >
+                      {shift.status === 'Draft'
+                        ? t('common.draft')
+                        : shift.notified
+                          ? `${t('common.published')} · ${t('common.notified')}`
+                          : t('common.published')}
+                    </ThemedText>
+                  </View>
+                </View>
+              </Pressable>
+              <View style={local.actionRow}>
+                {shift.status === 'Draft' ? (
+                  <Pressable
+                    onPress={() => handlePublishShift(shift.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('scheduler.roster.publishA11y')}
+                    accessibilityHint={t('scheduler.roster.publishHint')}
+                    style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
+                    testID={`publish-shift-${shift.id}`}
+                  >
+                    <ThemedText style={local.actionBtnText}>{t('common.publish')}</ThemedText>
+                  </Pressable>
+                ) : (
+                  <>
+                    <Pressable
+                      onPress={() => handleUnpublishShift(shift.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('scheduler.roster.unpublishA11y')}
+                      accessibilityHint={t('scheduler.roster.unpublishHint')}
+                      style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
+                      testID={`unpublish-shift-${shift.id}`}
+                    >
+                      <ThemedText style={local.actionBtnText}>{t('common.unpublish')}</ThemedText>
+                    </Pressable>
+                    {!shift.notified ? (
+                      <Pressable
+                        onPress={() => handleNotifyShift(shift.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('scheduler.roster.notifyA11y')}
+                        accessibilityHint={t('scheduler.roster.notifyHint')}
+                        style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
+                        testID={`notify-shift-${shift.id}`}
+                      >
+                        <ThemedText style={local.actionBtnText}>{t('common.notify')}</ThemedText>
+                      </Pressable>
+                    ) : null}
+                  </>
+                )}
+                {onRemoveShift ? (
+                  <ConfirmRemoveButton
+                    onConfirm={() => onRemoveShift(shift.id)}
+                    accessibilityLabel={t('scheduler.remove.shiftA11y', { name: shift.worker?.name ?? shift.workerId, date: shift.date })}
+                    accessibilityHint={t('scheduler.remove.shiftHint')}
+                    testID={`remove-shift-${shift.id}`}
+                  />
+                ) : null}
               </View>
             </View>
-          </Pressable>
-        ))
+          ))}
+        </>
       )}
     </SectionCard>
   );

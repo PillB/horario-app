@@ -17,6 +17,7 @@ import {
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand } from '@/constants/Colors';
 import { getSessionToken } from '@/services/authToken';
+import { normaliseDateInput } from '@/utils/dateKeys';
 
 // Design tokens (light-mode defaults for static StyleSheet)
 const C = Colors.light;
@@ -70,37 +71,11 @@ function parseRevenue(raw: string): number | null {
   return isFinite(n) ? n : null;
 }
 
-/** Try to detect and normalise date to YYYY-MM-DD */
-function normaliseDate(raw: string): string | null {
-  const s = raw.trim();
-  if (!s) return null;
-
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const d = new Date(s + 'T00:00:00');
-    return isNaN(d.getTime()) ? null : s;
-  }
-
-  // MM/DD/YYYY
-  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) {
-    const [, m, d, y] = mdy;
-    const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    const dt = new Date(iso + 'T00:00:00');
-    return isNaN(dt.getTime()) ? null : iso;
-  }
-
-  // DD/MM/YYYY  (ambiguous — treat as DD/MM when day > 12)
-  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (dmy) {
-    const [, d, m, y] = dmy;
-    const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    const dt = new Date(iso + 'T00:00:00');
-    return isNaN(dt.getTime()) ? null : iso;
-  }
-
-  return null;
-}
+/**
+ * Date of a CSV row as YYYY-MM-DD ("YYYY-MM-DD" or "M/D/YYYY"); impossible days
+ * such as 2026-02-31 are rejected (utils/dateKeys.ts, CHG-089).
+ */
+const normaliseDate = normaliseDateInput;
 
 /** Very simple CSV line splitter (handles quoted fields) */
 function splitCsvLine(line: string): string[] {
@@ -128,7 +103,8 @@ function splitCsvLine(line: string): string[] {
   return result;
 }
 
-function parseCsv(text: string): ParseResult {
+/** Parses a POS CSV upload (exported for tests). */
+export function parseCsv(text: string): ParseResult {
   const rawLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const lines = rawLines.filter((l) => l.trim() !== '');
 

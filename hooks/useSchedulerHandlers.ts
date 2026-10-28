@@ -27,6 +27,7 @@ import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
+import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { useLocations } from '@/hooks/useLocations';
 import {
   findCoveringAvailability,
@@ -40,10 +41,10 @@ import {
   upsertOnboardingProgress,
 } from '@/services/onboardingProgress';
 import {
-  assignShifts,
   type AssignedShift,
   type CoverageShortfall,
 } from '@/services/shiftAssigner';
+import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
@@ -84,6 +85,10 @@ export function useSchedulerHandlers() {
   const { recordTourAction } = useWelcomeTour();
 
   // ── DB-backed data hooks ──────────────────────────────────────────────────
+  const { locations, loaded: locationsLoaded } = useLocations(accountId);
+  // "Today" and the forecast horizon are business-local dates (the account's
+  // only location's zone, else the device zone).
+  const forecastTimeZone = useMemo(() => getBusinessTimeZone(resolveShiftLocation(locations)), [locations]);
   const {
     demandTargets,
     triggerForecast,
@@ -93,12 +98,46 @@ export function useSchedulerHandlers() {
     forecasting,
     dataStatus,
     seedBaselineTargets,
-  } = useDemandForecast();
+    forecastModels,
+    forecastNotices,
+    targetsError,
+    refresh: refreshDemandTargets,
+  } = useDemandForecast(undefined, { timeZone: forecastTimeZone });
 
-  const { workers, addWorker, addAvailability } = useWorkers(accountId);
-  const { shiftTemplates, addShiftTemplate } = useShiftTemplates(accountId);
-  const { roster, addShift, setShiftStatus, notifyShift } = useRoster(accountId);
-  const { locations, loaded: locationsLoaded } = useLocations(accountId);
+  const {
+    workers,
+    addWorker,
+    addAvailability,
+    removeWorker,
+    removeAvailability,
+    loading: workersLoading,
+    loaded: workersLoaded,
+    error: workersError,
+    truncated: workersTruncated,
+    refresh: refreshWorkers,
+  } = useWorkers(accountId);
+  const {
+    shiftTemplates,
+    addShiftTemplate,
+    removeShiftTemplate,
+    loading: templatesLoading,
+    loaded: templatesLoaded,
+    error: templatesError,
+    truncated: templatesTruncated,
+    refresh: refreshTemplates,
+  } = useShiftTemplates(accountId);
+  const {
+    roster,
+    addShift,
+    setShiftStatus,
+    notifyShift,
+    removeShift,
+    loading: rosterLoading,
+    loaded: rosterLoaded,
+    error: rosterError,
+    truncated: rosterTruncated,
+    refresh: refreshRoster,
+  } = useRoster(accountId);
   const { canAutoAssign, count: usageCount, increment: incrementUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
@@ -194,6 +233,10 @@ export function useSchedulerHandlers() {
   const workerSectionRef = useRef<View>(null);
   const templateSectionRef = useRef<View>(null);
   const demandSectionRef = useRef<View>(null);
+  /** The running auto-assign: a newer run or unmount cancels it. */
+  const autoAssignRunRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => autoAssignRunRef.current?.abort(), []);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
   // Auto-assign has no location picker yet, so it uses the account's only
@@ -261,9 +304,12 @@ export function useSchedulerHandlers() {
     [roster, shiftTemplates, workers]
   );
 
+  // Upcoming = from today on (business-local date); before CHG-088 the list
+  // started at the oldest stored shift.
   const upcomingShifts = useMemo(
     () =>
-      [...roster]
+      roster
+        .filter((shift) => shift.date >= todayKey(forecastTimeZone))
         .map((shift) => ({
           ...shift,
           template: shiftTemplates.find((t) => t.id === shift.templateId),
@@ -275,8 +321,32 @@ export function useSchedulerHandlers() {
           return aDate - bDate;
         })
         .slice(0, 4),
-    [roster, shiftTemplates, workers]
+    [forecastTimeZone, roster, shiftTemplates, workers]
   );
+
+  /** Load state of the stored lists, for SyncNotice. */
+  const syncStatus = useMemo(
+    () => ({
+      loading:
+        (workersLoading && !workersLoaded) ||
+        (templatesLoading && !templatesLoaded) ||
+        (rosterLoading && !rosterLoaded),
+      errors: [workersError, templatesError, rosterError, targetsError].filter((e): e is string => Boolean(e)),
+      truncated: workersTruncated || templatesTruncated || rosterTruncated,
+    }),
+    [
+      rosterError, rosterLoaded, rosterLoading, rosterTruncated, targetsError,
+      templatesError, templatesLoaded, templatesLoading, templatesTruncated,
+      workersError, workersLoaded, workersLoading, workersTruncated,
+    ]
+  );
+
+  const retrySync = useCallback(() => {
+    void refreshWorkers();
+    void refreshTemplates();
+    void refreshRoster();
+    void refreshDemandTargets();
+  }, [refreshDemandTargets, refreshRoster, refreshTemplates, refreshWorkers]);
 
   const staffingGaps = useMemo(
     () =>
@@ -326,12 +396,10 @@ export function useSchedulerHandlers() {
   const forecastHelperText = useMemo(() => {
     if (!isForecastInputValid) return t('scheduler.demand.forecastHelperInvalid');
     if (needsFallbackSetup) return t('scheduler.demand.forecastHelperNoData');
-    if (!dataStatus.apiAvailable) return t('scheduler.demand.forecastHelperApiDown');
     if (forecastPending) return t('scheduler.demand.forecastHelperPending');
     if (forecastLoading || forecasting) return t('scheduler.demand.forecastHelperRunning');
     return t('scheduler.demand.forecastHelperReady');
   }, [
-    dataStatus.apiAvailable,
     forecastLoading,
     forecasting,
     forecastPending,
@@ -985,11 +1053,15 @@ export function useSchedulerHandlers() {
       const shift = roster.find((s) => s.id === shiftId);
       if (!shift) return;
       if (shift.status === 'Draft') { showActionBanner('Shift is already in Draft.', 'info'); return; }
-      await setShiftStatus(shiftId, 'Draft');
+      const result = await setShiftStatus(shiftId, 'Draft');
+      if (!result.success) {
+        showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+        return;
+      }
       const workerName = workers.find((w) => w.id === shift.workerId)?.name ?? shift.workerId;
       showActionBanner(`Unpublished ${workerName} for ${shift.date}.`, 'info');
     },
-    [roster, setShiftStatus, showActionBanner, workers]
+    [roster, setShiftStatus, showActionBanner, t, workers]
   );
 
   const handleNotifyShift = useCallback(
@@ -1002,18 +1074,68 @@ export function useSchedulerHandlers() {
       if (shift.notified) {
         showActionBanner('Notifications already sent for this shift.', 'info'); return;
       }
-      await notifyShift(shiftId);
+      const result = await notifyShift(shiftId);
+      if (!result.success) {
+        showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+        return;
+      }
       const workerName = workers.find((w) => w.id === shift.workerId)?.name ?? shift.workerId;
       showActionBanner(`Sent notifications for ${workerName} on ${shift.date}.`, 'success');
     },
-    [notifyShift, roster, showActionBanner, workers]
+    [notifyShift, roster, showActionBanner, t, workers]
+  );
+
+  // ── Deletes (optimistic; a refused delete puts the row back and says why) ──
+
+  const reportRemoval = useCallback(
+    (result: { success: boolean; error?: string }, name: string) =>
+      showActionBanner(
+        result.success
+          ? t('scheduler.remove.removed', { name })
+          : t('scheduler.sync.saveFailed', { error: result.error ?? '' }),
+        result.success ? 'success' : 'error'
+      ),
+    [showActionBanner, t]
+  );
+
+  const handleRemoveWorker = useCallback(
+    async (workerId: string) => {
+      const name = workers.find((w) => w.id === workerId)?.name ?? workerId;
+      reportRemoval(await removeWorker(workerId), name);
+    },
+    [removeWorker, reportRemoval, workers]
+  );
+
+  const handleRemoveAvailability = useCallback(
+    async (workerId: string, slotId: string) => {
+      const slot = workers.find((w) => w.id === workerId)?.availability.find((s) => s.id === slotId);
+      reportRemoval(await removeAvailability(workerId, slotId), slot ? `${slot.day} ${slot.from}–${slot.to}` : slotId);
+    },
+    [removeAvailability, reportRemoval, workers]
+  );
+
+  const handleRemoveTemplate = useCallback(
+    async (templateId: string) => {
+      const name = shiftTemplates.find((tmpl) => tmpl.id === templateId)?.name ?? templateId;
+      reportRemoval(await removeShiftTemplate(templateId), name);
+    },
+    [removeShiftTemplate, reportRemoval, shiftTemplates]
+  );
+
+  const handleRemoveShift = useCallback(
+    async (shiftId: string) => {
+      const shift = roster.find((s) => s.id === shiftId);
+      const workerName = workers.find((w) => w.id === shift?.workerId)?.name ?? shift?.workerId ?? shiftId;
+      reportRemoval(await removeShift(shiftId), shift ? `${workerName} · ${shift.date}` : workerName);
+    },
+    [removeShift, reportRemoval, roster, workers]
   );
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
 
-  /** Runs the greedy assigner for shiftForm.date and stores suggestions.
-   *  The user must call applyAutoAssign to commit them to the roster. */
-  const handleAutoAssign = useCallback(() => {
+  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for shiftForm.date
+   *  and stores suggestions. The user must call applyAutoAssign to commit them. */
+  const handleAutoAssign = useCallback(async () => {
     if (!canAutoAssign) {
       if (Platform.OS === 'web') {
         showActionBanner('Free limit reached. Upgrade to Pro for unlimited auto-assign.', 'error');
@@ -1033,14 +1155,29 @@ export function useSchedulerHandlers() {
     }
     // No business-level limits are configured in this screen yet; the law's apply.
     const settings = autoAssignSettings(date, autoAssignLocation);
-    const result = assignShifts({
-      date,
-      templates: shiftTemplates,
-      workers,
-      existingRoster: roster,
-      constraints: settings.constraints,
-      timeZone: settings.timeZone,
-    });
+    autoAssignRunRef.current?.abort();
+    const run = new AbortController();
+    autoAssignRunRef.current = run;
+    let result;
+    try {
+      result = await runAutoAssign(
+        {
+          date,
+          templates: shiftTemplates,
+          workers,
+          existingRoster: roster,
+          constraints: settings.constraints,
+          timeZone: settings.timeZone,
+        },
+        { signal: run.signal },
+      );
+    } catch (err) {
+      if (run.signal.aborted) return; // superseded by a newer run, or unmounted
+      showActionBanner(`Auto-assign failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      return;
+    } finally {
+      if (autoAssignRunRef.current === run) autoAssignRunRef.current = null;
+    }
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {
@@ -1070,6 +1207,7 @@ export function useSchedulerHandlers() {
     if (!autoAssignSuggestions?.length) return;
     setAutoAssignApplying(true);
     let successCount = 0;
+    let firstError: string | null = null;
     for (const suggestion of autoAssignSuggestions) {
       const result = await addShift({
         date: suggestion.date,
@@ -1080,6 +1218,7 @@ export function useSchedulerHandlers() {
         notified: false,
       });
       if (result.success) successCount += 1;
+      else firstError ??= result.error;
     }
     setAutoAssignSuggestions(null);
     setAutoAssignShortfalls(null);
@@ -1090,10 +1229,11 @@ export function useSchedulerHandlers() {
       void trackEvent('auto_assign_used', { successCount });
     }
     showActionBanner(
-      `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).`,
-      successCount === autoAssignSuggestions.length ? 'success' : 'info'
+      `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).` +
+        (firstError ? ` ${t('scheduler.sync.saveFailed', { error: firstError })}` : ''),
+      successCount === autoAssignSuggestions.length ? 'success' : firstError ? 'error' : 'info'
     );
-  }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner]);
+  }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     let savedCount = 0;
@@ -1128,7 +1268,9 @@ export function useSchedulerHandlers() {
    * Creates 3 workers, 2 templates, and 4 shifts across the current + next week.
    */
   const seedTourData = useCallback(async () => {
-    if (workers.length > 0) return; // already has data
+    // Only into an account whose stored workers loaded and are empty: with a
+    // failed or unfinished load, "no workers" is unknown (CHG-088).
+    if (!workersLoaded || workersError || workers.length > 0) return;
 
     // Helper: YYYY-MM-DD for today + offset days
     const dateOffset = (days: number): string => isoDate(days);
@@ -1173,7 +1315,7 @@ export function useSchedulerHandlers() {
       setPublishCelebration({ badgeVisible: false, confettiBurst: true });
     }
     showActionBanner(t('tour.completed.seedConfirmation'), 'success');
-  }, [workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
+  }, [workersLoaded, workersError, workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
   return {
@@ -1182,7 +1324,14 @@ export function useSchedulerHandlers() {
     shiftTemplates,
     roster,
     demandTargets,
+    workersLoaded,
+    templatesLoaded,
+    rosterLoaded,
+    syncStatus,
+    retrySync,
     forecastError,
+    forecastModels,
+    forecastNotices,
     forecastLoading,
     forecasting,
     needsFallbackSetup,
@@ -1268,6 +1417,10 @@ export function useSchedulerHandlers() {
     handlePublishShift,
     handleUnpublishShift,
     handleNotifyShift,
+    handleRemoveWorker,
+    handleRemoveAvailability,
+    handleRemoveTemplate,
+    handleRemoveShift,
     runForecast,
     handleAutoAssign,
     applyAutoAssign,

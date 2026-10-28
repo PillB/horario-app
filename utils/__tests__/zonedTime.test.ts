@@ -45,6 +45,16 @@ describe('zonedTime', () => {
     expect(new Date(skipped).toISOString()).toBe('2026-03-08T07:30:00.000Z');
   });
 
+  it('resolves a skipped time to after the gap in zones east of UTC+6 (Sydney, Auckland)', () => {
+    // Sydney springs forward 2026-10-04 at 02:00 AEST (+10) to 03:00 AEDT (+11).
+    const syd = zonedToUtc('2026-10-04', 150, 'Australia/Sydney');
+    expect(syd).toBe(Date.UTC(2026, 9, 3, 16, 30));
+    expect(wallClockAt(syd, 'Australia/Sydney')).toMatchObject({ dateKey: '2026-10-04', minuteOfDay: 210 });
+    // Auckland springs forward 2026-09-27 at 02:00 NZST (+12) to 03:00 NZDT (+13).
+    const akl = zonedToUtc('2026-09-27', 150, 'Pacific/Auckland');
+    expect(wallClockAt(akl, 'Pacific/Auckland')).toMatchObject({ dateKey: '2026-09-27', minuteOfDay: 210 });
+  });
+
   it('accepts minutes past midnight for the next day', () => {
     expect(zonedToUtc('2026-10-19', 1440 + 60, 'UTC')).toBe(Date.UTC(2026, 9, 20, 1));
   });

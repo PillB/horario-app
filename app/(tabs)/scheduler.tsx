@@ -23,6 +23,7 @@ import { RosterSection } from '@/components/scheduler/RosterSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
 import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
+import { SyncNotice } from '@/components/scheduler/SyncNotice';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
@@ -45,7 +46,14 @@ export default function SchedulerScreen() {
     shiftTemplates,
     roster,
     demandTargets,
+    workersLoaded,
+    templatesLoaded,
+    rosterLoaded,
+    syncStatus,
+    retrySync,
     forecastError,
+    forecastModels,
+    forecastNotices,
     needsFallbackSetup,
 
     // Wellness
@@ -129,6 +137,10 @@ export default function SchedulerScreen() {
     handlePublishShift,
     handleUnpublishShift,
     handleNotifyShift,
+    handleRemoveWorker,
+    handleRemoveAvailability,
+    handleRemoveTemplate,
+    handleRemoveShift,
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
@@ -147,14 +159,16 @@ export default function SchedulerScreen() {
   } = useSchedulerHandlers();
 
   // ── Seed sample data when tour completes for the first time ─────────────
+  // Only once the stored workers have loaded (and are none): before CHG-088
+  // this also ran while the list was still loading or had failed to load.
   const { hasCompleted } = useWelcomeTour();
   const seededRef = useRef(false);
   useEffect(() => {
-    if (hasCompleted && !seededRef.current && workers.length === 0) {
+    if (hasCompleted && !seededRef.current && workersLoaded && workers.length === 0) {
       seededRef.current = true;
       seedTourData();
     }
-  }, [hasCompleted, workers.length, seedTourData]);
+  }, [hasCompleted, workersLoaded, workers.length, seedTourData]);
 
   const [selectedShiftForNotes, setSelectedShiftForNotes] = React.useState<{
     shiftId: string;
@@ -226,6 +240,13 @@ export default function SchedulerScreen() {
 
         <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
 
+        <SyncNotice
+          loading={syncStatus.loading}
+          errors={syncStatus.errors}
+          truncated={syncStatus.truncated}
+          onRetry={retrySync}
+        />
+
         {actionBanner ? (
           <ThemedView
             style={[
@@ -233,6 +254,9 @@ export default function SchedulerScreen() {
               actionBanner.type === 'success' && styles.bannerSuccess,
               actionBanner.type === 'error' && styles.bannerError,
             ]}
+            accessibilityRole={actionBanner.type === 'error' ? 'alert' : undefined}
+            accessibilityLiveRegion={actionBanner.type === 'error' ? 'assertive' : 'polite'}
+            testID="scheduler-action-banner"
           >
             {/* [Finding 3] Use semantic text colours for success/error banners */}
             <ThemedText
@@ -295,6 +319,9 @@ export default function SchedulerScreen() {
           <TourStep target="workers-section">
           <WorkerSection
             workers={workers}
+            workersLoaded={workersLoaded}
+            onRemoveWorker={handleRemoveWorker}
+            onRemoveAvailability={handleRemoveAvailability}
             workerForm={workerForm}
             updateWorkerField={updateWorkerField}
             handleAddWorker={handleAddWorker}
@@ -338,6 +365,8 @@ export default function SchedulerScreen() {
             roster={roster}
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
+            forecastModels={forecastModels}
+            forecastNotices={forecastNotices}
             onBulkSave={handlePosTargetsGenerated}
           />
           </TourStep>
@@ -357,6 +386,8 @@ export default function SchedulerScreen() {
           <TourStep target="shift-templates-section">
           <ShiftTemplateSection
             shiftTemplates={shiftTemplates}
+            templatesLoaded={templatesLoaded}
+            onRemoveTemplate={handleRemoveTemplate}
             templateForm={templateForm}
             updateTemplateField={updateTemplateField}
             handleAddTemplate={handleAddTemplate}
@@ -387,6 +418,8 @@ export default function SchedulerScreen() {
           handlePublishShift={handlePublishShift}
           handleUnpublishShift={handleUnpublishShift}
           handleNotifyShift={handleNotifyShift}
+          onRemoveShift={handleRemoveShift}
+          rosterLoaded={rosterLoaded}
           upcomingShifts={upcomingShifts}
           staffingGaps={staffingGaps}
           onSelectShiftForNotes={handleSelectShiftForNotes}

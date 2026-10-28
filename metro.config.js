@@ -30,6 +30,13 @@ if (!config.resolver.assetExts.includes('ttf')) {
   config.resolver.assetExts.push('ttf');
 }
 
+// HiGHS's WebAssembly binary (npm `highs`, used by the auto-assign Web Worker,
+// services/optimizer/solverWorker.ts) is served as a static asset; on web,
+// require('highs/runtime') resolves to its URL.
+if (!config.resolver.assetExts.includes('wasm')) {
+  config.resolver.assetExts.push('wasm');
+}
+
 // ---------------------------------------------------------------------------
 // Transformer
 // ---------------------------------------------------------------------------

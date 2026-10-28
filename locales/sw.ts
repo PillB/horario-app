@@ -410,7 +410,7 @@ export const sw = {
       posCsvA11yHint: 'Bandika CSV yenye safu wima: tarehe, mapato, idadi ya wageni, maelezo',
       posPreviewCount: '{n} kati ya safu {total} zinaonyeshwa',
       beforeForecast: 'Kabla ya utabiri',
-      afterForecast: 'Baada ya utabiri'
+      afterForecast: 'Baada ya utabiri', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}', historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.', signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.'
     },
 
     roster: {
@@ -978,6 +978,30 @@ export const sw = {
     deleteFailed: 'Imeshindwa kufuta eneo: {error}',
     industries: { retail: 'Rejareja', food_service: 'Huduma za chakula', fast_food: 'Chakula cha haraka', full_service_restaurant: 'Mgahawa wa huduma kamili', hospitality: 'Ukarimu', hotel: 'Hoteli', warehouse: 'Ghala', manufacturing: 'Uzalishaji', healthcare: 'Afya', building_services: 'Huduma za majengo', other: 'Nyingine' },
     errors: { NAME_INVALID: 'Weka jina lenye hadi herufi 80.', COUNTRY_INVALID: 'Chagua nchi.', TIME_ZONE_INVALID: 'Weka saa za eneo halali, kwa mfano Africa/Nairobi au America/Lima.', INDUSTRY_INVALID: 'Chagua sekta.', HEADCOUNT_INVALID: 'Weka idadi kamili ya wafanyakazi.', generic: 'Kagua maelezo ya eneo.' },
+    history: {
+      show: 'Show change history',
+      hide: 'Hide change history',
+      toggleHint: 'Shows who changed each location\'s rules, and when',
+      title: 'Change history',
+      empty: 'No changes recorded yet.',
+      loadFailed: 'Couldn\'t load the change history.',
+      retryHint: 'Loads the change history again',
+      added: 'Added by {who}',
+      changed: 'Changed by {who}',
+      deleted: 'Deleted by {who}',
+      outsideApp: 'a change outside the app',
+      jurisdiction: 'Rules',
+      timeZone: 'Time zone',
+      industry: 'Industry',
+      headcount: 'Employees',
+      overrides: 'Stricter limits',
+      none: 'none',
+      noRuleChange: 'Rules, time zone and size unchanged.',
+      ruleRest: 'rest at least {value} h',
+      ruleDaily: 'at most {value} h a day',
+      ruleWeekly: 'at most {value} h a week',
+      ruleBreak: '{value} min break after {after} h',
+    },
   },
 
   profile: {

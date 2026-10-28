@@ -1,17 +1,24 @@
 /**
  * rosterService.ts
  *
- * Client-side service for all roster-related CRUD operations.
- * All writes are routed through the secure proxy (app/api/secure-proxy/route.ts)
- * which uses the Supabase service-role key. Reads use the same proxy so that
- * account_id scoping is enforced server-side.
+ * Client-side service for workers, availability, shift templates and roster
+ * shifts. Every call goes through the secure proxy (app/api/secure-proxy+api.ts),
+ * which takes the tenant from the signed-in session and scopes every
+ * statement by it; the `accountId` arguments only exist for older callers.
  *
- * Pattern mirrors services/demandForecast.ts.
+ * Lists are paged by the proxy (LIST_PAGE_SIZE rows, `hasMore`); the
+ * `fetch*` functions read every page up to LIST_MAX_PAGES and say whether
+ * rows were left out. They return `{ ok: false, error }` instead of an empty
+ * list when the request fails, so a screen can tell "nothing saved yet" from
+ * "could not load". The older `list*` functions keep returning [] on failure.
  */
 
 import { getSessionToken } from '@/services/authToken';
 
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
+
+/** Must match LIST_MAX_PAGES in the proxy. */
+export const LIST_MAX_PAGES = 20;
 
 // ─── Domain types (DB-aligned) ────────────────────────────────────────────────
 
@@ -66,6 +73,10 @@ export type DbRosterShift = {
 
 // ─── Result types ─────────────────────────────────────────────────────────────
 
+export type ListResult<T> =
+  | { ok: true; data: T[]; truncated: boolean; error?: never }
+  | { ok: false; data?: never; truncated?: never; error: string };
+
 export type UpsertWorkerResult =
   | { success: true; worker: DbWorker; error?: never }
   | { success: false; worker?: never; error: string };
@@ -86,6 +97,11 @@ export type MutationResult =
   | { success: true; error?: never }
   | { success: false; error: string };
 
+/** Status / notified changes return the stored shift (absent from an older proxy). */
+export type ShiftUpdateResult =
+  | { success: true; shift?: DbRosterShift; error?: never }
+  | { success: false; shift?: never; error: string };
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
@@ -100,151 +116,129 @@ const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
   });
 
   if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    if (payload?.error) throw new Error(payload.error);
+    // No JSON body: the route itself is missing (not deployed, or no migrations).
     if (response.status === 404) {
       throw new Error('Service unavailable. Please check your connection or run database migrations.');
     }
-    const payload = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
-    throw new Error((payload as { error?: string }).error ?? `Proxy responded with ${response.status}`);
+    throw new Error(`Server error (${response.status})`);
   }
 
   return (await response.json()) as T;
 };
 
-// ─── Workers ─────────────────────────────────────────────────────────────────
+const messageOf = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-export const listWorkers = async (accountId: string): Promise<DbWorker[]> => {
+/** Runs a write; a thrown error or `success: false` becomes `{ success: false, error }`. */
+const mutate = async <T extends Record<string, unknown>>(
+  body: Record<string, unknown>,
+  fallback: string,
+): Promise<({ success: true } & T) | { success: false; error: string }> => {
   try {
-    const result = await proxyPost<{ workers: DbWorker[] }>({ action: 'listWorkers', accountId });
-    return result.workers ?? [];
+    const result = await proxyPost<{ success?: boolean; error?: string } & T>(body);
+    if (!result.success) return { success: false, error: result.error ?? fallback };
+    return { ...result, success: true };
   } catch (err) {
-    console.warn('Unable to list workers', err);
-    return [];
+    console.warn(fallback, err);
+    return { success: false, error: messageOf(err, fallback) };
   }
 };
 
-export const upsertWorker = async (worker: DbWorker): Promise<UpsertWorkerResult> => {
+type Page<T> = { hasMore?: boolean } & Record<string, unknown> & { [key: string]: T[] | unknown };
+
+/** Reads pages 0, 1, … of a list action until `hasMore` is false or LIST_MAX_PAGES is reached. */
+const fetchAllPages = async <T>(
+  action: string,
+  key: string,
+  extra: Record<string, unknown> = {},
+): Promise<ListResult<T>> => {
+  const rows: T[] = [];
   try {
-    const result = await proxyPost<{ success: boolean; worker: DbWorker; error?: string }>(
-      { action: 'upsertWorker', worker }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to save worker' };
+    for (let page = 0; page < LIST_MAX_PAGES; page += 1) {
+      const result = await proxyPost<Page<T>>({ action, ...extra, page });
+      const pageRows = result[key];
+      rows.push(...(Array.isArray(pageRows) ? (pageRows as T[]) : []));
+      if (result.hasMore !== true) return { ok: true, data: rows, truncated: false };
     }
-    return { success: true, worker: result.worker };
+    return { ok: true, data: rows, truncated: true };
   } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to save worker';
-    console.warn('Unable to upsert worker', err);
-    return { success: false, error };
+    console.warn(`Unable to ${action}`, err);
+    return { ok: false, error: messageOf(err, `Unable to ${action}`) };
   }
+};
+
+const orEmpty = <T>(result: ListResult<T>): T[] => (result.ok ? result.data : []);
+
+// ─── Workers ─────────────────────────────────────────────────────────────────
+
+export const fetchWorkers = (): Promise<ListResult<DbWorker>> => fetchAllPages<DbWorker>('listWorkers', 'workers');
+
+/** @deprecated returns [] on failure; use fetchWorkers. */
+export const listWorkers = async (_accountId?: string): Promise<DbWorker[]> => orEmpty(await fetchWorkers());
+
+export const upsertWorker = async (worker: Partial<DbWorker> & Pick<DbWorker, 'name' | 'role'>): Promise<UpsertWorkerResult> => {
+  const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = worker;
+  const result = await mutate<{ worker: DbWorker }>(
+    { action: 'upsertWorker', worker: { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } },
+    'Unable to save worker',
+  );
+  return result.success ? { success: true, worker: result.worker } : result;
 };
 
 export const deleteWorker = async (id: string): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'deleteWorker', id }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to delete worker' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to delete worker';
-    console.warn('Unable to delete worker', err);
-    return { success: false, error };
-  }
+  const result = await mutate({ action: 'deleteWorker', id }, 'Unable to delete worker');
+  return result.success ? { success: true } : result;
 };
 
 // ─── Worker Availability ──────────────────────────────────────────────────────
 
-export const listWorkerAvailability = async (accountId: string): Promise<DbAvailability[]> => {
-  try {
-    const result = await proxyPost<{ availabilities: DbAvailability[] }>({
-      action: 'listWorkerAvailability',
-      accountId,
-    });
-    return result.availabilities ?? [];
-  } catch (err) {
-    console.warn('Unable to list worker availability', err);
-    return [];
-  }
-};
+export const fetchWorkerAvailability = (): Promise<ListResult<DbAvailability>> =>
+  fetchAllPages<DbAvailability>('listWorkerAvailability', 'availabilities');
 
-export const upsertAvailability = async (availability: DbAvailability): Promise<UpsertAvailabilityResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; availability: DbAvailability; error?: string }>(
-      { action: 'upsertAvailability', availability }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to save availability' };
-    }
-    return { success: true, availability: result.availability };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to save availability';
-    console.warn('Unable to upsert availability', err);
-    return { success: false, error };
-  }
+/** @deprecated returns [] on failure; use fetchWorkerAvailability. */
+export const listWorkerAvailability = async (_accountId?: string): Promise<DbAvailability[]> =>
+  orEmpty(await fetchWorkerAvailability());
+
+export const upsertAvailability = async (
+  availability: Omit<DbAvailability, 'accountId' | 'id'> & { id?: string; accountId?: string },
+): Promise<UpsertAvailabilityResult> => {
+  const { id, workerId, dayOfWeek, fromTime, toTime } = availability;
+  const result = await mutate<{ availability: DbAvailability }>(
+    { action: 'upsertAvailability', availability: { id, workerId, dayOfWeek, fromTime, toTime } },
+    'Unable to save availability',
+  );
+  return result.success ? { success: true, availability: result.availability } : result;
 };
 
 export const deleteAvailability = async (id: string): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'deleteAvailability', id }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to delete availability' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to delete availability';
-    console.warn('Unable to delete availability', err);
-    return { success: false, error };
-  }
+  const result = await mutate({ action: 'deleteAvailability', id }, 'Unable to delete availability');
+  return result.success ? { success: true } : result;
 };
 
 // ─── Shift Templates ──────────────────────────────────────────────────────────
 
-export const listShiftTemplates = async (accountId: string): Promise<DbShiftTemplate[]> => {
-  try {
-    const result = await proxyPost<{ templates: DbShiftTemplate[] }>(
-      { action: 'listShiftTemplates', accountId }
-    );
-    return result.templates ?? [];
-  } catch (err) {
-    console.warn('Unable to list shift templates', err);
-    return [];
-  }
-};
+export const fetchShiftTemplates = (): Promise<ListResult<DbShiftTemplate>> =>
+  fetchAllPages<DbShiftTemplate>('listShiftTemplates', 'templates');
 
-export const upsertShiftTemplate = async (template: DbShiftTemplate): Promise<UpsertTemplateResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; template: DbShiftTemplate; error?: string }>(
-      { action: 'upsertShiftTemplate', template }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to save template' };
-    }
-    return { success: true, template: result.template };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to save template';
-    console.warn('Unable to upsert shift template', err);
-    return { success: false, error };
-  }
+/** @deprecated returns [] on failure; use fetchShiftTemplates. */
+export const listShiftTemplates = async (_accountId?: string): Promise<DbShiftTemplate[]> =>
+  orEmpty(await fetchShiftTemplates());
+
+export const upsertShiftTemplate = async (
+  template: Omit<DbShiftTemplate, 'accountId' | 'id'> & { id?: string; accountId?: string },
+): Promise<UpsertTemplateResult> => {
+  const { id, name, role, startTime, endTime, coverage } = template;
+  const result = await mutate<{ template: DbShiftTemplate }>(
+    { action: 'upsertShiftTemplate', template: { id, name, role, startTime, endTime, coverage } },
+    'Unable to save template',
+  );
+  return result.success ? { success: true, template: result.template } : result;
 };
 
 export const deleteShiftTemplate = async (id: string): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'deleteShiftTemplate', id }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to delete template' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to delete template';
-    console.warn('Unable to delete shift template', err);
-    return { success: false, error };
-  }
+  const result = await mutate({ action: 'deleteShiftTemplate', id }, 'Unable to delete template');
+  return result.success ? { success: true } : result;
 };
 
 // ─── Roster ───────────────────────────────────────────────────────────────────
@@ -254,86 +248,40 @@ export type RosterFilters = {
   toDate?: string;
 };
 
-export const listRoster = async (
-  accountId: string,
-  filters?: RosterFilters
-): Promise<DbRosterShift[]> => {
-  try {
-    const result = await proxyPost<{ shifts: DbRosterShift[] }>({
-      action: 'listRoster',
-      accountId,
-      ...filters,
-    });
-    return result.shifts ?? [];
-  } catch (err) {
-    console.warn('Unable to list roster', err);
-    return [];
-  }
+export const fetchRoster = (filters?: RosterFilters): Promise<ListResult<DbRosterShift>> =>
+  fetchAllPages<DbRosterShift>('listRoster', 'shifts', {
+    ...(filters?.fromDate ? { fromDate: filters.fromDate } : {}),
+    ...(filters?.toDate ? { toDate: filters.toDate } : {}),
+  });
+
+/** @deprecated returns [] on failure; use fetchRoster. */
+export const listRoster = async (_accountId?: string, filters?: RosterFilters): Promise<DbRosterShift[]> =>
+  orEmpty(await fetchRoster(filters));
+
+export const upsertRosterShift = async (
+  shift: Omit<DbRosterShift, 'accountId' | 'id'> & { id?: string; accountId?: string },
+): Promise<UpsertRosterShiftResult> => {
+  const { id, date, workerId, templateId, location, status, notified } = shift;
+  const result = await mutate<{ shift: DbRosterShift }>(
+    { action: 'upsertRosterShift', shift: { id, date, workerId, templateId, location, status, notified } },
+    'Unable to save shift',
+  );
+  return result.success ? { success: true, shift: result.shift } : result;
 };
 
-export const upsertRosterShift = async (shift: DbRosterShift): Promise<UpsertRosterShiftResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; shift: DbRosterShift; error?: string }>(
-      { action: 'upsertRosterShift', shift }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to save shift' };
-    }
-    return { success: true, shift: result.shift };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to save shift';
-    console.warn('Unable to upsert roster shift', err);
-    return { success: false, error };
-  }
+/** Changing the status clears `notified` on the server too. */
+export const updateShiftStatus = async (id: string, status: 'Draft' | 'Published'): Promise<ShiftUpdateResult> => {
+  const result = await mutate<{ shift?: DbRosterShift }>({ action: 'updateShiftStatus', id, status }, 'Unable to update shift status');
+  return result.success ? { success: true, shift: result.shift } : result;
 };
 
-export const updateShiftStatus = async (
-  id: string,
-  status: 'Draft' | 'Published'
-): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'updateShiftStatus', id, status }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to update shift status' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to update shift status';
-    console.warn('Unable to update shift status', err);
-    return { success: false, error };
-  }
-};
-
-export const markShiftNotified = async (id: string): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'markShiftNotified', id }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to mark shift notified' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to mark shift notified';
-    console.warn('Unable to mark shift notified', err);
-    return { success: false, error };
-  }
+/** Refused (409) unless the shift is published. */
+export const markShiftNotified = async (id: string): Promise<ShiftUpdateResult> => {
+  const result = await mutate<{ shift?: DbRosterShift }>({ action: 'markShiftNotified', id }, 'Unable to mark shift notified');
+  return result.success ? { success: true, shift: result.shift } : result;
 };
 
 export const deleteRosterShift = async (id: string): Promise<MutationResult> => {
-  try {
-    const result = await proxyPost<{ success: boolean; error?: string }>(
-      { action: 'deleteRosterShift', id }
-    );
-    if (!result.success) {
-      return { success: false, error: result.error ?? 'Unable to delete shift' };
-    }
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unable to delete shift';
-    console.warn('Unable to delete roster shift', err);
-    return { success: false, error };
-  }
+  const result = await mutate({ action: 'deleteRosterShift', id }, 'Unable to delete shift');
+  return result.success ? { success: true } : result;
 };

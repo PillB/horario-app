@@ -4,7 +4,7 @@
 -- users must see only their own tenant and must not write directly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(63);
 
 -- ── Fixtures (as the table owner) ────────────────────────────────────────────
 insert into public.workers (id, account_id, name, role) values
@@ -112,6 +112,22 @@ select results_eq(
   'worker labor flags default to false');
 select throws_ok($$update public.workers set birth_date = '1899-12-31' where id = '00000000-0000-0000-0000-0000000000a1'$$, '23514', null, 'birth date before 1900 rejected');
 select lives_ok($$update public.workers set birth_date = '2001-04-17', night_worker = true where id = '00000000-0000-0000-0000-0000000000a1'$$, 'valid labor attributes accepted');
+
+-- ── Scheduling persistence (CHG-088) ─────────────────────────────────────────
+select has_index('public', 'roster', 'roster_account_slot_key', 'roster has a unique (tenant, date, worker, template) index');
+select throws_ok(
+  $$insert into public.roster (account_id, date, worker_id, template_id) values ('user_a', '2026-10-19', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')$$,
+  '23505', null, 'the same worker, date and template cannot be rostered twice');
+select lives_ok(
+  $$insert into public.roster (account_id, date, worker_id, template_id) values ('user_a', '2026-10-20', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')$$,
+  'the same worker and template on another date is allowed');
+insert into public.demand_targets (account_id, date, role, required, source) values ('user_a', '2026-10-21', 'Barista', 4, 'override');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"user_a","role":"authenticated"}';
+select throws_ok($$delete from public.demand_targets where source = 'override'$$, '42501', null, 'signed-in users cannot delete overrides directly');
+select throws_ok($$update public.roster set status = 'Published', notified = true$$, '42501', null, 'signed-in users cannot publish or notify directly');
+select throws_ok($$delete from public.worker_availability$$, '42501', null, 'signed-in users cannot delete availability directly');
+reset role;
 
 -- ── Server-only functions ────────────────────────────────────────────────────
 select is(public.increment_auto_assign('user_b','org_b'), 4, 'counter increments an existing row');

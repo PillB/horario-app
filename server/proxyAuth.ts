@@ -10,8 +10,9 @@
  * (session token v2 claim `o.id`, v1 claim `org_id`), otherwise the user id.
  * This must match private.current_account_id() in the database migrations.
  *
- * Inside an organization only admins may delete data or change billing
- * (`canManage`); a personal account always manages itself.
+ * Inside an organization only admins may change scheduling data, locations
+ * or billing (`canManage`; the action list is MANAGER_ACTIONS in
+ * app/api/secure-proxy+api.ts); a personal account always manages itself.
  */
 import { createPublicKey, createVerify, type JsonWebKey as CryptoJWK } from 'crypto';
 
@@ -20,7 +21,7 @@ export type AuthContext = {
   userId: string;
   /** Tenant id used for every database read and write. */
   accountId: string;
-  /** May delete data and change billing: personal accounts and org admins. */
+  /** May change scheduling data, locations and billing: personal accounts and org admins. */
   canManage: boolean;
   /** True only in the explicit local insecure mode. */
   insecureDev: boolean;

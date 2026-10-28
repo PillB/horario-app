@@ -288,7 +288,27 @@ export type EvaluationContext = {
   publishedAt?: number;
   /** First day of the workweek: 0 = Sunday … 6 = Saturday. Default Monday. */
   weekStartsOn?: number;
+  /** The location's own stricter limits (services/labor/overrides.ts); they never loosen the pack. */
+  overrides?: readonly LocationOverride[];
 };
+
+// ─── Location overrides ──────────────────────────────────────────────────────
+
+/**
+ * A business's own limit for one location, stored in `locations.overrides`.
+ * It may only make a rule stricter than the law (checked on save, and the
+ * engine applies the stricter of the two on every date).
+ * - rest.minHours: minimum rest between shifts (hours).
+ * - daily.maxHours: maximum hours worked in one local day.
+ * - weekly.maxHours: maximum hours worked in one workweek.
+ * - breaks.minMinutes: a break of at least `value` minutes when more than
+ *   `afterHours` hours are worked.
+ */
+export type LocationOverride =
+  | { rule: 'rest.minHours'; value: number; note?: string }
+  | { rule: 'daily.maxHours'; value: number; note?: string }
+  | { rule: 'weekly.maxHours'; value: number; note?: string }
+  | { rule: 'breaks.minMinutes'; value: number; afterHours: number; note?: string };
 
 export type Finding = {
   rule: string;

@@ -76,7 +76,20 @@ describe('validateLocationInput', () => {
     expect(codeOf({ detectedHint: { ipCity: 'x'.repeat(81) } })).toBe('HINT_INVALID');
     expect(codeOf({ detectedHint: 'PE' })).toBe('HINT_INVALID');
     expect(codeOf({ overrides: [1] })).toBe('OVERRIDES_INVALID');
-    expect(codeOf({ overrides: [{ rule: 'maxDailyHours', value: 10, citation: 'CBA art. 4' }] })).toBe('OK');
+    // CHG-089: overrides are typed and may only make the rules stricter.
+    expect(codeOf({ overrides: [{ rule: 'maxDailyHours', value: 10, citation: 'CBA art. 4' }] })).toBe('OVERRIDES_INVALID');
+    expect(codeOf({ overrides: [{ rule: 'daily.maxHours', value: 10, note: 'CBA art. 4' }] })).toBe('OK');
+    expect(codeOf({ overrides: [{ rule: 'breaks.minMinutes', value: 30, afterHours: 6 }] })).toBe('OVERRIDE_NOT_STRICTER'); // Peru: 45 min after 6 h
+  });
+
+  it('checks overrides against the pack on the given date', () => {
+    const es = { ...base, countryCode: 'ES', jurisdictionCode: 'ES', timeZone: 'Europe/Madrid' };
+    const r = validateLocationInput({ ...es, overrides: [{ rule: 'rest.minHours', value: 11 }] }, { today: '2026-10-21' });
+    expect(r).toMatchObject({ ok: false, code: 'OVERRIDE_NOT_STRICTER' });
+    if (!r.ok) expect(r.message).toContain('in Spain on 2026-10-21');
+    const okR = validateLocationInput({ ...es, overrides: [{ rule: 'rest.minHours', value: 13 }] }, { today: '2026-10-21' });
+    expect(okR.ok && okR.value.overrides).toEqual([{ rule: 'rest.minHours', value: 13 }]);
+    expect(() => validateLocationInput(es, { today: '2026-02-31' })).toThrow(RangeError);
   });
 
   it('keeps only known hint keys', () => {

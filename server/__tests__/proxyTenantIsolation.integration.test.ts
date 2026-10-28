@@ -83,13 +83,14 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
   afterAll(() => fetchSpy.mockRestore());
 
   it('lists only the caller tenant rows', async () => {
-    for (const action of ['listWorkers', 'listWorkerAvailability', 'listShiftTemplates', 'listRoster']) {
+    const lists = { listWorkers: 'workers', listWorkerAvailability: 'availabilities', listShiftTemplates: 'templates', listRoster: 'shifts' };
+    for (const [action, key] of Object.entries(lists)) {
       const a = await asA({ action });
       const b = await asB({ action });
       expect(a.status).toBe(200);
       expect(b.status).toBe(200);
-      const aRows = Object.values(a.body)[0] as unknown[];
-      const bRows = Object.values(b.body)[0] as unknown[];
+      const aRows = a.body[key] as unknown[];
+      const bRows = b.body[key] as unknown[];
       expect(aRows.length).toBeGreaterThan(0);
       expect(bRows).toEqual([]);
     }
@@ -229,6 +230,133 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     expect((await call(member, { action: 'upsertLocation', location: { id: locB.id, name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service', employerHeadcount: 1 } })).status).toBe(403);
     expect((await asB({ action: 'deleteLocation', id: locB.id })).status).toBe(200);
     expect((await asA({ action: 'deleteLocation', id: locA.id })).status).toBe(200);
+  });
+
+  // ── CHG-088: every scheduling record survives a reload and stays per tenant ──
+
+  it('persists worker and availability updates and deletes, per tenant', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Iris', role: 'Barista', skills: ['Latte'] } })).body.worker as { id: string };
+    expect((await asA({ action: 'upsertWorker', worker: { id: worker.id, name: 'Iris K.', role: 'Lead', skills: [] } })).status).toBe(200);
+    const slotId = randomUUID();
+    expect((await asA({ action: 'upsertAvailability', availability: { id: slotId, workerId: worker.id, dayOfWeek: 'Fri', fromTime: '18:00', toTime: '02:00' } })).status).toBe(200);
+    expect((await asA({ action: 'upsertAvailability', availability: { id: slotId, workerId: worker.id, dayOfWeek: 'Fri', fromTime: '17:00', toTime: '01:00' } })).status).toBe(200);
+
+    // "Reload": a fresh list returns the stored values.
+    const workers = (await asA({ action: 'listWorkers' })).body.workers as { id: string; name: string; role: string; skills: string[] }[];
+    expect(workers.find((w) => w.id === worker.id)).toMatchObject({ name: 'Iris K.', role: 'Lead', skills: [] });
+    const slots = (await asA({ action: 'listWorkerAvailability' })).body.availabilities as { id: string; fromTime: string; toTime: string }[];
+    expect(slots.filter((s) => s.id === slotId)).toEqual([expect.objectContaining({ fromTime: '17:00', toTime: '01:00' })]);
+
+    // B can neither change nor delete them.
+    expect((await asB({ action: 'upsertAvailability', availability: { id: slotId, workerId: worker.id, dayOfWeek: 'Fri', fromTime: '09:00', toTime: '10:00' } })).status).toBe(404);
+    expect((await asB({ action: 'deleteAvailability', id: slotId })).status).toBe(404);
+    expect((await asB({ action: 'deleteWorker', id: worker.id })).status).toBe(404);
+
+    expect((await asA({ action: 'deleteAvailability', id: slotId })).status).toBe(200);
+    expect((await asA({ action: 'deleteWorker', id: worker.id })).status).toBe(200);
+    expect(((await asA({ action: 'listWorkers' })).body.workers as { id: string }[]).some((w) => w.id === worker.id)).toBe(false);
+  });
+
+  it('persists template updates, refuses deleting a template in use, and keeps B out', async () => {
+    const id = randomUUID();
+    expect((await asA({ action: 'upsertShiftTemplate', template: { id, name: 'Close', role: 'Barista', startTime: '16:00', endTime: '23:30', coverage: 2 } })).status).toBe(200);
+    expect((await asA({ action: 'upsertShiftTemplate', template: { id, name: 'Late close', role: 'Barista', startTime: '17:00', endTime: '00:30', coverage: 3 } })).status).toBe(200);
+    const templates = (await asA({ action: 'listShiftTemplates' })).body.templates as { id: string; name: string; endTime: string; coverage: number }[];
+    expect(templates.find((t) => t.id === id)).toMatchObject({ name: 'Late close', endTime: '00:30', coverage: 3 });
+    expect(((await asB({ action: 'listShiftTemplates' })).body.templates as { id: string }[]).some((t) => t.id === id)).toBe(false);
+
+    const shift = (await asA({ action: 'upsertRosterShift', shift: { date: '2026-11-05', workerId: workerA, templateId: id } })).body.shift as { id: string };
+    expect((await asA({ action: 'deleteShiftTemplate', id })).status).toBe(409);
+    expect((await asA({ action: 'deleteRosterShift', id: shift.id })).status).toBe(200);
+    expect((await asB({ action: 'deleteShiftTemplate', id })).status).toBe(404);
+    expect((await asA({ action: 'deleteShiftTemplate', id })).status).toBe(200);
+  });
+
+  it('persists roster status and notified, with notify only after publish', async () => {
+    const created = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-11-06', workerId: workerA, templateId: templateA, location: ' Bar ' } });
+    expect(created.status).toBe(200);
+    const id = (created.body.shift as { id: string }).id;
+    expect(created.body.shift).toMatchObject({ status: 'Draft', notified: false, location: 'Bar' });
+
+    expect((await asA({ action: 'markShiftNotified', id })).status).toBe(409);
+    expect((await asA({ action: 'updateShiftStatus', id, status: 'Published' })).body.shift).toMatchObject({ status: 'Published', notified: false });
+    expect((await asA({ action: 'markShiftNotified', id })).body.shift).toMatchObject({ status: 'Published', notified: true });
+    // Publishing again changes nothing (a retry keeps the sent notification).
+    expect((await asA({ action: 'updateShiftStatus', id, status: 'Published' })).body.shift).toMatchObject({ notified: true });
+
+    const reloaded = (await asA({ action: 'listRoster', fromDate: '2026-11-06', toDate: '2026-11-06' })).body.shifts as { id: string; status: string; notified: boolean }[];
+    expect(reloaded.find((s) => s.id === id)).toMatchObject({ status: 'Published', notified: true });
+
+    // Unpublishing clears notified, so a re-publish must be sent again.
+    expect((await asA({ action: 'updateShiftStatus', id, status: 'Draft' })).body.shift).toMatchObject({ status: 'Draft', notified: false });
+
+    // B sees nothing and cannot touch it.
+    expect((await asB({ action: 'listRoster', fromDate: '2026-11-06', toDate: '2026-11-06' })).body.shifts).toEqual([]);
+    expect((await asB({ action: 'updateShiftStatus', id, status: 'Published' })).status).toBe(404);
+    expect((await asA({ action: 'deleteRosterShift', id })).status).toBe(200);
+  });
+
+  it('refuses a second roster row for the same worker, date and template (409)', async () => {
+    const shift = { date: '2026-11-07', workerId: workerA, templateId: templateA };
+    const first = await asA({ action: 'upsertRosterShift', shift: { ...shift, id: randomUUID() } });
+    expect(first.status).toBe(200);
+    const second = await asA({ action: 'upsertRosterShift', shift: { ...shift, id: randomUUID() } });
+    expect(second.status).toBe(409);
+    expect(JSON.stringify(second.body)).not.toMatch(/duplicate key|roster_account_slot_key/);
+    expect((await asA({ action: 'deleteRosterShift', id: (first.body.shift as { id: string }).id })).status).toBe(200);
+  });
+
+  it('pages the roster 500 rows at a time without gaps or overlap', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- test-only direct insert
+    const { createClient } = require('@supabase/supabase-js') as typeof import('@supabase/supabase-js');
+    const db = createClient(SUPABASE_URL as string, SERVICE_KEY as string, { auth: { persistSession: false } });
+    const pagingTenant = `user_p_${run}`;
+    const asP = (body: Record<string, unknown>) => call(signToken(pagingTenant), body);
+    const w = (await asP({ action: 'upsertWorker', worker: { name: 'Pat', role: 'Cook' } })).body.worker as { id: string };
+    const t = (await asP({ action: 'upsertShiftTemplate', template: { name: 'Day', role: 'Cook', startTime: '08:00', endTime: '16:00', coverage: 1 } })).body.template as { id: string };
+    const start = Date.UTC(2027, 0, 1);
+    const rows = Array.from({ length: 503 }, (_, i) => ({
+      account_id: pagingTenant,
+      date: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
+      worker_id: w.id,
+      template_id: t.id,
+    }));
+    const { error } = await db.from('roster').insert(rows);
+    expect(error).toBeNull();
+
+    const page0 = await asP({ action: 'listRoster', page: 0 });
+    const page1 = await asP({ action: 'listRoster', page: 1 });
+    expect(page0.body).toMatchObject({ page: 0, pageSize: 500, hasMore: true });
+    expect(page1.body).toMatchObject({ page: 1, hasMore: false });
+    const ids = [...(page0.body.shifts as { id: string }[]), ...(page1.body.shifts as { id: string }[])].map((s) => s.id);
+    expect(ids).toHaveLength(503);
+    expect(new Set(ids).size).toBe(503);
+    expect((await asA({ action: 'listRoster', page: 1 })).body.shifts).toEqual([]);
+
+    await db.from('roster').delete().eq('account_id', pagingTenant);
+  });
+
+  it('lists and deletes manual demand overrides per tenant, never model rows', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- test-only direct insert
+    const { createClient } = require('@supabase/supabase-js') as typeof import('@supabase/supabase-js');
+    const db = createClient(SUPABASE_URL as string, SERVICE_KEY as string, { auth: { persistSession: false } });
+    await db.from('demand_targets').insert({ account_id: USER_A, date: '2026-11-10', role: 'Barista', required: 6, source: 'model' });
+
+    const saved = await asA({ action: 'upsertTargets', targets: [{ date: '2026-11-11', role: 'Barista', required: 4.4, notes: ' Launch ', source: 'model', accountId: ORG_B }] });
+    expect(saved.status).toBe(200);
+    expect(saved.body.targets).toEqual([{ date: '2026-11-11', role: 'Barista', required: 4, notes: 'Launch', source: 'override' }]);
+
+    const listed = (await asA({ action: 'loadTargets', fromDate: '2026-11-10', toDate: '2026-11-11' })).body;
+    expect(listed).toMatchObject({ page: 0, hasMore: false });
+    expect(listed.targets).toEqual([expect.objectContaining({ date: '2026-11-11', required: 4, notes: 'Launch', source: 'override' })]);
+    expect((await asB({ action: 'loadTargets', fromDate: '2026-11-10', toDate: '2026-11-11' })).body.targets).toEqual([]);
+
+    expect((await asB({ action: 'deleteDemandTarget', target: { date: '2026-11-11', role: 'Barista' } })).status).toBe(404);
+    expect((await asA({ action: 'deleteDemandTarget', target: { date: '2026-11-10', role: 'Barista' } })).status).toBe(404);
+    expect((await asA({ action: 'deleteDemandTarget', target: { date: '2026-11-11', role: 'Barista' } })).status).toBe(200);
+    expect((await asA({ action: 'loadTargets', fromDate: '2026-11-10', toDate: '2026-11-11' })).body.targets).toEqual([]);
+
+    await db.from('demand_targets').delete().eq('account_id', USER_A).eq('date', '2026-11-10');
   });
 
   it('does not leak database error details', async () => {

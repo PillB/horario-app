@@ -421,7 +421,7 @@ export const it = {
       posCsvA11yHint: 'Incolla un CSV con le colonne: data, ricavi, coperti, note',
       posPreviewCount: '{n} di {total} righe visualizzate',
       beforeForecast: 'Prima della previsione',
-      afterForecast: 'Dopo la previsione'
+      afterForecast: 'Dopo la previsione', modelHeading: 'Forecast model', modelSeasonalNaive: 'Seasonal naive (same day last week)', modelDowProfile: 'Weekday profile (recent weeks count more)', modelHoltWinters: 'Holt-Winters (weekly pattern, damped trend)', modelRole: '{role}: {model}', modelAccuracy: 'MASE {mase} over {n} backtests (below 1.00 beats repeating last week)', modelShortHistory: 'Only {days} days of history, too few to compare models: repeating last week.', planAtServiceLevel: 'Plans for the {pct}th percentile (expected {mean})', intervalRange: '{pct}% range: {low} – {high}', historyEndsNote: 'Shift history ends {days} days ago; the days since count as no demand. Log recent shifts for a better forecast.', signalsTruncatedNote: 'Too many demand signals to load: the oldest past signals were left out.'
     },
 
     roster: {
@@ -994,6 +994,30 @@ export const it = {
     deleteFailed: 'Impossibile eliminare la sede: {error}',
     industries: { retail: 'Commercio al dettaglio', food_service: 'Ristorazione', fast_food: 'Fast food', full_service_restaurant: 'Ristorante con servizio al tavolo', hospitality: 'Ospitalità', hotel: 'Hotel', warehouse: 'Magazzino', manufacturing: 'Manifattura', healthcare: 'Sanità', building_services: 'Servizi per edifici', other: 'Altro' },
     errors: { NAME_INVALID: 'Inserisci un nome di massimo 80 caratteri.', COUNTRY_INVALID: 'Scegli un paese.', TIME_ZONE_INVALID: 'Inserisci un fuso orario valido, ad esempio Europe/Rome o America/Lima.', INDUSTRY_INVALID: 'Scegli un settore.', HEADCOUNT_INVALID: 'Inserisci un numero intero di dipendenti.', generic: 'Controlla i dati della sede.' },
+    history: {
+      show: 'Show change history',
+      hide: 'Hide change history',
+      toggleHint: 'Shows who changed each location\'s rules, and when',
+      title: 'Change history',
+      empty: 'No changes recorded yet.',
+      loadFailed: 'Couldn\'t load the change history.',
+      retryHint: 'Loads the change history again',
+      added: 'Added by {who}',
+      changed: 'Changed by {who}',
+      deleted: 'Deleted by {who}',
+      outsideApp: 'a change outside the app',
+      jurisdiction: 'Rules',
+      timeZone: 'Time zone',
+      industry: 'Industry',
+      headcount: 'Employees',
+      overrides: 'Stricter limits',
+      none: 'none',
+      noRuleChange: 'Rules, time zone and size unchanged.',
+      ruleRest: 'rest at least {value} h',
+      ruleDaily: 'at most {value} h a day',
+      ruleWeekly: 'at most {value} h a week',
+      ruleBreak: '{value} min break after {after} h',
+    },
   },
 
   profile: {

@@ -8,6 +8,9 @@
  *   - reads filter by account_id;
  *   - updates and deletes match id AND account_id, and report 404 when no row
  *     matched;
+ *   - lists are paged (LIST_PAGE_SIZE rows, `hasMore`), ordered with id as the
+ *     tie-breaker, and every write payload is read field by field by the
+ *     validators in utils/schedulingValidation.ts (shared with the client);
  *   - writes that reference another row (availability → worker, roster →
  *     worker and template) first check that row belongs to the same tenant;
  *   - an upsert with a client-generated id updates only the caller's row; if
@@ -25,9 +28,27 @@ import {
   ForecastGenerationMetadata,
   ForecastGenerationResult,
 } from '@/services/demandForecast';
+import { resolvePack } from '@/services/labor/engine';
+import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
-import { type BusinessLocation, validateLocationInput } from '@/utils/locationValidation';
-import { validateWorkerLabor } from '@/utils/workerLaborValidation';
+import { isDateKey, todayKey } from '@/utils/dateKeys';
+import {
+  type BusinessLocation,
+  type LocationHistoryEntry,
+  type LocationHistoryValues,
+  validateLocationInput,
+} from '@/utils/locationValidation';
+import {
+  isShiftStatus,
+  isUuid,
+  validateAvailabilityInput,
+  validateDemandTargetInput,
+  validateDemandTargetKey,
+  validateRosterShiftInput,
+  validateShiftTemplateInput,
+  validateWorkerInput,
+  type DemandTargetInput,
+} from '@/utils/schedulingValidation';
 
 const FORECAST_API_URL = process.env.EXPO_PUBLIC_FORECAST_API_URL;
 
@@ -42,12 +63,38 @@ const fail = (status: number, error: string): Result => ({ status, body: { error
 const badRequest = (error: string) => fail(400, error);
 const notFound = () => fail(404, 'Not found');
 
-/** Deletes and billing changes need a personal account or an org admin. */
-const MANAGER_ACTIONS = new Set([
+/**
+ * Every scheduling write is manager-only (CHG-091, QA G1). Before, an org
+ * member could create workers, opt a worker out of the weekly limit (in the
+ * EU that must be the worker's own written consent), publish rosters and mark
+ * them notified. Members keep every read. Reversible: drop an action from
+ * this set to open it to members again.
+ */
+const SCHEDULING_WRITE_ACTIONS = new Set([
+  'upsertWorker', // includes the labor attributes (birth date, night worker, weekly-limit opt-out, no fixed hours)
   'deleteWorker',
+  'upsertAvailability',
   'deleteAvailability',
+  'upsertShiftTemplate',
   'deleteShiftTemplate',
+  'upsertRosterShift',
+  'updateShiftStatus',
+  'markShiftNotified',
   'deleteRosterShift',
+  'upsertTargets',
+  'deleteDemandTarget',
+  // POS sales feed the demand forecast.
+  'uploadPosSales',
+]);
+
+/**
+ * Actions that need `canManage` (a personal account, or an admin of the
+ * organization). Open to members: reads, a forecast (which stores model rows
+ * only for a manager), and the member's own per-user data (onboarding, usage
+ * count; referrals live in their own route).
+ */
+const MANAGER_ACTIONS = new Set([
+  ...SCHEDULING_WRITE_ACTIONS,
   // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
   'upsertLocation',
   'deleteLocation',
@@ -76,23 +123,15 @@ const getServiceClient = (): SupabaseClient | null => {
 
 // ─── Validators ───────────────────────────────────────────────────────────────
 
-const isHHMM = (v: unknown): v is string =>
-  typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
-
-const isDayOfWeek = (v: unknown): v is string =>
-  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(v as string);
-
-const isShiftStatus = (v: unknown): v is 'Draft' | 'Published' =>
-  v === 'Draft' || v === 'Published';
-
-const isISODate = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+/**
+ * A real calendar date as YYYY-MM-DD. `isDateKey` round-trips the parts, so 2026-02-31
+ * is refused (Date.parse rolls it over to 2026-03-03, and Postgres then rejects it with
+ * a 500) (CHG-087).
+ */
+const isISODate = (v: unknown): v is string => typeof v === 'string' && isDateKey(v);
 
 const isNonEmptyString = (v: unknown, max = 200): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= max;
-
-const isUuid = (v: unknown): v is string =>
-  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -143,24 +182,6 @@ async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthConte
   return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
-async function updateOwned(
-  client: SupabaseClient,
-  table: string,
-  ctx: AuthContext,
-  id: unknown,
-  values: Record<string, unknown>,
-): Promise<Result> {
-  if (!isUuid(id)) return badRequest('id must be a UUID');
-  const { data, error } = await client
-    .from(table)
-    .update(values)
-    .eq('id', id)
-    .eq('account_id', ctx.accountId)
-    .select('id');
-  if (error) return dbFailure(`update ${table}`, error);
-  return (data ?? []).length ? ok({ success: true }) : notFound();
-}
-
 /** True when every id exists in `table` for the caller's tenant. */
 async function ownsAll(client: SupabaseClient, table: string, ctx: AuthContext, ids: string[]): Promise<boolean | Result> {
   const unique = Array.from(new Set(ids));
@@ -174,6 +195,33 @@ async function ownsAll(client: SupabaseClient, table: string, ctx: AuthContext, 
   return (data ?? []).length === unique.length;
 }
 
+// ─── Paged lists ──────────────────────────────────────────────────────────────
+
+/** Rows per page of the scheduling lists (workers, availability, templates, roster, overrides). */
+export const LIST_PAGE_SIZE = 500;
+/** Pages a client may request per list: 10 000 rows. */
+export const LIST_MAX_PAGES = 20;
+
+/** `page` from the body (default 0), or an error message. */
+const readPage = (page: unknown): number | string => {
+  const value = page === undefined ? 0 : page;
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) < LIST_MAX_PAGES
+    ? (value as number)
+    : `page must be an integer from 0 to ${LIST_MAX_PAGES - 1}`;
+};
+
+/**
+ * One page: asks for LIST_PAGE_SIZE + 1 rows, so `hasMore` needs no count.
+ * The caller orders the query with a unique tie-breaker (id), so pages never
+ * overlap or skip rows.
+ */
+const pageRange = (page: number): [number, number] => [page * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE + LIST_PAGE_SIZE];
+
+const pageOf = <Row>(rows: Row[] | null, page: number) => {
+  const all = rows ?? [];
+  return { rows: all.slice(0, LIST_PAGE_SIZE), page, pageSize: LIST_PAGE_SIZE, hasMore: all.length > LIST_PAGE_SIZE };
+};
+
 // ─── Forecasting ──────────────────────────────────────────────────────────────
 
 type HistoricalShift = { date: string; role: string; hours?: number; worker_id?: string };
@@ -181,6 +229,12 @@ type ExternalSignal = { date: string; role?: string; signal_type?: string; weigh
 
 const roundToInt = (value: number) => Math.max(0, Math.round(value));
 const buildKey = (item: { date: string; role: string }) => `${item.date}::${item.role}`;
+
+/** 400 message for forecast filters with a date that is not a real YYYY-MM-DD date, else null. */
+const filtersDateError = (filters: unknown): string | null =>
+  isRecord(filters) && filters.date !== undefined && filters.date !== null && filters.date !== '' && !isISODate(filters.date)
+    ? 'filters.date must be a real YYYY-MM-DD date'
+    : null;
 
 const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
   if (!isRecord(filters)) return undefined;
@@ -289,48 +343,6 @@ const callForecastApi = async (inputs: { shifts: HistoricalShift[]; signals: Ext
   }
 };
 
-const computeDailyAverages = (shifts: HistoricalShift[], signals: ExternalSignal[], filters?: ForecastFilters): DemandForecast[] => {
-  const grouped = shifts.reduce<Record<string, number[]>>((acc, shift) => {
-    if (filters?.role && shift.role !== filters.role) return acc;
-    const key = buildKey(shift);
-    (acc[key] ??= []).push(shift.hours ?? 8);
-    return acc;
-  }, {});
-
-  const signalMap = signals.reduce<Record<string, number>>((acc, signal) => {
-    if (filters?.role && signal.role && signal.role !== filters.role) return acc;
-    if (!signal.weight) return acc;
-    const key = buildKey({ date: signal.date, role: signal.role ?? 'global' });
-    acc[key] = (acc[key] ?? 0) + signal.weight;
-    return acc;
-  }, {});
-
-  const keys = new Set<string>([...Object.keys(grouped), ...Object.keys(signalMap)]);
-  if (filters?.date && filters?.role) keys.add(buildKey({ date: filters.date, role: filters.role }));
-
-  const forecasts: DemandForecast[] = [];
-  keys.forEach((key) => {
-    const [date, ...roleParts] = key.split('::');
-    const role = roleParts.join('::');
-    const samples = grouped[key] ?? [];
-    const mean = samples.length ? samples.reduce((s, v) => s + v, 0) / samples.length : 4;
-    const variance = samples.length ? samples.reduce((s, v) => s + (v - mean) ** 2, 0) / samples.length : 1.5;
-    const stdDev = Math.sqrt(variance);
-    const signalBoost = signalMap[key] ?? signalMap[buildKey({ date, role: 'global' })] ?? 0;
-    const required = roundToInt(mean + signalBoost);
-    forecasts.push({
-      date,
-      role,
-      required,
-      lowerBound: Math.max(0, Math.floor(required - stdDev)),
-      upperBound: roundToInt(required + stdDev),
-      confidence: Math.max(0, Math.min(1, samples.length ? 0.7 + Math.min(samples.length / 20, 0.2) : 0.55)),
-      source: 'model',
-    });
-  });
-  return forecasts.sort((a, b) => a.date.localeCompare(b.date));
-};
-
 async function generateForecast(client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters): Promise<ForecastGenerationResult> {
   const metadata: ForecastGenerationMetadata = {
     hasHistorical: false,
@@ -357,43 +369,258 @@ async function generateForecast(client: SupabaseClient, ctx: AuthContext, filter
   metadata.apiCallFailed = api.failed;
   metadata.usedFallback = !metadata.usedApi;
   if (metadata.usedFallback) {
+    // The statistical forecast runs on the client (services/forecasting/):
+    // Workers Free allows 10 ms of CPU per request, so this route only
+    // fetches history (forecastHistory, listForecastSignals).
     metadata.fallbackReason = !metadata.apiAvailable
-      ? 'Forecast API is not configured; using local averages.'
+      ? 'Forecast API is not configured; use the statistical forecast.'
       : api.failed
-        ? 'Forecast API request failed; using local averages.'
-        : 'Forecast API returned no data; using local averages.';
+        ? 'Forecast API request failed; use the statistical forecast.'
+        : 'Forecast API returned no data; use the statistical forecast.';
   }
 
-  const generated = metadata.usedApi ? api.forecasts : computeDailyAverages(shifts, signals, filters);
+  const generated = metadata.usedApi ? api.forecasts : [];
   const lookup = new Map<string, DemandForecast>();
   generated.forEach((f) => lookup.set(buildKey(f), f));
   stored.filter((t) => t.source === 'override').forEach((o) => lookup.set(buildKey(o), o));
   const merged = Array.from(lookup.values());
 
+  // A member may read a forecast; only a manager's request stores the model rows (CHG-091).
   const modelRows = merged.filter((f) => f.source !== 'override').map((f) => toTargetRow(ctx, f, 'model'));
-  if (modelRows.length) {
+  if (modelRows.length && ctx.canManage) {
     const { error } = await client.from('demand_targets').upsert(modelRows, { onConflict: 'account_id,date,role' });
     if (error) console.warn('[secure-proxy] unable to persist demand targets:', error.message);
   }
   return { forecasts: merged, metadata };
 }
 
+/** Rows per history page (Supabase's default max-rows). */
+const FORECAST_HISTORY_PAGE_SIZE = 1000;
+/** Pages a client may request: 40 000 shifts, newest first. */
+const FORECAST_HISTORY_MAX_PAGES = 40;
+/** Longest history window, in days (3 years). */
+const FORECAST_HISTORY_MAX_DAYS = 1100;
+
+const daysBetweenIso = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+/** Validates a [from, to) date window; returns an error message or null. */
+const historyWindowError = (from: unknown, to: unknown): string | null => {
+  if (!isISODate(from) || !isISODate(to)) return 'from and to must be YYYY-MM-DD dates';
+  const span = daysBetweenIso(from, to);
+  if (span <= 0) return 'from must be before to';
+  if (span > FORECAST_HISTORY_MAX_DAYS) return `The window is limited to ${FORECAST_HISTORY_MAX_DAYS} days`;
+  return null;
+};
+
+/**
+ * One page of shift history in [from, to), newest first, summed per date ×
+ * role ({ date, role, shifts, hours }). The client adds the pages up and fits
+ * the forecast itself; this action does no modelling. Page 0 also returns the
+ * total row count so the client can fetch the other pages in parallel.
+ */
+async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const windowError = historyWindowError(p.from, p.to);
+  if (windowError) return badRequest(windowError);
+  if (p.role !== undefined && !isNonEmptyString(p.role, 100)) return badRequest('role must be a non-empty string');
+  const page = p.page === undefined ? 0 : Number(p.page);
+  if (!Number.isInteger(page) || page < 0 || page >= FORECAST_HISTORY_MAX_PAGES) {
+    return badRequest(`page must be an integer from 0 to ${FORECAST_HISTORY_MAX_PAGES - 1}`);
+  }
+  const offset = page * FORECAST_HISTORY_PAGE_SIZE;
+  let query = client
+    .from('shifts')
+    .select('date, role, hours', page === 0 ? { count: 'exact' } : undefined)
+    .eq('account_id', ctx.accountId)
+    .gte('date', p.from as string)
+    .lt('date', p.to as string);
+  if (typeof p.role === 'string') query = query.eq('role', p.role);
+  const { data, error, count } = await query
+    .order('date', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + FORECAST_HISTORY_PAGE_SIZE - 1);
+  if (error) return dbFailure('select shifts history', error);
+  const rows = data ?? [];
+  const days = new Map<string, { date: string; role: string; shifts: number; hours: number }>();
+  for (const row of rows) {
+    const key = buildKey(row);
+    const day = days.get(key) ?? { date: row.date, role: row.role, shifts: 0, hours: 0 };
+    day.shifts += 1;
+    day.hours += Number(row.hours ?? 0);
+    days.set(key, day);
+  }
+  return ok({
+    days: Array.from(days.values()),
+    page,
+    pageSize: FORECAST_HISTORY_PAGE_SIZE,
+    rows: rows.length,
+    total: page === 0 ? count ?? null : null,
+  });
+}
+
+/**
+ * Most signals one listForecastSignals call returns. Each query asks for one more, so
+ * the limit stays below the API's max_rows (1000, `supabase/config.toml`): a probe at
+ * the cap would be cut to it and never report truncation.
+ */
+const FORECAST_SIGNALS_LIMIT = 999;
+
+type SignalRow = { date: string; role: string | null; signal_type: string | null; weight: number | string | null };
+
+/**
+ * External signals in [from, to); with a role, that role's and the global ones. At most
+ * FORECAST_SIGNALS_LIMIT are returned, and `truncated` says whether some were left out
+ * (CHG-087). With `targetsFrom` (the first forecast date, inside the window) the
+ * signals in [targetsFrom, to) come first, nearest first, and the history signals fill
+ * the rest, newest first; without it the window is read newest first. Either way the
+ * oldest history signals are the ones dropped, never the future ones being forecast
+ * (before, the window was read oldest first and the future was cut off).
+ */
+async function listForecastSignals(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const windowError = historyWindowError(p.from, p.to);
+  if (windowError) return badRequest(windowError);
+  if (p.role !== undefined && !isNonEmptyString(p.role, 100)) return badRequest('role must be a non-empty string');
+  const from = p.from as string;
+  const to = p.to as string;
+  if (p.targetsFrom !== undefined && (!isISODate(p.targetsFrom) || p.targetsFrom <= from || p.targetsFrom > to)) {
+    return badRequest('targetsFrom must be a YYYY-MM-DD date after from and not after to');
+  }
+  const split = p.targetsFrom as string | undefined;
+  // Each query asks for one row more than it may keep, to tell whether rows were left out.
+  const read = (gte: string, lt: string, ascending: boolean) => {
+    let query = client
+      .from('external_signals')
+      .select('date, role, signal_type, weight')
+      .eq('account_id', ctx.accountId)
+      .gte('date', gte)
+      .lt('date', lt);
+    if (typeof p.role === 'string') query = query.in('role', [p.role, 'global']);
+    return query.order('date', { ascending }).limit(FORECAST_SIGNALS_LIMIT + 1);
+  };
+  const [future, past] = await Promise.all(
+    split ? [read(split, to, true), read(from, split, false)] : [read(from, to, false)],
+  );
+  if (future.error) return dbFailure('select external_signals', future.error);
+  if (past?.error) return dbFailure('select external_signals', past.error);
+  const futureRows = (future.data ?? []) as SignalRow[];
+  const pastRows = (past?.data ?? []) as SignalRow[];
+  const keptFuture = futureRows.slice(0, FORECAST_SIGNALS_LIMIT);
+  const room = FORECAST_SIGNALS_LIMIT - keptFuture.length;
+  const keptPast = pastRows.slice(0, room);
+  const truncated = futureRows.length > keptFuture.length || pastRows.length > keptPast.length;
+  return ok({
+    signals: [...keptFuture, ...keptPast].map((s) => ({ ...s, weight: s.weight === null ? null : Number(s.weight) })),
+    truncated,
+  });
+}
+
+/** True when the tenant has at least one row in `table` (matching the filters). */
+async function hasRows(client: SupabaseClient, table: string, ctx: AuthContext, filters?: ForecastFilters): Promise<boolean> {
+  let query = client.from(table).select('date').eq('account_id', ctx.accountId);
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
+  const { data, error } = await query.limit(1);
+  if (error) {
+    console.warn(`[secure-proxy] ${table} unavailable:`, error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
+}
+
+const overrideFromInput = (t: DemandTargetInput): DemandForecast => ({
+  date: t.date,
+  role: t.role,
+  required: t.required,
+  source: 'override',
+  ...(t.notes !== null ? { notes: t.notes } : {}),
+  ...(t.confidence !== null ? { confidence: t.confidence } : {}),
+  ...(t.lowerBound !== null ? { lowerBound: t.lowerBound } : {}),
+  ...(t.upperBound !== null ? { upperBound: t.upperBound } : {}),
+});
+
+/** Manual overrides only: model rows are never written by a client (CHG-088). */
 async function upsertTargets(client: SupabaseClient, ctx: AuthContext, targets: unknown): Promise<Result> {
   if (!Array.isArray(targets)) return badRequest('targets must be an array');
   if (targets.length > 500) return badRequest('Maximum 500 targets per request');
-  const valid: DemandForecast[] = [];
-  for (const t of targets) {
-    if (!isRecord(t) || !isISODate(t.date) || !isNonEmptyString(t.role, 100)) return badRequest('Each target needs date and role');
-    const required = Number(t.required);
-    if (!Number.isFinite(required) || required < 0 || required > 10_000) return badRequest('required must be a number between 0 and 10000');
-    valid.push({ ...(t as unknown as DemandForecast), required: Math.round(required) });
+  const valid: DemandTargetInput[] = [];
+  for (const [index, t] of targets.entries()) {
+    const checked = validateDemandTargetInput(t);
+    if (!checked.ok) return badRequest(`Invalid target ${index + 1}: ${checked.error}`);
+    valid.push(checked.value);
   }
   if (!valid.length) return ok({ success: true, targets: [] });
-  const { error } = await client
-    .from('demand_targets')
-    .upsert(valid.map((t) => toTargetRow(ctx, t, 'override')), { onConflict: 'account_id,date,role' });
+  const rows = valid.map((t) => ({
+    account_id: ctx.accountId,
+    date: t.date,
+    role: t.role,
+    required: t.required,
+    notes: t.notes,
+    confidence: t.confidence,
+    lower_bound: t.lowerBound,
+    upper_bound: t.upperBound,
+    source: 'override',
+  }));
+  const { error } = await client.from('demand_targets').upsert(rows, { onConflict: 'account_id,date,role' });
   if (error) return dbFailure('upsert demand_targets', error);
-  return ok({ success: true, targets: valid });
+  return ok({ success: true, targets: valid.map(overrideFromInput) });
+}
+
+/**
+ * One page of the tenant's manual overrides, oldest date first, optionally in
+ * [fromDate, toDate] and for one date / role (`filters`, as `forecast` takes).
+ */
+async function listOverrideTargets(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  const dateError = filtersDateError(p.filters);
+  if (dateError) return badRequest(dateError);
+  if (p.fromDate !== undefined && !isISODate(p.fromDate)) return badRequest('fromDate must be a real YYYY-MM-DD date');
+  if (p.toDate !== undefined && !isISODate(p.toDate)) return badRequest('toDate must be a real YYYY-MM-DD date');
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
+  const filters = cleanFilters(p.filters);
+  let query = client
+    .from('demand_targets')
+    .select('id, date, role, required, notes, confidence, lower_bound, upper_bound, source')
+    .eq('account_id', ctx.accountId)
+    .eq('source', 'override');
+  if (filters?.date) query = query.eq('date', filters.date);
+  if (filters?.role) query = query.eq('role', filters.role);
+  if (typeof p.fromDate === 'string') query = query.gte('date', p.fromDate);
+  if (typeof p.toDate === 'string') query = query.lte('date', p.toDate);
+  const { data, error } = await query
+    .order('date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
+  if (error) return dbFailure('list demand_targets', error);
+  const { rows, ...meta } = pageOf(data, page);
+  return ok({
+    ...meta,
+    targets: rows.map((row) => ({
+      date: row.date,
+      role: row.role,
+      required: Number(row.required ?? 0),
+      notes: row.notes ?? undefined,
+      confidence: row.confidence === null ? undefined : Number(row.confidence),
+      lowerBound: row.lower_bound === null ? undefined : Number(row.lower_bound),
+      upperBound: row.upper_bound === null ? undefined : Number(row.upper_bound),
+      source: 'override' as const,
+    })),
+  });
+}
+
+/** Removes the override for one date and role; 404 when the tenant has none. */
+async function deleteDemandTarget(client: SupabaseClient, ctx: AuthContext, target: unknown): Promise<Result> {
+  const key = validateDemandTargetKey(target);
+  if (!key.ok) return badRequest(key.error);
+  const { data, error } = await client
+    .from('demand_targets')
+    .delete()
+    .eq('account_id', ctx.accountId)
+    .eq('date', key.value.date)
+    .eq('role', key.value.role)
+    .eq('source', 'override')
+    .select('id');
+  if (error) return dbFailure('delete demand_targets', error);
+  return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
@@ -460,33 +687,32 @@ const rowToWorker = (row: WorkerRow) => ({
   createdAt: row.created_at,
 });
 
-async function listWorkers(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('workers')
     .select(WORKER_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
-    .limit(500);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list workers', error);
-  return ok({ workers: (data as WorkerRow[]).map(rowToWorker) });
+  const { rows, ...meta } = pageOf(data as WorkerRow[] | null, page);
+  return ok({ ...meta, workers: rows.map(rowToWorker) });
 }
 
 async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown): Promise<Result> {
-  if (!isRecord(worker)) return badRequest('worker is required');
-  if (!isNonEmptyString(worker.name, 100)) return badRequest('name is required (max 100 chars)');
-  if (!isNonEmptyString(worker.role, 100)) return badRequest('role is required (max 100 chars)');
-  const skills = Array.isArray(worker.skills) ? worker.skills : [];
-  if (skills.length > 50 || !skills.every((s) => isNonEmptyString(s, 100))) return badRequest('skills must be up to 50 short strings');
-  // Labor attributes: absent fields are left as stored (or the column default on insert).
-  const labor = validateWorkerLabor(worker);
-  if (!labor.ok) return badRequest(labor.error);
-  const { birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = labor.values;
+  const checked = validateWorkerInput(worker);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = checked.value;
 
+  // Labor attributes: absent fields are left as stored (or the column default on insert).
   const result = await updateOrInsert<WorkerRow>(
-    client, 'workers', ctx, worker.id as string | undefined,
+    client, 'workers', ctx, id,
     {
-      name: worker.name.trim(),
-      role: worker.role.trim(),
+      name,
+      role,
       skills,
       ...(birthDate !== undefined ? { birth_date: birthDate } : {}),
       ...(nightWorker !== undefined ? { night_worker: nightWorker } : {}),
@@ -512,33 +738,33 @@ const rowToAvailability = (row: AvailabilityRow) => ({
   toTime: row.to_time,
 });
 
-async function listAvailability(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listAvailability(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('worker_availability')
     .select(AVAILABILITY_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('worker_id', { ascending: true })
-    .limit(2000);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list worker_availability', error);
-  return ok({ availabilities: (data as AvailabilityRow[]).map(rowToAvailability) });
+  const { rows, ...meta } = pageOf(data as AvailabilityRow[] | null, page);
+  return ok({ ...meta, availabilities: rows.map(rowToAvailability) });
 }
 
 async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: unknown): Promise<Result> {
-  if (!isRecord(av)) return badRequest('availability is required');
-  if (!isUuid(av.workerId)) return badRequest('workerId must be a UUID');
-  if (!isDayOfWeek(av.dayOfWeek)) return badRequest('dayOfWeek must be Mon–Sun');
-  if (!isHHMM(av.fromTime)) return badRequest('fromTime must be HH:MM');
-  if (!isHHMM(av.toTime)) return badRequest('toTime must be HH:MM');
-  // An earlier end time means the window ends the next day.
-  if (av.fromTime === av.toTime) return badRequest('fromTime and toTime must differ');
+  const checked = validateAvailabilityInput(av);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, workerId, dayOfWeek, fromTime, toTime } = checked.value;
 
-  const owns = await ownsAll(client, 'workers', ctx, [av.workerId]);
+  const owns = await ownsAll(client, 'workers', ctx, [workerId]);
   if (owns !== true) return owns === false ? notFound() : owns;
 
-  const values = { worker_id: av.workerId, day_of_week: av.dayOfWeek, from_time: av.fromTime, to_time: av.toTime };
+  const values = { worker_id: workerId, day_of_week: dayOfWeek, from_time: fromTime, to_time: toTime };
 
-  if (av.id !== undefined) {
-    const result = await updateOrInsert<AvailabilityRow>(client, 'worker_availability', ctx, av.id as string, values, AVAILABILITY_COLUMNS);
+  if (id !== undefined) {
+    const result = await updateOrInsert<AvailabilityRow>(client, 'worker_availability', ctx, id, values, AVAILABILITY_COLUMNS);
     return 'error' in result ? result.error : ok({ success: true, availability: rowToAvailability(result.row) });
   }
 
@@ -569,32 +795,28 @@ const rowToTemplate = (row: TemplateRow) => ({
   createdAt: row.created_at,
 });
 
-async function listTemplates(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
+  const page = readPage(pageInput);
+  if (typeof page === 'string') return badRequest(page);
   const { data, error } = await client
     .from('shift_templates')
     .select(TEMPLATE_COLUMNS)
     .eq('account_id', ctx.accountId)
     .order('name', { ascending: true })
-    .limit(500);
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list shift_templates', error);
-  return ok({ templates: (data as TemplateRow[]).map(rowToTemplate) });
+  const { rows, ...meta } = pageOf(data as TemplateRow[] | null, page);
+  return ok({ ...meta, templates: rows.map(rowToTemplate) });
 }
 
 async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown): Promise<Result> {
-  if (!isRecord(tmpl)) return badRequest('template is required');
-  if (!isNonEmptyString(tmpl.name, 100)) return badRequest('name is required (max 100 chars)');
-  if (!isNonEmptyString(tmpl.role, 100)) return badRequest('role is required (max 100 chars)');
-  if (!isHHMM(tmpl.startTime)) return badRequest('startTime must be HH:MM');
-  if (!isHHMM(tmpl.endTime)) return badRequest('endTime must be HH:MM');
-  // An earlier end time is an overnight shift.
-  if (tmpl.startTime === tmpl.endTime) return badRequest('startTime and endTime must differ');
-  if (!Number.isInteger(tmpl.coverage) || (tmpl.coverage as number) < 1 || (tmpl.coverage as number) > 500) {
-    return badRequest('coverage must be an integer between 1 and 500');
-  }
-
+  const checked = validateShiftTemplateInput(tmpl);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, name, role, startTime, endTime, coverage } = checked.value;
   const result = await updateOrInsert<TemplateRow>(
-    client, 'shift_templates', ctx, tmpl.id as string | undefined,
-    { name: tmpl.name.trim(), role: tmpl.role.trim(), start_time: tmpl.startTime, end_time: tmpl.endTime, coverage: tmpl.coverage },
+    client, 'shift_templates', ctx, id,
+    { name, role, start_time: startTime, end_time: endTime, coverage },
     TEMPLATE_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, template: rowToTemplate(result.row) });
@@ -621,51 +843,132 @@ const rowToRosterShift = (row: RosterRow) => ({
   updatedAt: row.updated_at,
 });
 
-async function listRoster(client: SupabaseClient, ctx: AuthContext, fromDate: unknown, toDate: unknown): Promise<Result> {
-  if (fromDate !== undefined && !isISODate(fromDate)) return badRequest('fromDate must be YYYY-MM-DD');
-  if (toDate !== undefined && !isISODate(toDate)) return badRequest('toDate must be YYYY-MM-DD');
+async function listRoster(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  if (p.fromDate !== undefined && !isISODate(p.fromDate)) return badRequest('fromDate must be YYYY-MM-DD');
+  if (p.toDate !== undefined && !isISODate(p.toDate)) return badRequest('toDate must be YYYY-MM-DD');
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
   let query = client
     .from('roster')
     .select(ROSTER_COLUMNS)
-    .eq('account_id', ctx.accountId)
+    .eq('account_id', ctx.accountId);
+  if (typeof p.fromDate === 'string') query = query.gte('date', p.fromDate);
+  if (typeof p.toDate === 'string') query = query.lte('date', p.toDate);
+  const { data, error } = await query
     .order('date', { ascending: true })
-    .limit(500);
-  if (fromDate) query = query.gte('date', fromDate);
-  if (toDate) query = query.lte('date', toDate);
-  const { data, error } = await query;
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
   if (error) return dbFailure('list roster', error);
-  return ok({ shifts: (data as RosterRow[]).map(rowToRosterShift) });
+  const { rows, ...meta } = pageOf(data as RosterRow[] | null, page);
+  return ok({ ...meta, shifts: rows.map(rowToRosterShift) });
 }
 
+/**
+ * `notified` is never taken from the client (CHG-091, QA G4); only
+ * markShiftNotified sets it. A new shift is stored un-notified. An update
+ * keeps the stored value, and clears it when the date, worker, template or
+ * status changes: that assignment has not been sent (a status change clears
+ * it in updateShiftStatus too). The update matches the values it was decided
+ * on, so a change made in between gives 409 instead of keeping a stale flag.
+ */
 async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
-  if (!isRecord(shift)) return badRequest('shift is required');
-  if (!isISODate(shift.date)) return badRequest('date must be YYYY-MM-DD');
-  if (!isUuid(shift.workerId)) return badRequest('workerId must be a UUID');
-  if (!isUuid(shift.templateId)) return badRequest('templateId must be a UUID');
-  if (shift.status !== undefined && !isShiftStatus(shift.status)) return badRequest('status must be Draft or Published');
-  if (shift.location !== undefined && typeof shift.location !== 'string') return badRequest('location must be a string');
+  const checked = validateRosterShiftInput(shift);
+  if (!checked.ok) return badRequest(checked.error);
+  const { id, date, workerId, templateId, location, status } = checked.value;
 
   const [ownsWorker, ownsTemplate] = await Promise.all([
-    ownsAll(client, 'workers', ctx, [shift.workerId]),
-    ownsAll(client, 'shift_templates', ctx, [shift.templateId]),
+    ownsAll(client, 'workers', ctx, [workerId]),
+    ownsAll(client, 'shift_templates', ctx, [templateId]),
   ]);
   if (ownsWorker !== true) return ownsWorker === false ? notFound() : ownsWorker;
   if (ownsTemplate !== true) return ownsTemplate === false ? notFound() : ownsTemplate;
 
-  const result = await updateOrInsert<RosterRow>(
-    client, 'roster', ctx, shift.id as string | undefined,
-    {
-      date: shift.date,
-      worker_id: shift.workerId,
-      template_id: shift.templateId,
-      location: ((shift.location as string | undefined) ?? '').slice(0, 200),
-      status: shift.status ?? 'Draft',
-      notified: shift.notified === true,
-    },
-    ROSTER_COLUMNS,
-  );
+  const values = { date, worker_id: workerId, template_id: templateId, location, status };
+  if (id !== undefined) {
+    const existing = await ownRosterRow(client, ctx, id);
+    if (isResult(existing)) return existing;
+    if (existing) {
+      const reassigned =
+        existing.date !== date || existing.worker_id !== workerId || existing.template_id !== templateId || existing.status !== status;
+      const { data, error } = await client
+        .from('roster')
+        .update(reassigned ? { ...values, notified: false } : values)
+        .eq('id', id)
+        .eq('account_id', ctx.accountId)
+        .eq('date', existing.date)
+        .eq('worker_id', existing.worker_id)
+        .eq('template_id', existing.template_id)
+        .eq('status', existing.status)
+        .select(ROSTER_COLUMNS)
+        .maybeSingle();
+      if (error) return dbFailure('update roster', error);
+      if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
+      return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+    }
+  }
+
+  // New shift (or a client id with no row of this tenant): never notified.
+  // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
+  const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
 }
+
+/** The caller's roster row, null when it has none with this id. */
+async function ownRosterRow(client: SupabaseClient, ctx: AuthContext, id: string): Promise<RosterRow | null | Result> {
+  const { data, error } = await client
+    .from('roster')
+    .select(ROSTER_COLUMNS)
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .maybeSingle();
+  if (error) return dbFailure('select roster', error);
+  return (data as RosterRow | null) ?? null;
+}
+
+const isResult = (v: unknown): v is Result => isRecord(v) && typeof v.status === 'number' && 'body' in v;
+
+/**
+ * Changing the status clears `notified`: a shift published again must be
+ * sent again (the client shows the same). Setting the status a shift already
+ * has changes nothing, so a retry does not clear a sent notification.
+ * Returns the stored shift.
+ */
+async function updateShiftStatus(client: SupabaseClient, ctx: AuthContext, id: unknown, status: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  if (!isShiftStatus(status)) return badRequest('status must be Draft or Published');
+  const { data, error } = await client
+    .from('roster')
+    .update({ status, notified: false })
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .neq('status', status)
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster status', error);
+  if (data) return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+  const existing = await ownRosterRow(client, ctx, id);
+  if (isResult(existing)) return existing;
+  return existing ? ok({ success: true, shift: rowToRosterShift(existing) }) : notFound();
+}
+
+/** Only a published shift can be marked notified: 409 for a draft, 404 for another tenant's id. */
+async function markShiftNotified(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from('roster')
+    .update({ notified: true })
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .eq('status', 'Published')
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster notified', error);
+  if (data) return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
+  const existing = await ownRosterRow(client, ctx, id);
+  if (isResult(existing)) return existing;
+  return existing ? fail(409, 'Publish the shift before notifying') : notFound();
+}
+
 
 // ─── Business locations ───────────────────────────────────────────────────────
 // Labor law follows the work location, so the jurisdiction lives here. The
@@ -716,12 +1019,100 @@ async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location
   const checked = validateLocationInput(location);
   if (!checked.ok) return badRequest(checked.message);
   const { id, ...values } = checked.value;
+  if (values.overrides === undefined && id !== undefined && isUuid(id)) {
+    // An update that keeps the stored overrides may change the jurisdiction:
+    // they must still be stricter than the new place's rules (CHG-089).
+    const { data, error } = await client
+      .from('locations')
+      .select('jurisdiction_code, overrides')
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (error) return dbFailure('read location overrides', error);
+    const stored = data as { jurisdiction_code: string; overrides: unknown } | null;
+    if (stored && stored.jurisdiction_code !== values.jurisdiction_code && Array.isArray(stored.overrides) && stored.overrides.length) {
+      const recheck = validateOverrides(stored.overrides, resolvePack(values.jurisdiction_code), todayKey(values.time_zone));
+      if (!recheck.ok) {
+        return badRequest(`The saved overrides do not fit the new jurisdiction: ${recheck.message} Send overrides with this change.`);
+      }
+    }
+  }
   const result = await updateOrInsert<LocationRow>(
     client, 'locations', ctx, id,
     { ...values, confirmed_by: ctx.userId, confirmed_at: new Date().toISOString() },
     LOCATION_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, location: rowToLocation(result.row) });
+}
+
+/**
+ * Deletes through public.delete_location so the history trigger records who
+ * deleted it (the service-role connection cannot see the Clerk user).
+ */
+async function deleteLocation(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client.rpc('delete_location', {
+    p_account_id: ctx.accountId,
+    p_location_id: id,
+    p_actor: ctx.userId,
+  });
+  if (error) return dbFailure('delete locations', error);
+  return data === true ? ok({ success: true }) : notFound();
+}
+
+// Change history, written only by the locations trigger
+// (20261021000089_location_history.sql). Read-only here.
+const LOCATION_HISTORY_COLUMNS =
+  'id, location_id, location_name, action, changed_by, changed_at, old_jurisdiction_code, new_jurisdiction_code, ' +
+  'old_time_zone, new_time_zone, old_industry, new_industry, old_employer_headcount, new_employer_headcount, old_overrides, new_overrides';
+const LOCATION_HISTORY_DEFAULT_LIMIT = 50;
+const LOCATION_HISTORY_MAX_LIMIT = 200;
+type LocationHistoryRow = {
+  id: number; location_id: string; location_name: string; action: LocationHistoryEntry['action']; changed_by: string | null;
+  changed_at: string; old_jurisdiction_code: string | null; new_jurisdiction_code: string | null; old_time_zone: string | null;
+  new_time_zone: string | null; old_industry: string | null; new_industry: string | null; old_employer_headcount: number | null;
+  new_employer_headcount: number | null; old_overrides: unknown[] | null; new_overrides: unknown[] | null;
+};
+
+const rowToHistoryEntry = (row: LocationHistoryRow): LocationHistoryEntry => {
+  const side = (which: 'old' | 'new'): LocationHistoryValues | null => {
+    if ((which === 'old' && row.action === 'insert') || (which === 'new' && row.action === 'delete')) return null;
+    return {
+      jurisdictionCode: row[`${which}_jurisdiction_code`],
+      timeZone: row[`${which}_time_zone`],
+      industry: row[`${which}_industry`],
+      employerHeadcount: row[`${which}_employer_headcount`],
+      overrides: row[`${which}_overrides`],
+    };
+  };
+  return {
+    id: row.id,
+    locationId: row.location_id,
+    locationName: row.location_name,
+    action: row.action,
+    changedBy: row.changed_by,
+    changedAt: row.changed_at,
+    old: side('old'),
+    new: side('new'),
+  };
+};
+
+async function listLocationHistory(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  if (p.locationId !== undefined && !isUuid(p.locationId)) return badRequest('locationId must be a UUID');
+  if (p.limit !== undefined && (!Number.isInteger(p.limit) || (p.limit as number) < 1 || (p.limit as number) > LOCATION_HISTORY_MAX_LIMIT)) {
+    return badRequest(`limit must be a whole number from 1 to ${LOCATION_HISTORY_MAX_LIMIT}`);
+  }
+  let query = client
+    .from('location_history')
+    .select(LOCATION_HISTORY_COLUMNS)
+    .eq('account_id', ctx.accountId);
+  if (p.locationId !== undefined) query = query.eq('location_id', p.locationId as string);
+  const { data, error } = await query
+    .order('changed_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit((p.limit as number | undefined) ?? LOCATION_HISTORY_DEFAULT_LIMIT);
+  if (error) return dbFailure('list location history', error);
+  return ok({ history: (data as unknown as LocationHistoryRow[]).map(rowToHistoryEntry) });
 }
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
@@ -840,19 +1231,27 @@ const paymentsNotConfigured = () => fail(501, 'Payment integration not yet confi
 
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
   switch (p.action) {
-    case 'forecast':
+    case 'forecast': {
+      const dateError = filtersDateError(p.filters);
+      if (dateError) return badRequest(dateError);
       return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
+    }
     case 'status': {
+      const dateError = filtersDateError(p.filters);
+      if (dateError) return badRequest(dateError);
+      // History is checked for the role only: a forecast for a date is made
+      // from earlier days, so the date filter does not apply to history.
       const filters = cleanFilters(p.filters);
-      const [historical, signals, targets] = await Promise.all([
-        fetchHistoricalShifts(client, ctx, filters),
-        fetchExternalSignals(client, ctx, filters),
-        fetchExistingTargets(client, ctx, filters),
+      const roleOnly = filters?.role ? { role: filters.role } : undefined;
+      const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
+        hasRows(client, 'shifts', ctx, roleOnly),
+        hasRows(client, 'external_signals', ctx, filters),
+        hasRows(client, 'demand_targets', ctx, filters),
       ]);
       const status: ForecastGenerationMetadata = {
-        hasHistorical: historical.length > 0,
-        hasExternalSignals: signals.length > 0,
-        hasExistingTargets: targets.length > 0,
+        hasHistorical,
+        hasExternalSignals,
+        hasExistingTargets,
         apiAvailable: Boolean(FORECAST_API_URL),
         usedApi: false,
         usedFallback: false,
@@ -861,42 +1260,46 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       };
       return ok(status);
     }
+    case 'forecastHistory':
+      return forecastHistory(client, ctx, p);
+    case 'listForecastSignals':
+      return listForecastSignals(client, ctx, p);
     case 'loadTargets':
-      return ok({ targets: await fetchExistingTargets(client, ctx, cleanFilters(p.filters)) });
+      return listOverrideTargets(client, ctx, p);
     case 'upsertTargets':
       return upsertTargets(client, ctx, p.targets);
+    case 'deleteDemandTarget':
+      return deleteDemandTarget(client, ctx, p.target);
     case 'getOnboarding':
       return getOnboarding(client, ctx);
     case 'upsertOnboarding':
       return upsertOnboarding(client, ctx, p.flags);
     case 'listWorkers':
-      return listWorkers(client, ctx);
+      return listWorkers(client, ctx, p.page);
     case 'upsertWorker':
       return upsertWorker(client, ctx, p.worker);
     case 'deleteWorker':
       return deleteOwned(client, 'workers', ctx, p.id);
     case 'listWorkerAvailability':
-      return listAvailability(client, ctx);
+      return listAvailability(client, ctx, p.page);
     case 'upsertAvailability':
       return upsertAvailability(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
     case 'listShiftTemplates':
-      return listTemplates(client, ctx);
+      return listTemplates(client, ctx, p.page);
     case 'upsertShiftTemplate':
       return upsertTemplate(client, ctx, p.template);
     case 'deleteShiftTemplate':
       return deleteOwned(client, 'shift_templates', ctx, p.id);
     case 'listRoster':
-      return listRoster(client, ctx, p.fromDate, p.toDate);
+      return listRoster(client, ctx, p);
     case 'upsertRosterShift':
       return upsertRosterShift(client, ctx, p.shift);
     case 'updateShiftStatus':
-      return isShiftStatus(p.status)
-        ? updateOwned(client, 'roster', ctx, p.id, { status: p.status })
-        : badRequest('status must be Draft or Published');
+      return updateShiftStatus(client, ctx, p.id, p.status);
     case 'markShiftNotified':
-      return updateOwned(client, 'roster', ctx, p.id, { notified: true });
+      return markShiftNotified(client, ctx, p.id);
     case 'deleteRosterShift':
       return deleteOwned(client, 'roster', ctx, p.id);
     case 'listLocations':
@@ -904,7 +1307,9 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'upsertLocation':
       return upsertLocation(client, ctx, p.location);
     case 'deleteLocation':
-      return deleteOwned(client, 'locations', ctx, p.id);
+      return deleteLocation(client, ctx, p.id);
+    case 'listLocationHistory':
+      return listLocationHistory(client, ctx, p);
     case 'getUsageLimit':
       return getUsageLimit(client, ctx);
     case 'incrementAutoAssign':
@@ -942,7 +1347,14 @@ export async function POST(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.ok) return respond(fail(auth.status, auth.error));
   if (MANAGER_ACTIONS.has(payload.action) && !auth.ctx.canManage) {
-    return respond(fail(403, 'Only an admin of this business can do this'));
+    return respond(
+      fail(
+        403,
+        SCHEDULING_WRITE_ACTIONS.has(payload.action)
+          ? 'Only an admin of this business can change the schedule. Ask an admin to make this change'
+          : 'Only an admin of this business can do this',
+      ),
+    );
   }
 
   const client = getServiceClient();

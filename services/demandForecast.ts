@@ -1,14 +1,52 @@
+/**
+ * Demand forecast service.
+ *
+ * With EXPO_PUBLIC_FORECAST_API_URL set, the secure proxy's `forecast` action
+ * calls that external API first. Otherwise (or when it fails or returns
+ * nothing) the forecast is fitted here on the client by the statistical
+ * engine in services/forecasting/: the proxy only returns history
+ * (`forecastHistory`, `listForecastSignals`), because hosting allows 10 ms of
+ * CPU per request.
+ */
 import { getSessionToken } from '@/services/authToken';
+import type { ForecastModelName } from '@/services/forecasting/models';
+import {
+  DEFAULT_INTERVAL_LEVEL,
+  DEFAULT_SERVICE_LEVEL,
+  statisticalForecastAsync,
+  type ForecastSignal,
+  type HistoryDay,
+  type RoleModelSummary,
+} from '@/services/forecasting/statisticalForecast';
+import { getDeviceTimeZone } from '@/utils/businessTimeZone';
+import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 
 export type DemandForecast = {
   date: string;
   role: string;
+  /**
+   * Staff to plan for. For a statistical forecast this is the forecast at
+   * `serviceLevel` (e.g. the 80th percentile), rounded up, not the mean.
+   */
   required: number;
   notes?: string;
   confidence?: number;
+  /** Prediction interval (`intervalLevel` central coverage) for statistical forecasts. */
   lowerBound?: number;
   upperBound?: number;
   source?: 'model' | 'override';
+  /** Statistical forecasts only: the mean forecast, before planning for uncertainty. */
+  expected?: number;
+  /** Quantile `required` is taken at, e.g. 0.8. */
+  serviceLevel?: number;
+  /** Central coverage of [lowerBound, upperBound], e.g. 0.8. */
+  intervalLevel?: number;
+  /** Model chosen for this role by backtesting. */
+  model?: ForecastModelName;
+  /** Backtest MASE of that model vs. weekly seasonal naive (below 1 is better). */
+  mase?: number;
+  /** Product of the external-signal multipliers for this date and role, when not 1. */
+  signalMultiplier?: number;
 };
 
 export type ForecastFilters = {
@@ -28,7 +66,52 @@ export type ForecastGenerationMetadata = ForecastDataStatus & {
   usedFallback: boolean;
   apiCallFailed: boolean;
   fallbackReason?: string;
+  /** How the forecasts were made: external API, client-side statistics, or not at all. */
+  method?: 'api' | 'statistical' | 'none';
+  /** Statistical forecasts: the model chosen per role and its backtest accuracy. */
+  models?: RoleModelSummary[];
+  serviceLevel?: number;
+  intervalLevel?: number;
+  /** Milliseconds spent fitting (statistical forecasts). */
+  fitMs?: number;
+  /** True when the history had more shifts than the client fetches; the oldest were left out. */
+  historyTruncated?: boolean;
+  /**
+   * Days from the most recent recorded shift to the end of the history window (the day
+   * before today or the first target). Days in between count as 0 demand.
+   */
+  historyEndsDaysAgo?: number | null;
+  /** True when the proxy had more signals than it returns; the oldest past ones were left out. */
+  signalsTruncated?: boolean;
 };
+
+export type ForecastOptions = {
+  /** Quantile `required` is planned at (default 0.8). */
+  serviceLevel?: number;
+  /** Central coverage of [lowerBound, upperBound] (default 0.8). */
+  intervalLevel?: number;
+  /** IANA zone of the business; "today" and the default horizon use it (default: device zone). */
+  timeZone?: string;
+  /** Days forecast when no date filter is given (default 14, from today). */
+  horizonDays?: number;
+};
+
+/** Days of history fitted (2 years). */
+export const FORECAST_HISTORY_DAYS = 730;
+export const DEFAULT_FORECAST_HORIZON_DAYS = 14;
+/** The UI notes "history ends N days ago" from this many days without a recorded shift. */
+export const HISTORY_GAP_NOTICE_DAYS = 14;
+
+/** Data-quality notes from the last statistical forecast, for the UI. */
+export type ForecastNotices = {
+  /** Days from the most recent recorded shift to the end of the history window. */
+  historyEndsDaysAgo: number | null;
+  /** The proxy left out the oldest past signals. */
+  signalsTruncated: boolean;
+};
+/** Must match the proxy's FORECAST_HISTORY_MAX_PAGES. */
+const MAX_HISTORY_PAGES = 40;
+const HISTORY_PAGE_CONCURRENCY = 4;
 
 export type ForecastGenerationResult = {
   forecasts: DemandForecast[];
@@ -96,35 +179,225 @@ export const getForecastDataStatus = async (filters?: ForecastFilters): Promise<
   }
 };
 
-export const generateDemandForecast = async (filters?: ForecastFilters): Promise<ForecastGenerationResult> => {
+type HistoryPage = { days: HistoryDay[]; page: number; pageSize: number; rows: number; total: number | null };
+
+/**
+ * Shift history in [from, to) summed per date × role. Pages come newest
+ * first; page 0 says how many rows there are and the rest are fetched in
+ * parallel. Past MAX_HISTORY_PAGES the oldest shifts are left out, and so is
+ * the oldest day fetched, which may be incomplete.
+ */
+export const fetchForecastHistory = async (
+  from: string,
+  to: string,
+  role?: string,
+): Promise<{ days: HistoryDay[]; truncated: boolean }> => {
+  const request = (page: number) =>
+    handleSecureFetch<HistoryPage>({ action: 'forecastHistory', from, to, role, page });
+  const first = await request(0);
+  const pageSize = first.pageSize > 0 ? first.pageSize : 1000;
+  const total = typeof first.total === 'number' ? first.total : first.rows;
+  const pageCount = Math.min(MAX_HISTORY_PAGES, Math.ceil(total / pageSize));
+  const pages: HistoryPage[] = [first];
+  for (let next = 1; next < pageCount; next += HISTORY_PAGE_CONCURRENCY) {
+    const batch = [];
+    for (let page = next; page < Math.min(pageCount, next + HISTORY_PAGE_CONCURRENCY); page += 1) batch.push(request(page));
+    pages.push(...(await Promise.all(batch)));
+  }
+  // A day can straddle two pages: add its parts up.
+  const merged = new Map<string, HistoryDay>();
+  for (const d of pages.flatMap((p) => p.days ?? [])) {
+    const key = `${d.date}::${d.role}`;
+    const prev = merged.get(key);
+    merged.set(key, prev ? { ...prev, shifts: prev.shifts + d.shifts } : { date: d.date, role: d.role, shifts: d.shifts });
+  }
+  let days = Array.from(merged.values());
+  const truncated = total > pageCount * pageSize;
+  if (truncated && days.length) {
+    const oldest = days.reduce((min, d) => (d.date < min ? d.date : min), days[0].date);
+    days = days.filter((d) => d.date !== oldest);
+  }
+  return { days, truncated };
+};
+
+/**
+ * External signals in [from, to). With `targetsFrom` (the first forecast date) the proxy
+ * returns the signals from that date on first, then the newest past ones; `truncated`
+ * says that some (the oldest past ones) were left out.
+ */
+export const fetchForecastSignals = async (
+  from: string,
+  to: string,
+  role?: string,
+  targetsFrom?: string,
+): Promise<{ signals: ForecastSignal[]; truncated: boolean }> => {
+  const result = await handleSecureFetch<{ signals?: ForecastSignal[]; truncated?: boolean }>({
+    action: 'listForecastSignals',
+    from,
+    to,
+    role,
+    targetsFrom,
+  });
+  return { signals: result.signals ?? [], truncated: result.truncated === true };
+};
+
+const elapsedMs = (start: number) => Math.round((Date.now() - start) * 10) / 10;
+
+/** Fits the statistical forecast on the client from history fetched through the proxy. */
+const generateStatisticalForecast = async (
+  filters: ForecastFilters | undefined,
+  options: ForecastOptions,
+  api: { available: boolean; failed: boolean },
+): Promise<ForecastGenerationResult> => {
+  const timeZone = options.timeZone ?? getDeviceTimeZone();
+  const today = todayKey(timeZone);
+  const horizon = Math.min(90, Math.max(1, Math.round(options.horizonDays ?? DEFAULT_FORECAST_HORIZON_DAYS)));
+  const targetDates =
+    filters?.date && isDateKey(filters.date)
+      ? [filters.date]
+      : Array.from({ length: horizon }, (_, i) => addDaysToKey(today, i));
+  // History ends before today (today is not over) and before the first target.
+  const end = targetDates[0] < today ? targetDates[0] : today;
+  const from = addDaysToKey(end, -FORECAST_HISTORY_DAYS);
+  const signalsTo = addDaysToKey(targetDates[targetDates.length - 1], 1);
+  const [history, signalPage] = await Promise.all([
+    fetchForecastHistory(from, end, filters?.role),
+    fetchForecastSignals(from, signalsTo, filters?.role, targetDates[0]),
+  ]);
+
+  const serviceLevel = options.serviceLevel ?? DEFAULT_SERVICE_LEVEL;
+  const intervalLevel = options.intervalLevel ?? DEFAULT_INTERVAL_LEVEL;
+  const signals = signalPage.signals;
+  const started = Date.now();
+  const result = await statisticalForecastAsync(
+    // historyEnd: days after the last recorded shift, up to the window end, count as 0.
+    { history: history.days, signals, targetDates, roles: filters?.role ? [filters.role] : undefined, historyEnd: end },
+    { serviceLevel, intervalLevel },
+  );
+  const fitMs = elapsedMs(started);
+
+  const produced = result.forecasts.length > 0;
+  let fallbackReason: string | undefined;
+  if (!produced) {
+    fallbackReason = filters?.role
+      ? `No shift history for ${filters.role} yet; use quick setup or a manual target.`
+      : 'No shift history yet; use quick setup or manual targets.';
+  } else if (api.available) {
+    fallbackReason = api.failed
+      ? 'Forecast API request failed; using the statistical forecast.'
+      : 'Forecast API returned no data; using the statistical forecast.';
+  }
+  return {
+    forecasts: result.forecasts,
+    metadata: {
+      hasHistorical: history.days.length > 0,
+      hasExternalSignals: signals.length > 0,
+      hasExistingTargets: false,
+      apiAvailable: api.available,
+      usedApi: false,
+      usedFallback: fallbackReason !== undefined,
+      apiCallFailed: api.failed,
+      fallbackReason,
+      method: produced ? 'statistical' : 'none',
+      models: result.models,
+      // The engine clamps levels to [0.5, 0.99]; report what it used.
+      serviceLevel: result.forecasts[0]?.serviceLevel ?? serviceLevel,
+      intervalLevel: result.forecasts.find((f) => f.intervalLevel !== undefined)?.intervalLevel ?? intervalLevel,
+      fitMs,
+      historyTruncated: history.truncated,
+      historyEndsDaysAgo: result.historyEndsDaysAgo,
+      signalsTruncated: signalPage.truncated,
+    },
+  };
+};
+
+export const generateDemandForecast = async (
+  filters?: ForecastFilters,
+  options: ForecastOptions = {},
+): Promise<ForecastGenerationResult> => {
+  // Read at call time so tests can toggle it; Expo inlines it at build time.
+  const apiAvailable = Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL);
+  let apiFailed = false;
+  if (apiAvailable) {
+    try {
+      const result = await handleSecureFetch<ForecastGenerationResult>({ action: 'forecast', filters });
+      if (result.metadata?.usedApi) return { ...result, metadata: { ...result.metadata, method: 'api' } };
+      apiFailed = Boolean(result.metadata?.apiCallFailed);
+    } catch (error) {
+      console.warn('Unable to generate forecast via secure proxy', error);
+      apiFailed = true;
+    }
+  }
   try {
-    const result = await handleSecureFetch<ForecastGenerationResult>({ action: 'forecast', filters });
-    return result;
+    return await generateStatisticalForecast(filters, options, { available: apiAvailable, failed: apiFailed });
   } catch (error) {
     console.warn('Unable to generate forecast via secure proxy', error);
     return {
       forecasts: [],
-      metadata: { ...DEFAULT_FORECAST_METADATA, fallbackReason: 'Secure forecast service unavailable.' },
+      metadata: {
+        ...DEFAULT_FORECAST_METADATA,
+        apiAvailable,
+        method: 'none',
+        fallbackReason: 'Secure forecast service unavailable.',
+      },
     };
   }
 };
 
-export const loadDemandTargets = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
+/** Must match LIST_MAX_PAGES in the proxy (500 overrides per page). */
+const MAX_OVERRIDE_PAGES = 20;
+
+export type OverrideTargetsResult =
+  | { ok: true; targets: DemandForecast[]; truncated: boolean }
+  | { ok: false; error: string };
+
+/**
+ * The tenant's stored manual overrides (every page), optionally for one date /
+ * role. Unlike loadDemandTargets, a failed request is reported, not turned
+ * into an empty list.
+ */
+export const fetchOverrideTargets = async (filters?: ForecastFilters): Promise<OverrideTargetsResult> => {
+  const targets: DemandForecast[] = [];
   try {
-    const result = await handleSecureFetch<{ targets: DemandForecast[] }>({ action: 'loadTargets', filters });
-    return (result.targets ?? []).filter((target) => target.source === 'override');
+    for (let page = 0; page < MAX_OVERRIDE_PAGES; page += 1) {
+      const result = await handleSecureFetch<{ targets?: DemandForecast[]; hasMore?: boolean }>({ action: 'loadTargets', filters, page });
+      targets.push(...(result.targets ?? []).filter((target) => target.source === 'override'));
+      if (result.hasMore !== true) return { ok: true, targets, truncated: false };
+    }
+    return { ok: true, targets, truncated: true };
   } catch (error) {
     console.warn('Unable to load demand targets from secure proxy', error);
-    return [];
+    return { ok: false, error: error instanceof Error ? error.message : 'Unable to load demand targets' };
+  }
+};
+
+/** @deprecated returns [] on failure; use fetchOverrideTargets. */
+export const loadDemandTargets = async (filters?: ForecastFilters): Promise<DemandForecast[]> => {
+  const result = await fetchOverrideTargets(filters);
+  return result.ok ? result.targets : [];
+};
+
+/** Removes the stored override for one date and role (manager only). */
+export const deleteDemandTarget = async (target: { date: string; role: string }): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const result = await handleSecureFetch<{ success: boolean; error?: string }>({
+      action: 'deleteDemandTarget',
+      target: { date: target.date, role: target.role },
+    });
+    return result.success ? { success: true } : { success: false, error: result.error ?? 'Unable to remove override' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unable to remove override' };
   }
 };
 
 export const upsertDemandTarget = async (target: DemandForecast): Promise<UpsertDemandTargetResult> => {
   const normalized = { ...target, required: Number(target.required), source: target.source ?? 'override' };
+  // Only the fields the proxy stores (validateDemandTargetInput in utils/schedulingValidation.ts).
+  const { date, role, required, notes, confidence, lowerBound, upperBound } = normalized;
   try {
     const result = await handleSecureFetch<{ success: boolean; targets: DemandForecast[]; error?: string }>({
       action: 'upsertTargets',
-      targets: [normalized],
+      targets: [{ date, role, required, notes, confidence, lowerBound, upperBound }],
     });
 
     if (!result.success) {

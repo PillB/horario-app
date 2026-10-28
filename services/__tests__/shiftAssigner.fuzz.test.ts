@@ -20,12 +20,22 @@
  *       shortfall entry exists iff assigned < required, with consistent numbers
  *   I8  no open slot while some worker could still legally take it (greedy completeness)
  *
+ * The same invariants are checked on the ILP optimizer's output (CHG-085, real HiGHS),
+ * which must also cover at least as many positions as the greedy, and exactly as many
+ * as a brute-force search finds on small cases.
+ *
+ * A third ILP run covers multi-date models (`dates[]`, CHG-087): the same hard
+ * constraints checked order-independently, plus "never worse than the greedy".
+ *
  * The suite runs twice: with the deprecated fixed offset (every day 24h), and with a
  * random IANA zone on dates around DST changes. In the zoned run the reference model
  * places wall times with `zonedToUtc` (tested on its own in utils/__tests__/zonedTime)
  * and measures everything in elapsed minutes.
  */
 import { assignShifts, type AssignmentInput, type AssignmentResult, type LaborConstraints } from '../shiftAssigner';
+import { createHighsSolver, type HighsModule } from '../optimizer/highsSolver';
+import { compareScores } from '../optimizer/assignmentModel';
+import { greedyAssign, optimizeAssignments } from '../optimizer/shiftOptimizer';
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import { getWeekdayFromDate } from '@/utils/schedulerUtils';
@@ -84,10 +94,16 @@ const zoneClock = (timeZone: string): Clock => ({
 });
 const clockOf = (input: AssignmentInput): Clock => (input.timeZone ? zoneClock(input.timeZone) : FIXED_CLOCK);
 
-const absInterval = (t: ShiftTemplate, date: string, clock: Clock) => {
-  const startMin = toMin(t.start);
-  return { start: clock.abs(date, startMin), end: clock.abs(date, startMin + durationOf(t)) };
+/**
+ * Reference span of local [from, from + length) on `date`. A span the DST gap makes zero or
+ * negative moves to after the gap with its wall-clock length (CHG-087).
+ */
+const absSpan = (date: string, from: number, length: number, clock: Clock) => {
+  const start = clock.abs(date, from);
+  const end = clock.abs(date, from + length);
+  return { start, end: end <= start ? start + length : end };
 };
+const absInterval = (t: ShiftTemplate, date: string, clock: Clock) => absSpan(date, toMin(t.start), durationOf(t), clock);
 const isoWeekKey = (date: string): number => {
   const n = dayNumber(date);
   // 1970-01-01 was a Thursday → Monday-based week index
@@ -109,8 +125,9 @@ const availabilityBitmap = (worker: Worker, date: string, clock: Clock): { origi
       let to = toMin(slot.to);
       if (to === DAY - 1) to = DAY;
       if (to <= from) to += DAY;
-      const end = Math.min(clock.abs(day, to) - origin, bits.length);
-      for (let m = clock.abs(day, from) - origin; m < end; m++) bits[m] = 1;
+      const span = absSpan(day, from, to - from, clock);
+      const end = Math.min(span.end - origin, bits.length);
+      for (let m = span.start - origin; m < end; m++) bits[m] = 1;
     }
   }
   return { origin, bits };
@@ -369,4 +386,236 @@ describe('assignShifts — property-based fuzz', () => {
     expect(dstLengthShifts).toBeGreaterThan(50);
     expect(failures.slice(0, 10)).toEqual([]);
   });
+});
+
+// ─── ILP optimizer (CHG-085) ─────────────────────────────────────────────────
+
+/** Most positions any legal schedule fills (depth-first search with the reference model). */
+const bruteForceCoverage = (input: AssignmentInput): number => {
+  const clock = clockOf(input);
+  const catalog = new Map((input.templateCatalog ?? input.templates).map((t) => [t.id, t]));
+  const existing: RefEntry[] = input.existingRoster.flatMap((s) => {
+    const t = catalog.get(s.templateId);
+    return t ? [{ workerId: s.workerId, date: s.date, ...absInterval(t, s.date, clock), isNew: false }] : [];
+  });
+  const positions = input.templates.flatMap((t) => Array.from({ length: requiredOf(t) }, () => t));
+  let best = 0;
+  const search = (i: number, entries: RefEntry[], filled: number, lastWorker: Map<string, number>): void => {
+    if (filled + (positions.length - i) <= best) return;
+    if (i === positions.length) {
+      best = filled;
+      return;
+    }
+    const t = positions[i];
+    const from = lastWorker.get(t.id) ?? 0; // positions of one template take workers in index order
+    input.workers.forEach((w, wi) => {
+      if (wi < from || !legal(w, t, input.date, entries, clock, input.constraints)) return;
+      const entry = { workerId: w.id, date: input.date, ...absInterval(t, input.date, clock), isNew: true };
+      search(i + 1, entries.concat(entry), filled + 1, new Map(lastWorker).set(t.id, wi + 1));
+    });
+    search(i + 1, entries, filled, lastWorker);
+  };
+  search(0, existing, 0, new Map());
+  return best;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const highs = createHighsSolver(require('highs') as () => Promise<HighsModule>);
+const ILP_CASES = 300;
+
+describe('optimizeAssignments (ILP) — property-based fuzz', () => {
+  it(`holds all invariants, never covers less than the greedy and matches brute force (${2 * ILP_CASES} cases)`, async () => {
+    const failures: string[] = [];
+    let better = 0;
+    let bruteChecked = 0;
+    for (let k = 1; k <= 2 * ILP_CASES; k++) {
+      const seed = k <= ILP_CASES ? k : 100_000 + k;
+      const input = generateCase(seed, k > ILP_CASES);
+      const result = await optimizeAssignments(input, { solver: highs, timeLimitMs: 5000 });
+      const errors = checkInvariants(input, result);
+      const greedy = assignShifts(input).assignments.length;
+      if (result.assignments.length < greedy) errors.push(`ILP covers ${result.assignments.length} < greedy ${greedy}`);
+      if (result.assignments.length > greedy) better++;
+      const positions = input.templates.reduce((sum, t) => sum + requiredOf(t), 0);
+      if (positions <= 6 && input.workers.length <= 5) {
+        bruteChecked++;
+        const optimum = bruteForceCoverage(input);
+        if (result.assignments.length !== optimum) errors.push(`ILP covers ${result.assignments.length}, optimum ${optimum}`);
+      }
+      if (result.solver.dropped > 0) errors.push(`the re-check dropped ${result.solver.dropped} solver assignments`);
+      if (result.solver.engine !== 'ilp' && result.solver.fallbackReason !== 'greedy_better') {
+        errors.push(`solver fell back: ${result.solver.fallbackReason} ${result.solver.error ?? ''}`);
+      }
+      if (errors.length > 0) failures.push(`seed ${seed}: ${errors.slice(0, 3).join('; ')}`);
+    }
+    // Sanity: the cases include ones the greedy gets wrong, and brute force ran.
+    expect(better).toBeGreaterThan(0);
+    expect(bruteChecked).toBeGreaterThan(ILP_CASES / 2);
+    expect(failures.slice(0, 10)).toEqual([]);
+  }, 120_000);
+});
+
+// ─── ILP optimizer over several dates (CHG-087, QA F6) ───────────────────────
+
+/**
+ * Multi-date runs (`dates[]`, one model for the whole span): cross-day rest, ISO-week
+ * hours (one span crosses the Sunday/Monday boundary), overnight templates, DST weeks
+ * (including templates inside the spring-forward gap) and roster entries before, inside
+ * and after the span. Adapted from QA's probe (redteam step 3b).
+ */
+const MULTI_STARTS: [string, string][] = [
+  ['Europe/Madrid', '2026-03-26'],
+  ['Europe/Madrid', '2026-10-22'],
+  ['America/New_York', '2026-03-05'],
+  ['America/New_York', '2026-10-29'],
+  ['America/Lima', '2026-03-26'],
+  ['Australia/Sydney', '2026-04-02'],
+  ['Australia/Sydney', '2026-10-01'],
+];
+const MULTI_CASES = 150;
+
+type MultiInput = AssignmentInput & { dates: string[]; timeZone: string };
+
+const randomWeekWorker = (rng: Rng, id: string): Worker => {
+  const availability = [];
+  for (let i = int(rng, 1, 7); i > 0; i--) {
+    const roll = rng();
+    const from = roll < 0.25 ? '00:00' : randomTime(rng);
+    const to = roll < 0.45 ? '23:59' : randomTime(rng);
+    availability.push({ day: pick(rng, WEEKDAYS), from, to });
+  }
+  if (chance(rng, 0.3)) for (const day of WEEKDAYS) availability.push({ day, from: '00:00', to: '23:59' });
+  return { id, displayId: id, name: id, role: pick(rng, ROLES), skills: [], availability };
+};
+
+const generateMultiCase = (seed: number): MultiInput => {
+  const rng = mulberry32(seed);
+  const [timeZone, start] = pick(rng, MULTI_STARTS);
+  const dates = Array.from({ length: int(rng, 2, 7) }, (_, i) => addDays(start, i));
+  const templates = Array.from({ length: int(rng, 1, 4) }, (_, i) => {
+    const t = randomTemplate(rng, `t${i}`);
+    if (chance(rng, 0.3)) {
+      t.start = pick(rng, ['22:00', '23:00', '01:30', '02:00', '02:30']);
+      t.end = pick(rng, ['06:00', '07:00', '03:00']);
+    }
+    if (!Number.isFinite(t.coverage) || t.coverage < 1) t.coverage = int(rng, 1, 3);
+    return t;
+  });
+  // A template inside the spring-forward gap (zero-length before CHG-087), needing several workers.
+  if (chance(rng, 0.3)) {
+    templates.push({ id: 'gap', name: 'gap', role: pick(rng, ROLES), start: pick(rng, ['02:00', '02:30']), end: '03:00', coverage: int(rng, 2, 3) });
+  }
+  const workers = Array.from({ length: int(rng, 1, 6) }, (_, i) => randomWeekWorker(rng, `w${i}`));
+  const old: ShiftTemplate = { id: 'old', name: 'old', role: 'Cook', start: '21:00', end: '05:00', coverage: 1 };
+  const existingRoster: Shift[] = [];
+  for (const w of workers) {
+    if (!chance(rng, 0.4)) continue;
+    existingRoster.push({
+      id: `e-${w.id}`,
+      date: addDays(start, int(rng, -1, dates.length)),
+      workerId: w.id,
+      templateId: chance(rng, 0.5) ? 'old' : pick(rng, templates).id,
+      location: 'HQ',
+      status: 'Published',
+    });
+  }
+  return { date: dates[0], dates, timeZone, templates, templateCatalog: [old], workers, existingRoster, constraints: randomConstraints(rng) };
+};
+
+/** Every invariant, order-independent: each new shift must be legal against all OTHER shifts. */
+const checkMultiInvariants = (input: MultiInput, result: AssignmentResult): string[] => {
+  const errors: string[] = [];
+  const clock = zoneClock(input.timeZone);
+  const byId = new Map([...(input.templateCatalog ?? []), ...input.templates].map((t) => [t.id, t]));
+  const workerById = new Map(input.workers.map((w) => [w.id, w]));
+  const existing: RefEntry[] = input.existingRoster.map((s) => ({
+    workerId: s.workerId,
+    date: s.date,
+    ...absInterval(byId.get(s.templateId) as ShiftTemplate, s.date, clock),
+    isNew: false,
+  }));
+  const fresh = result.assignments.map((a) => {
+    const t = byId.get(a.templateId);
+    return t ? { workerId: a.workerId, date: a.date, ...absInterval(t, a.date, clock), isNew: true } : null;
+  });
+  const counts = new Map<string, number>();
+  const seen = new Set<string>();
+  result.assignments.forEach((a, i) => {
+    const w = workerById.get(a.workerId);
+    const t = input.templates.find((x) => x.id === a.templateId);
+    if (!w || !t || !input.dates.includes(a.date)) {
+      errors.push(`I1 bad assignment ${JSON.stringify(a)}`);
+      return;
+    }
+    const pair = `${a.workerId}|${a.date}|${a.templateId}`;
+    if (seen.has(pair)) errors.push(`I4 ${a.workerId} holds two positions of ${a.date} ${a.templateId}`);
+    seen.add(pair);
+    const others = existing.concat(fresh.filter((e, j): e is RefEntry => e !== null && j !== i));
+    if (!legal(w, t, a.date, others, clock, input.constraints)) errors.push(`I2–I6 illegal ${pair}`);
+    counts.set(`${a.date}|${a.templateId}`, (counts.get(`${a.date}|${a.templateId}`) ?? 0) + 1);
+  });
+  const all = existing.concat(fresh.filter((e): e is RefEntry => e !== null));
+  for (const date of input.dates) {
+    for (const t of input.templates) {
+      const required = requiredOf(t);
+      const count = counts.get(`${date}|${t.id}`) ?? 0;
+      const missing = result.unassigned
+        .filter((u) => u.date === date && u.templateId === t.id)
+        .reduce((s, u) => s + u.missing, 0);
+      if (count > required) errors.push(`I7 over-covered ${date} ${t.id} ${count}/${required}`);
+      if (count + missing !== required) errors.push(`I7 ${date} ${t.id}: ${count} + ${missing} != ${required}`);
+      if (count < required) {
+        const taker = input.workers.find(
+          (w) => !seen.has(`${w.id}|${date}|${t.id}`) && legal(w, t, date, all, clock, input.constraints),
+        );
+        if (taker) errors.push(`I8 ${date} ${t.id} left open although ${taker.id} could take it`);
+      }
+    }
+  }
+  return errors;
+};
+
+describe('optimizeAssignments (ILP) over several dates — property-based fuzz', () => {
+  it(`holds every hard constraint and is never worse than the greedy (${MULTI_CASES} cases)`, async () => {
+    const failures: string[] = [];
+    let better = 0;
+    let gapSpans = 0;
+    let weekBoundary = 0;
+    for (let seed = 1; seed <= MULTI_CASES; seed++) {
+      const input = generateMultiCase(700_000 + seed);
+      const clock = zoneClock(input.timeZone);
+      for (const d of input.dates) {
+        for (const t of input.templates) {
+          const from = toMin(t.start);
+          if (clock.abs(d, from + durationOf(t)) <= clock.abs(d, from)) gapSpans++;
+        }
+      }
+      if (new Set(input.dates.map(isoWeekKey)).size > 1) weekBoundary++;
+      const result = await optimizeAssignments(input, { solver: highs, timeLimitMs: 5000 });
+      const greedy = greedyAssign(input);
+      const errors = checkMultiInvariants(input, result);
+      const greedyErrors = checkMultiInvariants(input, greedy);
+      if (greedyErrors.length > 0) errors.push(`greedy: ${greedyErrors[0]}`);
+      if (result.assignments.length < greedy.assignments.length) {
+        errors.push(`ILP covers ${result.assignments.length} < greedy ${greedy.assignments.length}`);
+      }
+      if (result.assignments.length > greedy.assignments.length) better++;
+      const { score, greedyScore } = result.solver;
+      if (score && greedyScore && compareScores(score, greedyScore) > 0) {
+        errors.push(`ILP score ${JSON.stringify(score)} worse than greedy ${JSON.stringify(greedyScore)}`);
+      }
+      if (result.solver.dropped > 0) errors.push(`the re-check dropped ${result.solver.dropped} solver assignments`);
+      if (result.solver.engine !== 'ilp' && result.solver.fallbackReason !== 'greedy_better') {
+        errors.push(`solver fell back: ${result.solver.fallbackReason} ${result.solver.error ?? ''}`);
+      }
+      if (errors.length > 0) {
+        failures.push(`seed ${700_000 + seed} (${input.timeZone} ${input.dates[0]}×${input.dates.length}): ${errors.slice(0, 3).join('; ')}`);
+      }
+    }
+    // Sanity: the cases include DST-gap spans, ISO-week boundaries and ILP wins.
+    expect(gapSpans).toBeGreaterThan(5);
+    expect(weekBoundary).toBeGreaterThan(MULTI_CASES / 4);
+    expect(better).toBeGreaterThan(0);
+    expect(failures.slice(0, 10)).toEqual([]);
+  }, 120_000);
 });

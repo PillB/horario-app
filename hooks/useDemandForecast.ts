@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { RoleModelSummary } from '@/services/forecasting/statisticalForecast';
 import {
   DemandForecast,
   ForecastFilters,
   ForecastDataStatus,
   ForecastGenerationResult,
   ForecastGenerationMetadata,
+  ForecastNotices,
+  ForecastOptions,
+  deleteDemandTarget,
+  fetchOverrideTargets,
   generateDemandForecast,
   getForecastDataStatus,
-  loadDemandTargets,
   upsertDemandTarget,
 } from '@/services/demandForecast';
 
@@ -19,11 +23,29 @@ const mergeForecasts = (incoming: DemandForecast[], existing: DemandForecast[]) 
   return Array.from(lookup.values()).sort((a, b) => `${a.date}-${a.role}`.localeCompare(`${b.date}-${b.role}`));
 };
 
-export const useDemandForecast = (filters?: ForecastFilters) => {
+const forecastKey = (f: DemandForecast) => `${f.date}::${f.role}`;
+
+const NO_MODELS: RoleModelSummary[] = [];
+const NO_NOTICES: ForecastNotices = { historyEndsDaysAgo: null, signalsTruncated: false };
+
+/**
+ * `options` (service level, interval level, business time zone) is read when a
+ * forecast runs, so passing a new object each render does not re-create
+ * `triggerForecast`.
+ */
+export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastOptions) => {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   const [demandTargets, setDemandTargets] = useState<DemandForecast[]>([]);
+  const demandTargetsRef = useRef(demandTargets);
+  demandTargetsRef.current = demandTargets;
   const [loading, setLoading] = useState(false);
   const [forecasting, setForecasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** True once the stored overrides have loaded (CHG-088). */
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
+  /** The last load of the stored overrides failed (kept apart from forecast errors). */
+  const [targetsError, setTargetsError] = useState<string | null>(null);
   const [lastGenerationMetadata, setLastGenerationMetadata] = useState<ForecastGenerationMetadata | null>(null);
   const [dataStatus, setDataStatus] = useState<ForecastDataStatus>({
     hasHistorical: false,
@@ -44,17 +66,26 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     try {
       setLoading(true);
       const [existing, status] = await Promise.all([
-        loadDemandTargets(filters),
+        fetchOverrideTargets(filters),
         getForecastDataStatus(filters),
       ]);
       if (hydrateRequestIdRef.current !== requestId) return;
-      setDemandTargets(existing);
       setDataStatus(status);
+      if (!existing.ok) {
+        // Keep what is shown; a failed load is not "no overrides".
+        setError('Unable to load demand targets');
+        setTargetsError(existing.error);
+        return;
+      }
+      setDemandTargets(existing.targets);
+      setTargetsLoaded(true);
+      setTargetsError(null);
       setError(null);
     } catch (err) {
       console.warn('Unable to hydrate demand targets', err);
       if (hydrateRequestIdRef.current !== requestId) return;
       setError('Unable to load demand targets');
+      setTargetsError(err instanceof Error ? err.message : 'Unable to load demand targets');
     } finally {
       if (hydrateRequestIdRef.current === requestId) {
         setLoading(false);
@@ -68,12 +99,20 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
       try {
         setForecasting(true);
         setLoading(true);
-        const { forecasts, metadata }: ForecastGenerationResult = await generateDemandForecast({
-          ...filters,
-          ...overrideFilters,
-        });
+        const { forecasts, metadata }: ForecastGenerationResult = await generateDemandForecast(
+          { ...filters, ...overrideFilters },
+          optionsRef.current,
+        );
         setLastGenerationMetadata(metadata);
-        setDemandTargets((prev) => mergeForecasts(forecasts, prev.filter((item) => item.source === 'override')));
+        // A manual override always beats a model forecast for the same date and role.
+        setDemandTargets((prev) => {
+          const overrides = prev.filter((item) => item.source === 'override');
+          const overridden = new Set(overrides.map(forecastKey));
+          return mergeForecasts(
+            forecasts.filter((f) => f.source === 'override' || !overridden.has(forecastKey(f))),
+            overrides,
+          );
+        });
         setDataStatus((prev) => ({
           ...prev,
           hasHistorical: prev.hasHistorical || metadata.hasHistorical,
@@ -118,6 +157,24 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     }
   }, []);
 
+  /**
+   * Removes the stored override for a date and role. Optimistic: the row goes
+   * at once and comes back, with the server's error, if the delete fails.
+   */
+  const removeOverride = useCallback(async (target: { date: string; role: string }) => {
+    const key = forecastKey({ ...target, required: 0 });
+    const removed = demandTargetsRef.current.find((f) => forecastKey(f) === key && f.source === 'override');
+    if (removed) setDemandTargets((prev) => prev.filter((f) => forecastKey(f) !== key));
+    const result = await deleteDemandTarget(target);
+    if (!result.success) {
+      if (removed) setDemandTargets((prev) => (prev.some((f) => forecastKey(f) === key) ? prev : mergeForecasts([removed], prev)));
+      setError(result.error ?? 'Unable to remove override');
+      return { success: false, error: result.error ?? 'Unable to remove override' } as const;
+    }
+    setError(null);
+    return { success: true, error: null } as const;
+  }, []);
+
   const seedBaselineTargets = useCallback(async (targets: DemandForecast[]) => {
     try {
       setLoading(true);
@@ -159,16 +216,35 @@ export const useDemandForecast = (filters?: ForecastFilters) => {
     };
   }, [hydrate]);
 
+  const forecastModels = useMemo(() => lastGenerationMetadata?.models ?? NO_MODELS, [lastGenerationMetadata]);
+  const forecastNotices = useMemo<ForecastNotices>(
+    () =>
+      lastGenerationMetadata
+        ? {
+            historyEndsDaysAgo: lastGenerationMetadata.historyEndsDaysAgo ?? null,
+            signalsTruncated: lastGenerationMetadata.signalsTruncated === true,
+          }
+        : NO_NOTICES,
+    [lastGenerationMetadata],
+  );
+
   return {
     demandTargets,
+    targetsLoaded,
+    targetsError,
     loading,
     error,
     forecasting,
     dataStatus,
     lastGenerationMetadata,
+    /** Statistical forecasts: model chosen per role and its backtest MASE (empty otherwise). */
+    forecastModels,
+    /** Statistical forecasts: history gap and signal truncation, for a note in the UI. */
+    forecastNotices,
     refresh: hydrate,
     triggerForecast,
     overrideTarget,
+    removeOverride,
     seedBaselineTargets,
   } as const;
 };

@@ -176,7 +176,10 @@ export const validateAvailabilitySubmission = (
 // ─── validateShiftReadiness ───────────────────────────────────────────────────
 
 /** Validates that a roster shift is ready to publish.
- *  Returns a list of typed error items (empty = valid). */
+ *  Returns a list of typed error items (empty = valid).
+ *  Windows are compared in wall-clock minutes, so a window keeps its wall-clock length
+ *  even on a DST day; that matches the assigner, which moves a span inside a DST gap to
+ *  after the gap with its wall-clock length (CHG-087). */
 export const validateShiftReadiness = (
   shift: Shift,
   roster: Shift[],
@@ -214,6 +217,9 @@ export const validateShiftReadiness = (
     const overlappingShift = roster.find((existing) => {
       if (existing.id === shift.id) return false;
       if (existing.workerId !== shift.workerId || existing.date !== shift.date) return false;
+      // The same template on the same date is always a conflict, even when its window
+      // cannot be measured (CHG-087: one worker never fills two positions of a slot).
+      if (existing.templateId === shift.templateId) return true;
       const existingTemplate = shiftTemplates.find((t) => t.id === existing.templateId);
       if (!existingTemplate) return false;
       return windowsOverlap(getTemplateWindow(existingTemplate), newWindow);

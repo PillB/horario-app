@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
 import {
-  assignShifts,
   type AssignedShift,
   type AssignmentResult,
   type LaborConstraints as AssignmentConstraints,
@@ -17,6 +16,7 @@ import {
 } from '@/utils/schedulerMetrics';
 
 import type { Worker } from '@/types/scheduler';
+import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
 import type { BusinessLocation } from '@/utils/locationValidation';
 
@@ -239,7 +239,7 @@ export function useDemandAwareSchedule(
       }
 
       const settings = autoAssignSettings(date, location, constraints);
-      const assignmentResult = assignShifts({
+      const assignmentResult: AssignmentResult = await runAutoAssign({
         date,
         templates: shiftTemplates,
         workers,

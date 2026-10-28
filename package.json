@@ -12,8 +12,9 @@
     "lint": "expo lint",
     "test": "jest",
     "prepare": "husky",
-    "test:integration": "jest --runInBand server/__tests__/proxyTenantIsolation.integration.test.ts",
-    "test:db": "supabase test db"
+    "test:integration": "jest --runInBand server/__tests__/.*\\.integration\\.test\\.ts",
+    "test:db": "supabase test db",
+    "bench:assign": "jest --runInBand --testPathIgnorePatterns \"<rootDir>/node_modules/\" -- scripts/benchmark"
   },
   "dependencies": {
     "@clerk/expo": "^3.1.5",
@@ -39,6 +40,7 @@
     "expo-symbols": "~0.4.4",
     "expo-system-ui": "~5.0.7",
     "expo-web-browser": "~14.1.6",
+    "highs": "1.15.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
@@ -72,7 +74,8 @@
     "testPathIgnorePatterns": [
       "<rootDir>/node_modules/",
       "<rootDir>/e2e/",
-      "<rootDir>/.claude/"
+      "<rootDir>/.claude/",
+      "<rootDir>/scripts/benchmark/"
     ],
     "moduleNameMapper": {
       "^@/(.*)": "<rootDir>/$1",
