@@ -6,6 +6,17 @@
 
 ---
 
+### CHG-094 — 2026-11-01 UTC
+**Type:** FIX (pricing copy follows `product/pricing-and-product-research-2026-10.md` §5.3)
+
+- The sign-up page, the upgrade banner, the trial notice and the capability card said "$12/mo flat" and "Pro free 10 days"; the research prices paid plans per location (Esencial US$19 / S/ 59, Pro US$39 / S/ 119) with a 14-day Pro trial, a free plan of 1 location and up to 10 staff, and no per-employee fee. The copy now says "from US$19 per location a month", with S/ 59 named in Spanish, in all 9 locales; "10 days" is now 14.
+- Removed the unverified "Join 1,200+ team managers. Cut no-shows by 40%." from sign-up (no source in the research); replaced by a plain line about local labor rules.
+- `app/(auth)/sign-up.tsx` had both lines hardcoded in English; it now uses `auth.signUp.subtitle` / `auth.signUp.pricing`.
+- `hooks/__tests__/pricingCopy.test.ts` fails if a locale quotes $12, drops 19 or the 14-day trial, or brings back the 1,200 claim.
+- **Not changed (build thread, research §5.3 / §6):** `constants/pricing.ts` still has four tiers (Free, Starter 19, Growth 39, Pro 79) with Stripe / Culqi checkout, and `PricingModal` shows them; the research replaces them with Gratis / Esencial / Pro, Paddle, per-location billing, an entitlements table, 3 auto-schedules a month on Gratis (today 1 in total) and the 14-day trial. The copy now promises the trial and prices before that code exists.
+
+---
+
 ### CHG-093 — 2026-10-28 UTC
 **Type:** FIX (QA red team: browser walkthrough of every screen, research audit)
 

@@ -15,10 +15,12 @@ import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
 import { PageTitle } from '@/components/PageTitle';
 import { trackEvent } from '@/services/analytics';
+import { useT } from '@/contexts/LocaleContext';
 
 export default function SignUpScreen() {
   const { signUp, setActive, isLoaded } = useSignUp();
   const router = useRouter();
+  const { t } = useT();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -191,7 +193,7 @@ export default function SignUpScreen() {
         {/* Form card */}
         <View style={styles.card}>
           <ThemedText style={styles.heading}>Create your account</ThemedText>
-          <ThemedText style={styles.subheading}>Join 1,200+ team managers. Cut no-shows by 40%.</ThemedText>
+          <ThemedText style={styles.subheading}>{t('auth.signUp.subtitle')}</ThemedText>
 
           <View style={styles.fields}>
             <View style={styles.field}>
@@ -261,7 +263,7 @@ export default function SignUpScreen() {
               By signing up you agree to our Terms of Service and Privacy Policy.
             </ThemedText>
             <ThemedText style={styles.pricingNote}>
-              Free forever for 1 team · Pro from $12/mo flat — no per-employee fees
+              {t('auth.signUp.pricing')}
             </ThemedText>
           </View>
 
