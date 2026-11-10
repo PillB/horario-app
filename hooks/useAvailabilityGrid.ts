@@ -40,6 +40,26 @@ const storageKey = (workerId: string): string =>
   `${EXCEPTIONS_STORAGE_PREFIX}${workerId}`;
 
 /**
+ * Ids of the workers with a stored day off on `date`. Used by auto-assign so a
+ * person on a day off is not suggested. Unreadable storage counts as no days off.
+ */
+export const workersOffOn = async (workerIds: readonly string[], date: string): Promise<Set<string>> => {
+  const off = new Set<string>();
+  await Promise.all(workerIds.map(async (workerId) => {
+    try {
+      const raw = await AsyncStorage.getItem(storageKey(workerId));
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed) && parsed.some((e) => (e as AvailabilityException | null)?.date === date)) {
+        off.add(workerId);
+      }
+    } catch {
+      // ignore: no days off known for this worker
+    }
+  }));
+  return off;
+};
+
+/**
  * Parses "HH:MM" into total minutes-since-midnight for comparison.
  * Returns -1 on malformed input so callers can detect invalid times.
  */

@@ -245,10 +245,10 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
     try {
       const [allCurrent, allPrior] = await Promise.all([
         currentWeekRange
-          ? loadDemandTargets({ ...filters, date: currentWeekRange.start })
+          ? loadDemandTargets(filters)
           : Promise.resolve([] as DemandForecast[]),
         priorWeekRange
-          ? loadDemandTargets({ ...filters, date: priorWeekRange.start })
+          ? loadDemandTargets(filters)
           : Promise.resolve([] as DemandForecast[]),
       ]);
 

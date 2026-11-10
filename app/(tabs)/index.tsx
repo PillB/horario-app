@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed, type FeedItem } from '@/hooks/usePersonalizedFeed';
+import { useResponsive } from '@/hooks/useResponsive';
 import { useStreak } from '@/hooks/useStreak';
 import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useLocations } from '@/hooks/useLocations';
@@ -34,10 +35,9 @@ export default function HomeScreen() {
   const { t } = useT();
   const router = useRouter();
   const { accountId: ACCOUNT_ID } = useIdentity();
-  const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const isWideLayout = width >= 768;
+  const { isWideLayout } = useResponsive();
   const {
     upcomingShifts, shiftCount, publishedCount, staffingGaps, setup, loading: rosterLoading, error: rosterError, refresh,
   } = useLiveRosterSummary(ACCOUNT_ID);

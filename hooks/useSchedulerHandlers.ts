@@ -26,6 +26,8 @@ import {
 import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
+import { workersOffOn } from '@/hooks/useAvailabilityGrid';
+import { validateDisplayString } from '@/utils/sanitize';
 import type { LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
 import { getBusinessTimeZone } from '@/utils/businessTimeZone';
@@ -720,6 +722,8 @@ export function useSchedulerHandlers() {
     if (!trimmedName) { setWorkerError('Worker name is required.'); return; }
     if (trimmedName.length > 100) { setWorkerError('Name must be 100 characters or fewer.'); return; }
     if (!trimmedRole) { setWorkerError('Role is required.'); return; }
+    const workerTextError = validateDisplayString(trimmedName, 'Name') ?? validateDisplayString(trimmedRole, 'Role');
+    if (workerTextError) { setWorkerError(workerTextError); return; }
     if (trimmedRole.length > 80) { setWorkerError('Role must be 80 characters or fewer.'); return; }
     if (trimmedSkills.length > 200) { setWorkerError('Skills must be 200 characters or fewer.'); return; }
     const birthDate = workerForm.birthDate.trim();
@@ -766,6 +770,8 @@ export function useSchedulerHandlers() {
     if (!trimmedName) { setTemplateError('Template name is required.'); return; }
     if (trimmedName.length > 100) { setTemplateError('Name must be 100 characters or fewer.'); return; }
     if (!trimmedRole) { setTemplateError('Role is required.'); return; }
+    const templateTextError = validateDisplayString(trimmedName, 'Template name') ?? validateDisplayString(trimmedRole, 'Role');
+    if (templateTextError) { setTemplateError(templateTextError); return; }
     if (trimmedRole.length > 80) { setTemplateError('Role must be 80 characters or fewer.'); return; }
     if (!isValidTime(trimmedStart)) { setTemplateError('Start time must use the 24-hour HH:MM format (e.g. 09:00).'); return; }
     if (!isValidTime(trimmedEnd)) { setTemplateError('End time must use the 24-hour HH:MM format (e.g. 17:00).'); return; }
@@ -1215,6 +1221,9 @@ export function useSchedulerHandlers() {
     }
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
+    // A person with a day off on this date (team step) is not suggested.
+    const offToday = await workersOffOn(workers.map((w) => w.id), date);
+    const eligibleWorkers = offToday.size > 0 ? workers.filter((w) => !offToday.has(w.id)) : workers;
     autoAssignRunRef.current?.abort();
     const run = new AbortController();
     autoAssignRunRef.current = run;
@@ -1224,7 +1233,7 @@ export function useSchedulerHandlers() {
         {
           date,
           templates: shiftTemplates,
-          workers,
+          workers: eligibleWorkers,
           existingRoster: roster,
           constraints: settings.constraints,
           timeZone: settings.timeZone,

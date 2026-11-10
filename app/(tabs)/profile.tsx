@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { CapabilityMatrix } from '@/components/CapabilityMatrix';
 import { LocationsManager } from '@/components/locations/LocationsManager';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemedText } from '@/components/ThemedText';
@@ -328,6 +329,13 @@ export default function ProfileScreen() {
             )}
           </View>
         ) : null}
+
+        {/* What each plan includes. */}
+        <ErrorBoundary>
+          <CapabilityMatrix
+            onUpgradePress={subscription.isSubscribed || subscription.isTrialing ? undefined : handleBillingPress}
+          />
+        </ErrorBoundary>
       </ThemedView>
 
       {/* ── Business locations ────────────────────────────────────────── */}

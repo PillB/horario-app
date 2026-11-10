@@ -209,6 +209,11 @@ export const en = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    activation: {
+      reached: 'First schedule published. Your team can now be told their shifts.',
+      reachedIn: 'First schedule published, {n} min after you first opened the app.',
+      dismissHint: 'Hides this message',
+    },
     // Stored data: load state and failed saves (CHG-088)
     sync: {
       loading: 'Loading your saved schedule…',
@@ -589,7 +594,48 @@ export const en = {
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
+  teamTools: {
+    importTitle: 'Import your team',
+    importHelp: 'Paste one person per line: name, role, skills. Separate several skills with |.',
+    importPlaceholder: 'Ana Torres, Barista, opening|latte art',
+    importInputA11y: 'Team list as CSV',
+    importButton: 'Import team',
+    importButtonHint: 'Saves each line as a worker',
+    exportButton: 'Copy team as CSV',
+    exportButtonHint: 'Puts the current team in the box as CSV',
+    imported: '{n} worker(s) imported.',
+    exported: 'Your team is in the box as CSV.',
+    daysOffTitle: 'Days off',
+    daysOffHelp: 'Dates a person cannot work. Auto-assign skips them on those dates. Saved on this device only.',
+    daysOffWorker: 'Worker',
+    daysOffWorkerHint: 'Shows and adds days off for this person',
+    dayOffDate: 'Date (YYYY-MM-DD)',
+    dayOffDateHint: 'The day this person cannot work',
+    dayOffDateError: 'Enter a real date as YYYY-MM-DD.',
+    dayOffReason: 'Reason (optional)',
+    dayOffReasonPlaceholder: 'Holiday',
+    dayOffReasonHint: 'A note for yourself',
+    dayOffAdd: 'Add day off',
+    dayOffAddHint: 'Saves the day off for the selected person',
+    daysOffEmpty: 'No days off for this person.',
+    dayOffRemove: 'Remove day off on {date}',
+    dayOffRemoveHint: 'Deletes this day off',
+  },
+
   analytics: {
+    insights: {
+      actionsTitle: 'Recommended actions',
+      actionsEmpty: 'Nothing needs attention right now.',
+      strategicTitle: 'Longer-term',
+      capacityTitle: 'Capacity outlook',
+      gapRow: '{available} of {required} available',
+      workloadRow: '{hours} h in the last 4 weeks',
+      demandTitle: 'Demand this week',
+      demandPeak: 'Peak {day}: {n}',
+      demandAvg: '{n} per day',
+      demandChange: '{role}, {date}: {pct}% against last week',
+      accuracyRow: '{role}, {date}: forecast {predicted}, scheduled {actual}',
+    },
     title: 'Analytics',
     subtitle: 'Scheduling performance at a glance.',
     tooltip: '📊 Real-time scheduling metrics. Coverage rate shows how much demand you\'re filling. Revenue at risk estimates what uncovered slots cost you. Worker hours tracks fairness across your team. Check this tab after publishing shifts.',
