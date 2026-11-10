@@ -300,8 +300,8 @@ export const tl = {
       templatePlaceholder: 'ID ng template',
       dateLabel: 'Petsa',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: 'I-save at abisuhan ang team',
-      saveButtonA11y: 'I-save at abisuhan ang team',
+      saveButton: 'I-save bilang draft',
+      saveButtonA11y: 'I-save bilang draft',
       autoAssignButton: 'Auto-assign',
       autoAssignA11y: 'Awtomatikong mag-assign ng mga manggagawa sa lahat ng template para sa petsang ito',
       autoAssignHint: 'Nagpapatakbo ng algorithm ng pag-assign na batay sa pagkakapantay-pantay',
@@ -446,6 +446,7 @@ export const tl = {
       today: 'Ngayon'
     },
       jumpToCalendar: 'Tingnan ang Kalendaryo ↓',
+    sections: { workers: 'Koponan', templates: 'Mga template', forecast: 'Demand', shifts: 'Roster', navLabel: 'Mga hakbang ng scheduler', doneA11y: '{step}, naka-set up', hint: 'Ipinapakita ang hakbang na ito' },
     pos: {
       sectionTitle: 'POS Sales Upload',
       sectionSubtitle: 'Mag-upload ng CSV revenue data upang mapahusay ang demand forecasting.',
@@ -710,7 +711,7 @@ export const tl = {
     pickTitle: 'Piliin ang iyong gabay',
     pickDesc: 'Pumili ng tour upang tuklasin ang iba\'t ibang bahagi ng app.',
     overview: 'Mabilis na Pangkalahatang-tanaw',
-    overviewDesc: '5-hakbang na panimula sa lahat ng tab',
+    overviewDesc: '4-hakbang na panimula sa lahat ng tab',
     manager: 'Tour para sa Manager',
     managerDesc: 'Buuin ang iyong unang iskedyul',
     worker: 'Tour para sa Miyembro ng Koponan',

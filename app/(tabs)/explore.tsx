@@ -10,7 +10,7 @@
  *   HoursBar     — horizontal bar proportional to max worker hours
  *   FairnessGauge — color-coded fairness label with a progress bar
  */
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -138,6 +138,7 @@ export default function AnalyticsScreen() {
   const styles = makeStyles(colors, colorScheme ?? 'light');
   const {
     coverageRate,
+    hasDemand,
     draftShifts,
     publishedShifts,
     workerHours,
@@ -148,6 +149,7 @@ export default function AnalyticsScreen() {
     refresh,
   } = useAnalytics(ACCOUNT_ID);
 
+  const router = useRouter();
   const maxHours = workerHours.length > 0 ? workerHours[0].hours : 0;
 
   return (
@@ -193,9 +195,10 @@ export default function AnalyticsScreen() {
               <View style={styles.kpiRow}>
                 <MetricCard
                   label={t('analytics.coverageLabel')}
-                  value={`${coverageRate}%`}
-                  sub={t('analytics.coverageSub')}
+                  value={hasDemand ? `${coverageRate}%` : '—'}
+                  sub={hasDemand ? t('analytics.coverageSub') : t('home.staffingGaps.noTargets')}
                   accent={
+                    !hasDemand ? undefined :
                     // Text-safe AA colors (left-border accent + metric value color):
                     //   Green 700 #15803D 5.44:1 · Amber 700 #B45309 4.82:1 · Red 600 #DC2626 4.64:1
                     coverageRate >= 80
@@ -266,23 +269,28 @@ export default function AnalyticsScreen() {
                 <ThemedText style={styles.mutedText}>
                   {t('analytics.fairnessSub')}
                 </ThemedText>
-                <FairnessGauge score={fairnessScore} />
+                {/* One worker (or none) has nothing to be compared with. */}
+                {workerHours.length >= 2 ? (
+                  <FairnessGauge score={fairnessScore} />
+                ) : (
+                  <ThemedText style={styles.mutedText}>{t('analytics.fairnessNeedsTwo')}</ThemedText>
+                )}
               </ThemedView>
             </TourStep>
 
             {/* ── Quick actions ─────────────────────────────────────────── */}
             <ThemedView style={styles.card}>
               <ThemedText type="subtitle">{t('analytics.quickActions')}</ThemedText>
-              <Link href="/(tabs)/scheduler" asChild>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('analytics.openScheduler')}
-                  accessibilityHint={t('analytics.openSchedulerHint')}
-                  style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.8 }]}
-                >
-                  <ThemedText style={styles.primaryButtonText}>{t('analytics.openScheduler')}</ThemedText>
-                </Pressable>
-              </Link>
+              {/* Not <Link asChild>: on web it drops the Pressable's styles (CHG-050). */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('analytics.openScheduler')}
+                accessibilityHint={t('analytics.openSchedulerHint')}
+                onPress={() => router.push('/(tabs)/scheduler')}
+                style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.8 }]}
+              >
+                <ThemedText style={styles.primaryButtonText}>{t('analytics.openScheduler')}</ThemedText>
+              </Pressable>
             </ThemedView>
           </>
         )}

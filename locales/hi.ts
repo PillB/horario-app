@@ -300,8 +300,8 @@ export const hi = {
       templatePlaceholder: 'टेम्पलेट ID',
       dateLabel: 'तारीख',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: 'सहेजें और टीम को सूचित करें',
-      saveButtonA11y: 'सहेजें और टीम को सूचित करें',
+      saveButton: 'ड्राफ्ट के रूप में सहेजें',
+      saveButtonA11y: 'ड्राफ्ट के रूप में सहेजें',
       autoAssignButton: 'ऑटो-असाइन',
       autoAssignA11y: 'इस तारीख के लिए सभी टेम्पलेट में कर्मचारियों को ऑटो-असाइन करें',
       autoAssignHint: 'निष्पक्षता-आधारित असाइनमेंट एल्गोरिदम चलाता है',
@@ -446,6 +446,7 @@ export const hi = {
       today: 'आज'
     },
       jumpToCalendar: 'कैलेंडर देखें ↓',
+    sections: { workers: 'टीम', templates: 'टेम्पलेट', forecast: 'मांग', shifts: 'रोस्टर', navLabel: 'शेड्यूलर के चरण', doneA11y: '{step}, सेट है', hint: 'यह चरण दिखाता है' },
     pos: {
       sectionTitle: 'POS बिक्री अपलोड',
       sectionSubtitle: 'मांग पूर्वानुमान को बेहतर बनाने के लिए CSV राजस्व डेटा अपलोड करें।',
@@ -710,7 +711,7 @@ export const hi = {
     pickTitle: 'अपना गाइड चुनें',
     pickDesc: 'ऐप के विभिन्न भागों को जानने के लिए एक टूर चुनें।',
     overview: 'त्वरित अवलोकन',
-    overviewDesc: 'सभी टैब का 5-चरण परिचय',
+    overviewDesc: 'सभी टैब का 4-चरण परिचय',
     manager: 'मैनेजर टूर',
     managerDesc: 'अपना पहला शेड्यूल बनाएं',
     worker: 'टीम सदस्य टूर',

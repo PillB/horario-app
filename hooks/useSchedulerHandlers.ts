@@ -3,7 +3,7 @@
  * for the Scheduler screen.  Extracted here to keep scheduler.tsx lean.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, Platform, ScrollView, View } from 'react-native';
+import { AccessibilityInfo, Alert, Platform, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useDemandForecast } from '@/hooks/useDemandForecast';
@@ -74,6 +74,14 @@ const EMPTY_WORKER_FORM: WorkerFormState = {
   weeklyLimitOptOut: false,
   noFixedHours: false,
 };
+
+/** The steps of the scheduler page, in working order. `shifts` is the roster. */
+export const SCHEDULER_SECTIONS = ['workers', 'templates', 'forecast', 'shifts'] as const;
+export type SchedulerSection = (typeof SCHEDULER_SECTIONS)[number];
+
+export function isSchedulerSection(value: unknown): value is SchedulerSection {
+  return typeof value === 'string' && (SCHEDULER_SECTIONS as readonly string[]).includes(value);
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -171,7 +179,7 @@ export function useSchedulerHandlers() {
   // warning on every account that has no such row.
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: '',
-    day: 'Fri',
+    day: '',
     from: '09:00',
     to: '17:00',
   });
@@ -213,11 +221,10 @@ export function useSchedulerHandlers() {
   const [autoAssignShortfalls, setAutoAssignShortfalls] = useState<CoverageShortfall[] | null>(null);
   const [autoAssignApplying, setAutoAssignApplying] = useState(false);
 
-  // ── Section layout offsets (for scroll-to-section) ────────────────────────
-  const [shiftSectionOffset, setShiftSectionOffset] = useState<number | null>(null);
-  const [workerSectionOffset, setWorkerSectionOffset] = useState<number | null>(null);
-  const [templateSectionOffset, setTemplateSectionOffset] = useState<number | null>(null);
-  const [demandSectionOffset, setDemandSectionOffset] = useState<number | null>(null);
+  // ── Active section (one step of the page is shown at a time) ──────────────
+  // null = the user has not picked one and the URL names none: the default
+  // below applies once the roster has loaded.
+  const [sectionChoice, setSectionChoice] = useState<SchedulerSection | null>(null);
 
   useEffect(() => {
     setShiftForm((prev) => (prev.date ? prev : { ...prev, date: isoDate(2) }));
@@ -231,10 +238,6 @@ export function useSchedulerHandlers() {
   const baselineTargetsRef = useRef<DemandForecast[] | null>(null);
   const prevOnboardingFlagsRef = useRef({ workers: false, templates: false, forecast: false });
   const scrollViewRef = useRef<ScrollView>(null);
-  const shiftSectionRef = useRef<View>(null);
-  const workerSectionRef = useRef<View>(null);
-  const templateSectionRef = useRef<View>(null);
-  const demandSectionRef = useRef<View>(null);
   /** The running auto-assign: a newer run or unmount cancels it. */
   const autoAssignRunRef = useRef<AbortController | null>(null);
 
@@ -455,28 +458,23 @@ export function useSchedulerHandlers() {
     }));
   }, [reduceMotionEnabled]);
 
-  const scrollToSection = useCallback((offset: number | null) => {
-    if (offset == null) return;
-    scrollViewRef.current?.scrollTo({ y: Math.max(offset - 12, 0), animated: true });
-  }, []);
-
-  const scrollToShiftSection = useCallback(
-    () => scrollToSection(shiftSectionOffset),
-    [scrollToSection, shiftSectionOffset]
-  );
-
   const goToSection = useCallback(
-    (target: OnboardingStep['key']) => {
-      const offsetLookup: Record<OnboardingStep['key'], number | null> = {
-        workers: workerSectionOffset,
-        templates: templateSectionOffset,
-        forecast: demandSectionOffset,
-      };
-      scrollToSection(offsetLookup[target]);
+    (target: SchedulerSection) => {
+      setSectionChoice(target);
+      // Keep the URL in step so a reload or a shared link opens the same step.
       router.setParams({ section: target });
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     },
-    [demandSectionOffset, router, scrollToSection, templateSectionOffset, workerSectionOffset]
+    [router]
   );
+
+  const scrollToShiftSection = useCallback(() => goToSection('shifts'), [goToSection]);
+
+  // A returning account opens on its roster, a new one on the first step.
+  // Until the roster has loaded (or failed to) there is no default yet.
+  const activeSection: SchedulerSection | null =
+    sectionChoice ??
+    (roster.length > 0 ? 'shifts' : rosterLoaded || rosterError ? 'workers' : null);
 
   const runForecast = useCallback(() => {
     if (!isForecastInputValid || forecasting || forecastLoading) return;
@@ -675,20 +673,10 @@ export function useSchedulerHandlers() {
     }
   }, [demandTargets]);
 
+  // A link such as /scheduler?section=forecast opens that step.
   useEffect(() => {
-    if (section === 'workers') { scrollToSection(workerSectionOffset); return; }
-    if (section === 'templates') { scrollToSection(templateSectionOffset); return; }
-    if (section === 'forecast') { scrollToSection(demandSectionOffset); return; }
-    if (section === 'shifts') { scrollToShiftSection(); }
-  }, [
-    demandSectionOffset,
-    scrollToSection,
-    scrollToShiftSection,
-    section,
-    shiftSectionOffset,
-    templateSectionOffset,
-    workerSectionOffset,
-  ]);
+    if (isSchedulerSection(section)) setSectionChoice(section);
+  }, [section]);
 
   useEffect(() => {
     return () => {
@@ -779,28 +767,44 @@ export function useSchedulerHandlers() {
   }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
 
   const handleAvailabilitySubmit = useCallback(async () => {
-    const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
-      validateAvailabilitySubmission(availabilityForm, workers);
-
-    if (errors.length > 0 || !normalizedDay) {
-      setAvailabilityError(errors.map((e) => e.message).join(' '));
+    // `day` holds one day or several, comma-separated (the day chips).
+    const days = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
+    const checks = (days.length > 0 ? days : ['']).map((day) =>
+      validateAvailabilitySubmission({ ...availabilityForm, day }, workers),
+    );
+    const messages = [...new Set(checks.flatMap((c) => c.errors.map((e) => e.message)))];
+    if (messages.length > 0 || checks.some((c) => !c.normalizedDay)) {
+      setAvailabilityError(messages.join(' '));
       setAvailabilitySuccessPromptVisible(false);
       return;
     }
 
     setAvailabilityError(null);
-    const result = await addAvailability(
-      trimmedWorkerId,
-      normalizedDay as DayOfWeek,
-      trimmedFrom,
-      trimmedTo
-    );
-    if (result.success) {
+    // One request per day, in order: a refused day stays selected to fix.
+    const failed: string[] = [];
+    let lastError: string | undefined;
+    let saved = 0;
+    for (const check of checks) {
+      const result = await addAvailability(
+        check.trimmedWorkerId,
+        check.normalizedDay as DayOfWeek,
+        check.trimmedFrom,
+        check.trimmedTo,
+      );
+      if (result.success) saved += 1;
+      else {
+        failed.push(check.normalizedDay as string);
+        lastError = result.error;
+      }
+    }
+    if (saved > 0) {
       setAvailabilitySuccessPromptVisible(true);
-      setAvailabilityForm((prev) => ({ ...prev, day: '', from: '', to: '' }));
       recordTourAction('availability-section');
-    } else {
-      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+    }
+    // Keep the worker and the hours for the next entry; clear the saved days.
+    setAvailabilityForm((prev) => ({ ...prev, day: failed.join(',') }));
+    if (failed.length > 0) {
+      setAvailabilityError(lastError ?? 'Failed to save availability. Please try again.');
     }
   }, [addAvailability, availabilityForm, recordTourAction, workers]);
 
@@ -1353,17 +1357,11 @@ export function useSchedulerHandlers() {
 
     // Refs (attached to JSX elements)
     scrollViewRef,
-    workerSectionRef,
-    shiftSectionRef,
-    templateSectionRef,
-    demandSectionRef,
     baselineTargetsRef,
 
-    // Layout offsets (set by onLayout)
-    setWorkerSectionOffset,
-    setShiftSectionOffset,
-    setTemplateSectionOffset,
-    setDemandSectionOffset,
+    // Active step of the page
+    activeSection,
+    goToSection,
 
     // UI state
     actionBanner,

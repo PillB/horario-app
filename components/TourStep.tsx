@@ -1,13 +1,13 @@
 /**
- * TourStep — a minimal layout-measurement wrapper used by the welcome tour.
+ * TourStep — marks a view as a tour target.
  *
- * Wraps any child in a View with collapsable={false} so the native node is
- * preserved for measurement, then forwards each layout event to the tour
- * context via registerLayout(target, layout).
+ * Registers a ref with the tour context so <TourSpotlight> can scroll the view
+ * into sight and measure where it is on screen. `collapsable={false}` keeps
+ * the native node so it can be measured.
  */
 
-import React, { useCallback } from 'react';
-import { View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, type ViewStyle } from 'react-native';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 
 type Props = {
@@ -18,22 +18,20 @@ type Props = {
 };
 
 export function TourStep({ target, children, style }: Props) {
-  const { registerLayout } = useWelcomeTour();
+  const { registerTarget } = useWelcomeTour();
+  const ref = useRef<View>(null);
 
-  const handleLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      registerLayout(target, event.nativeEvent.layout);
-    },
-    [target, registerLayout],
-  );
+  useEffect(() => {
+    registerTarget(target, ref);
+    return () => registerTarget(target, null);
+  }, [target, registerTarget]);
 
   return (
     <View
+      ref={ref}
       collapsable={false}
-      onLayout={handleLayout}
       style={style}
-      // importantForAccessibility="no" prevents this wrapper from becoming
-      // an accessibility node, so screen readers address children directly.
+      // Not an accessibility node of its own: screen readers address the children.
       importantForAccessibility="no"
       accessible={false}
     >

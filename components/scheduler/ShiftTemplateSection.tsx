@@ -59,6 +59,11 @@ type Props = {
   autoAssignShortfalls?: CoverageShortfall[] | null;
   autoAssignApplying: boolean;
   workers: Worker[];
+  /**
+   * Which cards to render: the template list and form, the shift assignment
+   * form (manual and auto-assign), or both (default).
+   */
+  part?: 'templates' | 'assign' | 'all';
 };
 
 // Local override styles that require live theme values for contrast compliance
@@ -147,6 +152,7 @@ export const ShiftTemplateSection = ({
   autoAssignShortfalls,
   autoAssignApplying,
   workers,
+  part = 'all',
 }: Props) => {
   const { t } = useT();
   const colorScheme = useColorScheme();
@@ -172,6 +178,8 @@ export const ShiftTemplateSection = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {part !== 'assign' ? (
+        <>
         <SectionCard
           title={t('scheduler.templates.sectionTitle')}
           subtitle={t('scheduler.templates.sectionSubtitle')}
@@ -203,19 +211,6 @@ export const ShiftTemplateSection = ({
           ))}
           {templatesLoaded && shiftTemplates.length === 0 && (
             <View>
-              {/* Ghost preview — shows what shift templates look like populated */}
-              <View style={styles.ghostContainer} accessibilityElementsHidden>
-                {[0, 1].map((i) => (
-                  <View key={i} style={styles.ghostRow}>
-                    <View style={styles.ghostBlock}>
-                      {/* [10] Fix: ghost bars use border colour for ≥1.5:1 decorative visibility */}
-                      <View style={[styles.ghostNameBar, local.ghostBar]} />
-                      <View style={[styles.ghostTimeBar, local.ghostBar]} />
-                    </View>
-                    <View style={[styles.ghostBadgeBar, local.ghostBar]} />
-                  </View>
-                ))}
-              </View>
               {/* [5] Fix: ghost empty-state text uses textSecondary for ≥4.5:1 in both modes */}
               <View style={styles.ghostEmptyCta}>
                 <ThemedText style={local.ghostEmptyCtaText}>
@@ -320,7 +315,10 @@ export const ShiftTemplateSection = ({
             <ThemedText style={local.successText}>{templateSuccessMessage}</ThemedText>
           ) : null}
         </SectionCard>
+        </>
+        ) : null}
 
+        {part !== 'templates' ? (
         <SectionCard
           title={t('scheduler.shifts.sectionTitle')}
           subtitle={t('scheduler.shifts.sectionSubtitle')}
@@ -420,6 +418,9 @@ export const ShiftTemplateSection = ({
                 );
               })}
               <Pressable
+                accessibilityRole="button"
+                accessibilityHint={t('scheduler.shifts.autoAssignHint')}
+                testID="apply-auto-assign"
                 accessibilityLabel={t('scheduler.shifts.applyButton')}
                 onPress={applyAutoAssign}
                 disabled={autoAssignApplying}
@@ -433,6 +434,7 @@ export const ShiftTemplateSection = ({
             </ThemedView>
           ) : null}
         </SectionCard>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

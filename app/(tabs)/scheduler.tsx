@@ -7,15 +7,14 @@
  * Pure utils live in utils/schedulerUtils.ts and utils/schedulerValidators.ts.
  * Types live in types/scheduler.ts.
  */
-import React, { useEffect, useRef } from 'react';
-import { ScrollView, View, Pressable, Modal } from 'react-native';
+import React, { useEffect } from 'react';
+import { ScrollView, View, Modal } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import ConfettiBurst from '@/components/ConfettiBurst';
 import { WellnessPrompt } from '@/components/WellnessPrompt';
-import { Checklist } from '@/components/scheduler/Checklist';
 import { WorkerSection } from '@/components/scheduler/WorkerSection';
 import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSection';
 import { DemandSection } from '@/components/scheduler/DemandSection';
@@ -24,14 +23,16 @@ import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
 import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
 import { SyncNotice } from '@/components/scheduler/SyncNotice';
+import { SectionNav } from '@/components/scheduler/SectionNav';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
 import { useT } from '@/contexts/LocaleContext';
 import { TourStep } from '@/components/TourStep';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
-import { Colors, brand } from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+
 import { PageTitle } from '@/components/PageTitle';
 
 export default function SchedulerScreen() {
@@ -54,7 +55,6 @@ export default function SchedulerScreen() {
     forecastError,
     forecastModels,
     forecastNotices,
-    needsFallbackSetup,
 
     // Wellness
     acknowledgeBreak,
@@ -64,17 +64,11 @@ export default function SchedulerScreen() {
 
     // Refs
     scrollViewRef,
-    workerSectionRef,
-    shiftSectionRef,
-    templateSectionRef,
-    demandSectionRef,
     baselineTargetsRef,
 
-    // Layout setters
-    setWorkerSectionOffset,
-    setShiftSectionOffset,
-    setTemplateSectionOffset,
-    setDemandSectionOffset,
+    // Active step
+    activeSection,
+    goToSection,
 
     // UI state
     actionBanner,
@@ -115,8 +109,6 @@ export default function SchedulerScreen() {
     scheduleLocations,
     upcomingShifts,
     staffingGaps,
-    onboardingSteps,
-    onboardingProgress,
 
     // Forecast UI
     forecastButtonLabel,
@@ -177,23 +169,6 @@ export default function SchedulerScreen() {
     date: string;
   } | null>(null);
 
-  // ── Jump-to-calendar button ────────────────────────────────────────────────
-  const rosterSectionOffsetRef = useRef<number>(0);
-  const handleScrollToCalendar = React.useCallback(() => {
-    if (scrollViewRef.current) {
-      (scrollViewRef.current as unknown as { scrollTo: (opts: { y: number; animated: boolean }) => void }).scrollTo({
-        y: rosterSectionOffsetRef.current,
-        animated: true,
-      });
-    }
-  }, [scrollViewRef]);
-
-  // [Finding 2] linkText must meet AA on warningSurface:
-  //   light: brand.primaryDeep (#115E59, 5.87:1 on white/warm surface)
-  //   dark:  Colors.dark.tint (#2DD4BF, 8.95:1 on dark amber surface)
-  const linkTextColor =
-    colorScheme === 'dark' ? Colors.dark.tint : brand.primaryDeep;
-
   // [Finding 3] Banner text colours derived from theme-aware semantic tokens
   //   success: Colors[scheme].success on Colors[scheme].successSurface
   //   error:   Colors[scheme].error   on Colors[scheme].errorSurface
@@ -212,33 +187,78 @@ export default function SchedulerScreen() {
     []
   );
 
+  const assignPanel = (
+        <View>
+          <TourStep target="shift-assign-section">
+          <ShiftTemplateSection
+            part="assign"
+            shiftTemplates={shiftTemplates}
+            templatesLoaded={templatesLoaded}
+            onRemoveTemplate={handleRemoveTemplate}
+            templateForm={templateForm}
+            updateTemplateField={updateTemplateField}
+            handleAddTemplate={handleAddTemplate}
+            templateError={templateError}
+            templateSuccessMessage={templateSuccessMessage}
+            shiftForm={shiftForm}
+            updateShiftField={updateShiftField}
+            handleShiftSubmit={handleShiftSubmit}
+            shiftError={shiftError}
+            handleAutoAssign={handleAutoAssign}
+            applyAutoAssign={applyAutoAssign}
+            autoAssignSuggestions={autoAssignSuggestions}
+            autoAssignShortfalls={autoAssignShortfalls}
+            autoAssignApplying={autoAssignApplying}
+            workers={workers}
+          />
+          </TourStep>
+        </View>
+  );
+
+  const rosterPanel = (
+        <TourStep target="roster-section">
+        <View>
+        <RosterSection
+          publishCelebration={publishCelebration}
+          rosterByDate={rosterByDate}
+          scheduleLocations={scheduleLocations}
+          handlePublishShift={handlePublishShift}
+          handleUnpublishShift={handleUnpublishShift}
+          handleNotifyShift={handleNotifyShift}
+          onRemoveShift={handleRemoveShift}
+          rosterLoaded={rosterLoaded}
+          upcomingShifts={upcomingShifts}
+          staffingGaps={staffingGaps}
+          onSelectShiftForNotes={handleSelectShiftForNotes}
+        />
+        </View>
+        </TourStep>
+  );
+
   return (
     <ErrorBoundary>
     <PageTitle title={t('nav.scheduler')} />
     <ThemedView style={styles.screenContainer}>
       <ConfettiBurst running={publishCelebration.confettiBurst} disabled={reduceMotionEnabled} />
+      <TimezoneBar />
+      <TourStep target="scheduler-sections">
+      <SectionNav
+        active={activeSection}
+        onSelect={goToSection}
+        done={{
+          workers: workers.length > 0,
+          templates: shiftTemplates.length > 0,
+          forecast: demandTargets.length > 0,
+          shifts: roster.length > 0,
+        }}
+        counts={{ workers: workers.length, templates: shiftTemplates.length, shifts: roster.length }}
+      />
+      </TourStep>
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
-        <TimezoneBar />
-        {/* [Finding 6] pageTitle contrast confirmed AAA — no change needed */}
-        <ThemedText type="title" style={styles.pageTitle}>
-          {t('scheduler.title')}
-        </ThemedText>
-        {/* [Finding 7] subtitle uses textSecondary (6.86:1) instead of textTertiary (4.35:1) */}
-        <ThemedText style={[styles.mutedText, { color: colors.textSecondary }]}>
-          {t('scheduler.subtitle')}
-        </ThemedText>
-
-        {/* Quick-jump to calendar — helps users who want to see the roster first */}
-        <Pressable
-          onPress={handleScrollToCalendar}
-          accessibilityRole="button"
-          accessibilityLabel={t('scheduler.jumpToCalendar')}
-          style={({ pressed }) => [styles.jumpCalendarBtn, pressed && { opacity: 0.7 }]}
-        >
-          <ThemedText style={styles.jumpCalendarText}>{t('scheduler.jumpToCalendar')}</ThemedText>
-        </Pressable>
-
-        <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
+        {/* The paid-plan prompt sits where auto-assign is used. */}
+        {activeSection === 'shifts' ? (
+          <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
+        ) : null}
 
         <SyncNotice
           loading={syncStatus.loading}
@@ -271,51 +291,8 @@ export default function SchedulerScreen() {
           </ThemedView>
         ) : null}
 
-        <Checklist steps={onboardingSteps} progress={onboardingProgress} />
-
-        {needsFallbackSetup ? (
-          <ThemedView style={[styles.banner, styles.bannerWarning, styles.dismissibleBanner]}>
-            <View style={styles.bannerHeader}>
-              <ThemedText style={styles.bannerText}>{t('scheduler.missingData.title')}</ThemedText>
-              {/* [Finding 5] Accessible dismiss close button */}
-              <Pressable
-                onPress={() => router.setParams({ section: undefined })}
-                accessibilityLabel={t('common.dismiss')}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.dismissButton,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <ThemedText style={{ color: colors.textSecondary, fontSize: 18, lineHeight: 22 }}>
-                  {'×'}
-                </ThemedText>
-              </Pressable>
-            </View>
-            {/* [Finding 4] Pressable for openSetup with pressed visual state */}
-            <Pressable
-              onPress={() => router.setParams({ section: 'forecast' })}
-              accessibilityRole="link"
-              style={({ pressed }) => [
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              {/* [Finding 2] linkText uses brand.primaryDeep / dark tint for AA contrast */}
-              <ThemedText style={[styles.linkText, { color: linkTextColor }]}>
-                {t('scheduler.missingData.openSetup')}
-              </ThemedText>
-            </Pressable>
-            {/* [Finding 1] description copy uses textSecondary for AA on warm amber surface */}
-            <ThemedText style={[styles.mutedText, { color: colors.textSecondary }]}>
-              {t('scheduler.missingData.desc')}
-            </ThemedText>
-          </ThemedView>
-        ) : null}
-
-        <View
-          ref={workerSectionRef}
-          onLayout={(e) => setWorkerSectionOffset(e.nativeEvent.layout.y)}
-        >
+        {activeSection === 'workers' ? (
+        <View>
           <TourStep target="workers-section">
           <WorkerSection
             workers={workers}
@@ -338,11 +315,10 @@ export default function SchedulerScreen() {
           />
           </TourStep>
         </View>
+        ) : null}
 
-        <View
-          ref={demandSectionRef}
-          onLayout={(e) => setDemandSectionOffset(e.nativeEvent.layout.y)}
-        >
+        {activeSection === 'forecast' ? (
+        <View>
           <TourStep target="demand-section">
           <DemandSection
             fallbackMode={fallbackMode}
@@ -371,20 +347,13 @@ export default function SchedulerScreen() {
           />
           </TourStep>
         </View>
+        ) : null}
 
-        <View
-          ref={shiftSectionRef}
-          onLayout={(e) => setShiftSectionOffset(e.nativeEvent.layout.y)}
-        >
-          {/* shiftSectionRef anchors scroll-to-shift-section */}
-        </View>
-
-        <View
-          ref={templateSectionRef}
-          onLayout={(e) => setTemplateSectionOffset(e.nativeEvent.layout.y)}
-        >
+        {activeSection === 'templates' ? (
+        <View>
           <TourStep target="shift-templates-section">
           <ShiftTemplateSection
+            part="templates"
             shiftTemplates={shiftTemplates}
             templatesLoaded={templatesLoaded}
             onRemoveTemplate={handleRemoveTemplate}
@@ -406,26 +375,12 @@ export default function SchedulerScreen() {
           />
           </TourStep>
         </View>
+        ) : null}
 
-        <TourStep target="roster-section">
-        <View
-          onLayout={(e) => { rosterSectionOffsetRef.current = e.nativeEvent.layout.y; }}
-        >
-        <RosterSection
-          publishCelebration={publishCelebration}
-          rosterByDate={rosterByDate}
-          scheduleLocations={scheduleLocations}
-          handlePublishShift={handlePublishShift}
-          handleUnpublishShift={handleUnpublishShift}
-          handleNotifyShift={handleNotifyShift}
-          onRemoveShift={handleRemoveShift}
-          rosterLoaded={rosterLoaded}
-          upcomingShifts={upcomingShifts}
-          staffingGaps={staffingGaps}
-          onSelectShiftForNotes={handleSelectShiftForNotes}
-        />
-        </View>
-        </TourStep>
+        {/* With shifts on the roster it comes first; an empty roster starts with the form. */}
+        {activeSection === 'shifts' ? (
+          roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>
+        ) : null}
 
         <WellnessPrompt
           visible={promptVisible}

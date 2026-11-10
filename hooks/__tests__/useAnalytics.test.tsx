@@ -71,8 +71,8 @@ describe('shiftHours', () => {
     expect(shiftHours({ startTime: '09:00', endTime: '09:30' } as any)).toBeCloseTo(0.5);
   });
 
-  it('returns 0 for overnight / equal times (guard)', () => {
-    expect(shiftHours({ startTime: '22:00', endTime: '06:00' } as any)).toBe(0);
+  it('counts an overnight shift across midnight and returns 0 for equal times', () => {
+    expect(shiftHours({ startTime: '22:00', endTime: '06:00' } as any)).toBe(8);
     expect(shiftHours({ startTime: '09:00', endTime: '09:00' } as any)).toBe(0);
   });
 });
@@ -153,13 +153,14 @@ describe('useAnalytics', () => {
   });
 
   it('computes coverageRate as a percentage (0–100)', async () => {
-    // totalRequired = 3 (2 + 1)
-    // Published coverage: s1→t1(coverage=1) + s2→t1(1) + s3→t2(2) = 4
-    // rate = min(100, 4/3 * 100) = 100 (capped)
+    // Required: 2 on 04-01, 1 on 04-02 (3 in total). One published row is one
+    // person: 04-01 has 1 of 2, 04-02 has 1 of 1, and the shift on 04-03 has no
+    // target. Filled 2 of 3 = 67 % (the old sum of template coverage said 100 %).
     const { getResult, unmount } = renderHook();
     await act(async () => { await Promise.resolve(); });
 
-    expect(getResult().coverageRate).toBe(100);
+    expect(getResult().coverageRate).toBe(67);
+    expect(getResult().hasDemand).toBe(true);
     unmount();
   });
 

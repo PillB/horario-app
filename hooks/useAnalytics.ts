@@ -19,7 +19,6 @@ import {
   listRoster,
   listShiftTemplates,
   listWorkers,
-  type DbRosterShift,
   type DbShiftTemplate,
   type DbWorker,
 } from '@/services/rosterService';
@@ -38,6 +37,8 @@ export type WorkerHoursEntry = {
 
 export type AnalyticsSummary = {
   coverageRate: number;         // 0–100 (%)
+  /** False when no demand target exists: the coverage rate then means nothing. */
+  hasDemand: boolean;
   draftShifts: number;          // count of Draft status
   publishedShifts: number;      // count of Published status
   workerHours: WorkerHoursEntry[]; // sorted descending by hours
@@ -54,8 +55,10 @@ export type AnalyticsSummary = {
 export const shiftHours = (template: DbShiftTemplate): number => {
   const start = parseTimeToMinutes(template.startTime);
   const end = parseTimeToMinutes(template.endTime);
-  // Handle overnight shifts (end < start) gracefully.
-  return end > start ? (end - start) / 60 : 0;
+  // An end before the start is an overnight shift (22:00–06:00 is 8 h on the
+  // clock; the scheduler's DST-exact lengths are not needed for this chart).
+  if (end === start) return 0;
+  return (end > start ? end - start : end + 24 * 60 - start) / 60;
 };
 
 /** Population standard deviation of an array. Returns 0 for arrays of 0 or 1. */
@@ -71,6 +74,7 @@ export const stdDev = (values: number[]): number => {
 
 export function useAnalytics(accountId: string): AnalyticsSummary {
   const [coverageRate, setCoverageRate] = useState(0);
+  const [hasDemand, setHasDemand] = useState(false);
   const [draftShifts, setDraftShifts] = useState(0);
   const [publishedShifts, setPublishedShifts] = useState(0);
   const [workerHours, setWorkerHours] = useState<WorkerHoursEntry[]>([]);
@@ -134,16 +138,23 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
       // ── Coverage rate ─────────────────────────────────────────────────────
       const totalRequired = targets.reduce((sum, t) => sum + t.required, 0);
 
-      let totalScheduled = 0;
+      // One published roster row is one person in one position (the template's
+      // `coverage` is how many it needs, not how many a row supplies). Counted
+      // per date and role, so extra people on one day do not hide a gap on another.
+      const scheduledByDateRole = new Map<string, number>();
       for (const shift of shifts) {
         if (shift.status !== 'Published') continue;
         const template = templateMap.get(shift.templateId);
         if (!template) continue;
-        totalScheduled += template.coverage ?? 1;
+        const key = `${shift.date}::${template.role}`;
+        scheduledByDateRole.set(key, (scheduledByDateRole.get(key) ?? 0) + 1);
       }
+      const totalFilled = targets.reduce(
+        (sum, t) => sum + Math.min(t.required, scheduledByDateRole.get(`${t.date}::${t.role}`) ?? 0),
+        0,
+      );
 
-      const rate =
-        totalRequired > 0 ? Math.min(100, (totalScheduled / totalRequired) * 100) : 0;
+      const rate = totalRequired > 0 ? (totalFilled / totalRequired) * 100 : 0;
 
       // ── Uncovered revenue ─────────────────────────────────────────────────
       // computeUncoveredLoss expects ShiftTemplate with start/end (not startTime/endTime).
@@ -164,6 +175,7 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
       );
 
       setCoverageRate(Math.round(rate));
+      setHasDemand(totalRequired > 0);
       setDraftShifts(drafts);
       setPublishedShifts(published);
       setWorkerHours(workerHoursEntries);
@@ -183,6 +195,7 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
 
   return {
     coverageRate,
+    hasDemand,
     draftShifts,
     publishedShifts,
     workerHours,

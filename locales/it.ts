@@ -311,8 +311,8 @@ export const it = {
       templatePlaceholder: 'ID modello',
       dateLabel: 'Data',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: 'Salva e notifica il team',
-      saveButtonA11y: 'Salva e notifica il team',
+      saveButton: 'Salva come bozza',
+      saveButtonA11y: 'Salva come bozza',
       autoAssignButton: 'Assegnazione automatica',
       autoAssignA11y: 'Assegna automaticamente lavoratori a tutti i modelli per questa data',
       autoAssignHint: 'Esegue l\'algoritmo di assegnazione basato sull\'equità',
@@ -457,6 +457,7 @@ export const it = {
       today: 'Oggi'
     },
       jumpToCalendar: 'Visualizza calendario ↓',
+    sections: { workers: 'Team', templates: 'Modelli', forecast: 'Domanda', shifts: 'Turni', navLabel: 'Passaggi del pianificatore', doneA11y: '{step}, configurato', hint: 'Mostra questo passaggio' },
     pos: {
       sectionTitle: 'Caricamento vendite POS',
       sectionSubtitle: 'Carica dati di ricavo in formato CSV per arricchire le previsioni della domanda.',
@@ -726,7 +727,7 @@ export const it = {
     pickTitle: 'Scegli la tua guida',
     pickDesc: 'Seleziona un tour per esplorare diverse parti dell\'app.',
     overview: 'Panoramica rapida',
-    overviewDesc: 'Introduzione in 5 passi a tutte le schede',
+    overviewDesc: 'Introduzione in 4 passi a tutte le schede',
     manager: 'Tour per responsabili',
     managerDesc: 'Crea il tuo primo piano',
     worker: 'Tour per membri del team',

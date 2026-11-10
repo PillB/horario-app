@@ -311,8 +311,8 @@ export const fr = {
       templatePlaceholder: 'ID du modèle',
       dateLabel: 'Date',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: "Enregistrer et notifier l'équipe",
-      saveButtonA11y: "Enregistrer et notifier l'équipe",
+      saveButton: 'Enregistrer comme brouillon',
+      saveButtonA11y: 'Enregistrer comme brouillon',
       autoAssignButton: 'Affectation automatique',
       autoAssignA11y: 'Affecter automatiquement les employés à tous les modèles pour cette date',
       autoAssignHint: "Exécute l'algorithme d'affectation basé sur l'équité",
@@ -457,6 +457,7 @@ export const fr = {
       today: 'Aujourd\'hui'
     },
       jumpToCalendar: 'Voir le calendrier ↓',
+    sections: { workers: 'Équipe', templates: 'Modèles', forecast: 'Demande', shifts: 'Planning', navLabel: 'Étapes du planificateur', doneA11y: '{step}, configuré', hint: 'Affiche cette étape' },
     pos: {
       sectionTitle: 'Importation des ventes PDV',
       sectionSubtitle: 'Importez des données de chiffre d\'affaires au format CSV pour enrichir les prévisions de la demande.',
@@ -726,7 +727,7 @@ export const fr = {
     pickTitle: 'Choisissez votre guide',
     pickDesc: 'Sélectionnez une visite pour explorer différentes parties de l\'application.',
     overview: 'Aperçu rapide',
-    overviewDesc: 'Introduction en 5 étapes à tous les onglets',
+    overviewDesc: 'Introduction en 4 étapes à tous les onglets',
     manager: 'Visite Responsable',
     managerDesc: 'Créez votre premier planning',
     worker: 'Visite Membre de l\'équipe',

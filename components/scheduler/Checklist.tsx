@@ -91,7 +91,7 @@ export const Checklist = ({ steps, progress }: Props) => {
         </View>
       </View>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.max(progress * 100, 6)}%` }]} />
+        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
       </View>
       {steps.map((step, index) => (
         <Pressable

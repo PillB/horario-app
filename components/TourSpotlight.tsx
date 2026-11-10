@@ -1,16 +1,29 @@
-import React, { useMemo, useState } from 'react';
+/**
+ * TourSpotlight — the guide picker and the step card of a running guide.
+ *
+ * The step card is not a modal: the app stays usable while a guide runs, which
+ * the scheduler guide needs (the user fills in real forms). For each step it
+ * opens the step's screen, scrolls the target into view, and draws a ring
+ * around it at its measured window position, re-measured while the step shows.
+ */
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
-  View,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  View,
   useWindowDimensions,
 } from 'react-native';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter, type Href } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, type ThemeColors } from '@/constants/Colors';
-import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
+import {
+  useWelcomeTour,
+  type TourMode,
+  type TourStepMeta,
+} from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
 import type { LangCode } from '@/locales/en';
@@ -29,75 +42,80 @@ const LANG_META: Record<LangCode, { flag: string; native: string }> = {
 };
 const LANG_CODES = Object.keys(LANG_META) as LangCode[];
 
-/** Tour step targets that live on the Scheduler screen. */
-const SCHEDULER_TARGETS = new Set([
-  'workers-section',
-  'availability-section',
-  'shift-templates-section',
-  'roster-section',
-  'demand-section',
-]);
+const RING_PADDING = 6;
+const RING_RADIUS = 12;
+const MEASURE_INTERVAL_MS = 200;
+/** Card width on wide screens; on phones it spans the screen. */
+const CARD_MAX_WIDTH = 420;
+/** Space kept clear of the tab bar. */
+const CARD_BOTTOM = 72;
 
-/** Tour step targets that live on the Home screen. */
-const HOME_TARGETS = new Set([
-  'home-header',
-  'week-stats',
-  'streak-counter',
-  'upcoming-shifts',
-  'staffing-gaps',
-  'quick-actions',
-]);
+type Rect = { x: number; y: number; width: number; height: number };
 
-/** Tour step targets that live on the Analytics screen. */
-const ANALYTICS_TARGETS = new Set([
-  'analytics-kpis',
-  'analytics-revenue',
-  'analytics-hours',
-  'analytics-fairness',
-]);
+const sameRect = (a: Rect | null, b: Rect | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    Math.abs(a.x - b.x) < 1 &&
+    Math.abs(a.y - b.y) < 1 &&
+    Math.abs(a.width - b.width) < 1 &&
+    Math.abs(a.height - b.height) < 1);
 
-function tabForTarget(target: string): string | null {
-  if (SCHEDULER_TARGETS.has(target)) return '/(tabs)/scheduler';
-  if (HOME_TARGETS.has(target)) return '/';
-  if (ANALYTICS_TARGETS.has(target)) return '/(tabs)/explore';
-  return null;
+/** True when the current path is the step's screen. */
+export function pathMatchesRoute(pathname: string, route: TourStepMeta['route']): boolean {
+  if (route === '/') return pathname === '/' || pathname === '' || pathname.endsWith('/index');
+  return pathname === route || pathname.endsWith(route);
 }
 
-function tabNameForTarget(target: string, t: (key: string) => string): string {
-  if (SCHEDULER_TARGETS.has(target)) return t('nav.scheduler');
-  if (HOME_TARGETS.has(target)) return t('nav.home');
-  if (ANALYTICS_TARGETS.has(target)) return t('nav.analytics');
-  return '';
-}
+/**
+ * Where the current step's target is on screen, or null while it is not
+ * mounted or not visible. Scrolls it into view once per step (web).
+ */
+function useTargetRect(step: TourStepMeta | null, ready: boolean): Rect | null {
+  const { getTarget } = useWelcomeTour();
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const [rect, setRect] = useState<Rect | null>(null);
+  const scrolledForRef = useRef<TourStepMeta | null>(null);
 
-function pathMatchesTab(pathname: string, tabPath: string): boolean {
-  if (tabPath === '/') return pathname === '/' || pathname.endsWith('/index');
-  return pathname.includes(tabPath.replace('/(tabs)/', ''));
-}
+  useEffect(() => {
+    setRect(null);
+    if (!step || !ready) return undefined;
+    let cancelled = false;
 
-const SPOTLIGHT_PADDING = 8;
-const SPOTLIGHT_RADIUS = 12;
-const CARD_MARGIN_H = 24;
-const CARD_BELOW_GAP = 16;
-const CARD_ABOVE_GAP = 16;
-const MIN_SPACE_BELOW = 200;
+    const measure = () => {
+      const node = getTarget(step.target)?.current;
+      if (!node) {
+        setRect((prev) => (prev === null ? prev : null));
+        return;
+      }
+      if (scrolledForRef.current !== step) {
+        scrolledForRef.current = step;
+        if (Platform.OS === 'web') {
+          const el = node as unknown as {
+            scrollIntoView?: (o: { block: 'start' | 'center'; behavior: 'smooth' }) => void;
+            getBoundingClientRect?: () => { height: number };
+          };
+          const tall = (el.getBoundingClientRect?.().height ?? 0) > screenH * 0.5;
+          el.scrollIntoView?.({ block: tall ? 'start' : 'center', behavior: 'smooth' });
+        }
+      }
+      node.measureInWindow((x, y, width, height) => {
+        if (cancelled) return;
+        const visible = width > 0 && height > 0 && y < screenH && y + height > 0 && x < screenW && x + width > 0;
+        const next = visible ? { x, y, width, height } : null;
+        setRect((prev) => (sameRect(prev, next) ? prev : next));
+      });
+    };
 
-/** Sub-component so prevStep is called at the hook call-site, not in a callback. */
-function BackButton({ colors }: { colors: ThemeColors }) {
-  const { prevStep } = useWelcomeTour();
-  const { t } = useT();
-  const styles = makeStyles(colors);
-  return (
-    <Pressable
-      onPress={prevStep}
-      accessibilityRole="button"
-      accessibilityLabel={t('tour.nav.back')}
-      accessibilityHint="Returns to the previous tour step"
-      style={({ pressed }) => [styles.textButton, pressed && { opacity: 0.5 }]}
-    >
-      <ThemedText style={styles.textButtonLabel}>{t('tour.nav.back')}</ThemedText>
-    </Pressable>
-  );
+    measure();
+    const timer = setInterval(measure, MEASURE_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [step, ready, getTarget, screenW, screenH]);
+
+  return rect;
 }
 
 /** Guide mode picker shown before the tour starts */
@@ -117,24 +135,6 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
       emoji: '🗺️',
       title: t('tour.mode.overview'),
       desc: t('tour.mode.overviewDesc'),
-    },
-    {
-      mode: 'manager',
-      emoji: '📋',
-      title: t('tour.mode.manager'),
-      desc: t('tour.mode.managerDesc'),
-    },
-    {
-      mode: 'worker',
-      emoji: '👷',
-      title: t('tour.mode.worker'),
-      desc: t('tour.mode.workerDesc'),
-    },
-    {
-      mode: 'home',
-      emoji: '🏠',
-      title: t('tour.mode.home'),
-      desc: t('tour.mode.homeDesc'),
     },
     {
       mode: 'scheduler',
@@ -184,7 +184,7 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
                     style={({ pressed }) => [
                       styles.langChip,
                       selected && styles.langChipSelected,
-                      pressed && { opacity: 0.75 },
+                      pressed && styles.pressed,
                     ]}
                   >
                     <ThemedText style={styles.langChipFlag}>{meta.flag}</ThemedText>
@@ -238,8 +238,8 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
               onPress={skipTour}
               accessibilityRole="button"
               accessibilityLabel={t('tour.nav.skip')}
-              accessibilityHint="Closes the guide; you can start it again from the help button"
-              style={({ pressed }) => [styles.textButton, pressed && { opacity: 0.5 }]}
+              accessibilityHint={t('tour.nav.skipHint')}
+              style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
             >
               <ThemedText style={styles.textButtonLabel}>{t('tour.nav.skip')}</ThemedText>
             </Pressable>
@@ -250,312 +250,129 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
   );
 }
 
+
 export function TourSpotlight() {
   const {
     isActive,
-    userRole,
     tourMode,
     currentStep,
     currentStepIndex,
     totalSteps,
-    stepLayouts,
-    canAdvance,
     progressPercent,
     nextStep,
+    prevStep,
     skipTour,
   } = useWelcomeTour();
 
   const { t } = useT();
+  const router = useRouter();
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
-
   const { width: screenW, height: screenH } = useWindowDimensions();
 
-  const [whyExpanded, setWhyExpanded] = useState(false);
+  // Take the user to the step's screen (and scheduler step) when it changes.
+  useEffect(() => {
+    if (!currentStep) return;
+    const href = currentStep.section
+      ? { pathname: currentStep.route, params: { section: currentStep.section } }
+      : currentStep.route;
+    router.navigate(href as Href);
+    // Only when the step changes: the user may look around while it shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
-  const rawLayout = useMemo(() => {
-    if (!currentStep) return null;
-    return stepLayouts[currentStep.target] ?? null;
-  }, [currentStep, stepLayouts]);
+  // Escape closes the guide on web.
+  useEffect(() => {
+    if (!isActive || Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') skipTour();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isActive, skipTour]);
 
-  /**
-   * Expand the raw measured rect by SPOTLIGHT_PADDING on all sides,
-   * clamped to screen bounds.
-   */
-  const spotlightRect = useMemo(() => {
-    if (!rawLayout) return null;
-    const x = Math.max(0, rawLayout.x - SPOTLIGHT_PADDING);
-    const y = Math.max(0, rawLayout.y - SPOTLIGHT_PADDING);
-    const right = Math.min(screenW, rawLayout.x + rawLayout.width + SPOTLIGHT_PADDING);
-    const bottom = Math.min(screenH, rawLayout.y + rawLayout.height + SPOTLIGHT_PADDING);
-    return { x, y, width: right - x, height: bottom - y };
-  }, [rawLayout, screenW, screenH]);
+  const onStepScreen = currentStep ? pathMatchesRoute(pathname, currentStep.route) : false;
+  const rect = useTargetRect(currentStep, isActive && onStepScreen);
 
-  /** Derive callout card vertical position. */
-  const cardVerticalStyle = useMemo(():
-    | { top: number }
-    | { bottom: number } => {
-    if (!spotlightRect) {
-      return { top: screenH / 2 - 120 };
-    }
-    const spaceBelow =
-      screenH - (spotlightRect.y + spotlightRect.height + SPOTLIGHT_PADDING);
-    if (spaceBelow >= MIN_SPACE_BELOW) {
-      return {
-        top:
-          spotlightRect.y +
-          spotlightRect.height +
-          SPOTLIGHT_PADDING +
-          CARD_BELOW_GAP,
-      };
-    }
-    return { bottom: screenH - spotlightRect.y + CARD_ABOVE_GAP };
-  }, [spotlightRect, screenH]);
+  if (!isActive) return null;
+  if (tourMode === null) return <GuideModePicker colors={colors} />;
+  if (!currentStep) return null;
 
   const isLastStep = currentStepIndex === totalSteps - 1;
   const isFirstStep = currentStepIndex === 0;
+  const stepTitle = t(`tour.${tourMode}.step${currentStep.id}.title`);
+  const stepDesc = t(`tour.${tourMode}.step${currentStep.id}.desc`);
 
-  // Use tourMode for key path; fall back to userRole for backward compat
-  const modeKey =
-    tourMode ?? (userRole === 'worker' ? 'worker' : 'manager');
-  const stepId = currentStep?.id ?? '';
+  const ring = rect
+    ? {
+        left: Math.max(0, rect.x - RING_PADDING),
+        top: Math.max(0, rect.y - RING_PADDING),
+        width: Math.min(screenW, rect.x + rect.width + RING_PADDING) - Math.max(0, rect.x - RING_PADDING),
+        height: Math.min(screenH, rect.y + rect.height + RING_PADDING) - Math.max(0, rect.y - RING_PADDING),
+      }
+    : null;
 
-  const stepTitle = currentStep
-    ? t(`tour.${modeKey}.step${stepId}.title`)
-    : '';
-  const stepDesc = currentStep
-    ? t(`tour.${modeKey}.step${stepId}.desc`)
-    : '';
-  const stepWhy = currentStep
-    ? t(`tour.${modeKey}.step${stepId}.why`)
-    : '';
-
-  const modeBadgeText = (() => {
-    switch (tourMode) {
-      case 'overview':
-        return '🗺️ Overview';
-      case 'manager':
-        return '👔 Manager';
-      case 'worker':
-        return '👷 Team Member';
-      case 'home':
-        return '🏠 Home';
-      case 'scheduler':
-        return '📅 Scheduler';
-      case 'analytics':
-        return '📊 Analytics';
-      default:
-        return null;
-    }
-  })();
-
-  const requiresActionAndBlocked =
-    currentStep?.requiresAction === true && !canAdvance;
-
-  // Cross-tab navigation detection for all tabs
-  const targetTab = currentStep ? tabForTarget(currentStep.target) : null;
-  const isOnWrongScreen =
-    currentStep !== null &&
-    targetTab !== null &&
-    rawLayout === null &&
-    !pathMatchesTab(pathname, targetTab);
-
-  const wrongScreenTabName =
-    currentStep !== null
-      ? tabNameForTarget(currentStep.target, t)
-      : '';
-
-  if (!isActive) return null;
-
-  // Show guide mode picker if no mode chosen yet
-  if (tourMode === null) {
-    return <GuideModePicker colors={colors} />;
-  }
-
-  if (!currentStep) return null;
+  const wide = screenW >= 600;
 
   return (
-    <Modal
-      visible={isActive}
-      transparent
-      animationType="fade"
-      onRequestClose={skipTour}
-      statusBarTranslucent
-    >
-      {/* ── Backdrop with spotlight cutout ── */}
-      {spotlightRect ? (
-        <>
-          {/* Top */}
-          <View
-            style={[
-              styles.backdropSlice,
-              { top: 0, left: 0, width: screenW, height: spotlightRect.y },
-            ]}
-            pointerEvents="none"
-          />
-          {/* Bottom */}
-          <View
-            style={[
-              styles.backdropSlice,
-              {
-                top: spotlightRect.y + spotlightRect.height,
-                left: 0,
-                width: screenW,
-                height:
-                  screenH - (spotlightRect.y + spotlightRect.height),
-              },
-            ]}
-            pointerEvents="none"
-          />
-          {/* Left */}
-          <View
-            style={[
-              styles.backdropSlice,
-              {
-                top: spotlightRect.y,
-                left: 0,
-                width: spotlightRect.x,
-                height: spotlightRect.height,
-              },
-            ]}
-            pointerEvents="none"
-          />
-          {/* Right */}
-          <View
-            style={[
-              styles.backdropSlice,
-              {
-                top: spotlightRect.y,
-                left: spotlightRect.x + spotlightRect.width,
-                width:
-                  screenW - (spotlightRect.x + spotlightRect.width),
-                height: spotlightRect.height,
-              },
-            ]}
-            pointerEvents="none"
-          />
-          {/* Highlight ring around spotlight */}
-          <View
-            style={[
-              styles.spotlightRing,
-              {
-                top: spotlightRect.y,
-                left: spotlightRect.x,
-                width: spotlightRect.width,
-                height: spotlightRect.height,
-                borderRadius: SPOTLIGHT_RADIUS,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        </>
-      ) : (
-        // Full-screen backdrop when the target hasn't measured yet
-        <View
-          style={[
-            styles.backdropSlice,
-            { top: 0, left: 0, width: screenW, height: screenH },
-          ]}
-          pointerEvents="none"
-        />
-      )}
+    <View style={styles.overlay} testID="tour-overlay">
+      {ring ? <View style={[styles.spotlightRing, ring]} testID="tour-ring" /> : null}
 
-      {/* ── Callout card ── */}
       <View
-        style={[
-          styles.card,
-          cardVerticalStyle,
-          { left: CARD_MARGIN_H, right: CARD_MARGIN_H },
-        ]}
+        style={[styles.card, wide ? styles.cardWide : styles.cardNarrow]}
+        role="dialog"
+        aria-label={stepTitle}
+        testID="tour-card"
       >
-        {/* Progress bar */}
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progressPercent}%` as unknown as number }]} />
+          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
 
-        {/* Header row: mode badge + step counter + skip */}
         <View style={styles.cardHeader}>
-          {modeBadgeText ? (
-            <View style={styles.modeBadge}>
-              <ThemedText style={styles.modeBadgeText}>{modeBadgeText}</ThemedText>
-            </View>
-          ) : null}
+          <View style={styles.modeBadge}>
+            <ThemedText style={styles.modeBadgeText}>{t(`tour.mode.${tourMode}`)}</ThemedText>
+          </View>
           <ThemedText style={styles.stepCounter}>
-            {currentStepIndex + 1} / {totalSteps}
+            {t('tour.nav.stepOf', { current: String(currentStepIndex + 1), total: String(totalSteps) })}
           </ThemedText>
           <Pressable
             onPress={skipTour}
             accessibilityRole="button"
             accessibilityLabel={t('tour.nav.skip')}
-            style={({ pressed }) => [styles.skipButton, pressed && { opacity: 0.5 }]}
+            accessibilityHint={t('tour.nav.skipHint')}
+            hitSlop={8}
+            style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
           >
             <ThemedText style={styles.skipText}>{t('tour.nav.skip')}</ThemedText>
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.cardScroll}>
-          {/* Cross-tab navigation prompt */}
-          {isOnWrongScreen ? (
-            <View style={styles.wrongScreenBanner}>
-              <ThemedText style={styles.wrongScreenText}>
-                {t('tour.nav.goToTab', { tab: wrongScreenTabName })}
-              </ThemedText>
-            </View>
-          ) : null}
+        <ThemedText style={styles.cardTitle} accessibilityRole="header" aria-live="polite">
+          {stepTitle}
+        </ThemedText>
+        <ThemedText style={styles.cardDesc}>{stepDesc}</ThemedText>
 
-          {/* Step title */}
-          <ThemedText style={styles.cardTitle}>{stepTitle}</ThemedText>
-
-          {/* Step description */}
-          <ThemedText style={styles.cardDesc}>{stepDesc}</ThemedText>
-
-          {/* Interactive hint chip */}
-          {currentStep?.interactiveHint ? (
-            <View style={styles.hintChip}>
-              <ThemedText style={styles.hintChipText}>
-                {'💡 '}{currentStep.interactiveHint}
-              </ThemedText>
-            </View>
-          ) : null}
-
-          {/* Why this matters — expandable */}
-          {stepWhy ? (
-            <Pressable
-              onPress={() => setWhyExpanded((v) => !v)}
-              accessibilityRole="button"
-              accessibilityLabel={t('tour.nav.whyMatters')}
-              style={styles.whyToggle}
-            >
-              <ThemedText style={styles.whyToggleText}>
-                {whyExpanded ? '▲ ' : '▼ '}{t('tour.nav.whyMatters')}
-              </ThemedText>
-              {whyExpanded ? (
-                <ThemedText style={styles.whyText}>{stepWhy}</ThemedText>
-              ) : null}
-            </Pressable>
-          ) : null}
-        </ScrollView>
-
-        {/* Button row */}
         <View style={styles.buttonRow}>
           {!isFirstStep ? (
-            <BackButton colors={colors} />
-          ) : (
-            <View style={styles.buttonSpacer} />
-          )}
+            <Pressable
+              onPress={prevStep}
+              accessibilityRole="button"
+              accessibilityLabel={t('tour.nav.back')}
+              accessibilityHint={t('tour.nav.backHint')}
+              style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
+            >
+              <ThemedText style={styles.textButtonLabel}>{t('tour.nav.back')}</ThemedText>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={nextStep}
-            disabled={requiresActionAndBlocked}
             accessibilityRole="button"
             accessibilityLabel={isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
-            accessibilityState={{ disabled: requiresActionAndBlocked }}
-            style={({ pressed }) => [
-              styles.nextButton,
-              requiresActionAndBlocked && styles.nextButtonDisabled,
-              pressed && !requiresActionAndBlocked && { opacity: 0.85 },
-            ]}
+            accessibilityHint={t('tour.nav.nextHint')}
+            testID="tour-next"
+            style={({ pressed }) => [styles.nextButton, pressed && styles.pressed]}
           >
             <ThemedText style={styles.nextButtonText}>
               {isLastStep ? t('tour.nav.done') : t('tour.nav.next')}
@@ -563,7 +380,7 @@ export function TourSpotlight() {
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -571,16 +388,23 @@ export function TourSpotlight() {
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    // ── Backdrop slices ─────────────────────────────────────────────────────
-    backdropSlice: {
-      position: 'absolute',
-      backgroundColor: 'rgba(0,0,0,0.6)',
+    // Covers the screen but lets every touch through to the app.
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      pointerEvents: 'box-none',
+      zIndex: 1000,
     },
-    // Thin highlight ring drawn on top of the transparent spotlight cutout
+    // Ring around the target; never takes touches.
     spotlightRing: {
       position: 'absolute',
-      borderWidth: 2,
+      borderWidth: 3,
       borderColor: brand.primary,
+      borderRadius: RING_RADIUS,
+      boxShadow: '0 0 0 4px rgba(13,148,136,0.25)',
+      pointerEvents: 'none',
+    },
+    pressed: {
+      opacity: 0.7,
     },
 
     // ── Callout card ──────────────────────────────────────────────────────
@@ -591,15 +415,19 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 20,
       paddingTop: 12,
       paddingBottom: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
       elevation: 8,
-      maxHeight: 380,
+      bottom: CARD_BOTTOM,
     },
-    cardScroll: {
-      flexGrow: 0,
+    cardNarrow: {
+      left: 12,
+      right: 12,
+    },
+    cardWide: {
+      right: 24,
+      width: CARD_MAX_WIDTH,
     },
     progressTrack: {
       height: 3,
@@ -643,18 +471,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 13,
       color: colors.textSecondary,
     },
-    wrongScreenBanner: {
-      backgroundColor: brand.accentSurface,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      marginBottom: 10,
-    },
-    wrongScreenText: {
-      fontSize: 13,
-      color: brand.accentDark,
-      fontWeight: '600',
-    },
     cardTitle: {
       fontSize: 17,
       fontWeight: '700',
@@ -666,33 +482,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       lineHeight: 20,
       marginBottom: 8,
-    },
-    hintChip: {
-      backgroundColor: brand.primarySurface,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      marginBottom: 8,
-    },
-    hintChipText: {
-      fontSize: 13,
-      color: brand.primaryDeep,
-      lineHeight: 18,
-    },
-    whyToggle: {
-      marginTop: 2,
-      marginBottom: 4,
-    },
-    whyToggleText: {
-      fontSize: 12,
-      color: colors.tintText,
-      fontWeight: '600',
-      marginBottom: 4,
-    },
-    whyText: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      lineHeight: 18,
     },
 
     // ── Button row ────────────────────────────────────────────────────────
@@ -711,18 +500,12 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 14,
       color: colors.textSecondary,
     },
-    buttonSpacer: {
-      width: 60,
-    },
     nextButton: {
       flex: 1,
-      backgroundColor: brand.primary,
+      backgroundColor: brand.primaryDark,
       borderRadius: 10,
       paddingVertical: 12,
       alignItems: 'center',
-    },
-    nextButtonDisabled: {
-      backgroundColor: colors.border,
     },
     nextButtonText: {
       fontSize: 15,
@@ -745,11 +528,11 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surface,
       borderRadius: 20,
       padding: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2,
-      shadowRadius: 16,
+      boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
       elevation: 10,
+      width: '100%',
+      maxWidth: 560,
+      alignSelf: 'center',
     },
     roleLangLabel: {
       fontSize: 12,
@@ -815,7 +598,8 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 10,
     },
     modeButton: {
-      width: '47%',
+      flexGrow: 1,
+      flexBasis: 150,
       backgroundColor: colors.background,
       borderRadius: 14,
       padding: 14,

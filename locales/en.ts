@@ -225,6 +225,7 @@ export const en = {
     subtitle: 'Coordinate coverage across workers, shift templates, and day-by-day staffing plans.',
     tooltip: 'Your scheduling hub. Add workers, set their availability, create shift templates, then assign or auto-fill rosters in one tap. Start with step 1 — adding a worker.',
     jumpToCalendar: 'View Calendar ↓',
+    sections: { workers: 'Team', templates: 'Templates', forecast: 'Demand', shifts: 'Roster', navLabel: 'Scheduler steps', doneA11y: '{step}, set up', hint: 'Shows this step' },
 
     missingData: {
       title: 'Missing data detected',
@@ -338,8 +339,8 @@ export const en = {
       templatePlaceholder: 'Template ID',
       dateLabel: 'Date',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: 'Save and notify team',
-      saveButtonA11y: 'Save and notify team',
+      saveButton: 'Save as draft',
+      saveButtonA11y: 'Save as draft',
       autoAssignButton: 'Auto-assign',
       autoAssignA11y: 'Auto-assign workers to all templates for this date',
       autoAssignHint: 'Runs the fairness-based assignment algorithm',
@@ -590,6 +591,7 @@ export const en = {
     workerHours: 'Worker hours',
     workerHoursSub: 'Published shifts only · all time',
     noPublishedShifts: 'No published shifts yet.',
+    fairnessNeedsTwo: 'Shown once at least two workers have published shifts.',
     fairness: 'Schedule fairness',
     fairnessSub: 'Standard deviation of hours per worker — lower is fairer.',
     fairnessExcellent: 'Excellent',
@@ -754,6 +756,9 @@ export const en = {
     startManager: 'Start Manager Tour',
     startWorker: 'Start Team Member Tour',
     goToTab: 'Go to {tab} →',
+    skipHint: 'Closes the guide. You can start it again from the help button.',
+    backHint: 'Returns to the previous step',
+    nextHint: 'Moves to the next step',
   },
   manager: {
     step1: {
@@ -833,7 +838,7 @@ export const en = {
     pickTitle: 'Choose your guide',
     pickDesc: 'Select a tour to explore different parts of the app.',
     overview: 'Quick Overview',
-    overviewDesc: '5-step intro to all tabs',
+    overviewDesc: '4-step intro to all tabs',
     manager: 'Manager Tour',
     managerDesc: 'Build your first schedule',
     worker: 'Team Member Tour',

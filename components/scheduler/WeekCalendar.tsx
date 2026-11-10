@@ -870,8 +870,11 @@ function makeStyles(colors: ThemeColors) {
     gridScrollContent: {
       flexGrow: 1,
     },
+    // Columns share the available width and never get narrower than
+    // COLUMN_WIDTH (below that the grid scrolls sideways).
     grid: {
       flexDirection: 'column',
+      flexGrow: 1,
       minWidth: COLUMN_WIDTH * 7,
     },
 
@@ -882,7 +885,8 @@ function makeStyles(colors: ThemeColors) {
       borderBottomColor: colors.border,
     },
     columnHeader: {
-      width: COLUMN_WIDTH,
+      flex: 1,
+      minWidth: COLUMN_WIDTH,
       paddingVertical: 8,
       paddingHorizontal: 6,
       alignItems: 'center',
@@ -947,7 +951,8 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'flex-start',
     },
     dayColumn: {
-      width: COLUMN_WIDTH,
+      flex: 1,
+      minWidth: COLUMN_WIDTH,
       minHeight: 80,
       padding: 6,
       borderRightWidth: 1,
@@ -965,7 +970,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 32,
       alignItems: 'center',
       justifyContent: 'center',
-      width: COLUMN_WIDTH * 7,
+      minWidth: COLUMN_WIDTH * 7,
     },
     emptyStateText: {
       fontSize: 14,

@@ -5,9 +5,12 @@ import { Pressable, TextInput } from 'react-native';
 import SchedulerScreen from '../scheduler';
 import { getSupabaseClient } from '@/services/supabaseClient';
 
+// The scheduler shows one step at a time; each test names the step it needs.
+let mockSection: string | undefined;
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => ({ section: mockSection }),
   useRouter: () => ({ setParams: jest.fn(), push: jest.fn() }),
 }));
 
@@ -35,8 +38,7 @@ jest.mock('@/hooks/useColorScheme', () => ({
 }));
 
 jest.mock('@/contexts/WelcomeTourContext', () => ({
-  useWelcomeTour: () => ({ registerLayout: jest.fn(), recordTourAction: jest.fn() }),
-  TOUR_STEPS: [],
+  useWelcomeTour: () => ({ registerTarget: jest.fn(), recordTourAction: jest.fn(), takeSampleDataOffer: () => false, sampleDataOffered: false }),
 }));
 
 jest.mock('@/contexts/LocaleContext', () => {
@@ -65,6 +67,8 @@ jest.mock('@/contexts/LocaleContext', () => {
 
 const WORKER_ID = '00000000-0000-4000-8000-0000000000a1';
 const mockAddShift = jest.fn().mockResolvedValue({ success: true, shift: {} });
+const mockAddAvailability = jest.fn();
+const BEA_ID = '00000000-0000-4000-8000-0000000000b2';
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 jest.mock('@/hooks/useWorkers', () => ({
@@ -72,10 +76,12 @@ jest.mock('@/hooks/useWorkers', () => ({
     workers: [{
       id: '00000000-0000-4000-8000-0000000000a1', displayId: 'W-1', name: 'Ana', role: 'Support', skills: [],
       availability: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({ id: `av-${day}`, day, from: '00:00', to: '23:59' })),
+    }, {
+      id: '00000000-0000-4000-8000-0000000000b2', displayId: 'W-2', name: 'Bea', role: 'Support', skills: [], availability: [],
     }],
     loading: false,
     error: null,
-    addAvailability: jest.fn(),
+    addAvailability: (...args: unknown[]) => mockAddAvailability(...args),
     refresh: jest.fn(),
   }),
 }));
@@ -109,6 +115,7 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     (getSupabaseClient as jest.Mock).mockReturnValue(null);
     expect(ALL_DAYS).toHaveLength(7);
 
+    mockSection = 'shifts';
     let tree: renderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = renderer.create(<SchedulerScreen />);
@@ -119,10 +126,10 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     // The shift form starts empty instead of a made-up "W-01" / "morning".
     expect(root.findAllByType(TextInput).some((input) => input.props.value === 'W-01' || input.props.value === 'morning')).toBe(false);
 
-    // The second "Ana" chip belongs to the shift form (the first is availability).
+    // The roster step shows the shift form only (availability is on the team step).
     const anaChips = pressables().filter((p) => typeof p.props.accessibilityLabel === 'string' && p.props.accessibilityLabel.endsWith(' Ana'));
     const templateChips = pressables().filter((p) => typeof p.props.accessibilityLabel === 'string' && p.props.accessibilityLabel.endsWith(' Day'));
-    expect(anaChips.length).toBeGreaterThanOrEqual(2);
+    expect(anaChips.length).toBeGreaterThanOrEqual(1);
     expect(templateChips.length).toBeGreaterThanOrEqual(1);
     await act(async () => { anaChips[anaChips.length - 1].props.onPress(); });
     await act(async () => { templateChips[templateChips.length - 1].props.onPress(); });
@@ -130,10 +137,43 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     const dateInputs = root.findAllByType(TextInput).filter((input) => input.props.placeholder === 'YYYY-MM-DD');
     await act(async () => { dateInputs[dateInputs.length - 1].props.onChangeText('2026-11-02'); });
 
-    const save = pressables().find((p) => p.props.accessibilityLabel === 'Save and notify team');
+    const save = pressables().find((p) => p.props.accessibilityLabel === 'Save as draft');
     await act(async () => { await save!.props.onPress(); });
 
     expect(mockAddShift).toHaveBeenCalledWith(expect.objectContaining({ workerId: WORKER_ID, templateId: 't-day', date: '2026-11-02' }));
+    act(() => { tree!.unmount(); });
+    warnSpy.mockRestore();
+  });
+
+  it('adds availability for every picked day and keeps a refused day selected', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    (global as unknown as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    (getSupabaseClient as jest.Mock).mockReturnValue(null);
+    mockAddAvailability.mockReset();
+    mockAddAvailability.mockImplementation(async (_worker: string, day: string) =>
+      day === 'Tue' ? { success: false, error: 'Overlaps another slot' } : { success: true });
+    mockSection = 'workers';
+    let tree: renderer.ReactTestRenderer | null = null;
+    await act(async () => { tree = renderer.create(<SchedulerScreen />); });
+    const root = tree!.root;
+    const byTestId = (id: string) => root.findAllByType(Pressable).find((p) => p.props.testID === id)!;
+    const pick = root.findAllByType(Pressable).find((p) => p.props.accessibilityLabel === 'Select worker Bea')!;
+    await act(async () => { pick.props.onPress(); });
+    for (const day of ['Mon', 'Tue', 'Wed']) {
+      await act(async () => { byTestId(`availability-day-${day}`).props.onPress(); });
+    }
+    expect(byTestId('availability-day-Tue').props['aria-checked']).toBe(true);
+    const add = root.findAllByType(Pressable).find((p) => p.props.accessibilityLabel === 'Add availability')!;
+    await act(async () => { await add.props.onPress(); });
+
+    expect(mockAddAvailability.mock.calls.map((call) => call.slice(0, 4))).toEqual([
+      [BEA_ID, 'Mon', '09:00', '17:00'],
+      [BEA_ID, 'Tue', '09:00', '17:00'],
+      [BEA_ID, 'Wed', '09:00', '17:00'],
+    ]);
+    // Saved days are cleared; the refused one stays picked, with the server's reason.
+    expect(['Mon', 'Tue', 'Wed'].map((d) => byTestId(`availability-day-${d}`).props['aria-checked'])).toEqual([false, true, false]);
+    expect(root.findAll((n) => typeof n.type === 'string' && n.props.children === 'Overlaps another slot').length).toBeGreaterThan(0);
     act(() => { tree!.unmount(); });
     warnSpy.mockRestore();
   });
