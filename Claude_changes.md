@@ -6,6 +6,69 @@
 
 ---
 
+### [SUMMARY] — 2026-11-10 10:50 UTC
+**Last CHG completed:** CHG-095
+**Current state:** The scheduler is four steps (team, templates, demand, roster) with one shown at a time; the tour is a non-blocking overlay with three guides; Home is a dashboard (this week, location setup, setup checklist, upcoming shifts, staffing gaps, quick actions). Checked in Chromium at 1280 and 390 px against a local Supabase.
+**Active decisions:** Violet is for paid-plan prompts only, teal 700 for primary actions. No tour step blocks. Home shows nothing that is not backed by stored data (streak, feed, achievements and the local-only invite code are gone). `?section=` values stay `workers | templates | forecast | shifts`.
+**Next action:** Pablo decides on the unwired features listed under CHG-095 ("Not done"); then rewrite the Playwright specs in `e2e/` for the new layout and add them to CI.
+**Watch out for:** `e2e/*.spec.ts` are stale (they describe the pre-CHG-088 in-memory app and the old tour) and are not run in CI. Locale files still hold copy for removed features and guides (unused keys). The static `schedulerStyles` export is light-theme only.
+
+---
+
+### CHG-095 — 2026-11-10 UTC
+**Type:** REFACTOR + FIX (full-app audit: page structure, tour, home, analytics figures)
+
+Found by driving every page and guide in Chromium (1280 and 390 px) against a local Supabase with every migration. Each item: root cause, then fix.
+
+**Scheduler: one long page → four steps**
+- The page was 4,600 px tall (5,460 on a phone) with eight forms visible at once, in an order that did not match the work (workers, demand, templates, shift form, roster) or the checklist. Now `components/scheduler/SectionNav.tsx` shows Team → Templates → Demand → Roster and one step at a time; a step with data shows a check mark and its count, so the bar replaces the checklist on this page. `useSchedulerHandlers` exposes `activeSection` / `goToSection`; `?section=workers|templates|forecast|shifts` opens a step. Default: the roster when the account has shifts, else the team step.
+- **Scroll jump.** The old `section` effect re-ran whenever any section's layout offset changed, so with `?section=` set the page scrolled back to that section each time a list above it grew. Removed with the offsets.
+- The shift form (manual and auto-assign) moved from the templates card to the roster step (`ShiftTemplateSection` `part` prop); with shifts on the roster the roster comes first.
+- **"Missing data detected" banner:** its dismiss button called `router.setParams({ section: undefined })`, which dismissed nothing, and its link scrolled to the section it sat above. Removed; the demand step already says the same.
+- **"Save and notify team"** saved a draft and notified nobody. Now "Save as draft" (9 locales).
+- **Buttons.** Every primary action used `brand.pro` (violet), the colour reserved for paid-plan prompts, next to teal ones. Primary actions are teal 700 with white text; in dark mode the label was the dark surface colour on the fill.
+- **Availability.** Day was a free-text field, and a successful add cleared day and hours, so a five-day week was 15 fields. Days are chips (several at once, one request per day in order); hours and worker stay for the next entry; a refused day stays picked with the server's reason.
+- Worker / template pickers showed the raw UUID in a text field after a chip tap (open item from the 2026-10-28 walkthrough). The field now shows only when there is nothing to pick from or the id matches nothing.
+- Grey "ghost" rows in the empty worker and template lists read as a list that never finishes loading. Removed; the empty note stays.
+- The paid-plan banner sat on top of every step; it now shows on the roster step, where auto-assign is.
+- Week calendar columns were a fixed 120 px, leaving a third of a desktop screen blank; they now share the width (minimum 120 px, then it scrolls).
+- "Apply suggestions" and the availability-saved dismiss had no `accessibilityRole` (not buttons on web).
+
+**Tour: rebuilt**
+- **Highlight in the wrong place.** `TourStep` stored `onLayout` positions, which are relative to the parent, and `TourSpotlight` drew them as window coordinates; nothing scrolled the target into view. Step 2 highlighted the page header instead of its card. Targets now register a ref (in a ref map, so registering no longer re-renders every consumer through reducer state); the spotlight scrolls the target into view on web and measures it with `measureInWindow`, re-measured while the step shows.
+- **Dead end at step 4 of the manager guide.** "Go to Scheduler →" was plain text inside a full-screen modal, the tab bar was under the modal, and Next was disabled until a worker was added on a screen the user could not reach. Steps now open their screen (and scheduler step) themselves, the card is a non-modal overlay so the app stays usable, and no step blocks; a step whose action the user completes still moves on by itself.
+- The delayed auto-advance captured the step index in a closure and advanced whatever step was current 600 ms later. It is now `ADVANCE_FROM` (mode + index), dropped when the user has moved.
+- The help button restarted the last guide instead of opening the picker (`START_TOUR` kept `tourMode`).
+- `availability-section` was a step target that no component registered.
+- **Copy.** The manager guide described features that do not exist (drag-and-drop timeline, contact details, automatic notifications), the team-member guide told members to add workers, and every "Why this matters" line quoted an unsourced statistic ("40% fewer", "cut by 60%", "2x faster"), in 9 languages. Guides are now Quick overview (4 steps), Scheduler (5) and Analytics (4); the manager, team-member and home guides and the "Why this matters" toggle are gone. Step hints that were hard-coded English are gone too.
+- Mode badges were hard-coded English; they use `tour.mode.*`. Escape closes the guide on web.
+
+**Home: dashboard only**
+- Removed: the brand banner with a hard-coded English tagline over a second marketing headline; the "roster health streak" (a button the user pressed to log progress); "Personalized actions" (four fixed items); "Achievements"; and "Invite a team member", whose code was generated and stored on the device only, so "joining" accepted any code and joined nothing.
+- Added: the setup checklist (the same three steps, from stored counts) while a step is missing, each linking to its scheduler step. The three quick actions all opened the top of the scheduler; they open their step.
+- **Load errors looked like an empty account** (technical debt #4). `useLiveRosterSummary` uses `fetchRoster` / `fetchWorkers` / `fetchShiftTemplates` / `fetchOverrideTargets` and reports the error; Home shows it with a retry. "All shifts are fully staffed" showed with no demand targets; it now needs targets.
+- The checklist bar showed 6% at 0%.
+
+**Analytics: figures**
+- **Coverage overstated.** It summed `template.coverage` per published row (the Home bug fixed in CHG-093 was still here) and capped the total, so extra people on one day hid a gap on another. Now filled positions per date and role over required. The test fixture had 1 of 2 required on one day and expected 100%; it is 67%.
+- **Overnight shifts counted 0 h** in worker hours (`shiftHours` returned 0 when the end was before the start). 22:00–06:00 is 8 h.
+- With no demand targets the page showed "0%" in red, and with no shifts "Excellent" fairness. Coverage shows "—" with a note; fairness needs two workers with published shifts.
+- "Open Scheduler" was `<Link asChild>` around a `Pressable`, which loses its styles on web (the CHG-050 bug): white text on nothing. Now `router.push`.
+
+**Removed (unused or replaced):** `StreakCounter`, `PersonalizedFeed`, `ProfileAchievements`, `TeamInviteModal`, `ParallaxScrollView`, `HelloWave`, `Collapsible`, `ExternalLink`, `useStreak`, `useEthicalReward`, `usePersonalizedFeed`, `useTeamInvite` and their tests.
+
+**Not done (need a decision or more work):**
+- About 6,300 lines are built but reachable from no screen: `PlaybookLibrary`, `AdvancedControls`, `ForecastEnhancementsCard`, `ShiftMessageActions`, `CapabilityMatrix`, `SyncStatusBar` + `services/syncQueue.ts`, `useLeaderInsights` (+ `useSchedulerInsights`, `useCapacityForecast`), `useDemandAnalysis`, `useAvailabilityGrid`, `useActivationMilestone`, `useTimeToSchedule`, `useTeamSetup`. Wire in or delete.
+- "Notify" sets a flag; the banner says the shift is sent "via Horario". No push exists.
+- Sample rows are still written to the account when a guide is finished on an account with no workers (CHG-093 decision); asking first would be safer.
+- `e2e/*.spec.ts` (31 tests) are stale and not in CI.
+- Locale files keep the copy of the removed features and guides (unused keys). The session-wellness prompt in the scheduler was left as is.
+- Native: the tour does not scroll a target into view (no generic way across ScrollViews); the card still shows. Not run on a device.
+
+**Tests:** 1074 passed (new: scheduler steps, deep link, multi-day availability, tour guides and auto-advance, coverage and overnight hours, Home load error); tsc clean; lint 0 warnings; web export builds. Browser: every page and all three guides at 1280 and 390 px; add workers → availability → template → auto-assign → apply → publish → calendar → analytics.
+
+---
+
 ### CHG-094 — 2026-11-01 UTC
 **Type:** FIX (pricing copy follows `product/pricing-and-product-research-2026-10.md` §5.3)
 

@@ -43,16 +43,16 @@ horario-app/
 │   ├── +not-found.tsx          404 fallback
 │   ├── (tabs)/
 │   │   ├── _layout.tsx         Tab bar layout (Home, Scheduler, Explore)
-│   │   ├── index.tsx           Home dashboard (static + hooks)
-│   │   ├── scheduler.tsx       Core scheduling UI (~600+ lines — needs splitting)
+│   │   ├── index.tsx           Home: this week's numbers, setup checklist, upcoming shifts, staffing gaps
+│   │   ├── scheduler.tsx       Scheduling UI, one step at a time (team, templates, demand, roster)
 │   │   ├── schedulerMetrics.ts Uncovered-loss computation (pure function)
-│   │   └── explore.tsx         Placeholder tab (not yet built out)
+│   │   └── explore.tsx         Analytics screen (coverage, hours per worker, fairness)
 │   └── api/
 │       └── secure-proxy/
 │           └── route.ts        Server-side Expo Router API route (service-role Supabase proxy)
 ├── components/                 Shared UI components
 ├── constants/Colors.ts         Theme color tokens
-├── hooks/                      Custom React hooks (forecast, streak, wellness, etc.)
+├── hooks/                      Custom React hooks (forecast, roster, analytics, wellness, etc.)
 ├── services/
 │   ├── demandForecast.ts       Client-side forecast service (history via secure proxy, fit on the client)
 │   ├── forecasting/            Statistical forecaster: models, backtest selection, intervals
@@ -89,8 +89,8 @@ Location setup (components/locations/LocationSetupCard.tsx)
 
 | Feature | Status | Notes |
 |---|---|---|
-| Home dashboard | Partial | Live roster summary (`hooks/useLiveRosterSummary.ts`: upcoming shifts, staffing gaps from stored overrides); its load errors still show as empty lists (deprecated `list*` wrappers) — re-verified 2026-10-21 |
-| Scheduler UI | Partial | Workers, availability, templates, roster and overrides load from the proxy and survive a reload (`useSchedulerHandlers`); first-load / error / truncated notice with retry (`components/scheduler/SyncNotice.tsx`); optimistic writes roll back with the server error in the banner — re-verified 2026-10-21 (CHG-088). Not run on a device or browser |
+| Home dashboard | Working | "This week" numbers, location setup, setup checklist that links to the scheduler step, upcoming shifts, staffing gaps (`hooks/useLiveRosterSummary.ts`, `fetch*` services); a failed load shows an error with retry instead of an empty account — re-verified 2026-11-10 (CHG-095), checked in a browser at 1280 and 390 px |
+| Scheduler UI | Working | One step at a time behind a step bar (`components/scheduler/SectionNav.tsx`: team, shift templates, demand, roster; `?section=` deep link, `goToSection` in `useSchedulerHandlers`); data loads from the proxy and survives a reload; first-load / error / truncated notice with retry (`SyncNotice.tsx`); optimistic writes roll back with the server error in the banner; availability takes several weekdays at once — re-verified 2026-11-10 (CHG-095), full flow run in a browser (web only, no device) |
 | Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20. Remove (two-tap) in the UI; `updateWorker` in the hook, no edit form (CHG-088) |
 | Shift template management | Working | Persisted through the proxy (`useShiftTemplates`: load / add / update / remove, paged, rollback); delete refused with 409 while roster shifts use it; no edit form — re-verified 2026-10-21 (CHG-088) |
 | Roster (shift assignment) | Working | Persisted through the proxy (`useRoster`: load / add / update / status / notify / remove, paged); a status change clears `notified`, notify needs Published (409); one row per (account, date, worker, template) (`20261021000001_roster_unique_slot.sql`, 409 on duplicate); Publish / Unpublish / Notify / Remove buttons on each row — re-verified 2026-10-21 (CHG-088). Notify sets the flag only; no push |
@@ -99,15 +99,14 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Demand target overrides | Working | Persisted via proxy: `loadTargets` returns overrides only (paged, date / role filters), `upsertTargets` writes validated override rows, `deleteDemandTarget` (manager only, 404 when none); `useDemandForecast.removeOverride` rolls back on failure. No remove button in the UI yet — re-verified 2026-10-21 (CHG-088) |
 | Uncovered-loss metric | Working | Pure function, well-tested |
 | Onboarding checklist | Working | Persisted to Supabase via proxy |
-| Streak counter | Working | Persisted to AsyncStorage |
 | Session wellness prompts | Working | In-memory, no persistence |
-| Personalized feed | Working | In-memory ranking, no server |
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Permissions (manager vs member) | Working | `canManage` = personal account, or org role `admin` / `org:admin`. Manager-only (`MANAGER_ACTIONS` in `app/api/secure-proxy+api.ts`, 403 for a member): every scheduling write (workers incl. labor attributes, availability, templates, roster upsert / status / notify / delete, demand overrides, POS upload), locations, billing. Members: every read, `forecast` (model rows stored only for a manager), their own onboarding and usage count. The client has no role signal, so write controls stay visible and the 403 text shows in the banner / form error — added 2026-10-21 (CHG-091). Reversible decision |
 | Real-time updates | Missing | No Supabase realtime subscriptions |
 | Shift optimization algorithm | Working (web) / Partial (native) | Web: exact ILP (`services/optimizer/`, HiGHS 1.15 WASM, single-threaded) in a Web Worker, lexicographic coverage → fairness → continuity, 2 s budget, compared with the greedy and never worse; falls back to the greedy on no Worker / WASM failure / timeout (CHG-085). Native: greedy + 2-opt only (`services/shiftAssigner.ts`, no WebAssembly in Hermes). Both overnight-aware, IANA time zone, elapsed-time hours and rest, every shortfall reported with a reason — added 2026-10-20 (CHG-085). Not run in a real browser yet |
-| Analytics screen | Missing | explore.tsx is placeholder |
+| Analytics screen | Working | `explore.tsx` + `hooks/useAnalytics.ts`: coverage per date and role against demand ("—" when no demand exists), draft / published counts, hours per worker (overnight shifts counted), fairness (needs two workers), uncovered revenue. All-time view, no date filter — re-verified 2026-11-10 (CHG-095) |
+| Guided tour | Working | Three guides (overview, scheduler, analytics) chosen in a picker (`contexts/WelcomeTourContext.tsx`, `components/TourSpotlight.tsx`, `components/TourStep.tsx`): a non-blocking card docked at the bottom, a ring measured from the live target, navigation to each step's route and scheduler step; no step blocks on an action — rebuilt 2026-11-10 (CHG-095) |
 | Labor-law constraint engine | Partial | Rule engine + jurisdiction packs (`services/labor/`). Scheduler shows findings for the visible roster week, grouped by verdict with citations and per-shift markers (`hooks/useCompliance.ts`, `components/scheduler/CompliancePanel.tsx`); a shift uses its roster entry's location, else the account's only location, else a set-up prompt. Auto-assign merges the location's legal hard limits with business limits and uses its IANA zone (`utils/autoAssignSettings.ts`) — re-verified 2026-10-20. Location overrides (`services/labor/overrides.ts`: rest minimum, daily / weekly maximum, break minutes) must be stricter than the pack on save (400 otherwise) and are applied stricter-wins in `evaluateShifts` (`EvaluationContext.overrides`) and `legalConstraintsFor`; a shift inside a spring-forward gap moves after the gap with its wall-clock length, as in the assigner (`zonedShiftSpan`) — added 2026-10-21 (CHG-089). No consent, publish time, breaks or school days fed to the engine yet |
 | Business locations / jurisdiction | Working | `locations` table + `listLocations` / `upsertLocation` / `deleteLocation` (admin) proxy actions; country detected from IP (`/api/geo-hint`) and device, always confirmed by the user; setup card on Home until a location exists, management on Profile — added 2026-10-20 (CHG-076). Change history: `location_history`, written by a trigger on every insert / update / delete (who, when, old / new jurisdiction, zone, industry, headcount, overrides); deletes go through `delete_location()` to record the actor; `listLocationHistory` proxy action; read-only list in the Profile LocationsManager — added 2026-10-21 (CHG-089) |
 | Multi-tenant support | Working | Tenant = Clerk org id, else user id; enforced in the proxy and by RLS (`20261018000001_tenant_isolation.sql`) — re-verified 2026-10-18 |
@@ -240,7 +239,10 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 
 | File | Purpose |
 |---|---|
-| `app/(tabs)/scheduler.tsx` | Main scheduling UI (needs splitting) |
+| `app/(tabs)/scheduler.tsx` | Main scheduling UI; renders one step at a time |
+| `components/scheduler/SectionNav.tsx` | The scheduler's step bar (tablist, check marks, counts) |
+| `contexts/WelcomeTourContext.tsx` | Guided-tour state: modes, steps (route + scheduler step), reducer |
+| `components/TourSpotlight.tsx` | Guide picker and the tour's overlay card and ring |
 | `app/(tabs)/schedulerMetrics.ts` | Pure uncovered-loss metric functions |
 | `app/api/secure-proxy/route.ts` | Server-side Supabase proxy (service role) |
 | `services/demandForecast.ts` | Client-facing forecast service |
@@ -260,23 +262,22 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `services/rosterService.ts` | Proxy calls for workers, availability, templates, roster (`fetch*` page through every page and report errors) |
 | `components/scheduler/SyncNotice.tsx` | Loading / load-error / truncated notice for the scheduler's stored data |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
-| `hooks/useStreak.ts` | Streak counter with AsyncStorage |
 | `hooks/useSessionWellness.ts` | Break-prompt wellness hook |
-| `hooks/usePersonalizedFeed.ts` | Feed ranking hook |
-| `hooks/useEthicalReward.ts` | Reward tier logic |
 
 ---
 
 ## 11. Known Technical Debt & Issues
 
-1. `scheduler.tsx` is ~460 lines (logic in `hooks/useSchedulerHandlers.ts`) — still worth splitting further.
+1. `scheduler.tsx` shows one step at a time (CHG-095); logic lives in `hooks/useSchedulerHandlers.ts`, which is still large.
 2. ~~Workers, templates, and roster are entirely in-memory~~ — persisted through the proxy and loaded on start (CHG-088). No edit forms yet (hooks expose update).
 3. ~~`persistShiftStatus` / `persistShiftNotification` stubs~~ — gone; `useRoster.setShiftStatus` / `notifyShift` call the proxy (CHG-088).
-4. Home screen data is live (`useLiveRosterSummary`) but uses the deprecated `list*` / `loadDemandTargets` wrappers, so a failed load looks like an empty account.
+4. ~~Home masked load errors as an empty account~~ — `useLiveRosterSummary` uses the `fetch*` services and shows the error with retry (CHG-095).
 5. Form inputs use raw text for dates and times — no date/time picker components.
 6. ~~No authentication~~ — Clerk sessions verified in the API routes (`server/proxyAuth.ts`); the tenant comes from the session, not from env vars.
 7. ~~No error boundaries~~ — `ErrorBoundary` wraps the app in `app/_layout.tsx`.
-8. The `explore.tsx` tab is the default Expo placeholder with no real content.
+8. ~~`explore.tsx` placeholder~~ — it is the analytics screen (all-time, no date filter yet).
+13. About 6,300 lines of components, hooks and services are not reachable from any screen (CHG-095 audit lists them); wire or delete.
+14. `e2e/` Playwright specs are stale and not in CI.
 9. ~~Sample shift dates hardcoded to December 2024~~ — no sample data in production code; the tour seeds sample rows only after workers loaded empty without error (CHG-088). Tests still use 2024 dates.
 10. No rate limiting on the secure proxy (authentication is enforced, see #6).
 11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else the device zone (CHG-082). The scheduler's auto-assign only has a location when the account has exactly one (no location picker yet). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).

@@ -591,6 +591,7 @@ export const en = {
     workerHours: 'Worker hours',
     workerHoursSub: 'Published shifts only · all time',
     noPublishedShifts: 'No published shifts yet.',
+    fairnessNeedsTwo: 'Shown once at least two workers have published shifts.',
     fairness: 'Schedule fairness',
     fairnessSub: 'Standard deviation of hours per worker — lower is fairer.',
     fairnessExcellent: 'Excellent',

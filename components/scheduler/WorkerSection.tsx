@@ -81,6 +81,8 @@ const makeLocalStyles = (colors: ThemeColors) =>
     },
   });
 
+const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
 export const WorkerSection = ({
   workers,
   workersLoaded = true,
@@ -111,7 +113,13 @@ export const WorkerSection = ({
   const skillsRef = useRef<TextInput | null>(null);
 
   // Focus refs for availability form fields
-  const dayRef = useRef<TextInput | null>(null);
+  const selectedDays = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
+  const toggleDay = (day: string) => {
+    const next = selectedDays.includes(day)
+      ? selectedDays.filter((d) => d !== day)
+      : WEEK_DAYS.filter((d) => d === day || selectedDays.includes(d));
+    updateAvailabilityField('day')(next.join(','));
+  };
   const fromRef = useRef<TextInput | null>(null);
   const toRef = useRef<TextInput | null>(null);
 
@@ -277,17 +285,39 @@ export const WorkerSection = ({
             workers={workers}
             onChangeText={updateAvailabilityField('workerId')}
           />
+          {/* Days are picked, not typed; several can be added with the same hours. */}
+          <ThemedText type="defaultSemiBold">{t('scheduler.availability.dayLabel')}</ThemedText>
+          <View
+            style={styles.toggleRow}
+            role="group"
+            aria-label={t('scheduler.availability.dayLabel')}
+          >
+            {WEEK_DAYS.map((day) => {
+              const checked = selectedDays.includes(day);
+              const label = t(`weekday.${day.toLowerCase()}`);
+              return (
+                <Pressable
+                  key={day}
+                  onPress={() => toggleDay(day)}
+                  accessibilityRole="checkbox"
+                  aria-checked={checked}
+                  accessibilityLabel={label}
+                  accessibilityHint={t('scheduler.availability.sectionSubtitle')}
+                  testID={`availability-day-${day}`}
+                  style={({ pressed }) => [
+                    styles.toggleChip,
+                    checked && styles.toggleChipActive,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <ThemedText style={[styles.toggleChipText, checked && styles.toggleChipTextActive]}>
+                    {label}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
           <View style={styles.inlineInputs}>
-            <InputField
-              ref={dayRef}
-              label={t('scheduler.availability.dayLabel')}
-              value={availabilityForm.day}
-              placeholder={t('scheduler.availability.dayPlaceholder')}
-              onChangeText={updateAvailabilityField('day')}
-              returnKeyType="next"
-              onSubmitEditing={() => fromRef.current?.focus()}
-              blurOnSubmit={false}
-            />
             <InputField
               ref={fromRef}
               label={t('scheduler.availability.fromLabel')}
@@ -331,7 +361,12 @@ export const WorkerSection = ({
                   {t('scheduler.availability.savedTitle')}
                 </ThemedText>
                 {/* [12] dismissText: brand.primaryDeep (#115E59) on successSurface → ~5.59:1 AA */}
-                <Pressable onPress={() => setAvailabilitySuccessPromptVisible(false)}>
+                <Pressable
+                  onPress={() => setAvailabilitySuccessPromptVisible(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.dismiss')}
+                  accessibilityHint={t('scheduler.availability.savedTitle')}
+                >
                   <ThemedText style={localStyles.dismissText}>{t('common.dismiss')}</ThemedText>
                 </Pressable>
               </View>

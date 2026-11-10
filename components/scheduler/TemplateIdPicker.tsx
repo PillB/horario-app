@@ -143,6 +143,9 @@ export const TemplateIdPicker = ({
     <View style={styles.container}>
       <ThemedText style={styles.label}>{label}</ThemedText>
 
+      {/* The id field is only for a value the chips cannot express: none to pick
+          from yet, or an id that matches nothing (so it can be corrected). */}
+      {templates.length === 0 || isUnknown ? (
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -155,6 +158,7 @@ export const TemplateIdPicker = ({
         autoCapitalize="none"
         autoCorrect={false}
       />
+      ) : null}
 
       {resolvedTemplate ? (
         <View style={styles.resolvedRow} accessibilityLiveRegion="polite">

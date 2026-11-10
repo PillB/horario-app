@@ -220,6 +220,11 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   fallbackBadge: {
     backgroundColor: colors.surfaceRaised,
   },
+  toggleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   toggleChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -254,6 +259,7 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
+    textAlign: 'center',
     color: '#FFFFFF',
     fontWeight: '700',
   },

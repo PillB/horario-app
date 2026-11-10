@@ -148,6 +148,9 @@ export const WorkerIdPicker = ({
     <View style={styles.container}>
       <ThemedText style={styles.label}>{label}</ThemedText>
 
+      {/* The id field is only for a value the chips cannot express: none to pick
+          from yet, or an id that matches nothing (so it can be corrected). */}
+      {workers.length === 0 || isUnknown ? (
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -160,6 +163,7 @@ export const WorkerIdPicker = ({
         autoCapitalize="none"
         autoCorrect={false}
       />
+      ) : null}
 
       {resolvedWorker ? (
         <View style={styles.resolvedRow} accessibilityLiveRegion="polite">

@@ -179,7 +179,7 @@ export function useSchedulerHandlers() {
   // warning on every account that has no such row.
   const [availabilityForm, setAvailabilityForm] = useState({
     workerId: '',
-    day: 'Fri',
+    day: '',
     from: '09:00',
     to: '17:00',
   });
@@ -767,28 +767,44 @@ export function useSchedulerHandlers() {
   }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
 
   const handleAvailabilitySubmit = useCallback(async () => {
-    const { errors, normalizedDay, trimmedFrom, trimmedTo, trimmedWorkerId } =
-      validateAvailabilitySubmission(availabilityForm, workers);
-
-    if (errors.length > 0 || !normalizedDay) {
-      setAvailabilityError(errors.map((e) => e.message).join(' '));
+    // `day` holds one day or several, comma-separated (the day chips).
+    const days = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
+    const checks = (days.length > 0 ? days : ['']).map((day) =>
+      validateAvailabilitySubmission({ ...availabilityForm, day }, workers),
+    );
+    const messages = [...new Set(checks.flatMap((c) => c.errors.map((e) => e.message)))];
+    if (messages.length > 0 || checks.some((c) => !c.normalizedDay)) {
+      setAvailabilityError(messages.join(' '));
       setAvailabilitySuccessPromptVisible(false);
       return;
     }
 
     setAvailabilityError(null);
-    const result = await addAvailability(
-      trimmedWorkerId,
-      normalizedDay as DayOfWeek,
-      trimmedFrom,
-      trimmedTo
-    );
-    if (result.success) {
+    // One request per day, in order: a refused day stays selected to fix.
+    const failed: string[] = [];
+    let lastError: string | undefined;
+    let saved = 0;
+    for (const check of checks) {
+      const result = await addAvailability(
+        check.trimmedWorkerId,
+        check.normalizedDay as DayOfWeek,
+        check.trimmedFrom,
+        check.trimmedTo,
+      );
+      if (result.success) saved += 1;
+      else {
+        failed.push(check.normalizedDay as string);
+        lastError = result.error;
+      }
+    }
+    if (saved > 0) {
       setAvailabilitySuccessPromptVisible(true);
-      setAvailabilityForm((prev) => ({ ...prev, day: '', from: '', to: '' }));
       recordTourAction('availability-section');
-    } else {
-      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+    }
+    // Keep the worker and the hours for the next entry; clear the saved days.
+    setAvailabilityForm((prev) => ({ ...prev, day: failed.join(',') }));
+    if (failed.length > 0) {
+      setAvailabilityError(lastError ?? 'Failed to save availability. Please try again.');
     }
   }, [addAvailability, availabilityForm, recordTourAction, workers]);
 

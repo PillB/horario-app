@@ -418,6 +418,9 @@ export const ShiftTemplateSection = ({
                 );
               })}
               <Pressable
+                accessibilityRole="button"
+                accessibilityHint={t('scheduler.shifts.autoAssignHint')}
+                testID="apply-auto-assign"
                 accessibilityLabel={t('scheduler.shifts.applyButton')}
                 onPress={applyAutoAssign}
                 disabled={autoAssignApplying}

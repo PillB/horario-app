@@ -273,7 +273,7 @@ export default function AnalyticsScreen() {
                 {workerHours.length >= 2 ? (
                   <FairnessGauge score={fairnessScore} />
                 ) : (
-                  <ThemedText style={styles.mutedText}>{t('analytics.noPublishedShifts')}</ThemedText>
+                  <ThemedText style={styles.mutedText}>{t('analytics.fairnessNeedsTwo')}</ThemedText>
                 )}
               </ThemedView>
             </TourStep>

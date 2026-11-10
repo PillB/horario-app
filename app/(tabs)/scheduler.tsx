@@ -187,6 +187,54 @@ export default function SchedulerScreen() {
     []
   );
 
+  const assignPanel = (
+        <View>
+          <TourStep target="shift-assign-section">
+          <ShiftTemplateSection
+            part="assign"
+            shiftTemplates={shiftTemplates}
+            templatesLoaded={templatesLoaded}
+            onRemoveTemplate={handleRemoveTemplate}
+            templateForm={templateForm}
+            updateTemplateField={updateTemplateField}
+            handleAddTemplate={handleAddTemplate}
+            templateError={templateError}
+            templateSuccessMessage={templateSuccessMessage}
+            shiftForm={shiftForm}
+            updateShiftField={updateShiftField}
+            handleShiftSubmit={handleShiftSubmit}
+            shiftError={shiftError}
+            handleAutoAssign={handleAutoAssign}
+            applyAutoAssign={applyAutoAssign}
+            autoAssignSuggestions={autoAssignSuggestions}
+            autoAssignShortfalls={autoAssignShortfalls}
+            autoAssignApplying={autoAssignApplying}
+            workers={workers}
+          />
+          </TourStep>
+        </View>
+  );
+
+  const rosterPanel = (
+        <TourStep target="roster-section">
+        <View>
+        <RosterSection
+          publishCelebration={publishCelebration}
+          rosterByDate={rosterByDate}
+          scheduleLocations={scheduleLocations}
+          handlePublishShift={handlePublishShift}
+          handleUnpublishShift={handleUnpublishShift}
+          handleNotifyShift={handleNotifyShift}
+          onRemoveShift={handleRemoveShift}
+          rosterLoaded={rosterLoaded}
+          upcomingShifts={upcomingShifts}
+          staffingGaps={staffingGaps}
+          onSelectShiftForNotes={handleSelectShiftForNotes}
+        />
+        </View>
+        </TourStep>
+  );
+
   return (
     <ErrorBoundary>
     <PageTitle title={t('nav.scheduler')} />
@@ -301,11 +349,11 @@ export default function SchedulerScreen() {
         </View>
         ) : null}
 
-        {activeSection === 'templates' || activeSection === 'shifts' ? (
+        {activeSection === 'templates' ? (
         <View>
-          <TourStep target={activeSection === 'templates' ? 'shift-templates-section' : 'shift-assign-section'}>
+          <TourStep target="shift-templates-section">
           <ShiftTemplateSection
-            part={activeSection === 'templates' ? 'templates' : 'assign'}
+            part="templates"
             shiftTemplates={shiftTemplates}
             templatesLoaded={templatesLoaded}
             onRemoveTemplate={handleRemoveTemplate}
@@ -329,24 +377,9 @@ export default function SchedulerScreen() {
         </View>
         ) : null}
 
+        {/* With shifts on the roster it comes first; an empty roster starts with the form. */}
         {activeSection === 'shifts' ? (
-        <TourStep target="roster-section">
-        <View>
-        <RosterSection
-          publishCelebration={publishCelebration}
-          rosterByDate={rosterByDate}
-          scheduleLocations={scheduleLocations}
-          handlePublishShift={handlePublishShift}
-          handleUnpublishShift={handleUnpublishShift}
-          handleNotifyShift={handleNotifyShift}
-          onRemoveShift={handleRemoveShift}
-          rosterLoaded={rosterLoaded}
-          upcomingShifts={upcomingShifts}
-          staffingGaps={staffingGaps}
-          onSelectShiftForNotes={handleSelectShiftForNotes}
-        />
-        </View>
-        </TourStep>
+          roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>
         ) : null}
 
         <WellnessPrompt
