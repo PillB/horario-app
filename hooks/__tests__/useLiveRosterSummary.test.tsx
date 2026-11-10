@@ -175,6 +175,22 @@ describe('useLiveRosterSummary', () => {
     expect(capturedHook!.publishedCount).toBe(1);
   });
 
+  it('counts a target outside the roster window as set up, without listing it as a gap', async () => {
+    (global as { fetch?: unknown }).fetch = jest.fn().mockImplementation((_url: string, options: RequestInit) => {
+      const body = JSON.parse(options.body as string) as { action?: string; filters?: unknown };
+      const data =
+        body.action === 'loadTargets' && body.filters === undefined
+          ? { targets: [{ date: '2999-01-01', role: 'Support', required: 3, source: 'override' }], page: 0, pageSize: 500, hasMore: false }
+        : {};
+      return Promise.resolve({ ok: true, status: 200, json: jest.fn().mockResolvedValue(data) });
+    });
+
+    await act(async () => { renderer.create(<TestHook accountId="demo" />); });
+
+    expect(capturedHook!.setup.targets).toBe(1);
+    expect(capturedHook!.staffingGaps).toEqual([]);
+  });
+
   it('reports the error when the fetches fail, instead of an empty account', async () => {
     // All service functions (listWorkers, listRoster, etc.) have internal try/catch
     // that return empty arrays on network failure. So the hook finishes without error.

@@ -77,7 +77,9 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
       // All fetches in parallel — no sequential state-change cascade
       const [rosterResult, targetsResult, workersResult, templatesResult] = await Promise.all([
         fetchRoster({ fromDate, toDate }),
-        fetchOverrideTargets({ date: fromDate }),
+        // Every stored target: the setup checklist asks whether any exists,
+        // and the gaps below keep the ones inside the roster window.
+        fetchOverrideTargets(),
         fetchWorkers(),
         fetchShiftTemplates(),
       ]);
@@ -129,6 +131,7 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
         }, {});
 
       const gaps: LiveStaffingGap[] = targets
+        .filter((target) => target.date >= fromDate && target.date <= toDate)
         .map((target) => {
           const scheduled = coverageByDateRole[`${target.date}::${target.role}`] ?? 0;
           return { ...target, scheduled, gap: Math.max(0, target.required - scheduled) };

@@ -55,6 +55,8 @@ Found by driving every page and guide in Chromium (1280 and 390 px) against a lo
 - With no demand targets the page showed "0%" in red, and with no shifts "Excellent" fairness. Coverage shows "—" with a note; fairness needs two workers with published shifts.
 - "Open Scheduler" was `<Link asChild>` around a `Pressable`, which loses its styles on web (the CHG-050 bug): white text on nothing. Now `router.push`.
 
+- Review follow-up: Home's setup checklist counted only today's demand targets, so a target saved for a later date left the demand step unticked. `useLiveRosterSummary` now loads every stored override for the count and keeps the ones inside the roster window for the gaps list.
+
 **Removed (unused or replaced):** `StreakCounter`, `PersonalizedFeed`, `ProfileAchievements`, `TeamInviteModal`, `ParallaxScrollView`, `HelloWave`, `Collapsible`, `ExternalLink`, `useStreak`, `useEthicalReward`, `usePersonalizedFeed`, `useTeamInvite` and their tests.
 
 **Not done (need a decision or more work):**
