@@ -285,3 +285,36 @@ export const deleteRosterShift = async (id: string): Promise<MutationResult> => 
   const result = await mutate({ action: 'deleteRosterShift', id }, 'Unable to delete shift');
   return result.success ? { success: true } : result;
 };
+
+// ── Shift messages ────────────────────────────────────────────────────────────
+
+/** A message stored for the worker of one roster shift. `pending` = stored, not delivered. */
+export type DbShiftMessage = {
+  id: string;
+  shiftId: string;
+  workerId: string;
+  channel: string;
+  body: string;
+  status: 'pending' | 'sent' | 'failed' | 'delivered';
+  sentAt: string | null;
+  createdAt: string;
+};
+
+export type SaveShiftMessageResult = { success: true; message: DbShiftMessage } | { success: false; error: string };
+
+/** Stores a message for a roster shift (manager only). Nothing is delivered: no channel is connected. */
+export const saveShiftMessage = async (shiftId: string, body: string): Promise<SaveShiftMessageResult> => {
+  const result = await mutate<{ message?: DbShiftMessage }>({ action: 'sendShiftMessage', id: shiftId, body }, 'Unable to save the message');
+  if (!result.success) return result;
+  return result.message ? { success: true, message: result.message } : { success: false, error: 'Unable to save the message' };
+};
+
+/** The stored messages of one roster shift, newest first. */
+export const fetchShiftMessages = async (shiftId: string): Promise<ListResult<DbShiftMessage>> => {
+  try {
+    const result = await proxyPost<{ messages?: DbShiftMessage[] }>({ action: 'listShiftMessages', id: shiftId });
+    return { ok: true, data: result.messages ?? [], truncated: false };
+  } catch (err) {
+    return { ok: false, error: messageOf(err, 'Unable to load messages') };
+  }
+};

@@ -30,6 +30,7 @@ import PosUploadSection from '@/components/scheduler/PosUploadSection';
 import { ForecastEnhancementsCard } from '@/components/scheduler/ForecastEnhancementsCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { TeamTools } from '@/components/scheduler/TeamTools';
+import { ShiftMessagesPanel } from '@/components/scheduler/ShiftMessagesPanel';
 import { usePosData } from '@/hooks/usePosData';
 import { useActivationMilestone } from '@/hooks/useActivationMilestone';
 import { useTimeToSchedule } from '@/hooks/useTimeToSchedule';
@@ -208,6 +209,15 @@ export default function SchedulerScreen() {
     templateName: string;
     date: string;
   } | null>(null);
+
+  // Role and hours of the shift whose notes are open, for its messages.
+  const selectedShiftMessageContext = React.useMemo(() => {
+    if (!selectedShiftForNotes) return null;
+    const shift = roster.find((entry) => entry.id === selectedShiftForNotes.shiftId);
+    const template = shift ? shiftTemplates.find((tpl) => tpl.id === shift.templateId) : undefined;
+    if (!shift || !template) return null;
+    return { date: shift.date, role: template.role, startTime: template.start, endTime: template.end };
+  }, [roster, selectedShiftForNotes, shiftTemplates]);
 
   // [Finding 3] Banner text colours derived from theme-aware semantic tokens
   //   success: Colors[scheme].success on Colors[scheme].successSurface
@@ -485,6 +495,7 @@ export default function SchedulerScreen() {
         onRequestClose={() => setSelectedShiftForNotes(null)}
       >
         {selectedShiftForNotes ? (
+          <View style={styles.notesModalBody}>
           <ShiftNotesPanel
             shiftId={selectedShiftForNotes.shiftId}
             workerName={selectedShiftForNotes.workerName}
@@ -492,6 +503,14 @@ export default function SchedulerScreen() {
             date={selectedShiftForNotes.date}
             onClose={() => setSelectedShiftForNotes(null)}
           />
+          {selectedShiftMessageContext ? (
+            <ScrollView style={styles.notesModalMessages}>
+              <ErrorBoundary>
+                <ShiftMessagesPanel shiftId={selectedShiftForNotes.shiftId} {...selectedShiftMessageContext} />
+              </ErrorBoundary>
+            </ScrollView>
+          ) : null}
+          </View>
         ) : null}
       </Modal>
     </ThemedView>

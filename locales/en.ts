@@ -594,6 +594,13 @@ export const en = {
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
+  shiftMessages: {
+    title: 'Messages for this shift',
+    notDelivered: 'Messages are saved with the shift. They are not delivered yet: no push, SMS or email channel is connected.',
+    empty: 'No messages saved for this shift.',
+    statusPending: 'Saved, not delivered',
+  },
+
   teamTools: {
     importTitle: 'Import your team',
     importHelp: 'Paste one person per line: name, role, skills. Separate several skills with |.',

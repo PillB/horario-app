@@ -9,6 +9,7 @@
  */
 
 import { trackEvent } from './analytics';
+import { saveShiftMessage } from './rosterService';
 
 // ─── Core Types ───────────────────────────────────────────────────────────────
 
@@ -122,40 +123,19 @@ export async function sendShiftMessage(
     status: 'sent',
   };
 
-  const res = await fetch(`${proxyUrl}/shift-messages`, {
-    method: 'POST',
-    headers: buildAuthHeaders(authToken),
-    body: JSON.stringify(outbound),
-  });
-
-  if (!res.ok) {
-    const detail = await extractErrorMessage(res);
-    throw new Error(`sendShiftMessage failed: ${detail}`);
+  // Stored through the secure proxy (`sendShiftMessage` action). `proxyUrl` and
+  // `authToken` are kept for callers; the proxy helper adds the session token.
+  void proxyUrl;
+  void authToken;
+  const saved = await saveShiftMessage(msg.shiftId, msg.body);
+  if (!saved.success) {
+    throw new Error(saved.error);
   }
-
-  // The proxy may return an enriched record (e.g. server-assigned id).
-  // We accept it if the shape is valid, otherwise fall back to the outbound record.
-  let confirmed: ShiftMessage = outbound;
-  try {
-    const body = (await res.json()) as Partial<ShiftMessage>;
-    if (
-      typeof body.id === 'string' &&
-      typeof body.shiftId === 'string' &&
-      typeof body.createdAt === 'number'
-    ) {
-      confirmed = {
-        ...outbound,
-        ...body,
-      } as ShiftMessage;
-    }
-  } catch {
-    // Proxy returned no body or non-JSON — use outbound record as source of truth.
-  }
-
-  // ── Analytics ──
-  if (confirmed.type === 'broadcast') {
-    await trackEvent('schedule_published');
-  }
+  const confirmed: ShiftMessage = {
+    ...outbound,
+    id: saved.message.id,
+    createdAt: new Date(saved.message.createdAt).getTime(),
+  };
 
   return confirmed;
 }
