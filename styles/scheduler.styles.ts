@@ -45,10 +45,10 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   progressBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: brand.proSurface,
+    backgroundColor: brand.primarySurface,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: brand.proLight,
+    borderColor: brand.primaryLight,
   },
   card: {
     borderRadius: 12,
@@ -80,9 +80,9 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   banner: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: brand.proSurface,
+    backgroundColor: brand.primarySurface,
     borderWidth: 1,
-    borderColor: brand.proLight,
+    borderColor: brand.primaryLight,
   },
   dismissibleBanner: {
     gap: 8,
@@ -162,7 +162,7 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.success,
   },
   linkText: {
-    color: brand.pro,
+    color: colors.tintText,
     fontWeight: '600',
   },
   securedBadge: {
@@ -246,14 +246,15 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   helperText: {
     flex: 1,
   },
+  // Teal 700 with white text (5.47:1). Violet is kept for paid-plan prompts only.
   primaryButton: {
-    backgroundColor: brand.pro,
+    backgroundColor: brand.primaryDark,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: colors.surface,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   secondaryButton: {
@@ -291,7 +292,7 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: brand.pro,
+    backgroundColor: brand.primaryDark,
   },
   errorText: {
     color: colors.error,
@@ -327,7 +328,7 @@ export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.text,
   },
   actionChipPrimary: {
-    backgroundColor: brand.pro,
+    backgroundColor: brand.primaryDark,
   },
   actionChipText: {
     color: colors.surface,

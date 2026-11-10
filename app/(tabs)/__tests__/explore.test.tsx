@@ -8,6 +8,7 @@ jest.mock('@/hooks/useAnalytics', () => ({
 
 // Provide a minimal LocaleContext so components using useT() work without a Provider.
 jest.mock('@/contexts/LocaleContext', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { en } = require('@/locales/en');
   function resolve(obj, path) {
     return path.split('.').reduce((a, k) => a?.[k], obj) ?? path;
@@ -37,6 +38,7 @@ jest.mock('@/hooks/useColorScheme', () => ({
 // expo-router Link needs a stub.
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 // TourStep requires WelcomeTourProvider — stub it out to a passthrough.
@@ -82,6 +84,7 @@ const findHostByTestID = (
 
 const baseResult = {
   coverageRate: 75,
+  hasDemand: true,
   draftShifts: 3,
   publishedShifts: 8,
   workerHours: [

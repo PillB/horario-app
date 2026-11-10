@@ -11,7 +11,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useT } from '@/contexts/LocaleContext';
 import { ThemedText } from '@/components/ThemedText';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
-import { TourStep } from '@/components/TourStep';
 import { isDiagnosticsEnabled } from '@/utils/appEnv';
 
 // Auth gate only active when a valid Clerk publishable key is provided.
@@ -80,22 +79,14 @@ function TabNavigator({ extraHeaderRight }: { extraHeaderRight?: React.ReactNode
         name="scheduler"
         options={{
           title: t('nav.scheduler'),
-          tabBarIcon: ({ color }) => (
-            <TourStep target="scheduler-tab">
-              <IconSymbol size={28} name="calendar" color={color} />
-            </TourStep>
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: t('nav.analytics'),
-          tabBarIcon: ({ color }) => (
-            <TourStep target="analytics-tab">
-              <IconSymbol size={28} name="chart.bar.fill" color={color} />
-            </TourStep>
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
         }}
       />
       <Tabs.Screen

@@ -22,7 +22,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useT } from '@/contexts/LocaleContext';
-import { useWelcomeTour, type TourMode } from '@/contexts/WelcomeTourContext';
+import { useWelcomeTour, TOUR_MODES } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 import { isDiagnosticsEnabled } from '@/utils/appEnv';
@@ -399,14 +399,7 @@ export default function ProfileScreen() {
           tooltip={t('profile.guides.tooltip')}
           styles={styles}
         />
-        {(
-          [
-            { mode: 'overview' as TourMode, label: t('profile.guides.overview') },
-            { mode: 'home' as TourMode, label: t('profile.guides.home') },
-            { mode: 'scheduler' as TourMode, label: t('profile.guides.scheduler') },
-            { mode: 'analytics' as TourMode, label: t('profile.guides.analytics') },
-          ] as const
-        ).map(({ mode, label }) => (
+        {TOUR_MODES.map((mode) => ({ mode, label: t(`profile.guides.${mode}`) })).map(({ mode, label }) => (
           <Pressable
             key={mode}
             onPress={() => startTourMode(mode)}

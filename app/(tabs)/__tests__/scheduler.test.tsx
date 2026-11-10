@@ -6,9 +6,12 @@ import SchedulerScreen, { findCoveringAvailability, getWeekdayFromDate, ShiftTem
 import { getSupabaseClient } from '@/services/supabaseClient';
 import { todayKey } from '@/utils/dateKeys';
 
+// The scheduler shows one step at a time; each test names the step it needs.
+let mockSection: string | undefined;
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => ({ section: mockSection }),
   useRouter: () => ({ setParams: jest.fn(), push: jest.fn() }),
 }));
 
@@ -36,8 +39,7 @@ jest.mock('@/hooks/useColorScheme', () => ({
 }));
 
 jest.mock('@/contexts/WelcomeTourContext', () => ({
-  useWelcomeTour: () => ({ registerLayout: jest.fn() }),
-  TOUR_STEPS: [],
+  useWelcomeTour: () => ({ registerTarget: jest.fn(), recordTourAction: jest.fn(), takeSampleDataOffer: () => false, sampleDataOffered: false }),
 }));
 
 jest.mock('@/contexts/LocaleContext', () => {
@@ -87,6 +89,7 @@ jest.mock('@/hooks/useRoster', () => ({
   useRoster: () => ({
     roster: [],
     loading: false,
+    loaded: true,
     error: null,
     addShift: jest.fn().mockResolvedValue({ success: true, shift: {} }),
     setShiftStatus: jest.fn().mockResolvedValue({ success: true }),
@@ -155,6 +158,7 @@ describe('scheduler fallback quick setup', () => {
     let tree: renderer.ReactTestRenderer | null = null;
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
+    mockSection = 'forecast';
     await act(async () => {
       tree = renderer.create(<SchedulerScreen />);
     });
@@ -246,7 +250,8 @@ describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
     warnSpy.mockRestore();
   });
 
-  async function renderScheduler(): Promise<renderer.ReactTestRenderer> {
+  async function renderScheduler(section: string): Promise<renderer.ReactTestRenderer> {
+    mockSection = section;
     let tree: renderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = renderer.create(<SchedulerScreen />);
@@ -260,14 +265,25 @@ describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
 
   // U5: role="radio" needs aria-checked; accessibilityState never reaches the DOM on web.
   it('gives every radio a name, a hint and a boolean aria-checked', async () => {
-    const tree = await renderScheduler();
+    let count = 0;
+    for (const section of ['workers', 'templates', 'shifts']) {
+      const other = await renderScheduler(section);
+      for (const radio of radiosOf(other)) {
+        count += 1;
+        expect(typeof radio.props['aria-checked']).toBe('boolean');
+        expect(radio.props.accessibilityLabel).toBeTruthy();
+        expect(radio.props.accessibilityHint).toBeTruthy();
+      }
+      act(() => { other.unmount(); });
+    }
+    const tree = await renderScheduler('forecast');
     const radios = radiosOf(tree);
-    expect(radios.length).toBeGreaterThanOrEqual(5);
     for (const radio of radios) {
       expect(typeof radio.props['aria-checked']).toBe('boolean');
       expect(radio.props.accessibilityLabel).toBeTruthy();
       expect(radio.props.accessibilityHint).toBeTruthy();
     }
+    expect(count + radios.length).toBeGreaterThanOrEqual(5);
     const modes = ['Homogeneous demand', 'Manual worker/shift counts', 'POS Import'];
     const checkedModes = radios
       .filter((r) => modes.includes(r.props.accessibilityLabel) && r.props['aria-checked'])
@@ -278,7 +294,7 @@ describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
 
   // U6: the roster view toggle rendered two buttons with empty text.
   it('names the roster view toggle and moves the checked state', async () => {
-    const tree = await renderScheduler();
+    const tree = await renderScheduler('shifts');
     const toggles = () =>
       radiosOf(tree).filter((n) => String(n.props.testID ?? '').startsWith('roster-view-'));
     const before = toggles();
@@ -295,11 +311,57 @@ describe('scheduler accessibility (QA spot check 2026-10-20)', () => {
 
   // U3: date defaults come from the client clock after mount, not the build.
   it("fills the quick-setup start date with today's date after mount", async () => {
-    const tree = await renderScheduler();
+    const tree = await renderScheduler('forecast');
     const startDate = tree.root
       .findAllByType(TextInput)
       .find((node) => node.props.accessibilityLabel === 'Start date');
     expect(startDate?.props.value).toBe(todayKey());
     act(() => { tree.unmount(); });
+  });
+});
+
+describe('scheduler steps', () => {
+  beforeEach(() => {
+    (global as unknown as { fetch: jest.Mock }).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    (getSupabaseClient as jest.Mock).mockReturnValue(null);
+  });
+
+  const labels = (tree: renderer.ReactTestRenderer) =>
+    tree.root.findAllByType(Pressable).map((node) => node.props.accessibilityLabel);
+  const tab = (tree: renderer.ReactTestRenderer, key: string) =>
+    tree.root.findAllByType(Pressable).find((node) => node.props.testID === `section-tab-${key}`)!;
+
+  it('opens a new account on the team step and shows one step at a time', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSection = undefined;
+    let tree: renderer.ReactTestRenderer | null = null;
+    await act(async () => { tree = renderer.create(<SchedulerScreen />); });
+    expect(tab(tree!, 'workers').props['aria-selected']).toBe(true);
+    expect(labels(tree!)).toContain('Add worker');
+    expect(labels(tree!)).not.toContain('Add template');
+    expect(labels(tree!)).not.toContain('Save as draft');
+
+    await act(async () => { tab(tree!, 'templates').props.onPress(); });
+    expect(tab(tree!, 'templates').props['aria-selected']).toBe(true);
+    expect(labels(tree!)).toContain('Add template');
+    expect(labels(tree!)).not.toContain('Add worker');
+
+    await act(async () => { tab(tree!, 'shifts').props.onPress(); });
+    expect(labels(tree!)).toContain('Save as draft');
+    expect(labels(tree!)).not.toContain('Add template');
+    act(() => { tree!.unmount(); });
+    warnSpy.mockRestore();
+  });
+
+  it('opens the step named in the link', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockSection = 'forecast';
+    let tree: renderer.ReactTestRenderer | null = null;
+    await act(async () => { tree = renderer.create(<SchedulerScreen />); });
+    expect(tab(tree!, 'forecast').props['aria-selected']).toBe(true);
+    act(() => { tree!.unmount(); });
+    warnSpy.mockRestore();
   });
 });

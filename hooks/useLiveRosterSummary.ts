@@ -10,14 +10,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  listRoster,
-  listShiftTemplates,
-  listWorkers,
+  fetchRoster,
+  fetchShiftTemplates,
+  fetchWorkers,
   type DbRosterShift,
   type DbWorker,
   type DbShiftTemplate,
 } from '@/services/rosterService';
-import { loadDemandTargets, type DemandForecast } from '@/services/demandForecast';
+import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoDate } from '@/utils/schedulerUtils';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -42,6 +42,8 @@ export type LiveRosterSummary = {
   /** How many of those are published. */
   publishedCount: number;
   staffingGaps: LiveStaffingGap[];
+  /** What the account has set up so far (drives the "next step" card). */
+  setup: { workers: number; templates: number; targets: number };
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -58,6 +60,7 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
   const [upcomingShifts, setUpcomingShifts] = useState<LiveUpcomingShift[]>([]);
   const [staffingGaps, setStaffingGaps] = useState<LiveStaffingGap[]>([]);
   const [counts, setCounts] = useState({ shiftCount: 0, publishedCount: 0 });
+  const [setup, setSetup] = useState({ workers: 0, templates: 0, targets: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
@@ -72,14 +75,22 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
       const toDate = isoDate(UPCOMING_DAYS);
 
       // All fetches in parallel — no sequential state-change cascade
-      const [shifts, targets, workers, dbTemplates] = await Promise.all([
-        listRoster(accountId, { fromDate, toDate }),
-        loadDemandTargets({ date: fromDate }),
-        listWorkers(accountId),
-        listShiftTemplates(accountId),
+      const [rosterResult, targetsResult, workersResult, templatesResult] = await Promise.all([
+        fetchRoster({ fromDate, toDate }),
+        fetchOverrideTargets({ date: fromDate }),
+        fetchWorkers(),
+        fetchShiftTemplates(),
       ]);
 
       if (requestId !== requestIdRef.current) return; // stale request
+
+      // A failed load is reported: an empty list would read as an empty account.
+      const failed = [rosterResult, targetsResult, workersResult, templatesResult].find((r) => !r.ok);
+      if (failed && !failed.ok) throw new Error(failed.error);
+      const shifts = rosterResult.ok ? rosterResult.data : [];
+      const targets = targetsResult.ok ? targetsResult.targets : [];
+      const workers = workersResult.ok ? workersResult.data : [];
+      const dbTemplates = templatesResult.ok ? templatesResult.data : [];
 
       const workerMap = new Map<string, DbWorker>(workers.map((w) => [w.id, w]));
       const templateMap = new Map<string, DbShiftTemplate>(dbTemplates.map((t) => [t.id, t]));
@@ -127,6 +138,7 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
       setUpcomingShifts(resolved);
       setCounts({ shiftCount: shifts.length, publishedCount: shifts.filter((s) => s.status === 'Published').length });
       setStaffingGaps(gaps);
+      setSetup({ workers: workers.length, templates: dbTemplates.length, targets: targets.length });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load roster summary.');
@@ -136,11 +148,14 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
+  // accountId is not sent (the server takes the tenant from the session), but
+  // a tenant switch must reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  return { upcomingShifts, ...counts, staffingGaps, loading, error, refresh: load };
+  return { upcomingShifts, ...counts, staffingGaps, setup, loading, error, refresh: load };
 }

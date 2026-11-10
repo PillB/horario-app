@@ -175,14 +175,14 @@ describe('useLiveRosterSummary', () => {
     expect(capturedHook!.publishedCount).toBe(1);
   });
 
-  it('completes gracefully when all fetches fail (services swallow errors)', async () => {
+  it('reports the error when the fetches fail, instead of an empty account', async () => {
     // All service functions (listWorkers, listRoster, etc.) have internal try/catch
     // that return empty arrays on network failure. So the hook finishes without error.
     setupFetchReject();
 
     await act(async () => { renderer.create(<TestHook accountId="demo" />); });
 
-    expect(capturedHook!.error).toBeNull();
+    expect(capturedHook!.error).toBe('network error');
     expect(capturedHook!.upcomingShifts).toHaveLength(0);
     expect(capturedHook!.loading).toBe(false);
   });

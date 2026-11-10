@@ -1,28 +1,26 @@
-import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useMemo } from 'react';
+import { useRouter, type Href } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
-import { PersonalizedFeed } from '@/components/PersonalizedFeed';
-import { ProfileAchievements } from '@/components/ProfileAchievements';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
+import { Checklist } from '@/components/scheduler/Checklist';
 import { SkeletonCard } from '@/components/SkeletonCard';
-import { StreakCounter } from '@/components/StreakCounter';
-import { TeamInviteModal } from '@/components/TeamInviteModal';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { useLocations } from '@/hooks/useLocations';
-import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
-import { useStreak } from '@/hooks/useStreak';
-import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { TourStep } from '@/components/TourStep';
 import { Colors, brand, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { PageTitle } from '@/components/PageTitle';
+import type { SchedulerSection } from '@/hooks/useSchedulerHandlers';
+import type { OnboardingStep } from '@/types/scheduler';
+
+const schedulerHref = (section?: SchedulerSection): Href =>
+  (section ? { pathname: '/scheduler', params: { section } } : '/scheduler') as Href;
 
 export default function HomeScreen() {
   const { t } = useT();
@@ -32,62 +30,81 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isWideLayout = width >= 768;
-  const { items: feedItems } = usePersonalizedFeed({ focus: 'availability', prefersShortTasks: true });
-  const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
-  const { tier } = useEthicalReward(streakCount);
-  const { upcomingShifts, shiftCount, publishedCount, staffingGaps, loading: rosterLoading, refresh } = useLiveRosterSummary(ACCOUNT_ID);
-  const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
+  const {
+    upcomingShifts, shiftCount, staffingGaps, setup, loading: rosterLoading, error: rosterError, refresh,
+  } = useLiveRosterSummary(ACCOUNT_ID);
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
   const styles = makeStyles(colors, colorScheme ?? 'light');
 
+  // Setup steps still to do, each linking to its step of the scheduler.
+  const setupSteps = useMemo<OnboardingStep[]>(
+    () => [
+      {
+        key: 'workers',
+        title: t('scheduler.onboarding.addWorkers'),
+        description: t('scheduler.onboarding.addWorkersDesc'),
+        completed: setup.workers > 0,
+        actionLabel: t('scheduler.onboarding.addWorkersAction'),
+        onPress: () => router.push(schedulerHref('workers')),
+      },
+      {
+        key: 'templates',
+        title: t('scheduler.onboarding.saveTemplates'),
+        description: t('scheduler.onboarding.saveTemplatesDesc'),
+        completed: setup.templates > 0,
+        actionLabel: t('scheduler.onboarding.saveTemplatesAction'),
+        onPress: () => router.push(schedulerHref('templates')),
+      },
+      {
+        key: 'forecast',
+        title: t('scheduler.onboarding.runForecast'),
+        description: t('scheduler.onboarding.runForecastDesc'),
+        completed: setup.targets > 0,
+        actionLabel: t('scheduler.onboarding.runForecastAction'),
+        onPress: () => router.push(schedulerHref('forecast')),
+      },
+    ],
+    [router, setup.targets, setup.templates, setup.workers, t],
+  );
+  const setupDone = setupSteps.filter((step) => step.completed).length;
+  const showSetup = !rosterLoading && !rosterError && setupDone < setupSteps.length;
+
   return (
     <>
     <PageTitle title={t('nav.home')} />
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#0F766E', dark: '#134E4A' }}
-      headerImage={
-        <View style={styles.heroContainer}>
-          <View style={styles.heroLogoMark}>
-            <ThemedText style={styles.heroLogoText}>H</ThemedText>
-          </View>
-          <ThemedText style={styles.heroWordmark}>Horario</ThemedText>
-          <ThemedText style={styles.heroTagline}>Smart scheduling, simplified.</ThemedText>
-        </View>
-      }>
+    <ScrollView contentContainerStyle={styles.page}>
       <TourStep target="home-header">
-      <ThemedView
-        style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
-        <View style={[styles.heroCopy, isWideLayout && styles.heroCopyWide]}>
-          <ThemedText type="title">
-            {t('home.hero.tagline1')}
-          </ThemedText>
-          <ThemedText style={styles.mutedText}>
-            {t('home.hero.tagline2')}
-          </ThemedText>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('home.openSchedulerA11y')}
-          accessibilityHint={t('home.openSchedulerHint')}
-          onPress={() => router.push('/(tabs)/scheduler')}
-          style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.75 }]}>
-          <ThemedText style={styles.primaryButtonText}>{t('home.openScheduler')}</ThemedText>
-        </Pressable>
-      </ThemedView>
-      </TourStep>
-
-      {locationsLoaded && locations.length === 0 ? (
-        <ErrorBoundary>
-          <LocationSetupCard onSave={saveLocation} />
-        </ErrorBoundary>
-      ) : null}
-
-      <TourStep target="week-stats">
       <ThemedView style={styles.card}>
-        <ThemedText type="defaultSemiBold">{t('home.weekStats.title')}</ThemedText>
-        {rosterLoading ? <SkeletonCard rows={1} /> : (
+        <View style={[styles.titleContainer, isWideLayout ? styles.titleRow : styles.titleStack]}>
+          <View style={[styles.heroCopy, isWideLayout && styles.heroCopyWide]}>
+            <ThemedText type="subtitle" accessibilityRole="header">{t('home.weekStats.title')}</ThemedText>
+            <ThemedText style={styles.mutedText}>{t('home.hero.tagline2')}</ThemedText>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.openSchedulerA11y')}
+            accessibilityHint={t('home.openSchedulerHint')}
+            onPress={() => router.push(schedulerHref())}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+            <ThemedText style={styles.primaryButtonText}>{t('home.openScheduler')}</ThemedText>
+          </Pressable>
+        </View>
+        {rosterLoading ? <SkeletonCard rows={1} /> : rosterError ? (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <ThemedText style={styles.errorText}>{t('errors.networkError')}</ThemedText>
+            <ThemedText style={styles.mutedText}>{rosterError}</ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('common.tryAgain')}
+              accessibilityHint={t('errors.retryHint')}
+              onPress={refresh}
+              style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
+              <ThemedText style={styles.inviteButtonText}>{t('common.tryAgain')}</ThemedText>
+            </Pressable>
+          </View>
+        ) : (
           <View style={styles.kpiRow}>
             <View style={styles.kpiCell}>
               <ThemedText type="title" style={styles.kpiValue}>{String(shiftCount)}</ThemedText>
@@ -95,7 +112,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.kpiDivider} />
             <View style={styles.kpiCell}>
-              <ThemedText type="title" style={[styles.kpiValue, { color: staffingGaps.length > 0 ? '#DC2626' : '#15803D' }]}>
+              <ThemedText type="title" style={[styles.kpiValue, { color: staffingGaps.length > 0 ? colors.error : colors.success }]}>
                 {String(staffingGaps.length)}
               </ThemedText>
               <ThemedText style={styles.mutedText}>{t('home.weekStats.gaps')}</ThemedText>
@@ -105,24 +122,20 @@ export default function HomeScreen() {
       </ThemedView>
       </TourStep>
 
-      <TourStep target="streak-counter">
-      <ThemedView style={styles.card}>
-        <StreakCounter
-          label={t('home.streak.title')}
-          streakCount={streakCount}
-          longestStreak={longestStreak}
-          progress={progress}
-          isFresh={isFresh}
-          rewardTitle={tier?.title}
-          rewardMessage={tier?.message}
-          onRecordToday={() => recordAction()}
-        />
-      </ThemedView>
-      </TourStep>
+      {locationsLoaded && locations.length === 0 ? (
+        <ErrorBoundary>
+          <LocationSetupCard onSave={saveLocation} />
+        </ErrorBoundary>
+      ) : null}
 
+      {showSetup ? (
+        <Checklist steps={setupSteps} progress={setupDone / setupSteps.length} />
+      ) : null}
+
+      {!rosterError ? (
       <ErrorBoundary onRetry={refresh}>
-        <TourStep target="upcoming-shifts">
-        <ThemedView style={styles.card}>
+        <View style={isWideLayout ? styles.columns : styles.stack}>
+        <ThemedView style={[styles.card, isWideLayout && styles.column]}>
           <ThemedText type="subtitle">{t('home.upcomingShifts.title')}</ThemedText>
           {rosterLoading ? (
             <SkeletonCard rows={3} />
@@ -132,7 +145,8 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('home.upcomingShifts.buildFirstA11y')}
-                onPress={() => router.push('/(tabs)/scheduler')}
+                accessibilityHint={t('home.quickActions.buildShiftsHint')}
+                onPress={() => router.push(schedulerHref('shifts'))}
                 style={styles.emptyStateCta}>
                 <ThemedText style={styles.emptyStateCtaText}>{t('home.upcomingShifts.buildFirst')}</ThemedText>
               </Pressable>
@@ -140,7 +154,7 @@ export default function HomeScreen() {
           ) : (
             upcomingShifts.map((shift) => (
               <View key={shift.id} style={styles.rowBetween}>
-                <View>
+                <View style={styles.rowText}>
                   <ThemedText type="defaultSemiBold">{shift.workerName}</ThemedText>
                   <ThemedText style={styles.mutedText}>
                     {shift.templateName} • {shift.templateStart}–{shift.templateEnd}
@@ -151,136 +165,102 @@ export default function HomeScreen() {
             ))
           )}
         </ThemedView>
-        </TourStep>
 
-        <TourStep target="staffing-gaps">
-        <ThemedView style={styles.card}>
+        <ThemedView style={[styles.card, isWideLayout && styles.column]}>
           <ThemedText type="subtitle">{t('home.staffingGaps.title')}</ThemedText>
           {rosterLoading ? (
             <SkeletonCard rows={2} />
           ) : staffingGaps.length === 0 ? (
             <ThemedText style={styles.mutedText}>
-              {upcomingShifts.length > 0
+              {setup.targets > 0
                 ? t('home.staffingGaps.allStaffed')
                 : t('home.staffingGaps.noTargets')}
             </ThemedText>
           ) : (
             staffingGaps.map((gap) => (
               <View key={`${gap.date}::${gap.role}`} style={styles.rowBetween}>
-                <View>
+                <View style={styles.rowText}>
                   <ThemedText type="defaultSemiBold">{gap.role}</ThemedText>
                   <ThemedText style={styles.mutedText}>{gap.date}</ThemedText>
                 </View>
-                <ThemedView style={styles.gapPill}>
+                <View style={styles.gapPill}>
                   <ThemedText style={styles.badge}>{t('home.staffingGaps.open', { n: String(gap.gap) })}</ThemedText>
                   <ThemedText style={styles.mutedText}>{t('home.staffingGaps.requiredCount', { n: String(gap.required) })}</ThemedText>
-                </ThemedView>
+                </View>
               </View>
             ))
           )}
         </ThemedView>
-        </TourStep>
+        </View>
       </ErrorBoundary>
+      ) : null}
 
-      <TourStep target="quick-actions">
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">{t('home.quickActions.title')}</ThemedText>
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('home.quickActions.addAvailabilityA11y')}
-            accessibilityHint={t('home.quickActions.addAvailabilityHint')}
-            onPress={() => router.push('/(tabs)/scheduler')}
-            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-            <ThemedText type="defaultSemiBold">{t('home.quickActions.addAvailability')}</ThemedText>
-            <ThemedText style={styles.mutedText}>{t('home.quickActions.addAvailabilityDesc')}</ThemedText>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('home.quickActions.buildShiftsA11y')}
-            accessibilityHint={t('home.quickActions.buildShiftsHint')}
-            onPress={() => router.push('/(tabs)/scheduler')}
-            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-            <ThemedText type="defaultSemiBold">{t('home.quickActions.buildShifts')}</ThemedText>
-            <ThemedText style={styles.mutedText}>{t('home.quickActions.buildShiftsDesc')}</ThemedText>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('home.quickActions.publishRosterA11y')}
-            accessibilityHint={t('home.quickActions.publishRosterHint')}
-            onPress={() => router.push('/(tabs)/scheduler')}
-            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.background }]}>
-            <ThemedText type="defaultSemiBold">{t('home.quickActions.publishRoster')}</ThemedText>
-            <ThemedText style={styles.mutedText}>{t('home.quickActions.publishRosterDesc')}</ThemedText>
-          </Pressable>
+        <View style={isWideLayout ? styles.columns : styles.actions}>
+          {([
+            ['workers', 'addAvailability'],
+            ['templates', 'buildShifts'],
+            ['shifts', 'publishRoster'],
+          ] as const).map(([section, key]) => (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              accessibilityLabel={t(`home.quickActions.${key}A11y`)}
+              accessibilityHint={t(`home.quickActions.${key}Hint`)}
+              onPress={() => router.push(schedulerHref(section))}
+              style={({ pressed }) => [styles.actionButton, isWideLayout && styles.column, pressed && styles.actionPressed]}>
+              <ThemedText type="defaultSemiBold">{t(`home.quickActions.${key}`)}</ThemedText>
+              <ThemedText style={styles.mutedText}>{t(`home.quickActions.${key}Desc`)}</ThemedText>
+            </Pressable>
+          ))}
         </View>
       </ThemedView>
-      </TourStep>
 
-      <ThemedView style={styles.card}>
-        <ThemedText type="defaultSemiBold">{t('home.invite.title')}</ThemedText>
-        <ThemedText style={styles.mutedText}>{t('home.invite.desc')}</ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('home.invite.ctaA11y')}
-          style={({ pressed }) => [styles.inviteButton, pressed && { opacity: 0.75 }]}
-          onPress={openInviteAsManager}
-        >
-          <ThemedText style={styles.inviteButtonText}>{t('home.invite.cta')}</ThemedText>
-        </Pressable>
-      </ThemedView>
-
-      <ThemedView style={styles.card}>
-        <PersonalizedFeed
-          items={feedItems}
-          onSelectItem={(item) => {
-            if (item.category === 'availability') {
-              recordAction();
-            }
-            // Every task except the break is done in the Scheduler.
-            if (item.category !== 'wellness') router.push('/(tabs)/scheduler');
-          }}
-        />
-      </ThemedView>
-
-      <ThemedView style={styles.card}>
-        <ProfileAchievements
-          items={[
-            // Real counts only: the streak, and this week's published shifts.
-            {
-              id: 'ach-1',
-              title: t('home.achievements.coverageChecks'),
-              description: t('home.achievements.coverageChecksDesc'),
-              progress: streakCount,
-              goal: 7,
-            },
-            ...(shiftCount > 0
-              ? [{
-                id: 'ach-2',
-                title: t('home.achievements.draftsPublished'),
-                description: t('home.achievements.draftsPublishedDesc'),
-                progress: publishedCount,
-                goal: shiftCount,
-              }]
-              : []),
-          ]}
-        />
-      </ThemedView>
-    </ParallaxScrollView>
-    <TeamInviteModal
-      visible={inviteModalVisible}
-      mode={inviteMode}
-      onClose={closeInvite}
-    />
+    </ScrollView>
     </>
   );
 }
 
 const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
   StyleSheet.create({
+    page: {
+      padding: 16,
+      gap: 16,
+      width: '100%',
+      maxWidth: 1100,
+      alignSelf: 'center',
+    },
+    pressed: {
+      opacity: 0.75,
+    },
+    actionPressed: {
+      backgroundColor: colors.background,
+    },
+    columns: {
+      flexDirection: 'row',
+      gap: 16,
+      alignItems: 'stretch',
+    },
+    stack: {
+      gap: 16,
+    },
+    column: {
+      flex: 1,
+    },
+    rowText: {
+      flexShrink: 1,
+    },
+    errorBox: {
+      gap: 8,
+      alignItems: 'flex-start',
+    },
+    errorText: {
+      color: colors.error,
+      fontWeight: '600',
+    },
     titleContainer: {
       gap: 12,
-      marginBottom: 12,
       alignItems: 'center',
     },
     titleRow: {
@@ -344,41 +324,6 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
     primaryButtonText: {
       color: '#FFFFFF',
       fontWeight: '700',
-    },
-    heroContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 10,
-    },
-    heroLogoMark: {
-      width: 64,
-      height: 64,
-      borderRadius: 18,
-      // Dark mode: increased alpha values to achieve ≥3:1 non-text contrast on #134E4A header
-      backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: scheme === 'dark' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.35)',
-    },
-    heroLogoText: {
-      color: '#FFFFFF',
-      fontSize: 32,
-      fontWeight: '800',
-    },
-    heroWordmark: {
-      color: '#FFFFFF',
-      fontSize: 28,
-      fontWeight: '800',
-      letterSpacing: -0.5,
-    },
-    heroTagline: {
-      // Fully opaque white guarantees contrast under all parallax conditions
-      color: '#FFFFFF',
-      fontSize: 14,
-      // 1.5× line-height per WCAG best-practice for body/label text
-      lineHeight: 21,
     },
     emptyStateCta: {
       marginTop: 6,

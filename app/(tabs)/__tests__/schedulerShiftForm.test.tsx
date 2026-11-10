@@ -5,9 +5,12 @@ import { Pressable, TextInput } from 'react-native';
 import SchedulerScreen from '../scheduler';
 import { getSupabaseClient } from '@/services/supabaseClient';
 
+// The scheduler shows one step at a time; each test names the step it needs.
+let mockSection: string | undefined;
+
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => ({ section: mockSection }),
   useRouter: () => ({ setParams: jest.fn(), push: jest.fn() }),
 }));
 
@@ -35,8 +38,7 @@ jest.mock('@/hooks/useColorScheme', () => ({
 }));
 
 jest.mock('@/contexts/WelcomeTourContext', () => ({
-  useWelcomeTour: () => ({ registerLayout: jest.fn(), recordTourAction: jest.fn() }),
-  TOUR_STEPS: [],
+  useWelcomeTour: () => ({ registerTarget: jest.fn(), recordTourAction: jest.fn(), takeSampleDataOffer: () => false, sampleDataOffered: false }),
 }));
 
 jest.mock('@/contexts/LocaleContext', () => {
@@ -109,6 +111,7 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     (getSupabaseClient as jest.Mock).mockReturnValue(null);
     expect(ALL_DAYS).toHaveLength(7);
 
+    mockSection = 'shifts';
     let tree: renderer.ReactTestRenderer | null = null;
     await act(async () => {
       tree = renderer.create(<SchedulerScreen />);
@@ -119,10 +122,10 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     // The shift form starts empty instead of a made-up "W-01" / "morning".
     expect(root.findAllByType(TextInput).some((input) => input.props.value === 'W-01' || input.props.value === 'morning')).toBe(false);
 
-    // The second "Ana" chip belongs to the shift form (the first is availability).
+    // The roster step shows the shift form only (availability is on the team step).
     const anaChips = pressables().filter((p) => typeof p.props.accessibilityLabel === 'string' && p.props.accessibilityLabel.endsWith(' Ana'));
     const templateChips = pressables().filter((p) => typeof p.props.accessibilityLabel === 'string' && p.props.accessibilityLabel.endsWith(' Day'));
-    expect(anaChips.length).toBeGreaterThanOrEqual(2);
+    expect(anaChips.length).toBeGreaterThanOrEqual(1);
     expect(templateChips.length).toBeGreaterThanOrEqual(1);
     await act(async () => { anaChips[anaChips.length - 1].props.onPress(); });
     await act(async () => { templateChips[templateChips.length - 1].props.onPress(); });
@@ -130,7 +133,7 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     const dateInputs = root.findAllByType(TextInput).filter((input) => input.props.placeholder === 'YYYY-MM-DD');
     await act(async () => { dateInputs[dateInputs.length - 1].props.onChangeText('2026-11-02'); });
 
-    const save = pressables().find((p) => p.props.accessibilityLabel === 'Save and notify team');
+    const save = pressables().find((p) => p.props.accessibilityLabel === 'Save as draft');
     await act(async () => { await save!.props.onPress(); });
 
     expect(mockAddShift).toHaveBeenCalledWith(expect.objectContaining({ workerId: WORKER_ID, templateId: 't-day', date: '2026-11-02' }));

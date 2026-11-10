@@ -300,8 +300,8 @@ export const sw = {
       templatePlaceholder: 'Kitambulisho cha kiolezo',
       dateLabel: 'Tarehe',
       datePlaceholder: 'YYYY-MM-DD',
-      saveButton: 'Hifadhi na uarifu timu',
-      saveButtonA11y: 'Hifadhi na uarifu timu',
+      saveButton: 'Hifadhi kama rasimu',
+      saveButtonA11y: 'Hifadhi kama rasimu',
       autoAssignButton: 'Gawa otomatiki',
       autoAssignA11y: 'Gawa wafanyakazi otomatiki kwenye violezo vyote kwa tarehe hii',
       autoAssignHint: 'Endesha algoriti ya ugawaji inayozingatia usawa',
@@ -446,6 +446,7 @@ export const sw = {
       today: 'Leo'
     },
       jumpToCalendar: 'Angalia Kalenda ↓',
+    sections: { workers: 'Timu', templates: 'Violezo', forecast: 'Mahitaji', shifts: 'Ratiba', navLabel: 'Hatua za mpangaji', doneA11y: '{step}, imewekwa', hint: 'Inaonyesha hatua hii' },
     pos: {
       sectionTitle: 'Upakiaji wa Mauzo ya POS',
       sectionSubtitle: 'Pakia data ya mapato ya CSV kuboresha utabiri wa mahitaji.',
@@ -710,7 +711,7 @@ export const sw = {
     pickTitle: 'Chagua mwongozo wako',
     pickDesc: 'Chagua ziara ili kuchunguza sehemu tofauti za programu.',
     overview: 'Muhtasari wa Haraka',
-    overviewDesc: 'Utangulizi wa hatua 5 kwa vichupo vyote',
+    overviewDesc: 'Utangulizi wa hatua 4 kwa vichupo vyote',
     manager: 'Ziara ya Msimamizi',
     managerDesc: 'Jenga ratiba yako ya kwanza',
     worker: 'Ziara ya Mwanachama wa Timu',

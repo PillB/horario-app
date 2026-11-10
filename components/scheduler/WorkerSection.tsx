@@ -24,6 +24,7 @@ import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { TourStep } from '@/components/TourStep';
 
 type AvailabilityFormState = {
   workerId: string;
@@ -175,22 +176,6 @@ export const WorkerSection = ({
           ))}
           {workersLoaded && workers.length === 0 && (
             <View>
-              {/* Ghost preview — shows what populated workers look like */}
-              <View style={styles.ghostContainer} accessibilityElementsHidden>
-                {[0, 1].map((i) => (
-                  <View key={i} style={styles.ghostRow}>
-                    <View style={styles.ghostBlock}>
-                      <View style={styles.ghostNameBar} />
-                      <View style={styles.ghostRoleBar} />
-                      <View style={styles.ghostTagRow}>
-                        <View style={styles.ghostTag} />
-                        <View style={styles.ghostTag} />
-                      </View>
-                    </View>
-                    <View style={styles.ghostBadgeBar} />
-                  </View>
-                ))}
-              </View>
               <View style={styles.ghostEmptyCta}>
                 {/* [10] ghostEmptyCtaText: textSecondary minimum for AA compliance */}
                 <ThemedText style={localStyles.ghostEmptyCtaText}>
@@ -280,6 +265,7 @@ export const WorkerSection = ({
           ) : null}
         </SectionCard>
 
+        <TourStep target="availability-section">
         <SectionCard
           title={t('scheduler.availability.sectionTitle')}
           subtitle={t('scheduler.availability.sectionSubtitle')}
@@ -378,6 +364,7 @@ export const WorkerSection = ({
             <ThemedText style={styles.errorText}>{availabilityError}</ThemedText>
           ) : null}
         </SectionCard>
+        </TourStep>
       </ScrollView>
     </KeyboardAvoidingView>
   );
