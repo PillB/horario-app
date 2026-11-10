@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { Colors, brand } from '@/constants/Colors';
+import { Colors, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
@@ -17,8 +17,6 @@ type Achievement = {
 type ProfileAchievementsProps = {
   items: Achievement[];
 };
-
-import type { ThemeColors } from '@/constants/Colors';
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({

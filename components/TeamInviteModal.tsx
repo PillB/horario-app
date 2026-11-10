@@ -72,7 +72,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
     } catch {
       Alert.alert('Error', t('teamInvite.errorRegenerate'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (visible && mode === 'manager') {
@@ -95,7 +95,7 @@ export function TeamInviteModal({ visible, onClose, mode }: TeamInviteModalProps
     } catch {
       Alert.alert('Error', t('teamInvite.errorShare'));
     }
-  }, [inviteCode]);
+  }, [inviteCode, t]);
 
   const handleJoinTeam = useCallback(async (): Promise<void> => {
     const trimmed = enteredCode.trim().toUpperCase();
