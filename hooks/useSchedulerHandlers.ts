@@ -26,6 +26,7 @@ import {
 import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
+import type { LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
 import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { useLocations } from '@/hooks/useLocations';
@@ -345,6 +346,30 @@ export function useSchedulerHandlers() {
       workersError, workersLoaded, workersLoading, workersTruncated,
     ]
   );
+
+  /** When the stored lists last finished loading without an error (SyncStatusBar). */
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const listsSettled = workersLoaded && templatesLoaded && rosterLoaded
+    && !workersLoading && !templatesLoading && !rosterLoading;
+  const listsFailed = syncStatus.errors.length > 0;
+  useEffect(() => {
+    if (listsSettled && !listsFailed) setLastSyncedAt(Date.now());
+  }, [listsSettled, listsFailed]);
+
+  /**
+   * Business limits from the advanced controls. They apply to auto-assign only
+   * after the manager changes one: the panel's defaults are not silent rules.
+   */
+  const [businessConstraints, setBusinessConstraints] = useState<LaborConstraints | undefined>(undefined);
+  const constraintEmissionsRef = useRef(0);
+  const handleConstraintsChange = useCallback((c: { minRestHours: number; maxWeeklyHours: number }) => {
+    constraintEmissionsRef.current += 1;
+    if (constraintEmissionsRef.current === 1) return; // the panel reports its defaults on mount
+    setBusinessConstraints({
+      ...(c.minRestHours > 0 ? { minRestHoursBetweenShifts: c.minRestHours } : {}),
+      ...(c.maxWeeklyHours > 0 ? { maxWeeklyHours: c.maxWeeklyHours } : {}),
+    });
+  }, []);
 
   const retrySync = useCallback(() => {
     void refreshWorkers();
@@ -766,6 +791,28 @@ export function useSchedulerHandlers() {
     }
   }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
 
+  /** Saves one template from a playbook. A template already saved under that name, role and hours is skipped. */
+  const handleImportPlaybookTemplate = useCallback(
+    async (tpl: { name: string; role: string; start: string; end: string; coverage: number }) => {
+      const exists = shiftTemplates.some(
+        (existing) => existing.name === tpl.name && existing.role === tpl.role
+          && existing.start === tpl.start && existing.end === tpl.end,
+      );
+      if (exists) {
+        showActionBanner(`"${tpl.name}" is already in your templates.`, 'info');
+        return;
+      }
+      const result = await addShiftTemplate(tpl.name, tpl.role, tpl.start, tpl.end, tpl.coverage);
+      if (result.success) {
+        void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
+        showActionBanner(`"${tpl.name}" template saved.`, 'success');
+      } else {
+        showActionBanner(t('scheduler.sync.saveFailed', { error: result.error ?? '' }), 'error');
+      }
+    },
+    [addShiftTemplate, shiftTemplates, showActionBanner, t],
+  );
+
   const handleAvailabilitySubmit = useCallback(async () => {
     // `day` holds one day or several, comma-separated (the day chips).
     const days = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
@@ -1166,8 +1213,8 @@ export function useSchedulerHandlers() {
       showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
       return;
     }
-    // No business-level limits are configured in this screen yet; the law's apply.
-    const settings = autoAssignSettings(date, autoAssignLocation);
+    // The law's limits, merged with the manager's own (advanced controls); stricter wins.
+    const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
     autoAssignRunRef.current?.abort();
     const run = new AbortController();
     autoAssignRunRef.current = run;
@@ -1213,7 +1260,7 @@ export function useSchedulerHandlers() {
         : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
       'info'
     );
-  }, [autoAssignLocation, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
+  }, [autoAssignLocation, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
@@ -1342,6 +1389,11 @@ export function useSchedulerHandlers() {
     rosterLoaded,
     syncStatus,
     retrySync,
+    lastSyncedAt,
+    businessConstraints,
+    handleConstraintsChange,
+    handleImportPlaybookTemplate,
+    accountId,
     forecastError,
     forecastModels,
     forecastNotices,

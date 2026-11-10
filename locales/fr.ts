@@ -127,11 +127,20 @@ export const fr = {
   // ─── Home screen ───────────────────────────────────────────────────────────
   home: {
     hero: {
+      tagline1: 'Réduisez les absences en associant automatiquement disponibilités et demandes en quelques secondes.',
       tagline2: 'Gardez les disponibilités, modèles et la santé du planning en parfaite synchronisation.',
     },
     openScheduler: 'Ouvrir le planificateur',
     openSchedulerA11y: 'Ouvrir le planificateur pour organiser les équipes',
     openSchedulerHint: 'Ouvrir la vue de planification pour aligner disponibilités et couverture',
+    streak: {
+      title: 'Série de suivi du planning',
+      days: 'Série de {n} jour(s)',
+      longestStreak: 'Meilleure série : {n} jours. Enregistrez une action pour la prolonger.',
+      logProgress: "Enregistrer les progrès d'aujourd'hui",
+      tierGreatStart: 'Bon début',
+      tierTip: 'Première mise à jour enregistrée — maintenez un rythme régulier plutôt que de vous précipiter.',
+    },
     upcomingShifts: {
       title: 'Prochaines équipes',
       empty: 'Aucune équipe planifiée pour le moment.',
@@ -160,15 +169,41 @@ export const fr = {
       publishRosterHint: 'Vérifier les objectifs et publier le planning pour votre équipe',
       publishRosterDesc: 'Comparer objectifs et couverture',
     },
+    achievements: {
+      title: 'Réalisations',
+      coverageChecks: 'Vérifications de couverture régulières',
+      coverageChecksDesc: 'Consultez le planning 7 jours de suite.',
+      draftsPublished: 'Brouillons publiés',
+      draftsPublishedDesc: 'Publiez les brouillons lorsque les équipes sont prêtes.',
+      notStarted: 'Non commencé'
+    },
     weekStats: {
       title: 'Cette semaine',
       scheduled: 'Quarts planifiés',
       gaps: 'Rôles à pourvoir',
     },
+    invite: {
+      title: 'Constituez votre équipe',
+      desc: 'Ajoutez des travailleurs pour activer l\'attribution automatique et le suivi de la couverture. Chaque travailleur ajouté signifie moins de lacunes dans la planification.',
+      cta: 'Inviter un membre de l\'équipe →',
+      ctaA11y: 'Inviter un membre de l\'équipe à rejoindre votre effectif',
+    },
+        personalizedActions: {
+      title: 'Actions personnalisées',
+    },
   },
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    title: 'Planificateur',
+    subtitle: "Coordonnez la couverture entre les employés, les modèles d'équipes et les plans de dotation quotidiens.",
+    tooltip: "Votre centre de planification. Ajoutez des employés, définissez leurs disponibilités, créez des modèles d'équipes, puis affectez ou remplissez automatiquement les plannings en un seul appui. Commencez par l'étape 1 — ajouter un employé.",
+
+    missingData: {
+      title: 'Données manquantes détectées',
+      openSetup: 'Ouvrir la configuration rapide',
+      desc: "Nous n'avons pas trouvé d'équipes historiques ni de signaux externes. Alimentez une demande homogène ou des comptages manuels d'employés/équipes pour déverrouiller les prévisions.",
+    },
 
     onboarding: {
       title: 'Démarrer rapidement',
@@ -421,6 +456,7 @@ export const fr = {
       nextWeek: 'Semaine suivante',
       today: 'Aujourd\'hui'
     },
+      jumpToCalendar: 'Voir le calendrier ↓',
     sections: { workers: 'Équipe', templates: 'Modèles', forecast: 'Demande', shifts: 'Planning', navLabel: 'Étapes du planificateur', doneA11y: '{step}, configuré', hint: 'Affiche cette étape' },
     pos: {
       sectionTitle: 'Importation des ventes PDV',
@@ -821,6 +857,80 @@ export const fr = {
     desc: 'Vous avez terminé la visite guidée et disposez de tout ce qu\'il vous faut pour créer des plannings plus intelligents, réduire les absences imprévues et maintenir votre équipe synchronisée. Votre première grande semaine commence maintenant.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Inviter un membre de l\'équipe',
+    workerTitle: 'Rejoindre l\'équipe de votre responsable',
+    managerSubtitle: 'Partagez ce code avec votre employé pour qu\'il puisse rejoindre votre équipe.',
+    workerSubtitle: 'Saisissez le code d\'invitation que votre responsable vous a communiqué.',
+    inviteCodeLabel: 'Code d\'invitation',
+    workerEmailLabel: 'E-mail de l\'employé (optionnel)',
+    workerEmailPlaceholder: 'employe@exemple.com',
+    emailNote: 'Pour votre référence uniquement — aucun e-mail ne sera envoyé.',
+    copyCode: 'Copier le code',
+    codeShared: '✓ Code partagé !',
+    regenerate: 'Régénérer',
+    joinTeam: 'Rejoindre l\'équipe',
+    joinedTitle: 'Vous avez rejoint l\'équipe !',
+    joinedSub: 'Inscription confirmée ! Bienvenue dans l\'équipe.',
+    invalidCode: 'Code invalide. Demandez le code correct à votre responsable.',
+    close: 'Fermer',
+    closeA11y: 'Fermer la fenêtre',
+    inviteCodeInputA11y: 'Saisir le code d\'invitation',
+    copyA11y: 'Copier le code d\'invitation',
+    regenerateA11y: 'Régénérer le code d\'invitation',
+    joinA11y: 'Rejoindre l\'équipe avec le code d\'invitation',
+    emailInputA11y: 'Champ de saisie de l\'adresse e-mail de l\'employé',
+    errorRegenerate: 'Impossible de régénérer le code. Veuillez réessayer.',
+    errorShare: 'Impossible de partager le code. Veuillez le copier manuellement.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Fonctionnalité',
+      free: 'Gratuit',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Employés illimités',
+    shiftTemplates: 'Modèles de quart',
+    availabilityTracking: 'Suivi des disponibilités',
+    rosterAssignment: 'Attribution des quarts',
+    demandTargets: 'Objectifs de demande',
+    posCsvImport: 'Import CSV caisse',
+    autoAssign: 'Attribution automatique',
+    advancedAnalytics: 'Analyses avancées',
+    multiLocation: 'Multi-sites',
+    messaging: 'Messagerie & communication',
+    prioritySupport: 'Support prioritaire',
+    upgrade: {
+      title: 'Débloquer les fonctions Pro',
+      body: 'Supprimez les restrictions et accédez aux outils avancés.',
+      cta: 'Passer à Pro',
+      ctaHint: 'Ouvre la page de facturation pour démarrer votre abonnement Pro',
+      price: 'Formules dès 19 $ US par établissement et par mois · Résiliation à tout moment',
+    },
+  },
+  advancedControls: {
+    title: 'Contrôles avancés',
+    constraints: {
+      title: 'Contraintes de quart',
+      minRest: 'Heures de repos minimum entre les quarts',
+      maxWeekly: 'Heures hebdomadaires maximales',
+      minShift: 'Durée minimum du quart (heures)',
+    },
+    presets: {
+      title: 'Préréglages sectoriels',
+      restaurant: 'Restaurant',
+      retail: 'Commerce de détail',
+      cafe: 'Café',
+      hotel: 'Hôtel',
+    },
+    multiLocation: {
+      title: 'Multi-sites',
+      toggle: 'Activer la planification par site',
+      locations: 'Noms des sites (séparés par des virgules)',
+    },
+  },
 
   locations: {
     sectionTitle: 'Établissements',

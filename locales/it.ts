@@ -127,11 +127,20 @@ export const it = {
   // ─── Home screen ───────────────────────────────────────────────────────────
   home: {
     hero: {
+      tagline1: 'Riduci le assenze abbinando automaticamente disponibilità e domanda in pochi secondi.',
       tagline2: 'Mantieni disponibilità dei lavoratori, modelli e salute del piano sempre sincronizzati.',
     },
     openScheduler: 'Apri il pianificatore',
     openSchedulerA11y: 'Apri il pianificatore per organizzare i turni',
     openSchedulerHint: 'Apri la vista di pianificazione per allineare disponibilità e copertura',
+    streak: {
+      title: 'Serie di controllo del piano',
+      days: 'Serie di {n} giorno/i',
+      longestStreak: 'Serie più lunga: {n} giorni. Registra un\'azione per prolungarla.',
+      logProgress: 'Registra i progressi di oggi',
+      tierGreatStart: 'Ottimo inizio',
+      tierTip: 'Primo aggiornamento salvato — mantieni un ritmo costante invece di affrettarti.',
+    },
     upcomingShifts: {
       title: 'Turni imminenti',
       empty: 'Nessun turno pianificato ancora.',
@@ -160,15 +169,41 @@ export const it = {
       publishRosterHint: 'Rivedi gli obiettivi e pubblica il piano per il tuo team',
       publishRosterDesc: 'Confronta obiettivi e copertura',
     },
+    achievements: {
+      title: 'Risultati',
+      coverageChecks: 'Controlli di copertura costanti',
+      coverageChecksDesc: 'Controlla il turno per 7 giorni di fila.',
+      draftsPublished: 'Bozze pubblicate',
+      draftsPublishedDesc: 'Sposta le bozze in pubblicato quando i team sono pronti.',
+      notStarted: 'Non iniziato'
+    },
     weekStats: {
       title: 'Questa settimana',
       scheduled: 'Turni pianificati',
       gaps: 'Ruoli da coprire',
     },
+    invite: {
+      title: 'Crei il suo team',
+      desc: 'Aggiunga lavoratori per sbloccare l\'assegnazione automatica e il monitoraggio della copertura. Ogni lavoratore aggiunto significa meno lacune nella pianificazione.',
+      cta: 'Invita un membro del team →',
+      ctaA11y: 'Inviti un membro del team nel suo registro',
+    },
+        personalizedActions: {
+      title: 'Azioni personalizzate',
+    },
   },
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    title: 'Pianificatore',
+    subtitle: 'Coordina la copertura tra lavoratori, modelli di turno e piani di personale giornalieri.',
+    tooltip: 'Il tuo centro di pianificazione. Aggiungi lavoratori, imposta le loro disponibilità, crea modelli di turno, quindi assegna o riempi automaticamente i piani con un solo tocco. Inizia con il passaggio 1 — aggiungere un lavoratore.',
+
+    missingData: {
+      title: 'Dati mancanti rilevati',
+      openSetup: 'Apri configurazione rapida',
+      desc: 'Non abbiamo trovato turni storici né segnali esterni. Inserisci una domanda omogenea o conteggi manuali di lavoratori/turni per sbloccare le previsioni.',
+    },
 
     onboarding: {
       title: 'Inizia subito',
@@ -421,6 +456,7 @@ export const it = {
       nextWeek: 'Settimana successiva',
       today: 'Oggi'
     },
+      jumpToCalendar: 'Visualizza calendario ↓',
     sections: { workers: 'Team', templates: 'Modelli', forecast: 'Domanda', shifts: 'Turni', navLabel: 'Passaggi del pianificatore', doneA11y: '{step}, configurato', hint: 'Mostra questo passaggio' },
     pos: {
       sectionTitle: 'Caricamento vendite POS',
@@ -821,6 +857,80 @@ export const it = {
     desc: 'Ha completato il tour e ha tutto il necessario per creare pianificazioni più intelligenti, ridurre le assenze improvvise e mantenere il team sincronizzato. La sua prima grande settimana inizia adesso.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Invita un membro del team',
+    workerTitle: 'Unisciti al team del tuo responsabile',
+    managerSubtitle: 'Condividi questo codice con il tuo lavoratore in modo che possa unirsi al team.',
+    workerSubtitle: 'Inserisci il codice di invito che ti ha condiviso il tuo responsabile.',
+    inviteCodeLabel: 'Codice di invito',
+    workerEmailLabel: 'Email del lavoratore (opzionale)',
+    workerEmailPlaceholder: 'lavoratore@esempio.com',
+    emailNote: 'Solo per tuo riferimento — nessuna email verrà inviata.',
+    copyCode: 'Copia codice',
+    codeShared: '✓ Codice condiviso!',
+    regenerate: 'Rigenera',
+    joinTeam: 'Unisciti al team',
+    joinedTitle: 'Sei entrato nel team!',
+    joinedSub: 'Unito! Benvenuto nel team.',
+    invalidCode: 'Codice non valido. Chiedi al tuo responsabile il codice corretto.',
+    close: 'Chiudi',
+    closeA11y: 'Chiudi finestra',
+    inviteCodeInputA11y: 'Inserisci il codice di invito',
+    copyA11y: 'Copia il codice di invito',
+    regenerateA11y: 'Rigenera il codice di invito',
+    joinA11y: 'Unisciti al team con il codice di invito',
+    emailInputA11y: 'Campo per l\'indirizzo email del lavoratore',
+    errorRegenerate: 'Impossibile rigenerare il codice. Riprova.',
+    errorShare: 'Impossibile condividere il codice. Copialo manualmente.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Funzionalità',
+      free: 'Gratuito',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Dipendenti illimitati',
+    shiftTemplates: 'Modelli di turno',
+    availabilityTracking: 'Monitoraggio disponibilità',
+    rosterAssignment: 'Assegnazione turni',
+    demandTargets: 'Obiettivi di domanda',
+    posCsvImport: 'Importa CSV cassa',
+    autoAssign: 'Assegnazione automatica',
+    advancedAnalytics: 'Analisi avanzate',
+    multiLocation: 'Multi-sede',
+    messaging: 'Messaggi e comunicazioni',
+    prioritySupport: 'Supporto prioritario',
+    upgrade: {
+      title: 'Sblocca le funzioni Pro',
+      body: 'Rimuovi le restrizioni e accedi agli strumenti avanzati.',
+      cta: 'Passa a Pro',
+      ctaHint: 'Apre la pagina di fatturazione per avviare il tuo abbonamento Pro',
+      price: 'Piani da 19 US$ per sede al mese · Disdici quando vuoi',
+    },
+  },
+  advancedControls: {
+    title: 'Controlli avanzati',
+    constraints: {
+      title: 'Vincoli del turno',
+      minRest: 'Ore di riposo minime tra i turni',
+      maxWeekly: 'Ore settimanali massime',
+      minShift: 'Durata minima del turno (ore)',
+    },
+    presets: {
+      title: 'Preset settoriali',
+      restaurant: 'Ristorante',
+      retail: 'Commercio al dettaglio',
+      cafe: 'Caffetteria',
+      hotel: 'Hotel',
+    },
+    multiLocation: {
+      title: 'Multi-sede',
+      toggle: 'Abilita programmazione per sede',
+      locations: 'Nomi delle sedi (separati da virgola)',
+    },
+  },
 
   locations: {
     sectionTitle: 'Sedi aziendali',

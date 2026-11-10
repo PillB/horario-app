@@ -24,6 +24,12 @@ import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
 import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
 import { SyncNotice } from '@/components/scheduler/SyncNotice';
 import { SectionNav } from '@/components/scheduler/SectionNav';
+import { PlaybookLibrary } from '@/components/scheduler/PlaybookLibrary';
+import { AdvancedControls } from '@/components/scheduler/AdvancedControls';
+import PosUploadSection from '@/components/scheduler/PosUploadSection';
+import { ForecastEnhancementsCard } from '@/components/scheduler/ForecastEnhancementsCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
+import { usePosData } from '@/hooks/usePosData';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
@@ -52,6 +58,10 @@ export default function SchedulerScreen() {
     rosterLoaded,
     syncStatus,
     retrySync,
+    lastSyncedAt,
+    handleConstraintsChange,
+    handleImportPlaybookTemplate,
+    accountId,
     forecastError,
     forecastModels,
     forecastNotices,
@@ -156,6 +166,8 @@ export default function SchedulerScreen() {
   // completion restored from storage or a later visit to an account whose
   // workers were all removed must not write sample rows (QA 2026-10-28).
   const { sampleDataOffered, takeSampleDataOffer } = useWelcomeTour();
+  // Uploaded sales history, for the forecast adjustments card on the demand step.
+  const { sales: posSales, refresh: refreshPosSales } = usePosData(accountId);
   useEffect(() => {
     if (!sampleDataOffered || !workersLoaded) return;
     if (!takeSampleDataOffer()) return;
@@ -254,6 +266,11 @@ export default function SchedulerScreen() {
         counts={{ workers: workers.length, templates: shiftTemplates.length, shifts: roster.length }}
       />
       </TourStep>
+      <SyncStatusBar
+        status={syncStatus.loading ? 'saving' : syncStatus.errors.length === 0 && lastSyncedAt ? 'saved' : 'idle'}
+        lastSyncedAt={lastSyncedAt}
+        onRetry={retrySync}
+      />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         {/* The paid-plan prompt sits where auto-assign is used. */}
         {activeSection === 'shifts' ? (
@@ -346,6 +363,19 @@ export default function SchedulerScreen() {
             onBulkSave={handlePosTargetsGenerated}
           />
           </TourStep>
+          <ErrorBoundary>
+            <PosUploadSection accountId={accountId} onUploadComplete={() => { void refreshPosSales(); }} />
+          </ErrorBoundary>
+          {posSales.length > 0 ? (
+            <ErrorBoundary>
+              <ForecastEnhancementsCard
+                sales={posSales}
+                baseForecast={demandTargets}
+                roster={roster}
+                shiftTemplates={shiftTemplates}
+              />
+            </ErrorBoundary>
+          ) : null}
         </View>
         ) : null}
 
@@ -374,12 +404,21 @@ export default function SchedulerScreen() {
             workers={workers}
           />
           </TourStep>
+          <ErrorBoundary>
+            <PlaybookLibrary onImportTemplate={(tpl) => { void handleImportPlaybookTemplate(tpl); }} />
+          </ErrorBoundary>
         </View>
         ) : null}
 
         {/* With shifts on the roster it comes first; an empty roster starts with the form. */}
         {activeSection === 'shifts' ? (
-          roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>
+          <>
+            {roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>}
+            {/* Business limits for auto-assign; the stricter of these and the law applies. */}
+            <ErrorBoundary>
+              <AdvancedControls onConstraintsChange={handleConstraintsChange} />
+            </ErrorBoundary>
+          </>
         ) : null}
 
         <WellnessPrompt

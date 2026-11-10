@@ -4,11 +4,19 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
+import { PersonalizedFeed } from '@/components/PersonalizedFeed';
+import { ProfileAchievements } from '@/components/ProfileAchievements';
+import { StreakCounter } from '@/components/StreakCounter';
+import { TeamInviteModal } from '@/components/TeamInviteModal';
 import { Checklist } from '@/components/scheduler/Checklist';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
+import { usePersonalizedFeed, type FeedItem } from '@/hooks/usePersonalizedFeed';
+import { useStreak } from '@/hooks/useStreak';
+import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useLocations } from '@/hooks/useLocations';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
@@ -31,10 +39,54 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isWideLayout = width >= 768;
   const {
-    upcomingShifts, shiftCount, staffingGaps, setup, loading: rosterLoading, error: rosterError, refresh,
+    upcomingShifts, shiftCount, publishedCount, staffingGaps, setup, loading: rosterLoading, error: rosterError, refresh,
   } = useLiveRosterSummary(ACCOUNT_ID);
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
+
+  const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
+  const { tier } = useEthicalReward(streakCount);
+  const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
+
+  // Suggested next actions, built from what is stored: open gaps, unpublished
+  // drafts, missing availability or demand. Nothing is listed that is not true.
+  const draftCount = Math.max(0, shiftCount - publishedCount);
+  const feedSource = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
+    if (staffingGaps.length > 0) {
+      items.push({
+        id: 'feed-gaps', category: 'roster', impactScore: 1,
+        title: t('home.feed.gapsTitle', { n: String(staffingGaps.length) }),
+        summary: t('home.feed.gapsSummary'),
+      });
+    }
+    if (draftCount > 0) {
+      items.push({
+        id: 'feed-drafts', category: 'roster', impactScore: 0.9,
+        title: t('home.feed.draftsTitle', { n: String(draftCount) }),
+        summary: t('home.feed.draftsSummary'),
+      });
+    }
+    if (setup.workers > 0) {
+      items.push({
+        id: 'feed-availability', category: 'availability', impactScore: 0.6,
+        title: t('home.feed.availabilityTitle'),
+        summary: t('home.feed.availabilitySummary'),
+      });
+    }
+    if (setup.workers > 0 && setup.templates > 0 && setup.targets === 0) {
+      items.push({
+        id: 'feed-forecast', category: 'forecast', impactScore: 0.7,
+        title: t('home.feed.forecastTitle'),
+        summary: t('home.feed.forecastSummary'),
+      });
+    }
+    return items;
+  }, [draftCount, setup.targets, setup.templates, setup.workers, staffingGaps.length, t]);
+  const { items: feedItems } = usePersonalizedFeed({ focus: 'roster', prefersShortTasks: true }, feedSource);
+  const feedSection: Record<FeedItem['category'], SchedulerSection> = {
+    availability: 'workers', forecast: 'forecast', roster: 'shifts', wellness: 'shifts',
+  };
 
   const styles = makeStyles(colors, colorScheme ?? 'light');
 
@@ -220,7 +272,70 @@ export default function HomeScreen() {
       </ThemedView>
       )}
 
+      {!rosterLoading && !rosterError ? (
+        <ThemedView style={styles.card}>
+          <PersonalizedFeed
+            items={feedItems}
+            onSelectItem={(item) => router.push(schedulerHref(feedSection[item.category]))}
+          />
+        </ThemedView>
+      ) : null}
+
+      <TourStep target="streak-counter">
+      <ThemedView style={styles.card}>
+        <StreakCounter
+          label={t('home.streak.title')}
+          streakCount={streakCount}
+          longestStreak={longestStreak}
+          progress={progress}
+          isFresh={isFresh}
+          rewardTitle={tier?.title}
+          rewardMessage={tier?.message}
+          onRecordToday={() => recordAction()}
+        />
+      </ThemedView>
+      </TourStep>
+
+      <ThemedView style={styles.card}>
+        <ProfileAchievements
+          items={[
+            // Real counts only: the streak, and this week's published shifts.
+            {
+              id: 'ach-1',
+              title: t('home.achievements.coverageChecks'),
+              description: t('home.achievements.coverageChecksDesc'),
+              progress: streakCount,
+              goal: 7,
+            },
+            ...(shiftCount > 0
+              ? [{
+                id: 'ach-2',
+                title: t('home.achievements.draftsPublished'),
+                description: t('home.achievements.draftsPublishedDesc'),
+                progress: publishedCount,
+                goal: shiftCount,
+              }]
+              : []),
+          ]}
+        />
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+        <ThemedText type="defaultSemiBold">{t('home.invite.title')}</ThemedText>
+        <ThemedText style={styles.mutedText}>{t('home.invite.desc')}</ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.invite.ctaA11y')}
+          accessibilityHint={t('home.invite.ctaHint')}
+          style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}
+          onPress={openInviteAsManager}
+        >
+          <ThemedText style={styles.inviteButtonText}>{t('home.invite.cta')}</ThemedText>
+        </Pressable>
+      </ThemedView>
+
     </ScrollView>
+    <TeamInviteModal visible={inviteModalVisible} mode={inviteMode} onClose={closeInvite} />
     </>
   );
 }

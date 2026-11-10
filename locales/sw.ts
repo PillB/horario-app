@@ -117,11 +117,20 @@ export const sw = {
 
   home: {
     hero: {
+      tagline1: 'Punguza kutokuwepo kwa kuoanisha upatikanaji na mahitaji kwa sekunde chache.',
       tagline2: 'Weka upatikanaji wa wafanyakazi, violezo vya zamu, na afya ya ratiba sawia.',
     },
     openScheduler: 'Fungua Ratiba',
     openSchedulerA11y: 'Fungua Ratiba ili kupanga zamu',
     openSchedulerHint: 'Fungua mwonekano wa ratiba ili kuoanisha upatikanaji na ufunikaji',
+    streak: {
+      title: 'Mfululizo wa afya ya ratiba',
+      days: 'Mfululizo wa siku {n}',
+      longestStreak: 'Mfululizo mrefu zaidi: siku {n}. Rekodi hatua ili kuendelea.',
+      logProgress: 'Rekodi maendeleo ya leo',
+      tierGreatStart: 'Mwanzo mzuri',
+      tierTip: 'Umehifadhi sasisho lako la kwanza—endelea kwa kasi thabiti badala ya kuharakisha.',
+    },
     upcomingShifts: {
       title: 'Zamu zinazokuja',
       empty: 'Hakuna zamu zilizopangwa bado.',
@@ -150,14 +159,40 @@ export const sw = {
       publishRosterHint: 'Kagua malengo na uchapishe ratiba kwa timu yako',
       publishRosterDesc: 'Kagua malengo dhidi ya ufunikaji',
     },
+    achievements: {
+      title: 'Mafanikio',
+      coverageChecks: 'Ukaguzi wa ufunikaji thabiti',
+      coverageChecksDesc: 'Kagua ratiba kwa siku 7 mfululizo.',
+      draftsPublished: 'Rasimu zimechapishwa',
+      draftsPublishedDesc: 'Hamisha rasimu hadi zilizochapishwa timu zinapokuwa tayari.',
+      notStarted: 'Haijaanza'
+    },
     weekStats: {
       title: 'Wiki hii',
       scheduled: 'Zamu zilizopangwa',
       gaps: 'Majukumu ya kujaza',
     },
+    invite: {
+      title: 'Jenga timu yako',
+      desc: 'Ongeza wafanyakazi ili uweze kutumia ugawaji wa kiotomatiki na ufuatiliaji wa mahudhurio. Kila mfanyakazi anayeongezwa humaanisha pengo chache zaidi kwenye ratiba.',
+      cta: 'Alika mwanachama wa timu →',
+      ctaA11y: 'Alika mwanachama wa timu kwenye orodha yako',
+    },
+        personalizedActions: {
+      title: 'Vitendo vilivyobinafsishwa',
+    },
   },
 
   scheduler: {
+    title: 'Ratiba',
+    subtitle: 'Ratibu ufunikaji kwa wafanyakazi, violezo vya zamu, na mipango ya wafanyakazi kila siku.',
+    tooltip: 'Kituo chako cha ratiba. Ongeza wafanyakazi, weka upatikanaji wao, unda violezo vya zamu, kisha gawa au jaza ratiba kwa kubonyeza moja. Anza na hatua ya 1 — kuongeza mfanyakazi.',
+
+    missingData: {
+      title: 'Data inayokosekana imegunduliwa',
+      openSetup: 'Fungua usanidi wa haraka',
+      desc: 'Hatukupata zamu za kihistoria au ishara za nje. Panda mahitaji ya kawaida au idadi ya wafanyakazi/zamu kwa mikono ili kuwezesha utabiri.',
+    },
 
     onboarding: {
       title: 'Anza haraka',
@@ -410,6 +445,7 @@ export const sw = {
       nextWeek: 'Wiki ijayo',
       today: 'Leo'
     },
+      jumpToCalendar: 'Angalia Kalenda ↓',
     sections: { workers: 'Timu', templates: 'Violezo', forecast: 'Mahitaji', shifts: 'Ratiba', navLabel: 'Hatua za mpangaji', doneA11y: '{step}, imewekwa', hint: 'Inaonyesha hatua hii' },
     pos: {
       sectionTitle: 'Upakiaji wa Mauzo ya POS',
@@ -805,6 +841,80 @@ export const sw = {
     desc: 'Umekamilisha ziara na una kila kitu unachohitaji kujenga ratiba bora zaidi, kupunguza kutokuhudhuria, na kuweka timu yako katika usawa. Wiki yako nzuri ya kwanza inaanza sasa.',
   },
 },
+
+  teamInvite: {
+    managerTitle: 'Alika Mwanachama wa Timu',
+    workerTitle: 'Jiunge na Timu ya Meneja Wako',
+    managerSubtitle: 'Shiriki nambari hii na mfanyakazi wako ili aweze kujiunga na timu yako.',
+    workerSubtitle: 'Ingiza nambari ya mwaliko ambayo meneja wako amekushirikisha.',
+    inviteCodeLabel: 'Nambari ya Mwaliko',
+    workerEmailLabel: 'Barua pepe ya mfanyakazi (si lazima)',
+    workerEmailPlaceholder: 'mfanyakazi@mfano.com',
+    emailNote: 'Kwa matumizi yako tu — hakuna barua pepe itakayotumwa.',
+    copyCode: 'Nakili Nambari',
+    codeShared: '✓ Nambari imeshirikiwa!',
+    regenerate: 'Zalisha Upya',
+    joinTeam: 'Jiunge na Timu',
+    joinedTitle: 'Umejiunga na timu!',
+    joinedSub: 'Umejiunga! Karibu kwenye timu.',
+    invalidCode: 'Nambari si sahihi. Omba meneja wako nambari sahihi.',
+    close: 'Funga',
+    closeA11y: 'Funga kidirisha',
+    inviteCodeInputA11y: 'Ingiza nambari ya mwaliko',
+    copyA11y: 'Nakili nambari ya mwaliko',
+    regenerateA11y: 'Zalisha upya nambari ya mwaliko',
+    joinA11y: 'Jiunge na timu kwa kutumia nambari ya mwaliko',
+    emailInputA11y: 'Ingizo la anwani ya barua pepe ya mfanyakazi',
+    errorRegenerate: 'Imeshindwa kuzalisha upya nambari. Tafadhali jaribu tena.',
+    errorShare: 'Imeshindwa kushiriki nambari. Tafadhali inakili mwenyewe.',
+  },
+
+  capability: {
+    header: {
+      feature: 'Kipengele',
+      free: 'Bure',
+      pro: 'Pro',
+    },
+    unlimitedWorkers: 'Wafanyakazi wasio na kikomo',
+    shiftTemplates: 'Violezo vya zamu',
+    availabilityTracking: 'Ufuatiliaji wa upatikanaji',
+    rosterAssignment: 'Ugawaji wa zamu',
+    demandTargets: 'Malengo ya mahitaji',
+    posCsvImport: 'Uingizaji wa CSV ya POS',
+    autoAssign: 'Ugawaji otomatiki',
+    advancedAnalytics: 'Uchambuzi wa hali ya juu',
+    multiLocation: 'Maeneo mengi',
+    messaging: 'Ujumbe na mawasiliano',
+    prioritySupport: 'Msaada wa kipaumbele',
+    upgrade: {
+      title: 'Fungua vipengele vya Pro',
+      body: 'Ondoa vikwazo na ufikie zana za hali ya juu.',
+      cta: 'Panda daraja hadi Pro',
+      ctaHint: 'Inafungua ukurasa wa malipo kuanza usajili wako wa Pro',
+      price: 'Mipango kuanzia US$19 kwa kila eneo kwa mwezi · Ghairi wakati wowote',
+    },
+  },
+  advancedControls: {
+    title: 'Vidhibiti vya hali ya juu',
+    constraints: {
+      title: 'Vikwazo vya zamu',
+      minRest: 'Saa za mapumziko ya chini kati ya zamu',
+      maxWeekly: 'Saa za juu kwa wiki',
+      minShift: 'Urefu wa chini wa zamu (saa)',
+    },
+    presets: {
+      title: 'Violezo vya sekta',
+      restaurant: 'Mkahawa',
+      retail: 'Rejareja',
+      cafe: 'Café',
+      hotel: 'Hoteli',
+    },
+    multiLocation: {
+      title: 'Maeneo mengi',
+      toggle: 'Wezesha upangaji kwa eneo',
+      locations: 'Majina ya maeneo (yaliyotenganishwa na koma)',
+    },
+  },
 
   locations: {
     sectionTitle: 'Maeneo ya biashara',

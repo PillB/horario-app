@@ -110,11 +110,20 @@ export const zh = {
 
   home: {
     hero: {
+      tagline1: '通过自动匹配可用性与需求，在几秒内减少缺勤。',
       tagline2: '保持员工可用性、班次模板和排班健康同步。',
     },
     openScheduler: '打开排班',
     openSchedulerA11y: '打开排班界面规划班次',
     openSchedulerHint: '打开排班视图，将可用性与覆盖需求对齐',
+    streak: {
+      title: '排班健康连续记录',
+      days: '连续 {n} 天',
+      longestStreak: '最长连续：{n} 天。记录操作以延续记录。',
+      logProgress: '记录今日进展',
+      tierGreatStart: '良好开始',
+      tierTip: '保存了第一次更新——保持稳定节奏而非急于求成。',
+    },
     upcomingShifts: {
       title: '即将到来的班次',
       empty: '暂无已排班次。',
@@ -143,14 +152,39 @@ export const zh = {
       publishRosterHint: '审查目标并向团队发布排班',
       publishRosterDesc: '审查目标与覆盖对比',
     },
+    achievements: {
+      title: '成就',
+      coverageChecks: '持续覆盖检查',
+      coverageChecksDesc: '连续 7 天检查排班。',
+      draftsPublished: '草稿已发布',
+      draftsPublishedDesc: '团队准备就绪后将草稿转为已发布。', notStarted: '未开始'
+    },
     weekStats: {
       title: '本周',
       scheduled: '已排班次',
       gaps: '待补岗位',
     },
+    invite: {
+      title: '组建您的团队',
+      desc: '添加员工以启用自动分配和排班覆盖追踪。每新增一名员工，都能减少排班空缺。',
+      cta: '邀请团队成员 →',
+      ctaA11y: '邀请团队成员加入您的排班表',
+    },
+        personalizedActions: {
+      title: '个性化操作',
+    },
   },
 
   scheduler: {
+    title: '排班',
+    subtitle: '协调员工、班次模板和每日人员配置计划的覆盖安排。',
+    tooltip: '您的排班中心。添加员工、设置可用性、创建班次模板，然后一键分配或自动填充排班。从第1步开始——添加员工。',
+
+    missingData: {
+      title: '检测到数据缺失',
+      openSetup: '打开快速设置',
+      desc: '未找到历史班次或外部信号。请填充均匀需求或手动录入员工/班次数量以解锁预测功能。',
+    },
 
     onboarding: {
       title: '快速上手',
@@ -375,6 +409,7 @@ export const zh = {
       csvHelp: '支持格式：date（YYYY-MM-DD）、revenue（数字）、covers（可选整数）、notes（可选文本）。每次最多上传 1,000 行。',
       dropHint: '拖放 .csv 文件至此处，或点击浏览',
     },
+    jumpToCalendar: '查看日历 ↓',
     sections: { workers: '团队', templates: '模板', forecast: '需求', shifts: '排班表', navLabel: '排班步骤', doneA11y: '{step}，已设置', hint: '显示此步骤' }},
 
   // ─── Week calendar ─────────────────────────────────────────────────────────
@@ -750,6 +785,80 @@ export const zh = {
     desc: '您已完成导览，现在拥有构建更智能排班、减少缺勤并保持团队同步所需的一切。您精彩的第一周，从现在开始。',
   },
 },
+
+  teamInvite: {
+    managerTitle: '邀请团队成员',
+    workerTitle: '加入管理员的团队',
+    managerSubtitle: '将此邀请码分享给员工，让他们加入您的团队。',
+    workerSubtitle: '输入管理员分享给您的邀请码。',
+    inviteCodeLabel: '邀请码',
+    workerEmailLabel: '员工邮箱（可选）',
+    workerEmailPlaceholder: 'worker@example.com',
+    emailNote: '仅供您参考 — 不会发送任何邮件。',
+    copyCode: '复制邀请码',
+    codeShared: '✓ 邀请码已分享！',
+    regenerate: '重新生成',
+    joinTeam: '加入团队',
+    joinedTitle: '您已成功加入团队！',
+    joinedSub: '已加入！欢迎来到团队。',
+    invalidCode: '邀请码无效，请向管理员索取正确的邀请码。',
+    close: '关闭',
+    closeA11y: '关闭弹窗',
+    inviteCodeInputA11y: '输入邀请码',
+    copyA11y: '复制邀请码',
+    regenerateA11y: '重新生成邀请码',
+    joinA11y: '使用邀请码加入团队',
+    emailInputA11y: '员工邮箱地址输入框',
+    errorRegenerate: '无法重新生成邀请码，请重试。',
+    errorShare: '无法分享邀请码，请手动复制。',
+  },
+
+  capability: {
+    header: {
+      feature: '功能',
+      free: '免费',
+      pro: '专业版',
+    },
+    unlimitedWorkers: '无限员工',
+    shiftTemplates: '班次模板',
+    availabilityTracking: '可用性追踪',
+    rosterAssignment: '班次分配',
+    demandTargets: '需求目标',
+    posCsvImport: 'POS CSV导入',
+    autoAssign: '自动分配',
+    advancedAnalytics: '高级分析',
+    multiLocation: '多地点',
+    messaging: '消息与沟通',
+    prioritySupport: '优先支持',
+    upgrade: {
+      title: '解锁专业版功能',
+      body: '移除限制，使用高级工具。',
+      cta: '升级到专业版',
+      ctaHint: '打开账单页面开始您的专业版订阅',
+      price: '方案每个门店每月 19 美元起 · 随时取消',
+    },
+  },
+  advancedControls: {
+    title: '高级控制',
+    constraints: {
+      title: '班次限制',
+      minRest: '班次间最短休息时间（小时）',
+      maxWeekly: '每周最大工时',
+      minShift: '最短班次时长（小时）',
+    },
+    presets: {
+      title: '行业预设',
+      restaurant: '餐厅',
+      retail: '零售',
+      cafe: '咖啡厅',
+      hotel: '酒店',
+    },
+    multiLocation: {
+      title: '多地点',
+      toggle: '启用按地点排班',
+      locations: '地点名称（逗号分隔）',
+    },
+  },
 
   locations: {
     sectionTitle: '营业地点',
