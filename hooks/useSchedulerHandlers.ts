@@ -1035,7 +1035,7 @@ export function useSchedulerHandlers() {
         }
         const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
         showActionBanner(
-          `${workerName} scheduled for ${latestShift.date}. Tap "Notify" to send their shift via Horario.`,
+          `${workerName} scheduled for ${latestShift.date}. Tell them, then mark the shift as told.`,
           'success'
         );
         void trackEvent('schedule_published');
@@ -1082,10 +1082,10 @@ export function useSchedulerHandlers() {
       const shift = roster.find((s) => s.id === shiftId);
       if (!shift) return;
       if (shift.status !== 'Published') {
-        showActionBanner('Publish the shift before notifying workers.', 'info'); return;
+        showActionBanner('Publish the shift before marking it as told.', 'info'); return;
       }
       if (shift.notified) {
-        showActionBanner('Notifications already sent for this shift.', 'info'); return;
+        showActionBanner('This shift is already marked as told.', 'info'); return;
       }
       const result = await notifyShift(shiftId);
       if (!result.success) {
@@ -1093,7 +1093,7 @@ export function useSchedulerHandlers() {
         return;
       }
       const workerName = workers.find((w) => w.id === shift.workerId)?.name ?? shift.workerId;
-      showActionBanner(`Sent notifications for ${workerName} on ${shift.date}.`, 'success');
+      showActionBanner(`Marked ${workerName} as told about ${shift.date}. No message was sent.`, 'success');
     },
     [notifyShift, roster, showActionBanner, t, workers]
   );

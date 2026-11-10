@@ -28,7 +28,7 @@ export const tl = {
     tryAgain: 'Subukang muli',
     publish: 'I-publish',
     unpublish: 'I-unpublish',
-    notify: 'Abisuhan',
+    notify: 'Markahang nasabihan',
     notified: 'Naabisuhan na',
     draft: 'Draft',
     published: 'Nai-publish na',
@@ -117,20 +117,11 @@ export const tl = {
 
   home: {
     hero: {
-      tagline1: 'Bawasan ang mga hindi pagsipot sa pamamagitan ng awtomatikong pagtutugma ng availability sa demand sa loob ng ilang segundo.',
       tagline2: 'Panatilihing naka-sync ang availability ng manggagawa, mga template ng shift, at kalusugan ng roster.',
     },
     openScheduler: 'Buksan ang Tagaplanong',
     openSchedulerA11y: 'Buksan ang Tagaplanong para planuhin ang mga shift',
     openSchedulerHint: 'Buksan ang view ng scheduling para iayon ang availability sa saklaw',
-    streak: {
-      title: 'Tuloy-tuloy na kalusugan ng roster',
-      days: '{n} araw na tuloy-tuloy',
-      longestStreak: 'Pinakamahaba: {n} araw. Mag-log ng aksyon para mapanatili ito.',
-      logProgress: 'I-log ang pag-unlad ngayon',
-      tierGreatStart: 'Magandang simula',
-      tierTip: 'Na-save mo na ang unang update—manatiling matatag kaysa magmadali.',
-    },
     upcomingShifts: {
       title: 'Mga paparating na shift',
       empty: 'Wala pang naka-iskedyul na shift.',
@@ -159,40 +150,14 @@ export const tl = {
       publishRosterHint: 'Suriin ang mga target at i-publish ang roster sa iyong team',
       publishRosterDesc: 'Suriin ang mga target kumpara sa saklaw',
     },
-    achievements: {
-      title: 'Mga tagumpay',
-      coverageChecks: 'Tuloy-tuloy na pagsusuri ng saklaw',
-      coverageChecksDesc: 'Suriin ang roster nang 7 araw nang sunod-sunod.',
-      draftsPublished: 'Mga draft na nai-publish',
-      draftsPublishedDesc: 'Ilipat ang mga draft sa nai-publish kapag handa na ang mga team.',
-      notStarted: 'Hindi pa sinimulan'
-    },
     weekStats: {
       title: 'Ngayong linggo',
       scheduled: 'Mga naka-iskedyul na shift',
       gaps: 'Mga papel na dapat punan',
     },
-    invite: {
-      title: 'Buuin ang iyong koponan',
-      desc: 'Magdagdag ng mga manggagawa upang i-unlock ang auto-assign at pagsubaybay sa coverage. Ang bawat manggagawang idinagdag ay nangangahulugang mas kaunting mga puwang sa iskedyul.',
-      cta: 'Mag-imbita ng miyembro ng koponan →',
-      ctaA11y: 'Mag-imbita ng miyembro ng koponan sa iyong roster',
-    },
-        personalizedActions: {
-      title: 'Mga personalisadong aksyon',
-    },
   },
 
   scheduler: {
-    title: 'Tagaplanong',
-    subtitle: 'I-coordinate ang saklaw sa mga manggagawa, template ng shift, at araw-araw na plano ng kawani.',
-    tooltip: 'Ang iyong sentro ng scheduling. Magdagdag ng mga manggagawa, itakda ang kanilang availability, lumikha ng mga template ng shift, pagkatapos ay mag-assign o awtomatikong punan ang mga roster sa isang tap. Magsimula sa hakbang 1 — pagdaragdag ng manggagawa.',
-
-    missingData: {
-      title: 'Natukoy ang nawawalang data',
-      openSetup: 'Buksan ang mabilis na setup',
-      desc: 'Hindi namin mahanap ang mga makasaysayang shift o panlabas na signal. Mag-seed ng homogeneous na demand o manu-manong bilang ng manggagawa/shift para i-unlock ang forecasting.',
-    },
 
     onboarding: {
       title: 'Magsimulang mabilis',
@@ -421,7 +386,7 @@ export const tl = {
       emptyDesc: 'Lumikha ng shift sa Paglikha ng Shift sa itaas — lilitaw ito dito agad.',
       publishA11y: 'I-publish ang shift na ito',
       unpublishA11y: 'Ibalik ang shift na ito sa draft',
-      notifyA11y: 'Magpadala ng abiso para sa shift na ito',
+      notifyA11y: 'Markahan na nasabihan na ang manggagawa tungkol sa shift na ito', notifyHint: 'Itinatala na nasabihan mo ang manggagawa. Walang mensaheng ipinapadala.',
       upcoming: {
         title: 'Mga paparating na shift',
         subtitle: 'Manatiling handa para sa susunod na window ng roster.',
@@ -445,7 +410,6 @@ export const tl = {
       nextWeek: 'Susunod na linggo',
       today: 'Ngayon'
     },
-      jumpToCalendar: 'Tingnan ang Kalendaryo ↓',
     sections: { workers: 'Koponan', templates: 'Mga template', forecast: 'Demand', shifts: 'Roster', navLabel: 'Mga hakbang ng scheduler', doneA11y: '{step}, naka-set up', hint: 'Ipinapakita ang hakbang na ito' },
     pos: {
       sectionTitle: 'POS Sales Upload',
@@ -841,80 +805,6 @@ export const tl = {
     desc: 'Nakumpleto mo na ang tour at mayroon ka nang lahat ng kailangan mo upang bumuo ng mas matalinong mga iskedyul, bawasan ang mga no-show, at panatilihing naka-sync ang iyong koponan. Nagsisimula na ngayon ang iyong unang mahusay na linggo.',
   },
 },
-
-  teamInvite: {
-    managerTitle: 'Mag-imbita ng Miyembro ng Koponan',
-    workerTitle: 'Sumali sa Koponan ng Iyong Manager',
-    managerSubtitle: 'Ibahagi ang code na ito sa iyong manggagawa upang makasali sila sa iyong koponan.',
-    workerSubtitle: 'Ilagay ang invite code na ibinahagi ng iyong manager sa iyo.',
-    inviteCodeLabel: 'Invite Code',
-    workerEmailLabel: 'Email ng manggagawa (opsyonal)',
-    workerEmailPlaceholder: 'worker@example.com',
-    emailNote: 'Para sa iyong sanggunian lamang — walang email na ipapadala.',
-    copyCode: 'Kopyahin ang Code',
-    codeShared: '✓ Naibahagi ang code!',
-    regenerate: 'Mag-regenerate',
-    joinTeam: 'Sumali sa Koponan',
-    joinedTitle: 'Sumali ka na sa koponan!',
-    joinedSub: 'Sumali na! Maligayang pagdating sa koponan.',
-    invalidCode: 'Maling code. Humingi sa iyong manager ng tamang code.',
-    close: 'Isara',
-    closeA11y: 'Isara ang modal',
-    inviteCodeInputA11y: 'Ilagay ang invite code',
-    copyA11y: 'Kopyahin ang invite code',
-    regenerateA11y: 'I-regenerate ang invite code',
-    joinA11y: 'Sumali sa koponan gamit ang invite code',
-    emailInputA11y: 'Input ng email address ng manggagawa',
-    errorRegenerate: 'Hindi ma-regenerate ang code. Pakisubukan muli.',
-    errorShare: 'Hindi maibahagi ang code. Pakikopya ito nang manu-mano.',
-  },
-
-  capability: {
-    header: {
-      feature: 'Tampok',
-      free: 'Libre',
-      pro: 'Pro',
-    },
-    unlimitedWorkers: 'Walang limitasyong manggagawa',
-    shiftTemplates: 'Mga template ng shift',
-    availabilityTracking: 'Pagsubaybay ng availability',
-    rosterAssignment: 'Pagtatalaga ng shift',
-    demandTargets: 'Mga target ng demand',
-    posCsvImport: 'POS CSV import',
-    autoAssign: 'Awtomatikong pagtatalaga',
-    advancedAnalytics: 'Advanced na analytics',
-    multiLocation: 'Maramihang lokasyon',
-    messaging: 'Pagmemensahe at komunikasyon',
-    prioritySupport: 'Priority na suporta',
-    upgrade: {
-      title: 'I-unlock ang mga Pro na tampok',
-      body: 'Alisin ang mga paghihigpit at i-access ang mga advanced na tool.',
-      cta: 'I-upgrade sa Pro',
-      ctaHint: 'Nagbubukas ng pahina ng pagbabayad para simulan ang iyong Pro subscription',
-      price: 'Mga plano mula US$19 bawat lokasyon kada buwan · Kanselahin anumang oras',
-    },
-  },
-  advancedControls: {
-    title: 'Mga advanced na kontrol',
-    constraints: {
-      title: 'Mga hadlang sa shift',
-      minRest: 'Minimum na oras ng pahinga sa pagitan ng mga shift',
-      maxWeekly: 'Maximum na oras sa isang linggo',
-      minShift: 'Minimum na haba ng shift (oras)',
-    },
-    presets: {
-      title: 'Mga preset ng industriya',
-      restaurant: 'Restaurant',
-      retail: 'Tingi',
-      cafe: 'Café',
-      hotel: 'Hotel',
-    },
-    multiLocation: {
-      title: 'Maramihang lokasyon',
-      toggle: 'Paganahin ang pag-iiskedyul bawat lokasyon',
-      locations: 'Mga pangalan ng lokasyon (pinaghiwalay ng kuwit)',
-    },
-  },
 
   locations: {
     sectionTitle: 'Mga lokasyon ng negosyo',

@@ -195,6 +195,8 @@ export default function HomeScreen() {
       </ErrorBoundary>
       ) : null}
 
+      {/* The setup checklist already links to the same places. */}
+      {showSetup ? null : (
       <ThemedView style={styles.card}>
         <ThemedText type="subtitle">{t('home.quickActions.title')}</ThemedText>
         <View style={isWideLayout ? styles.columns : styles.actions}>
@@ -216,6 +218,7 @@ export default function HomeScreen() {
           ))}
         </View>
       </ThemedView>
+      )}
 
     </ScrollView>
     </>

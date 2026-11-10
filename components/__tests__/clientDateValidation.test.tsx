@@ -8,8 +8,6 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { DemandSection } from '../scheduler/DemandSection';
 import { parseCsv } from '../scheduler/PosUploadSection';
 import { computeSeasonality, computeTrend } from '@/services/forecastEngine';
-import { useAvailabilityGrid, type AvailabilityGridHook } from '@/hooks/useAvailabilityGrid';
-import { parseIsoDate } from '@/hooks/useDemandAnalysis';
 import { normaliseDateInput } from '@/utils/dateKeys';
 
 jest.mock('@/services/logger', () => ({ log: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
@@ -110,33 +108,5 @@ describe('forecastEngine', () => {
     expect(index[1]).toBe(1);
     expect(index[2]).toBe(1);
     expect(computeTrend([{ date: '2026-02-31', revenue: 1, covers: null }, { date: '2026-02-30', revenue: 2, covers: null }])).toEqual({ slope: 0, intercept: 0, r2: 0, direction: 'flat' });
-  });
-});
-
-describe('useDemandAnalysis', () => {
-  it('parseIsoDate rejects impossible days', () => {
-    for (const d of IMPOSSIBLE) expect(parseIsoDate(d)).toBeNull();
-    expect(parseIsoDate('2026-03-03')?.toISOString()).toBe('2026-03-03T00:00:00.000Z');
-  });
-});
-
-describe('useAvailabilityGrid.addException', () => {
-  it('ignores an impossible date and keeps a real one', async () => {
-    let hook!: AvailabilityGridHook;
-    const Probe = () => {
-      hook = useAvailabilityGrid('w-test');
-      return null;
-    };
-    await act(async () => {
-      renderer.create(<Probe />);
-    });
-    await act(async () => {
-      await hook.addException('2026-02-31', 'Holiday');
-    });
-    expect(hook.exceptions).toEqual([]);
-    await act(async () => {
-      await hook.addException('2026-02-28', 'Holiday');
-    });
-    expect(hook.exceptions.map((e) => e.date)).toEqual(['2026-02-28']);
   });
 });

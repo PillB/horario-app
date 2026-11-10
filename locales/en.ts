@@ -39,7 +39,7 @@ export const en = {
     tryAgain: 'Try again',
     publish: 'Publish',
     unpublish: 'Unpublish',
-    notify: 'Notify',
+    notify: 'Mark as told',
     notified: 'Notified',
     draft: 'Draft',
     published: 'Published',
@@ -130,20 +130,11 @@ export const en = {
   // ─── Home screen ───────────────────────────────────────────────────────────
   home: {
     hero: {
-      tagline1: 'Cut no-shows by auto-matching availability to demand in seconds.',
       tagline2: 'Keep worker availability, templates, and roster health in sync.',
     },
     openScheduler: 'Open Scheduler',
     openSchedulerA11y: 'Open Scheduler to plan shifts',
     openSchedulerHint: 'Open the scheduling view to align availability with coverage',
-    streak: {
-      title: 'Roster health streak',
-      days: '{n} day streak',
-      longestStreak: 'Longest streak: {n} days. Log an action to extend it.',
-      logProgress: "Log today's progress",
-      tierGreatStart: 'Great start',
-      tierTip: 'Saved your first update—keep a steady pace rather than rushing.',
-    },
     upcomingShifts: {
       title: 'Upcoming shifts',
       empty: 'No shifts scheduled yet.',
@@ -172,27 +163,10 @@ export const en = {
       publishRosterHint: 'Review targets and publish the roster to your team',
       publishRosterDesc: 'Review targets vs coverage',
     },
-    achievements: {
-      title: 'Achievements',
-      notStarted: 'Not started',
-      coverageChecks: 'Consistent coverage checks',
-      coverageChecksDesc: 'Check the roster on 7 days in a row.',
-      draftsPublished: 'Drafts published',
-      draftsPublishedDesc: 'Move drafts into published when teams are ready.',
-    },
     weekStats: {
       title: 'This week',
       scheduled: 'Shifts scheduled',
       gaps: 'Roles to fill',
-    },
-    invite: {
-      title: 'Build your team',
-      desc: 'Add workers to unlock auto-assign and coverage tracking. Each worker added means fewer scheduling gaps.',
-      cta: 'Invite a team member →',
-      ctaA11y: 'Invite a team member to your roster',
-    },
-    personalizedActions: {
-      title: 'Personalized actions',
     },
   },
 
@@ -221,17 +195,7 @@ export const en = {
       shiftHint: 'Deletes this roster shift. Tap twice to confirm.',
       removed: '{name} removed.',
     },
-    title: 'Scheduler',
-    subtitle: 'Coordinate coverage across workers, shift templates, and day-by-day staffing plans.',
-    tooltip: 'Your scheduling hub. Add workers, set their availability, create shift templates, then assign or auto-fill rosters in one tap. Start with step 1 — adding a worker.',
-    jumpToCalendar: 'View Calendar ↓',
     sections: { workers: 'Team', templates: 'Templates', forecast: 'Demand', shifts: 'Roster', navLabel: 'Scheduler steps', doneA11y: '{step}, set up', hint: 'Shows this step' },
-
-    missingData: {
-      title: 'Missing data detected',
-      openSetup: 'Open quick setup',
-      desc: 'We could not find historical shifts or external signals. Seed homogeneous demand or manual worker/shift counts to unlock forecasting.',
-    },
 
     onboarding: {
       title: 'Get started fast',
@@ -477,10 +441,10 @@ export const en = {
       emptyDesc: 'Create a shift in Shift Creation above — it appears here instantly.',
       publishA11y: 'Publish this shift',
       unpublishA11y: 'Move this shift back to draft',
-      notifyA11y: 'Send notification for this shift',
+      notifyA11y: 'Mark this shift as told to the worker',
       publishHint: 'Checks availability and overlaps, then publishes the shift',
       unpublishHint: 'Moves the shift back to draft; it must be sent again after the next publish',
-      notifyHint: 'Records that the worker was sent this shift',
+      notifyHint: 'Records that you told the worker. No message is sent.',
       upcomingEmpty: 'No upcoming shifts. Assign one in Shift Creation above.',
       upcoming: {
         title: 'Upcoming shifts',
@@ -494,7 +458,7 @@ export const en = {
         scheduled: '{n} scheduled',
         shortfall: 'Shortfall: {n}',
       },
-      tooltip: '🗓 Your live roster calendar. Shifts appear as soon as you save them. Click "Publish" to lock a shift in, then "Notify" to alert the worker. Published shifts feed the Analytics tab with hours and coverage data.',
+      tooltip: '🗓 Your live roster calendar. Shifts appear as soon as you save them. Click "Publish" to lock a shift in, then tell the worker and mark the shift as told (no message is sent). Published shifts feed the Analytics tab with hours and coverage data.',
       // Calendar view
       calendarView: 'Calendar',
       listView: 'List',
@@ -693,34 +657,6 @@ export const en = {
     buttonA11y: 'Upgrade to Pro plan',
     buttonHint: 'Opens billing page to start your free Pro trial',
     limitReachedBanner: 'Free limit reached. Upgrade to Pro for unlimited auto-assign.',
-  },
-
-  // ─── Team invite modal ─────────────────────────────────────────────────────
-  teamInvite: {
-    managerTitle: 'Invite a Team Member',
-    workerTitle: 'Join Your Manager\'s Team',
-    managerSubtitle: 'Share this code with your worker so they can join your team.',
-    workerSubtitle: 'Enter the invite code your manager shared with you.',
-    inviteCodeLabel: 'Invite Code',
-    workerEmailLabel: 'Worker\'s email (optional)',
-    workerEmailPlaceholder: 'worker@example.com',
-    emailNote: 'For your reference only — no email will be sent.',
-    copyCode: 'Copy Code',
-    codeShared: '✓ Code shared!',
-    regenerate: 'Regenerate',
-    joinTeam: 'Join Team',
-    joinedTitle: 'You\'ve joined the team!',
-    joinedSub: 'Joined! Welcome to the team.',
-    invalidCode: 'Invalid code. Ask your manager for the correct code.',
-    close: 'Close',
-    closeA11y: 'Close modal',
-    inviteCodeInputA11y: 'Enter invite code',
-    copyA11y: 'Copy invite code',
-    regenerateA11y: 'Regenerate invite code',
-    joinA11y: 'Join team with invite code',
-    emailInputA11y: 'Worker email address input',
-    errorRegenerate: 'Could not regenerate code. Please try again.',
-    errorShare: 'Could not share the code. Please copy it manually.',
   },
 
   // ─── Language selector ─────────────────────────────────────────────────────
@@ -968,103 +904,6 @@ export const en = {
     seedConfirmation: '✅ Sample data added — explore your first team, templates, and shifts!',
   },
 },
-
-  capability: {
-    header: {
-      feature: 'Feature',
-      free: 'Free',
-      pro: 'Pro',
-    },
-    unlimitedWorkers: 'Unlimited workers',
-    shiftTemplates: 'Shift templates',
-    availabilityTracking: 'Availability tracking',
-    rosterAssignment: 'Roster assignment',
-    demandTargets: 'Demand targets',
-    posCsvImport: 'POS CSV import',
-    autoAssign: 'Auto-assign',
-    advancedAnalytics: 'Advanced analytics',
-    multiLocation: 'Multi-location',
-    messaging: 'Messaging & comms',
-    prioritySupport: 'Priority support',
-    upgrade: {
-      title: 'Unlock Pro features',
-      body: 'Remove restrictions and access advanced tools.',
-      cta: 'Upgrade to Pro',
-      ctaHint: 'Opens the billing page to start your Pro subscription',
-      price: 'Plans from US$19 per location a month · Cancel anytime',
-    },
-    icon: {
-      included: 'Included',
-      notIncluded: 'Not included',
-      proOnlyLocked: 'Pro only, locked',
-    },
-    a11y: {
-      proOnly: 'Pro only',
-      currentlyLocked: 'currently locked',
-      availableWithPro: 'available with Pro',
-      includedInFreeAndPro: 'included in Free and Pro',
-    },
-  },
-  advancedControls: {
-    title: 'Advanced controls',
-    constraints: {
-      title: 'Shift constraints',
-      minRest: 'Min rest hours between shifts',
-      maxWeekly: 'Max weekly hours',
-      minShift: 'Min shift length (hours)',
-    },
-    presets: {
-      title: 'Industry presets',
-      restaurant: 'Restaurant',
-      retail: 'Retail',
-      cafe: 'Café',
-      hotel: 'Hotel',
-    },
-    multiLocation: {
-      title: 'Multi-location',
-      toggle: 'Enable per-location scheduling',
-      locations: 'Location names (comma-separated)',
-      locationsPlaceholder: 'e.g. Downtown, Airport',
-    },
-    unit: {
-      hours: 'h',
-    },
-    a11y: {
-      subsectionExpanded: 'expanded',
-      subsectionCollapsed: 'collapsed',
-      outerHint: 'Shows or hides the advanced scheduling controls',
-      constraintsHint: 'Shows or hides the shift constraint fields',
-      presetsHint: 'Shows or hides the industry presets',
-      multiLocationHint: 'Shows or hides the multi-location settings',
-      minRestA11y: 'Minimum rest hours between shifts',
-      maxWeeklyA11y: 'Maximum weekly hours per worker',
-      minShiftA11y: 'Minimum shift length in hours',
-      multiLocationSwitch: 'Enable per-location scheduling',
-      locationsA11y: 'Location names, separated by commas',
-    },
-  },
-
-  // ─── Sync status ───────────────────────────────────────────────────────────
-  sync: {
-    lastSaved: 'Last saved',
-    saving: 'Saving…',
-    saved: 'Saved',
-    error: 'Couldn\'t save changes',
-    retry: 'Retry',
-  },
-
-  // ─── Playbook library ──────────────────────────────────────────────────────
-  playbook: {
-    title: 'Playbook library',
-    subtitle: 'Start from ready-made shift templates for your type of business.',
-    filterAll: 'All',
-    filterA11y: 'Business type',
-    filterHint: 'Shows the playbooks for this business type',
-    empty: 'No playbooks for this business type yet.',
-    fixes: 'Fixes:',
-    importOne: 'Import this template',
-    importAll: 'Import all {n} templates',
-  },
 
   locations: {
     sectionTitle: 'Business locations',
