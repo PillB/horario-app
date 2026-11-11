@@ -53,7 +53,8 @@ jobs:
 
   e2e:
     name: Browser tests (dev server, local Supabase)
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.58 has no Chromium build for the newer runner image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
