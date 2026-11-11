@@ -315,7 +315,7 @@ export const tl = {
       shortfallReasons: {
         no_role_match: 'walang manggagawang may ganitong tungkulin',
         no_availability: 'walang manggagawang may ganitong tungkulin ang available sa buong shift',
-        overlap: 'lahat ng karapat-dapat na manggagawa ay may kasabay nang shift',
+        overlap: 'lahat ng karapat-dapat na manggagawa ay nasa shift na ito o sa kasabay nitong shift',
         max_hours: 'lahat ng karapat-dapat na manggagawa ay lalampas sa limitasyon ng oras kada araw o kada linggo',
         min_rest: 'lahat ng karapat-dapat na manggagawa ay lalabag sa pinakamababang pahinga sa pagitan ng mga shift',
       },

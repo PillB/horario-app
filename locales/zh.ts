@@ -307,7 +307,7 @@ export const zh = {
       shortfallReasons: {
         no_role_match: '没有员工具有该角色',
         no_availability: '没有该角色的员工在整个班次内都有空',
-        overlap: '所有符合条件的员工都已有时间重叠的班次',
+        overlap: '所有符合条件的员工都已在此班次或与其重叠的班次中',
         max_hours: '所有符合条件的员工都会超出每日或每周工时上限',
         min_rest: '所有符合条件的员工都会违反班次之间的最短休息时间',
       },

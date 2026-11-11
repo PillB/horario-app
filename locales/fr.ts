@@ -326,7 +326,7 @@ export const fr = {
       shortfallReasons: {
         no_role_match: "aucun employé n'a ce rôle",
         no_availability: "aucun employé ayant ce rôle n'est disponible pendant tout le quart",
-        overlap: 'tous les employés éligibles ont déjà un quart qui se chevauche',
+        overlap: 'tous les employés éligibles sont déjà sur ce quart ou sur un quart qui le chevauche',
         max_hours: "tous les employés éligibles dépasseraient la limite d'heures quotidienne ou hebdomadaire",
         min_rest: 'tous les employés éligibles ne respecteraient pas le repos minimum entre deux quarts',
       },

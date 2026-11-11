@@ -70,7 +70,7 @@ describe('ShiftTemplateSection — auto-assign shortfalls', () => {
     const text = allText(tree);
     expect(text).toContain('1 shift(s) not fully covered');
     expect(text).toContain(
-      'Ward day on 2026-03-30: 1/3 assigned, 2 missing — all eligible workers already have an overlapping shift'
+      'Ward day on 2026-03-30: 1/3 assigned, 2 missing — every eligible worker is already on this shift or on one that overlaps it'
     );
   });
 

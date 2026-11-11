@@ -390,6 +390,34 @@ export const deleteDemandTarget = async (target: { date: string; role: string })
   }
 };
 
+/** Targets one `upsertTargets` request may carry (the proxy's limit). */
+const UPSERT_TARGETS_BATCH = 500;
+
+/**
+ * Saves several overrides in as few requests as the proxy allows (500 each),
+ * not one request per day (CHG-098). A batch is all or nothing on the server,
+ * so each target reports its batch's outcome.
+ */
+export const upsertDemandTargets = async (targets: DemandForecast[]): Promise<UpsertDemandTargetResult[]> => {
+  const normalized = targets.map((target) => ({ ...target, required: Number(target.required), source: target.source ?? ('override' as const) }));
+  const results: UpsertDemandTargetResult[] = [];
+  for (let start = 0; start < normalized.length; start += UPSERT_TARGETS_BATCH) {
+    const batch = normalized.slice(start, start + UPSERT_TARGETS_BATCH);
+    let error: string | null = null;
+    try {
+      const result = await handleSecureFetch<{ success: boolean; error?: string }>({
+        action: 'upsertTargets',
+        targets: batch.map(({ date, role, required, notes, confidence, lowerBound, upperBound }) => ({ date, role, required, notes, confidence, lowerBound, upperBound })),
+      });
+      if (!result.success) error = result.error ?? 'Unable to save override';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unable to save override';
+    }
+    batch.forEach((target) => results.push(error === null ? { success: true, target } : { success: false, target, error }));
+  }
+  return results;
+};
+
 export const upsertDemandTarget = async (target: DemandForecast): Promise<UpsertDemandTargetResult> => {
   const normalized = { ...target, required: Number(target.required), source: target.source ?? 'override' };
   // Only the fields the proxy stores (validateDemandTargetInput in utils/schedulingValidation.ts).

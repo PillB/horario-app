@@ -3,6 +3,7 @@
 
 // Mock the hook so no real fetch calls happen.
 jest.mock('@/hooks/useAnalytics', () => ({
+  ...jest.requireActual('@/hooks/useAnalytics'),
   useAnalytics: jest.fn(),
 }));
 

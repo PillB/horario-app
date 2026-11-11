@@ -326,7 +326,7 @@ export const it = {
       shortfallReasons: {
         no_role_match: 'nessun lavoratore ha questo ruolo',
         no_availability: "nessun lavoratore con questo ruolo è disponibile per l'intero turno",
-        overlap: 'tutti i lavoratori idonei hanno già un turno sovrapposto',
+        overlap: 'tutti i lavoratori idonei sono già in questo turno o in uno sovrapposto',
         max_hours: 'tutti i lavoratori idonei supererebbero il limite di ore giornaliere o settimanali',
         min_rest: 'tutti i lavoratori idonei violerebbero il riposo minimo tra i turni',
       },

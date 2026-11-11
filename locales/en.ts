@@ -392,7 +392,7 @@ export const en = {
       shortfallReasons: {
         no_role_match: 'no worker has this role',
         no_availability: 'no worker with this role is available for the whole shift',
-        overlap: 'all eligible workers already have an overlapping shift',
+        overlap: 'every eligible worker is already on this shift or on one that overlaps it',
         max_hours: 'all eligible workers would exceed the daily or weekly hour limit',
         min_rest: 'all eligible workers would break the minimum rest between shifts',
       },

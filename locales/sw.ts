@@ -315,7 +315,7 @@ export const sw = {
       shortfallReasons: {
         no_role_match: 'hakuna mfanyakazi mwenye jukumu hili',
         no_availability: 'hakuna mfanyakazi mwenye jukumu hili anayepatikana kwa zamu nzima',
-        overlap: 'wafanyakazi wote wanaostahili tayari wana zamu inayoingiliana',
+        overlap: 'wafanyakazi wote wanaostahili tayari wako kwenye zamu hii au zamu inayoingiliana nayo',
         max_hours: 'wafanyakazi wote wanaostahili wangezidi kikomo cha saa za kila siku au kila wiki',
         min_rest: 'wafanyakazi wote wanaostahili wangekiuka muda wa chini wa kupumzika kati ya zamu',
       },

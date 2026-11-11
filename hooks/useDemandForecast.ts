@@ -10,6 +10,7 @@ import {
   ForecastNotices,
   ForecastOptions,
   deleteDemandTarget,
+  upsertDemandTargets,
   fetchOverrideTargets,
   generateDemandForecast,
   getForecastDataStatus,
@@ -183,7 +184,7 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
         required: Number(target.required),
         source: target.source ?? ('override' as const),
       }));
-      const results = await Promise.all(normalized.map((target) => upsertDemandTarget(target)));
+      const results = await upsertDemandTargets(normalized);
       const successfulTargets = results.filter((result) => result.success).map((result) => result.target);
       if (successfulTargets.length) {
         setDemandTargets((prev) => mergeForecasts(successfulTargets, prev));
