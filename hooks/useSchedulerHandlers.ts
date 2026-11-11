@@ -249,9 +249,13 @@ export function useSchedulerHandlers() {
   useEffect(() => () => autoAssignRunRef.current?.abort(), []);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
-  // Auto-assign has no location picker yet, so it uses the account's only
-  // location; with none (or several) no jurisdiction is applied.
-  const autoAssignLocation = useMemo(() => resolveShiftLocation(locations), [locations]);
+  // New shifts and auto-assign use the location picked in the roster step,
+  // else the account's only location; with none no jurisdiction is applied.
+  const [pickedLocationId, setPickedLocationId] = useState<string | null>(null);
+  const autoAssignLocation = useMemo(
+    () => locations.find((l) => l.id === pickedLocationId) ?? resolveShiftLocation(locations),
+    [locations, pickedLocationId]
+  );
   const scheduleLocations = useMemo(
     () => ({ locations, loaded: locationsLoaded }),
     [locations, locationsLoaded]
@@ -1584,6 +1588,9 @@ export function useSchedulerHandlers() {
     handleEditTemplate,
     cancelTemplateEdit,
     handleRemoveAvailability,
+    locations,
+    selectedLocationId: autoAssignLocation?.id ?? null,
+    selectLocation: setPickedLocationId,
     handleRemoveOverride,
     handleRemoveTemplate,
     handleRemoveShift,

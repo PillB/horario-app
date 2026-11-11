@@ -30,6 +30,7 @@ import PosUploadSection from '@/components/scheduler/PosUploadSection';
 import { ForecastEnhancementsCard } from '@/components/scheduler/ForecastEnhancementsCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { TeamTools } from '@/components/scheduler/TeamTools';
+import { LocationPicker } from '@/components/scheduler/LocationPicker';
 import { ShiftMessagesPanel } from '@/components/scheduler/ShiftMessagesPanel';
 import { usePosData } from '@/hooks/usePosData';
 import { useActivationMilestone } from '@/hooks/useActivationMilestone';
@@ -151,6 +152,9 @@ export default function SchedulerScreen() {
     editingTemplateId,
     cancelTemplateEdit,
     handleRemoveOverride,
+    locations,
+    selectedLocationId,
+    selectLocation,
     handleRemoveAvailability,
     handleRemoveTemplate,
     handleRemoveShift,
@@ -246,6 +250,7 @@ export default function SchedulerScreen() {
 
   const assignPanel = (
         <View>
+          <LocationPicker locations={locations} selectedId={selectedLocationId} onSelect={selectLocation} />
           <TourStep target="shift-assign-section">
           <ShiftTemplateSection
             part="assign"

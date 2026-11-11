@@ -239,6 +239,12 @@ export const en = {
       overrideA11y: 'Remove the manual demand for {role} on {date}',
       overrideHint: 'Deletes this manual demand so the forecast applies again. Tap twice to confirm.',
     },
+    locationPicker: {
+      title: 'Location for new shifts',
+      help: 'Auto-assign applies this location\'s labor rules and time zone, and new shifts are saved for it.',
+      none: 'Pick a location. Until you do, auto-assign applies no labor rules.',
+      hint: 'Use this location. Time zone {zone}',
+    },
     edit: {
       edit: 'Edit',
       hint: 'Loads it into the form below so you can change it.',
