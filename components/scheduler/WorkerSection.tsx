@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Pressable,
@@ -80,6 +80,21 @@ const makeLocalStyles = (colors: ThemeColors) =>
     ghostEmptyCtaText: {
       color: colors.textSecondary,
     },
+    // Name above, hours and actions below: side by side, seven availability
+    // chips squeezed the name into a one-letter column (CHG-098).
+    workerRow: {
+      gap: 8,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    workerHead: {
+      gap: 4,
+    },
+    workerSlots: {
+      justifyContent: 'flex-start',
+      alignItems: 'center',
+    },
     slotRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -88,6 +103,12 @@ const makeLocalStyles = (colors: ThemeColors) =>
   });
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+/** Monday first, then by start time: slots are stored in the order they were added. */
+const sortSlots = <T extends { day: string; from: string }>(slots: readonly T[]): T[] =>
+  [...slots].sort(
+    (x, y) => WEEK_DAYS.indexOf(x.day as (typeof WEEK_DAYS)[number]) - WEEK_DAYS.indexOf(y.day as (typeof WEEK_DAYS)[number]) || x.from.localeCompare(y.from),
+  );
 
 export const WorkerSection = ({
   workers,
@@ -121,6 +142,11 @@ export const WorkerSection = ({
   const roleRef = useRef<TextInput | null>(null);
   const skillsRef = useRef<TextInput | null>(null);
 
+  // Editing starts from a row that can be far above the form: bring the form into view.
+  useEffect(() => {
+    if (editingWorkerId) nameRef.current?.focus();
+  }, [editingWorkerId]);
+
   // Focus refs for availability form fields
   const selectedDays = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
   const toggleDay = (day: string) => {
@@ -151,8 +177,8 @@ export const WorkerSection = ({
           tooltip={t('scheduler.workers.tooltip')}
         >
           {workers.map((worker) => (
-            <View key={worker.id} style={styles.rowBetween}>
-              <View style={styles.rowContent}>
+            <View key={worker.id} style={localStyles.workerRow}>
+              <View style={localStyles.workerHead}>
                 <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
                 {/* [1][6] role text: textSecondary passes AA in both light and dark mode */}
                 <ThemedText style={localStyles.roleText}>{worker.role}</ThemedText>
@@ -165,8 +191,8 @@ export const WorkerSection = ({
                   ))}
                 </View>
               </View>
-              <View style={styles.availabilityList}>
-                {worker.availability.map((slot, index) => (
+              <View style={[styles.availabilityList, localStyles.workerSlots]}>
+                {sortSlots(worker.availability).map((slot, index) => (
                   <View key={slot.id ?? `${worker.id}-${index}`} style={localStyles.slotRow}>
                     <AvailabilityLabel day={slot.day} from={slot.from} to={slot.to} />
                     {onRemoveAvailability && slot.id ? (

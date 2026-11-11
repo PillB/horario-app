@@ -15,6 +15,39 @@
 
 ---
 
+### CHG-098 — 2026-11-11 UTC
+**Type:** FEATURE + FIX (Pablo: "finish all pending and open tasks and issues")
+
+Scope: everything on the open list that needs no product decision. Pricing is built in the red-team thread (CHG-099, branch `claude/project-thread-ujndix`) and is not touched here.
+
+**Done**
+- **Edit forms.** "Edit" on a worker or template row loads it into the form below, which then saves the change (`updateWorker` / `updateShiftTemplate`, already in the hooks) and offers Cancel. The form takes focus so it scrolls into view. `components/scheduler/TextActionButton.tsx` (new) is the small text button used for Edit / Cancel / Show all.
+- **Demand overrides can be removed.** Override rows in the demand list have a two-tap Remove (`useDemandForecast.removeOverride`).
+- **Days off are stored on the server.** New table `worker_time_off` (`20261111000098`, one row per worker and date, tenant RLS, cascade on worker delete), proxy actions `listTimeOff` (members), `upsertTimeOff` / `deleteTimeOff` (manager only, in `SCHEDULING_WRITE_ACTIONS`), `hooks/useTimeOff.ts`. Days an earlier version kept on the device are uploaded once and removed from the device only after the server accepted them. Auto-assign asks the server who is off (`fetchWorkersOffOn`) and stops with an error when that cannot be read, instead of guessing nobody is off.
+- **Analytics date filter.** This week / last 4 weeks / all dates (`AnalyticsRange`, `periodRange` in `hooks/useAnalytics.ts`); "today" is read after mount.
+- **The published roster feeds the forecast.** View `forecast_shift_history` (`20261111000100`): imported `shifts` plus Published roster shifts (template role and clock hours), on dates without imported rows so a day is never counted twice. The proxy's `forecastHistory`, `forecast` and `status` read the view; service role only. Closes debt #12.
+- **Location picker.** With more than one location, the roster step asks which one new shifts and auto-assign are for (`LocationPicker.tsx`); before, such an account got no legal limits in auto-assign.
+- **Proxy rate limit** (`server/rateLimit.ts`): per signed-in user, 600 reads and 240 writes a minute, 429 with `Retry-After`. Counted in each server instance's memory, so it bounds one client on one instance; it is not a global quota. Closes debt #10 as far as the app can without a shared store.
+- **Browser tests rewritten and in CI.** `e2e/` had described the pre-CHG-088 app. Now 14 tests for the current app (team, edit, availability, templates, days off and auto-assign, publish, analytics filter, validation errors, titles, tour), run by a new `e2e` job in `ci.yml` against a dev server with the local auth bypass and a local Supabase. No retries: the flow uses the account's one free auto-assign.
+
+**Found while doing it**
+- The roster list showed only the next four shifts, so a fifth could not be published or removed from the list. It now shows six with "Show all N".
+- A worker row put seven availability chips beside the name, which squeezed the name into a one-letter column. Name above, hours below; slots sorted Monday first.
+- Publish / Unpublish / Mark as told had the same accessible name on every row; the name now ends with the worker and date.
+- "Save baseline targets" sent one request per day; it sends one batch per 500 (`upsertDemandTargets`).
+- The shortfall reason said "already have an overlapping shift" when the only eligible worker had just been placed in the same shift; reworded in all nine languages.
+- Analytics sub-labels said "all time" / "across all dates"; removed, since the dates are now chosen.
+
+**Not done, and why**
+- Push / SMS / email delivery of shift messages and real-time updates: both need a provider or infrastructure decision.
+- Invite codes that join a team, and a server home for streaks: need the accounts model (`accounts` table), a product decision.
+- Date and time pickers: a new dependency per platform; text inputs are validated on both sides.
+- Open pull requests #22 and #51 are older Codex branches of Pablo's, left alone.
+
+**Verified:** jest, tsc, lint, web export, `supabase test db` (4 files, 115 tests), Playwright 14/14 locally; browser at 1280 and 390 px.
+
+---
+
 ### CHG-097 — 2026-11-10 UTC
 **Type:** FEATURE + REVERT (Pablo: "remove nothing, wire in, including things you previously removed")
 

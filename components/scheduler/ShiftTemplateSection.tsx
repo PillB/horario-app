@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Pressable,
@@ -170,6 +170,9 @@ export const ShiftTemplateSection = ({
 
   // Focus refs for template form fields
   const templateNameRef = useRef<TextInput | null>(null);
+  useEffect(() => {
+    if (editingTemplateId) templateNameRef.current?.focus();
+  }, [editingTemplateId]);
   const templateRoleRef = useRef<TextInput | null>(null);
   const templateStartRef = useRef<TextInput | null>(null);
   const templateEndRef = useRef<TextInput | null>(null);
