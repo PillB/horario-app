@@ -247,11 +247,19 @@ const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
   return result;
 };
 
+/**
+ * Imported shifts plus Published roster shifts (view `forecast_shift_history`,
+ * 20261111000099): scheduling with the app builds the forecast's history.
+ */
+const FORECAST_HISTORY_SOURCE = 'forecast_shift_history';
+
 const fetchHistoricalShifts = async (client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters) => {
   let query = client
-    .from('shifts')
+    .from(FORECAST_HISTORY_SOURCE)
     .select('date, role, worker_id, hours')
     .eq('account_id', ctx.accountId)
+    // History only: a Published shift on a future date is a plan.
+    .lt('date', new Date().toISOString().slice(0, 10))
     .order('date', { ascending: true })
     .limit(500);
   if (filters?.date) query = query.eq('date', filters.date);
@@ -432,7 +440,7 @@ async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Reco
   }
   const offset = page * FORECAST_HISTORY_PAGE_SIZE;
   let query = client
-    .from('shifts')
+    .from(FORECAST_HISTORY_SOURCE)
     .select('date, role, hours', page === 0 ? { count: 'exact' } : undefined)
     .eq('account_id', ctx.accountId)
     .gte('date', p.from as string)
