@@ -333,8 +333,7 @@ export function useSchedulerHandlers() {
           const aDate = new Date(`${a.date}T${a.template?.start ?? '00:00'}:00`).getTime();
           const bDate = new Date(`${b.date}T${b.template?.start ?? '00:00'}:00`).getTime();
           return aDate - bDate;
-        })
-        .slice(0, 4),
+        }),
     [forecastTimeZone, roster, shiftTemplates, workers]
   );
 

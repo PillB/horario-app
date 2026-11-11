@@ -13,6 +13,7 @@ import { type Worker } from '@/types/scheduler';
 import { type DemandForecast } from '@/services/demandForecast';
 import { SectionCard } from './SectionCard';
 import { WeekCalendar } from './WeekCalendar';
+import { TextActionButton } from './TextActionButton';
 import { CompliancePanel } from './CompliancePanel';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { useCompliance } from '@/hooks/useCompliance';
@@ -42,6 +43,9 @@ type Props = {
   /** Stored business locations, for labor-rule checks of the visible week. */
   scheduleLocations?: { locations: BusinessLocation[]; loaded: boolean };
 };
+
+/** Shifts the list view shows before "Show all". */
+const LIST_PREVIEW_COUNT = 6;
 
 const NO_LOCATIONS = { locations: [] as BusinessLocation[], loaded: false };
 
@@ -321,6 +325,10 @@ export const RosterSection = ({
   const local = makeLocalStyles(colors, isDark);
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  // The list starts short; every upcoming shift is one tap away (before CHG-098
+  // only the next four could be published or removed from the list).
+  const [showAllShifts, setShowAllShifts] = useState(false);
+  const listedShifts = showAllShifts ? upcomingShifts : upcomingShifts.slice(0, LIST_PREVIEW_COUNT);
   const [isMaximized, setIsMaximized] = useState(false);
   // Shared by every calendar instance and the compliance panel.
   const [weekStartKey, setWeekStartKey] = useState(currentWeekStartKey);
@@ -471,7 +479,7 @@ export const RosterSection = ({
           {rosterLoaded && upcomingShifts.length === 0 ? (
             <ThemedText style={local.mutedText}>{t('scheduler.roster.upcomingEmpty')}</ThemedText>
           ) : null}
-          {upcomingShifts.map((shift) => (
+          {listedShifts.map((shift) => (
             <View key={shift.id} style={local.listItem}>
               <Pressable
                 onPress={() => onSelectShiftForNotes?.(shift)}
@@ -509,7 +517,7 @@ export const RosterSection = ({
                   <Pressable
                     onPress={() => handlePublishShift(shift.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={t('scheduler.roster.publishA11y')}
+                    accessibilityLabel={`${t('scheduler.roster.publishA11y')}: ${shift.worker?.name ?? shift.workerId}, ${shift.date}`}
                     accessibilityHint={t('scheduler.roster.publishHint')}
                     style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
                     testID={`publish-shift-${shift.id}`}
@@ -521,7 +529,7 @@ export const RosterSection = ({
                     <Pressable
                       onPress={() => handleUnpublishShift(shift.id)}
                       accessibilityRole="button"
-                      accessibilityLabel={t('scheduler.roster.unpublishA11y')}
+                      accessibilityLabel={`${t('scheduler.roster.unpublishA11y')}: ${shift.worker?.name ?? shift.workerId}, ${shift.date}`}
                       accessibilityHint={t('scheduler.roster.unpublishHint')}
                       style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
                       testID={`unpublish-shift-${shift.id}`}
@@ -532,7 +540,7 @@ export const RosterSection = ({
                       <Pressable
                         onPress={() => handleNotifyShift(shift.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={t('scheduler.roster.notifyA11y')}
+                        accessibilityLabel={`${t('scheduler.roster.notifyA11y')}: ${shift.worker?.name ?? shift.workerId}, ${shift.date}`}
                         accessibilityHint={t('scheduler.roster.notifyHint')}
                         style={({ pressed }) => [local.actionBtn, pressed && local.pressed]}
                         testID={`notify-shift-${shift.id}`}
@@ -553,6 +561,15 @@ export const RosterSection = ({
               </View>
             </View>
           ))}
+          {upcomingShifts.length > LIST_PREVIEW_COUNT ? (
+            <TextActionButton
+              label={showAllShifts ? t('scheduler.roster.showFewer') : t('scheduler.roster.showAll', { n: String(upcomingShifts.length) })}
+              onPress={() => setShowAllShifts((value) => !value)}
+              accessibilityLabel={showAllShifts ? t('scheduler.roster.showFewer') : t('scheduler.roster.showAll', { n: String(upcomingShifts.length) })}
+              accessibilityHint={t('scheduler.roster.showAllHint')}
+              testID="roster-show-all"
+            />
+          ) : null}
         </>
       )}
     </SectionCard>

@@ -520,6 +520,9 @@ export const en = {
       unpublishHint: 'Moves the shift back to draft; it must be sent again after the next publish',
       notifyHint: 'Records that you told the worker. No message is sent.',
       upcomingEmpty: 'No upcoming shifts. Assign one in Shift Creation above.',
+      showAll: 'Show all {n} upcoming shifts',
+      showFewer: 'Show fewer',
+      showAllHint: 'Lists every upcoming shift, or only the next few',
       upcoming: {
         title: 'Upcoming shifts',
         subtitle: 'Stay ahead of the next roster window.',

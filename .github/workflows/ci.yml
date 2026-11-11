@@ -50,3 +50,47 @@ jobs:
         run: |
           eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
           SUPABASE_TEST_URL="$API_URL" SUPABASE_TEST_SERVICE_KEY="$SERVICE_ROLE_KEY" npm run test:integration -- --ci
+
+  e2e:
+    name: Browser tests (dev server, local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - run: npm ci
+      - name: Start Supabase (database, REST and gateway only)
+        run: supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,storage-api,realtime,supavisor,postgres-meta
+      - name: Point the app at the local stack, with the local-only auth bypass
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+          {
+            echo "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY="
+            echo "EXPO_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "EXPO_PUBLIC_SECURE_PROXY_URL=http://localhost:8081/api/secure-proxy"
+            echo "EXPO_PUBLIC_APP_ORIGIN=http://localhost:8081"
+            echo "EXPO_PUBLIC_APP_ENV=development"
+            echo "EXPO_PUBLIC_ACCOUNT_ID=e2e-account"
+            echo "EXPO_PUBLIC_USER_ID=e2e-user"
+            echo "HORARIO_INSECURE_DEV_AUTH=1"
+            echo "HORARIO_DEV_ACCOUNT_ID=e2e-account"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } > .env.local
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --trace off
+      - name: Keep the report when a test fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
