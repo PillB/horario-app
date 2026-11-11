@@ -6,6 +6,27 @@
 
 ---
 
+### CHG-100 — 2026-11-11 UTC
+**Type:** FIX (Pablo, on the open review finding of PR #59: "research best practices and techniques and common issues and fix. consider connection pooling, outbox pattern, optimistic locking and other best practices and patterns to improve this issue and others in the code")
+
+**The finding:** the plan's people and location limits were count-then-insert in two requests, so two simultaneous adds both passed. Reproduced against the local database: six simultaneous adds with two places left all got in.
+
+**Fixed:**
+- Limits: `insert_within_limit()` (migration `20261111000101`) takes a per-account, per-table `pg_advisory_xact_lock`, counts, and inserts in one transaction; one row or a batch, all or nothing. `insertWithinLimit` in `server/plans.ts` calls it with the limit of the plan the request already read; `updateOrInsert` uses it for `workers` and `locations`. No limit, an unreadable plan or a database without the function yet: plain insert as before.
+- Team import: new proxy action `importWorkers` (scheduling write, manager only): every row validated first, then one transaction. A row whose id is already stored is left alone, and `useTeamSetup` keeps the ids of a text until its import succeeds, so importing the same text again adds nobody twice. A file with a bad row imports nothing (it imported the good rows and kept the text, so a second try duplicated them).
+- Lost answers: `usePersistedList` reloads after a failed write (the server may have saved it); `useLocations` gives a new location its id and keeps it until a save succeeds.
+- Location edits: `upsertLocation` takes `ifUpdatedAt` and compares it inside the UPDATE: 409 when someone else changed the location, 404 when it was deleted (it was inserted again before). `useLocations` sends it for every edit and reloads on a refusal.
+- Triggers (migration `20261111000102`): a model demand row never replaces an override (the forecast upserts after a slow external call); a finished onboarding step stays finished (a tab that had not loaded everything sent `false`). `upsertOnboarding` answers with the stored flags.
+- An insert that points at a row deleted a moment before answers 409 "was just deleted" (was "still referenced"). Two simultaneous referral-code requests of one user return the same code (was 500 on the exclusion constraint). Every database request of the proxy has a 15 s timeout.
+
+**Checked and left as is:** connection pooling (the proxy only speaks HTTP to PostgREST, which pools; no direct Postgres connection exists; transaction-level advisory locks are safe there); outbox (nothing is delivered outside the database yet; `shift_messages` already is the table an outbox needs, and the Paddle page now says how its webhook deduplicates); roster edits (already compare-and-set); trial start, grants, auto-schedule count, referral redemption (already atomic).
+
+**Not fixed (CLAUDE.md §11 #17):** the scheduler-form items live in files PR #60 rewrites; the server-side double-booking check needs shift times in the database and is a change of its own.
+
+**Tests:** jest 1179 passed; integration 45 passed against the local database (new: a six-way race on people, a four-way race on locations, import all-or-nothing and repeated, two editors of one location, onboarding flags); pgTAP `limit_guarded_insert` (15) and `keep_what_was_set` (6); both migrations run twice; the team import run in a browser.
+
+---
+
 ### CHG-099 — 2026-11-11 UTC
 **Type:** FEATURE + FIX (Pablo: "Everything except paddle. Document what is needed […] Finish and implement fixes of all pending and open tasks and issues")
 

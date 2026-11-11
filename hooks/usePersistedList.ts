@@ -131,9 +131,15 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
       // The tenant (or filters) changed while the request ran: this is not that list any more.
       if (epochRef.current !== epoch) return result;
 
+      let reloadAfterFailure = false;
       const unchanged = itemsRef.current.find((i) => i.id === id) === applied;
       if (!unchanged) stale.add(id);
-      else if (!result.success) update(rollback);
+      else if (!result.success) {
+        update(rollback);
+        // The server may have saved it and only the answer was lost: show what is stored,
+        // so a retry is not a second copy.
+        reloadAfterFailure = true;
+      }
       else if (reconcile) update((prev) => reconcile(prev, result));
 
       const left = (pending.get(id) ?? 1) - 1;
@@ -141,6 +147,7 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
       else pending.delete(id);
 
       if (left === 0 && stale.delete(id)) void refresh();
+      else if (reloadAfterFailure) void refresh();
       // A load that started before this write may not include it.
       else if (result.success && loadInFlightRef.current) void refresh();
       return result;

@@ -22,6 +22,7 @@ const MANAGER_ONLY: Record<string, Record<string, unknown>> = {
   // Includes the labor attributes (see the weekly-limit opt-out test below).
   upsertWorker: { worker: { name: 'Ana', role: 'Cook', nightWorker: true } },
   deleteWorker: { id: W1 },
+  importWorkers: { workers: [{ id: W1, name: 'Ana', role: 'Cook', skills: [] }] },
   upsertAvailability: { availability: { workerId: W1, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '17:00' } },
   deleteAvailability: { id: W1 },
   upsertShiftTemplate: { template: { name: 'Early', role: 'Cook', startTime: '06:00', endTime: '14:00', coverage: 1 } },

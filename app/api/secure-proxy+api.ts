@@ -27,6 +27,7 @@ import {
   entitlementIsActive,
   PlanRefusal,
   gatedClient,
+  insertWithinLimit,
   resolvePlan,
   type EntitlementRow,
   type EntitlementSource,
@@ -84,6 +85,7 @@ const notFound = () => fail(404, 'Not found');
 const SCHEDULING_WRITE_ACTIONS = new Set([
   'upsertWorker', // includes the labor attributes (birth date, night worker, weekly-limit opt-out, no fixed hours)
   'deleteWorker',
+  'importWorkers',
   'upsertAvailability',
   'deleteAvailability',
   'upsertShiftTemplate',
@@ -123,13 +125,20 @@ const dbFailure = (context: string, error: { message?: string; code?: string } |
   return fail(500, 'Database request failed');
 };
 
+/** Longest one database request may take. PostgREST gives up waiting for a pooled connection after 10 s. */
+const DB_REQUEST_TIMEOUT_MS = 15_000;
+
 const getServiceClient = (): SupabaseClient | null => {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return null;
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { 'x-application-name': 'horario-secure-proxy' } },
+    global: {
+      headers: { 'x-application-name': 'horario-secure-proxy' },
+      // A database that stops answering must not hold the request (and the user's spinner) open.
+      fetch: (input, init) => fetch(input, { ...init, signal: init?.signal ?? AbortSignal.timeout(DB_REQUEST_TIMEOUT_MS) }),
+    },
   });
 };
 
@@ -162,23 +171,41 @@ async function updateOrInsert<Row>(
   id: string | undefined,
   values: Record<string, unknown>,
   columns: string,
+  /** The row's `updated_at` as the editor last read it: the update only happens while it still is that. */
+  expectedUpdatedAt?: string,
 ): Promise<{ row: Row } | { error: Result }> {
   if (id !== undefined) {
     if (!isUuid(id)) return { error: badRequest('id must be a UUID') };
-    const { data, error } = await client
-      .from(table)
-      .update(values)
-      .eq('id', id)
-      .eq('account_id', ctx.accountId)
-      .select(columns)
-      .maybeSingle();
+    let update = client.from(table).update(values).eq('id', id).eq('account_id', ctx.accountId);
+    // Compared inside the UPDATE itself, so two editors cannot both pass.
+    if (expectedUpdatedAt !== undefined) update = update.eq('updated_at', expectedUpdatedAt);
+    const { data, error } = await update.select(columns).maybeSingle();
     if (error) return { error: dbFailure(`update ${table}`, error) };
     if (data) return { row: data as Row };
+    if (expectedUpdatedAt !== undefined) {
+      // The editor had read a stored row: it was changed or deleted since. Never insert it again.
+      const { data: current, error: readError } = await client.from(table).select('id').eq('id', id).eq('account_id', ctx.accountId).maybeSingle();
+      if (readError) return { error: dbFailure(`read ${table}`, readError) };
+      return {
+        error: current
+          ? fail(409, 'Someone else changed this while you were editing. Reload to see their change, then try again')
+          : fail(404, 'This was deleted while you were editing'),
+      };
+    }
   }
 
   const insertValues = { ...values, account_id: ctx.accountId, ...(id !== undefined ? { id } : {}) };
-  const { data, error } = await client.from(table).insert(insertValues).select(columns).single();
-  if (error) return { error: dbFailure(`insert ${table}`, error) };
+  // People and locations are limited by the plan: count and insert as one step.
+  const limited = table === 'workers' || table === 'locations' ? await insertWithinLimit(client, table, ctx.accountId, insertValues) : null;
+  const { data, error } = limited ?? (await client.from(table).insert(insertValues).select(columns).single());
+  if (error) {
+    // The row this one points to (a worker, a template) was deleted while this request ran.
+    if (error.code === '23503') {
+      console.error(`[secure-proxy] insert ${table}:`, error.code, error.message ?? '');
+      return { error: fail(409, 'Something this refers to was just deleted. Reload and try again') };
+    }
+    return { error: dbFailure(`insert ${table}`, error) };
+  }
   return { row: data as Row };
 }
 
@@ -663,18 +690,31 @@ async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags:
     templates: Boolean(flags.templates),
     forecast: Boolean(flags.forecast),
   };
-  const { error } = await client.from('onboarding_progress').upsert(
-    {
-      account_id: ctx.accountId,
-      user_id: ctx.userId,
-      workers_completed: progress.workers,
-      templates_completed: progress.templates,
-      forecast_completed: progress.forecast,
-    },
-    { onConflict: 'account_id,user_id' },
-  );
+  // A finished step stays finished (trigger onboarding_progress_keep_done), so
+  // a tab that has not loaded everything yet cannot undo one. Answer with what
+  // is stored, not with what was sent.
+  const { data, error } = await client
+    .from('onboarding_progress')
+    .upsert(
+      {
+        account_id: ctx.accountId,
+        user_id: ctx.userId,
+        workers_completed: progress.workers,
+        templates_completed: progress.templates,
+        forecast_completed: progress.forecast,
+      },
+      { onConflict: 'account_id,user_id' },
+    )
+    .select('workers_completed, templates_completed, forecast_completed')
+    .maybeSingle();
   if (error) return dbFailure('upsert onboarding_progress', error);
-  return ok({ success: true, progress });
+  const stored = data as { workers_completed: boolean; templates_completed: boolean; forecast_completed: boolean } | null;
+  return ok({
+    success: true,
+    progress: stored
+      ? { workers: stored.workers_completed, templates: stored.templates_completed, forecast: stored.forecast_completed }
+      : progress,
+  });
 }
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
@@ -734,6 +774,59 @@ async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: un
     WORKER_COLUMNS,
   );
   return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });
+}
+
+/** Rows one import may hold. */
+const IMPORT_WORKERS_MAX = 200;
+
+/**
+ * Adds several people in one step: every row is checked first, then all are
+ * inserted in one database transaction (with the plan's people limit counted
+ * in that same transaction), so an import is never half saved. Each row
+ * carries its own id; a row whose id is already stored for this account is
+ * left as it is, so sending the same import again adds nothing twice.
+ */
+async function importWorkers(client: SupabaseClient, ctx: AuthContext, workers: unknown): Promise<Result> {
+  if (!Array.isArray(workers) || workers.length === 0 || workers.length > IMPORT_WORKERS_MAX) {
+    return badRequest(`workers must be a list of 1 to ${IMPORT_WORKERS_MAX} people`);
+  }
+  const rows: { id: string; name: string; role: string; skills: string[] }[] = [];
+  for (let i = 0; i < workers.length; i += 1) {
+    const checked = validateWorkerInput(workers[i]);
+    if (!checked.ok) return badRequest(`Row ${i + 1}: ${checked.error}`);
+    const { id, name, role, skills } = checked.value;
+    if (id === undefined || !isUuid(id)) return badRequest(`Row ${i + 1}: id must be a UUID`);
+    rows.push({ id, name, role, skills });
+  }
+  if (new Set(rows.map((r) => r.id)).size !== rows.length) return badRequest('Each person needs a different id');
+
+  const ids = rows.map((r) => r.id);
+  const { data: storedData, error: readError } = await client
+    .from('workers')
+    .select(WORKER_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .in('id', ids);
+  if (readError) return dbFailure('read workers before import', readError);
+  const stored = (storedData ?? []) as unknown as WorkerRow[];
+  const have = new Set(stored.map((w) => w.id));
+  const fresh = rows.filter((r) => !have.has(r.id)).map((r) => ({ ...r, account_id: ctx.accountId }));
+
+  let added: WorkerRow[] = [];
+  if (fresh.length) {
+    const limited = await insertWithinLimit(client, 'workers', ctx.accountId, fresh);
+    const { data, error } = limited ?? (await client.from('workers').insert(fresh).select(WORKER_COLUMNS));
+    if (error) return dbFailure('import workers', error);
+    added = (data ?? []) as unknown as WorkerRow[];
+  }
+  const byId = new Map([...stored, ...added].map((w) => [w.id, w]));
+  return ok({
+    success: true,
+    added: added.length,
+    workers: ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [rowToWorker(row)] : [];
+    }),
+  });
 }
 
 // ─── Worker availability ──────────────────────────────────────────────────────
@@ -1074,9 +1167,14 @@ async function listLocations(client: SupabaseClient, ctx: AuthContext): Promise<
   return ok({ locations: (data as unknown as LocationRow[]).map(rowToLocation) });
 }
 
-async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location: unknown): Promise<Result> {
+/** A timestamp exactly as the database printed it (compared as text by PostgREST, never re-formatted here). */
+const isStoredTimestamp = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= 40 && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/.test(v);
+
+async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location: unknown, ifUpdatedAt?: unknown): Promise<Result> {
   const checked = validateLocationInput(location);
   if (!checked.ok) return badRequest(checked.message);
+  if (ifUpdatedAt !== undefined && !isStoredTimestamp(ifUpdatedAt)) return badRequest('ifUpdatedAt must be the updatedAt of the location as it was read');
   const { id, ...values } = checked.value;
   if (values.overrides === undefined && id !== undefined && isUuid(id)) {
     // An update that keeps the stored overrides may change the jurisdiction:
@@ -1100,6 +1198,7 @@ async function upsertLocation(client: SupabaseClient, ctx: AuthContext, location
     client, 'locations', ctx, id,
     { ...values, confirmed_by: ctx.userId, confirmed_at: new Date().toISOString() },
     LOCATION_COLUMNS,
+    id !== undefined ? (ifUpdatedAt as string | undefined) : undefined,
   );
   return 'error' in result ? result.error : ok({ success: true, location: rowToLocation(result.row) });
 }
@@ -1456,6 +1555,8 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return upsertWorker(client, ctx, p.worker);
     case 'deleteWorker':
       return deleteOwned(client, 'workers', ctx, p.id);
+    case 'importWorkers':
+      return importWorkers(client, ctx, p.workers);
     case 'listWorkerAvailability':
       return listAvailability(client, ctx, p.page);
     case 'upsertAvailability':
@@ -1485,7 +1586,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'listLocations':
       return listLocations(client, ctx);
     case 'upsertLocation':
-      return upsertLocation(client, ctx, p.location);
+      return upsertLocation(client, ctx, p.location, p.ifUpdatedAt);
     case 'deleteLocation':
       return deleteLocation(client, ctx, p.id);
     case 'listLocationHistory':

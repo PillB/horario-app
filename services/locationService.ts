@@ -46,8 +46,17 @@ export const listLocations = async (): Promise<LocationResult<BusinessLocation[]
   return result.ok ? { ok: true, data: result.data.locations ?? [] } : result;
 };
 
-export const upsertLocation = async (location: LocationInput): Promise<LocationResult<BusinessLocation>> => {
-  const result = await postToProxy<{ location?: BusinessLocation }>({ action: 'upsertLocation', location });
+/**
+ * `ifUpdatedAt` is the location's `updatedAt` as it was read: the server then
+ * saves only if nobody changed it since (409 otherwise). Pass the string as
+ * received; a Date round trip loses the microseconds.
+ */
+export const upsertLocation = async (location: LocationInput, ifUpdatedAt?: string): Promise<LocationResult<BusinessLocation>> => {
+  const result = await postToProxy<{ location?: BusinessLocation }>({
+    action: 'upsertLocation',
+    location,
+    ...(ifUpdatedAt ? { ifUpdatedAt } : {}),
+  });
   if (!result.ok) return result;
   return result.data.location ? { ok: true, data: result.data.location } : { ok: false, error: 'No location returned' };
 };

@@ -193,6 +193,16 @@ export type GateRefusal = { status: 402 | 500; error: string };
 
 const label = (plan: SubscriptionTier) => TIER_META[plan].label;
 
+const workerLimitRefusal = (plan: SubscriptionTier, max: number): GateRefusal => ({
+  status: 402,
+  error: `The ${label(plan)} plan covers up to ${max} people. Upgrade to add more`,
+});
+
+const locationLimitRefusal = (plan: SubscriptionTier, max: number): GateRefusal => ({
+  status: 402,
+  error: `Your ${label(plan)} plan covers ${max} location${max === 1 ? '' : 's'}. Upgrade to add another`,
+});
+
 async function countRows(client: SupabaseClient, table: string, accountId: string): Promise<number | null> {
   const { count, error } = await client.from(table).select('id', { count: 'exact', head: true }).eq('account_id', accountId);
   return error || typeof count !== 'number' ? null : count;
@@ -216,12 +226,13 @@ export async function planGate(
   accountId: string,
   payload: Record<string, unknown>,
   writeActions: ReadonlySet<string>,
+  readPlan: () => Promise<PlanResult> = () => resolvePlan(client, accountId),
 ): Promise<GateRefusal | null> {
   const action = typeof payload.action === 'string' ? payload.action : '';
   const gated = PRO_ACTIONS.has(action) || writeActions.has(action) || action === 'upsertLocation';
   if (!gated) return null;
 
-  const resolved = await resolvePlan(client, accountId).catch((error: unknown) => ({ ok: false as const, error: error as { message?: string } }));
+  const resolved = await readPlan();
   if (!resolved.ok) {
     // The database is unreachable: let the action run and fail (or reject its
     // input) by itself, so a bad request is still a 400 and not a 500.
@@ -242,10 +253,7 @@ export async function planGate(
       const count = await countRows(client, 'locations', accountId);
       if (count === null) return { status: 500, error: 'Database request failed' };
       if (count >= limits.maxLocations) {
-        return {
-          status: 402,
-          error: `Your ${label(plan)} plan covers ${limits.maxLocations} location${limits.maxLocations === 1 ? '' : 's'}. Upgrade to add another`,
-        };
+        return locationLimitRefusal(plan, limits.maxLocations);
       }
     }
     return null;
@@ -261,10 +269,7 @@ export async function planGate(
       };
     }
     if (action === 'upsertWorker' && count >= limits.maxWorkers && (await isNewRow(client, 'workers', accountId, payload.worker))) {
-      return {
-        status: 402,
-        error: `The ${label(plan)} plan covers up to ${limits.maxWorkers} people. Upgrade to add more`,
-      };
+      return workerLimitRefusal(plan, limits.maxWorkers);
     }
   }
   return null;
@@ -290,8 +295,11 @@ export function gatedClient(
   payload: Record<string, unknown>,
   writeActions: ReadonlySet<string>,
 ): SupabaseClient {
+  let plan: Promise<PlanResult> | null = null;
+  const readPlan = () =>
+    (plan ??= resolvePlan(client, accountId).catch((error: unknown) => ({ ok: false as const, error: error as { message?: string } })));
   let check: Promise<GateRefusal | null> | null = null;
-  const gate = () => (check ??= planGate(client, accountId, payload, writeActions));
+  const gate = () => (check ??= planGate(client, accountId, payload, writeActions, readPlan));
 
   const wrap = <T extends object>(target: T): T =>
     new Proxy(target, {
@@ -314,11 +322,70 @@ export function gatedClient(
       },
     });
 
-  return new Proxy(client, {
+  const gated = new Proxy(client, {
     get(obj, prop) {
       const value = Reflect.get(obj, prop, obj) as unknown;
       if (prop !== 'from' && prop !== 'rpc') return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(obj) : value;
       return (...args: unknown[]) => wrap((value as (...a: unknown[]) => object).apply(obj, args));
     },
   });
+  planReaders.set(gated, readPlan);
+  return gated;
+}
+
+// ─── Limited inserts ──────────────────────────────────────────────────────────
+
+/** The plan a gated client already read (or will read) for its request. */
+const planReaders = new WeakMap<object, () => Promise<PlanResult>>();
+
+export type LimitedTable = 'workers' | 'locations';
+
+type InsertAnswer = { data: unknown; error: { message?: string; code?: string } | null };
+
+/**
+ * Inserts a person or a location (or a batch of them, all or nothing) when the
+ * plan still has room.
+ *
+ * The gate's own count is a separate request, so two simultaneous adds could
+ * both pass it. Here the count and the insert are one database transaction
+ * behind a per-account lock (insert_within_limit, migration 20261111000101):
+ * the second of two simultaneous requests counts the first one's row and is
+ * refused with PlanRefusal.
+ *
+ * Returns null when there is nothing to enforce (a plan without this limit, a
+ * client that is not gated, a plan that could not be read, or a database
+ * without the function yet); the caller then inserts directly.
+ */
+export async function insertWithinLimit(
+  client: SupabaseClient,
+  table: LimitedTable,
+  accountId: string,
+  rows: Record<string, unknown> | Record<string, unknown>[],
+): Promise<InsertAnswer | null> {
+  const resolved = await planReaders.get(client)?.();
+  if (!resolved?.ok) return null;
+  const { plan, limits } = resolved.plan;
+  const max = table === 'workers' ? limits.maxWorkers : limits.maxLocations;
+  if (max === null) return null;
+
+  const { data, error } = await client.rpc('insert_within_limit', {
+    p_table: table,
+    p_account_id: accountId,
+    p_limit: max,
+    p_rows: rows,
+  });
+  if (error) {
+    // PGRST202 / 42883: the function is not there yet (migration pending).
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      console.error('[plans] insert_within_limit is missing; apply migration 20261111000101. Inserting without the lock.');
+      return null;
+    }
+    return { data: null, error };
+  }
+  const answer = data as { rows?: unknown[]; limited?: boolean } | null;
+  if (answer?.limited) {
+    throw new PlanRefusal(table === 'workers' ? workerLimitRefusal(plan, max) : locationLimitRefusal(plan, max));
+  }
+  const stored = answer?.rows ?? [];
+  return { data: Array.isArray(rows) ? stored : (stored[0] ?? null), error: null };
 }

@@ -19,7 +19,7 @@ import {
   tierCanAccessFeature,
   tierFromLegacy,
 } from '@/constants/pricing';
-import { effectivePlanFrom, gatedClient, PlanRefusal, type EntitlementRow } from '@/server/plans';
+import { effectivePlanFrom, gatedClient, insertWithinLimit, PlanRefusal, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
@@ -200,5 +200,43 @@ describe('gatedClient', () => {
     const client = gatedClient(broken, 'acct', { action: 'forecastHistory' }, WRITES);
     await expect(client.from('shifts').select('date')).resolves.toBeDefined();
     errorSpy.mockRestore();
+  });
+
+  describe('insertWithinLimit', () => {
+    const gratis = { account_entitlements: { data: [expiredTrial], error: null }, workers: { data: null, error: null, count: 9 } };
+    const gated = (answers: Record<string, unknown>, log: string[] = []) =>
+      gatedClient(fakeClient(answers as Record<string, Reply>, log), 'acct', { action: 'upsertWorker', worker: { name: 'x' } }, WRITES);
+
+    it('counts and inserts in one database call, with the limit of the plan', async () => {
+      const log: string[] = [];
+      const client = gated({ ...gratis, 'rpc:insert_within_limit': { data: { rows: [{ id: 'w1' }] }, error: null } }, log);
+      await expect(insertWithinLimit(client, 'workers', 'acct', { name: 'x' })).resolves.toEqual({ data: { id: 'w1' }, error: null });
+      expect(log).toContain('rpc:insert_within_limit');
+    });
+
+    it('refuses with the plan sentence when another request took the last place', async () => {
+      const client = gated({ ...gratis, 'rpc:insert_within_limit': { data: { limited: true, count: 10 }, error: null } });
+      await expect(insertWithinLimit(client, 'workers', 'acct', { name: 'x' })).rejects.toMatchObject({
+        refusal: { status: 402, error: expect.stringMatching(/covers up to 10 people/) },
+      });
+    });
+
+    it('leaves the insert to the caller when the plan has no limit, the client is not gated, or the function is missing', async () => {
+      const log: string[] = [];
+      const pro = gated({ account_entitlements: { data: [row({})], error: null } }, log);
+      await expect(insertWithinLimit(pro, 'workers', 'acct', {})).resolves.toBeNull();
+      await expect(insertWithinLimit(fakeClient(gratis as never, log), 'workers', 'acct', {})).resolves.toBeNull();
+      expect(log).not.toContain('rpc:insert_within_limit');
+
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const old = gated({ ...gratis, 'rpc:insert_within_limit': { data: null, error: { code: 'PGRST202', message: 'no function' } } });
+      await expect(insertWithinLimit(old, 'workers', 'acct', {})).resolves.toBeNull();
+      errorSpy.mockRestore();
+    });
+
+    it('passes a database error on', async () => {
+      const client = gated({ ...gratis, 'rpc:insert_within_limit': { data: null, error: { code: '23505', message: 'dup' } } });
+      await expect(insertWithinLimit(client, 'workers', 'acct', {})).resolves.toEqual({ data: null, error: { code: '23505', message: 'dup' } });
+    });
   });
 });
