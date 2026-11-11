@@ -1,5 +1,7 @@
 # SETUP_STRIPE.md
 
+> **Superseded (2026-11-11, CHG-099).** The app no longer uses Stripe or Culqi. Payments will go through Paddle: see [SETUP_PADDLE.md](./SETUP_PADDLE.md). This page is kept for reference only; its tier names (Starter, Growth) no longer exist.
+
 > **Scope:** Horario — Expo SDK 53 · React Native 0.79 · Expo Router v5 API routes · Vercel (Node.js runtime) · `@clerk/expo` v3 · Supabase RLS
 >
 > **Use Test mode** (toggle top-left of Stripe Dashboard) for all steps until the Go-Live Checklist.

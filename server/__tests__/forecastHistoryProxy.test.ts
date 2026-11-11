@@ -17,6 +17,9 @@ let mockReply: Reply = { data: [], error: null };
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories cannot use imports
+      const planMock = require('../testUtils/planMock') as typeof import('../testUtils/planMock');
+      if (planMock.PLAN_TABLES.has(table)) return planMock.planTableBuilder(table);
       mockTables.push(table);
       const builder: Record<string, unknown> = {};
       for (const method of ['select', 'eq', 'gte', 'lt', 'in', 'order', 'range', 'limit']) {

@@ -28,7 +28,7 @@ export const legalConstraintsFor = (
   const ordinary = pack.dailyOrdinaryMax;
   const ordinaryHours = ordinary && ordinary.excess === 'violation' ? resolveDated(ordinary.hours, date) : undefined;
   return {
-    minRestHoursBetweenShifts: rest && (rest.verdict ?? 'violation') === 'violation' ? resolveDated(rest.minHours, date) : undefined,
+    minRestHoursBetweenShifts: rest && (rest.verdict ?? 'violation') === 'violation' && !rest.onlyOnShiftChange ? resolveDated(rest.minHours, date) : undefined,
     maxDailyHours: minDefined(
       typeof ordinaryHours === 'number' ? ordinaryHours : undefined,
       pack.dailyTotalMax && (pack.dailyTotalMax.verdict ?? 'violation') === 'violation' ? pack.dailyTotalMax.hours : undefined,

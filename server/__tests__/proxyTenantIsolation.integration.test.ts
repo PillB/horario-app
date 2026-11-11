@@ -183,24 +183,25 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
 
     expect((await asA({ action: 'incrementAutoAssign' })).body.count).toBe(1);
     expect((await asA({ action: 'incrementAutoAssign' })).body.count).toBe(2);
-    expect((await asB({ action: 'getUsageLimit' })).body).toEqual({ count: 0, canAutoAssign: true });
+    // A new account is on its Pro trial: no monthly limit.
+    expect((await asB({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: null, canAutoAssign: true });
 
     expect((await asA({ action: 'uploadPosSales', rows: [{ date: '2026-10-01', revenue: 1200 }] })).status).toBe(200);
     expect((await asB({ action: 'listPosSales' })).body.total).toBe(0);
 
     const subA = (await asA({ action: 'getSubscription' })).body.subscription as { accountId: string; tier: string };
     const subB = (await asB({ action: 'getSubscription' })).body.subscription as { accountId: string; tier: string };
-    expect(subA).toMatchObject({ accountId: USER_A, tier: 'free' });
-    expect(subB).toMatchObject({ accountId: ORG_B, tier: 'free' });
+    expect(subA).toMatchObject({ accountId: USER_A, tier: 'gratis' });
+    expect(subB).toMatchObject({ accountId: ORG_B, tier: 'gratis' });
   });
 
   it('offers no client action that changes a plan', async () => {
-    for (const action of ['upsertSubscription', 'stripeWebhook', 'culqiWebhook']) {
+    for (const action of ['upsertSubscription', 'stripeWebhook', 'culqiWebhook', 'paddleWebhook', 'grantEntitlement', 'upsertEntitlement']) {
       const res = await asA({ action, subscription: { tier: 'pro' }, accountId: USER_A });
       expect(res.status).toBe(400);
     }
     const sub = (await asA({ action: 'getSubscription' })).body.subscription as { tier: string };
-    expect(sub.tier).toBe('free');
+    expect(sub.tier).toBe('gratis');
   });
 
   it('keeps business locations per tenant and records who confirmed them', async () => {

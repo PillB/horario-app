@@ -20,6 +20,17 @@
  */
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
 
+import { TIER_META, isSubscriptionTier, tierFromLegacy } from '@/constants/pricing';
+import {
+  ENTITLEMENT_COLUMNS,
+  GRANTABLE_SOURCES,
+  entitlementIsActive,
+  PlanRefusal,
+  gatedClient,
+  resolvePlan,
+  type EntitlementRow,
+  type EntitlementSource,
+} from '@/server/plans';
 import { authenticate, type AuthContext } from '@/server/proxyAuth';
 import { jsonResponse, optionsResponse } from '@/server/http';
 import {
@@ -1164,25 +1175,34 @@ async function listLocationHistory(client: SupabaseClient, ctx: AuthContext, p: 
 }
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
-
-const FREE_AUTO_ASSIGN_LIMIT = 1;
+// Auto-schedule runs are counted per account and calendar month (UTC). The
+// plan decides the limit (Gratis: 3 a month; paid plans: none).
 
 async function getUsageLimit(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
-  const { data, error } = await client
-    .from('usage_limits')
-    .select('auto_assign_count')
-    .eq('user_id', ctx.userId)
-    .eq('account_id', ctx.accountId)
-    .maybeSingle();
-  if (error) return dbFailure('select usage_limits', error);
-  const count = (data as { auto_assign_count?: number } | null)?.auto_assign_count ?? 0;
-  return ok({ count, canAutoAssign: count < FREE_AUTO_ASSIGN_LIMIT });
+  const resolved = await resolvePlan(client, ctx.accountId);
+  if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
+  const limit = resolved.plan.limits.maxAutoSchedulesPerMonth;
+  const { data, error } = await client.rpc('auto_assign_month_count', { p_account_id: ctx.accountId });
+  if (error) return dbFailure('auto_assign_month_count', error);
+  const count = Number(data ?? 0);
+  return ok({ count, limit, canAutoAssign: limit === null || count < limit });
 }
 
 async function incrementAutoAssign(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
-  const { data, error } = await client.rpc('increment_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId });
-  if (error) return dbFailure('increment_auto_assign', error);
-  return ok({ success: true, count: Number(data ?? 0) });
+  const resolved = await resolvePlan(client, ctx.accountId);
+  if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
+  const limit = resolved.plan.limits.maxAutoSchedulesPerMonth;
+  const { data, error } = await client.rpc('consume_auto_assign', {
+    p_user_id: ctx.userId,
+    p_account_id: ctx.accountId,
+    p_limit: limit,
+  });
+  if (error) return dbFailure('consume_auto_assign', error);
+  const count = Number(data ?? 0);
+  if (count < 0) {
+    return fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Upgrade for unlimited auto-schedule`);
+  }
+  return ok({ success: true, count, limit, canAutoAssign: limit === null || count < limit });
 }
 
 // ─── POS sales ────────────────────────────────────────────────────────────────
@@ -1225,46 +1245,65 @@ async function listPosSales(client: SupabaseClient, ctx: AuthContext, limit: unk
   return ok({ rows: data ?? [], total: count ?? 0 });
 }
 
-// ─── Subscriptions ────────────────────────────────────────────────────────────
-// Only reads and the user's own cancel request live here. Plan changes are
-// written exclusively by signature-verified payment webhooks (not yet built);
-// no client-callable action can change a tier.
+// ─── Plans and subscriptions ──────────────────────────────────────────────────
+// The plan in force comes from server/plans.ts. No client-callable action can
+// change a plan: paid plans will be written by signature-verified payment
+// webhooks (not built, see docs/manual-setup/SETUP_PADDLE.md); trial, tester
+// and comp access are rows in account_entitlements, granted by a platform
+// admin below.
 
 function rowToSubscription(row: Record<string, unknown>) {
   return {
     id: row.id,
     accountId: row.account_id,
-    tier: row.tier ?? 'free',
+    tier: tierFromLegacy(row.tier),
     status: row.status ?? 'active',
-    stripeCustomerId: row.stripe_customer_id ?? null,
-    stripeSubscriptionId: row.stripe_subscription_id ?? null,
-    stripePriceId: row.stripe_price_id ?? null,
     currentPeriodStart: row.current_period_start ?? null,
     currentPeriodEnd: row.current_period_end ?? null,
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
-    trialEndsAt: row.trial_ends_at ?? null,
-    paymentProvider: row.payment_provider ?? null,
     billingInterval: row.billing_interval ?? 'month',
-    countryCode: row.country_code ?? 'PE',
+    countryCode: row.country_code ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-async function getSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
-  const { data, error } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).maybeSingle();
-  if (error) return dbFailure('select subscriptions', error);
-  if (data) return ok({ subscription: rowToSubscription(data) });
+/** Clerk user ids allowed to grant plans, from the server-only env var. */
+const isPlatformAdmin = (ctx: AuthContext): boolean =>
+  !ctx.insecureDev
+    ? (process.env.HORARIO_PLATFORM_ADMIN_USER_IDS ?? '').split(',').map((id) => id.trim()).filter(Boolean).includes(ctx.userId)
+    : process.env.HORARIO_DEV_PLATFORM_ADMIN === '1';
 
-  // First read provisions the free tier. ignoreDuplicates makes concurrent
-  // first reads safe.
-  const { error: insertErr } = await client
-    .from('subscriptions')
-    .upsert({ account_id: ctx.accountId, tier: 'free', status: 'active' }, { onConflict: 'account_id', ignoreDuplicates: true });
-  if (insertErr) return dbFailure('provision subscriptions', insertErr);
-  const { data: created, error: reread } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).single();
-  if (reread) return dbFailure('select subscriptions', reread);
-  return ok({ subscription: rowToSubscription(created) });
+async function getSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
+  let { data, error } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).maybeSingle();
+  if (error) return dbFailure('select subscriptions', error);
+  if (!data) {
+    // First read provisions the Gratis row. ignoreDuplicates makes concurrent first reads safe.
+    const { error: insertErr } = await client
+      .from('subscriptions')
+      .upsert({ account_id: ctx.accountId, tier: 'gratis', status: 'active' }, { onConflict: 'account_id', ignoreDuplicates: true });
+    if (insertErr) return dbFailure('provision subscriptions', insertErr);
+    ({ data, error } = await client.from('subscriptions').select('*').eq('account_id', ctx.accountId).single());
+    if (error) return dbFailure('select subscriptions', error);
+  }
+
+  const resolved = await resolvePlan(client, ctx.accountId);
+  if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
+  const [workers, locations, autoAssign] = await Promise.all([
+    client.from('workers').select('id', { count: 'exact', head: true }).eq('account_id', ctx.accountId),
+    client.from('locations').select('id', { count: 'exact', head: true }).eq('account_id', ctx.accountId),
+    client.rpc('auto_assign_month_count', { p_account_id: ctx.accountId }),
+  ]);
+  return ok({
+    subscription: rowToSubscription(data as Record<string, unknown>),
+    plan: resolved.plan,
+    usage: {
+      workers: workers.count ?? 0,
+      locations: locations.count ?? 0,
+      autoSchedulesThisMonth: Number(autoAssign.data ?? 0),
+    },
+    isPlatformAdmin: isPlatformAdmin(ctx),
+  });
 }
 
 async function cancelSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
@@ -1273,7 +1312,96 @@ async function cancelSubscription(client: SupabaseClient, ctx: AuthContext): Pro
   return ok({ success: true });
 }
 
-const paymentsNotConfigured = () => fail(501, 'Payment integration not yet configured. See docs/manual-setup/SETUP_STRIPE.md');
+const paymentsNotConfigured = () =>
+  fail(501, 'Online payment is not set up yet. Write to support to change your plan');
+
+// ─── Platform admin: grant and revoke access ──────────────────────────────────
+// These act on any account, so the only check that matters is isPlatformAdmin.
+
+const ADMIN_ACTIONS = new Set(['adminListEntitlements', 'adminGrantEntitlement', 'adminRevokeEntitlement']);
+const MAX_GRANT_DAYS = 3660;
+
+const rowToEntitlement = (row: EntitlementRow, now: Date) => ({
+  id: row.id,
+  accountId: row.account_id,
+  plan: row.plan,
+  source: row.source,
+  startsAt: row.starts_at,
+  endsAt: row.ends_at,
+  locationQuota: row.location_quota,
+  grantedBy: row.granted_by,
+  reason: row.reason,
+  revokedAt: row.revoked_at,
+  revokedBy: row.revoked_by,
+  active: entitlementIsActive(row, now),
+});
+
+const isAccountId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+
+async function adminListEntitlements(client: SupabaseClient, accountId: unknown): Promise<Result> {
+  if (!isAccountId(accountId)) return badRequest('accountId is required');
+  const { data, error } = await client
+    .from('account_entitlements')
+    .select(ENTITLEMENT_COLUMNS)
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return dbFailure('list entitlements', error);
+  const now = new Date();
+  const resolved = await resolvePlan(client, accountId, now);
+  if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
+  // Re-read is not needed for the list: a trial started by resolvePlan shows on the next load.
+  return ok({
+    entitlements: ((data ?? []) as unknown as EntitlementRow[]).map((row) => rowToEntitlement(row, now)),
+    plan: resolved.plan,
+  });
+}
+
+async function adminGrantEntitlement(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
+  if (!isAccountId(p.accountId)) return badRequest('accountId is required');
+  if (!isSubscriptionTier(p.plan) || p.plan === 'gratis') return badRequest('plan must be esencial or pro');
+  if (!GRANTABLE_SOURCES.includes(p.source as EntitlementSource)) return badRequest('source must be comp or tester');
+  const days = p.days;
+  if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > MAX_GRANT_DAYS) {
+    return badRequest(`days must be a whole number from 1 to ${MAX_GRANT_DAYS}`);
+  }
+  const reason = typeof p.reason === 'string' ? p.reason.trim() : '';
+  if (reason.length < 3 || reason.length > 500) return badRequest('reason is required (3 to 500 characters)');
+  const quota = p.locationQuota;
+  if (quota !== undefined && quota !== null && (typeof quota !== 'number' || !Number.isInteger(quota) || quota < 1 || quota > 1000)) {
+    return badRequest('locationQuota must be a whole number from 1 to 1000');
+  }
+  const now = new Date();
+  const { data, error } = await client
+    .from('account_entitlements')
+    .insert({
+      account_id: p.accountId,
+      plan: p.plan,
+      source: p.source,
+      starts_at: now.toISOString(),
+      ends_at: new Date(now.getTime() + days * 86_400_000).toISOString(),
+      location_quota: quota ?? null,
+      granted_by: ctx.userId,
+      reason,
+    })
+    .select(ENTITLEMENT_COLUMNS)
+    .single();
+  if (error) return dbFailure('grant entitlement', error);
+  return ok({ success: true, entitlement: rowToEntitlement(data as unknown as EntitlementRow, now) });
+}
+
+async function adminRevokeEntitlement(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from('account_entitlements')
+    .update({ revoked_at: new Date().toISOString(), revoked_by: ctx.userId })
+    .eq('id', id)
+    .is('revoked_at', null)
+    .select('id');
+  if (error) return dbFailure('revoke entitlement', error);
+  return (data ?? []).length ? ok({ success: true }) : notFound();
+}
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
@@ -1377,6 +1505,12 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'createCheckoutSession':
     case 'createBillingPortalSession':
       return paymentsNotConfigured();
+    case 'adminListEntitlements':
+      return adminListEntitlements(client, p.accountId);
+    case 'adminGrantEntitlement':
+      return adminGrantEntitlement(client, ctx, p);
+    case 'adminRevokeEntitlement':
+      return adminRevokeEntitlement(client, ctx, p.id);
     default:
       return badRequest('Unsupported action');
   }
@@ -1409,6 +1543,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (ADMIN_ACTIONS.has(payload.action) && !isPlatformAdmin(auth.ctx)) {
+    return respond(fail(403, 'Only a platform admin can do this'));
+  }
+
   const client = getServiceClient();
   if (!client) {
     console.error('[secure-proxy] Supabase service credentials are not configured');
@@ -1416,8 +1554,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    return respond(await dispatch(client, auth.ctx, payload));
+    // The plan is checked at the action's first database request (server/plans.ts).
+    return respond(await dispatch(gatedClient(client, auth.ctx.accountId, payload, SCHEDULING_WRITE_ACTIONS), auth.ctx, payload));
   } catch (error) {
+    if (error instanceof PlanRefusal) return respond(fail(error.refusal.status, error.refusal.error));
     console.error('[secure-proxy] request failed', error);
     return respond(fail(500, 'Request failed'));
   }

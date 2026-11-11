@@ -1,50 +1,70 @@
 /**
- * subscriptionService.ts
+ * Client calls for the account's plan. The server decides the plan
+ * (server/plans.ts); nothing here can change it.
  *
- * Client-side service for subscription tier reads and payment flows.
- * All writes are routed through the secure proxy (service-role key lives there).
- *
- * Pattern mirrors services/rosterService.ts.
+ * Checkout is not built yet (docs/manual-setup/SETUP_PADDLE.md): the two
+ * payment calls return the server's "not set up" message.
  */
-
 import { getSessionToken } from '@/services/authToken';
-import type { SubscriptionTier } from '@/constants/pricing';
+import { isSubscriptionTier, type SubscriptionTier } from '@/constants/pricing';
 
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
-// ─── Domain types ─────────────────────────────────────────────────────────────
-
 export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid';
+export type PlanSource = 'paddle' | 'comp' | 'tester' | 'trial' | 'subscription' | 'default';
 
 export type DbSubscription = {
   id: string;
   accountId: string;
   tier: SubscriptionTier;
   status: SubscriptionStatus;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-  stripePriceId: string | null;
-  culqiCustomerId: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
-  trialEndsAt: string | null;
-  paymentProvider: 'stripe' | 'culqi' | null;
   billingInterval: 'month' | 'year';
-  countryCode: string;
+  countryCode: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type CreateCheckoutSessionResult =
-  | { success: true; checkoutUrl: string; provider: 'stripe' | 'culqi' }
-  | { success: false; error: string };
+/** The plan in force, as the server computed it. A null limit means no limit. */
+export type AccountPlan = {
+  plan: SubscriptionTier;
+  source: PlanSource;
+  endsAt: string | null;
+  isTrial: boolean;
+  trialEndsAt: string | null;
+  limits: { maxWorkers: number | null; maxLocations: number | null; maxAutoSchedulesPerMonth: number | null };
+};
 
-export type CreatePortalSessionResult =
-  | { success: true; portalUrl: string }
-  | { success: false; error: string };
+export type PlanUsage = { workers: number; locations: number; autoSchedulesThisMonth: number };
 
-// ─── Proxy helper ──────────────────────────────────────────────────────────────
+export type AccountPlanResponse = {
+  subscription: DbSubscription;
+  plan: AccountPlan;
+  usage: PlanUsage;
+  isPlatformAdmin: boolean;
+};
+
+export type Entitlement = {
+  id: string;
+  accountId: string;
+  plan: SubscriptionTier;
+  source: Exclude<PlanSource, 'subscription' | 'default'>;
+  startsAt: string;
+  endsAt: string | null;
+  locationQuota: number | null;
+  grantedBy: string;
+  reason: string | null;
+  revokedAt: string | null;
+  revokedBy: string | null;
+  active: boolean;
+};
+
+export type ServiceResult<T> = ({ success: true } & T) | { success: false; error: string };
+
+export type CreateCheckoutSessionResult = ServiceResult<{ checkoutUrl: string }>;
+export type CreatePortalSessionResult = ServiceResult<{ portalUrl: string }>;
 
 async function proxyPost<T>(body: Record<string, unknown>): Promise<T> {
   const token = await getSessionToken();
@@ -57,82 +77,61 @@ async function proxyPost<T>(body: Record<string, unknown>): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`Proxy error ${res.status}: ${text}`);
+    const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+    throw new Error(typeof data?.error === 'string' ? data.error : `Request failed (${res.status})`);
   }
   return res.json() as Promise<T>;
 }
 
-// ─── Subscription reads ────────────────────────────────────────────────────────
-
-/**
- * Fetches the current subscription record for an account.
- * Returns a free-tier stub if no record exists yet.
- */
-export async function getSubscription(
-  accountId: string,
-): Promise<{ success: true; subscription: DbSubscription } | { success: false; error: string }> {
+const attempt = async <T>(run: () => Promise<T>): Promise<ServiceResult<T>> => {
   try {
-    return await proxyPost({ action: 'getSubscription', accountId });
+    return { success: true, ...(await run()) };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { success: false, error: err instanceof Error ? err.message : 'Request failed' };
   }
-}
+};
 
-/**
- * Gets the current tier for an account (simplified — just the tier string).
- * Falls back to 'free' on any error.
- */
-export async function getAccountTier(accountId: string): Promise<SubscriptionTier> {
-  const result = await getSubscription(accountId);
-  if (!result.success) return 'free';
-  return result.subscription.tier;
-}
+// ─── Plan ─────────────────────────────────────────────────────────────────────
 
-// ─── Checkout ─────────────────────────────────────────────────────────────────
+/** The account's plan, limits and usage. */
+export const getAccountPlan = (): Promise<ServiceResult<AccountPlanResponse>> =>
+  attempt(async () => {
+    const data = await proxyPost<Partial<AccountPlanResponse> | null>({ action: 'getSubscription' });
+    // An answer without a known plan is an error, never a plan.
+    if (!data?.subscription || !data.plan?.limits || !isSubscriptionTier(data.plan.plan) || !data.usage) {
+      throw new Error('Unexpected plan response');
+    }
+    return data as AccountPlanResponse;
+  });
 
-/**
- * Creates a Stripe or Culqi checkout session for a paid tier upgrade.
- * Returns the redirect URL to send the user to.
- */
-export async function createCheckoutSession(params: {
-  accountId: string;
-  tier: Exclude<SubscriptionTier, 'free'>;
+// ─── Payments (not set up) ────────────────────────────────────────────────────
+
+export const createCheckoutSession = (params: {
+  tier: Exclude<SubscriptionTier, 'gratis'>;
   billingInterval: 'month' | 'year';
-  countryCode: string;
-  successUrl: string;
-  cancelUrl: string;
-}): Promise<CreateCheckoutSessionResult> {
-  try {
-    return await proxyPost({ action: 'createCheckoutSession', ...params });
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
-}
+  countryCode?: string;
+}): Promise<CreateCheckoutSessionResult> =>
+  attempt(() => proxyPost<{ checkoutUrl: string }>({ action: 'createCheckoutSession', ...params }));
 
-/**
- * Creates a Stripe customer portal session for managing billing.
- */
-export async function createBillingPortalSession(params: {
+export const createBillingPortalSession = (): Promise<CreatePortalSessionResult> =>
+  attempt(() => proxyPost<{ portalUrl: string }>({ action: 'createBillingPortalSession' }));
+
+export const cancelSubscription = (): Promise<ServiceResult<object>> =>
+  attempt(() => proxyPost<object>({ action: 'cancelSubscription' }));
+
+// ─── Platform admin ───────────────────────────────────────────────────────────
+
+export const adminListEntitlements = (accountId: string) =>
+  attempt(() => proxyPost<{ entitlements: Entitlement[]; plan: AccountPlan }>({ action: 'adminListEntitlements', accountId }));
+
+export const adminGrantEntitlement = (grant: {
   accountId: string;
-  returnUrl: string;
-}): Promise<CreatePortalSessionResult> {
-  try {
-    return await proxyPost({ action: 'createBillingPortalSession', ...params });
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
-}
+  plan: Exclude<SubscriptionTier, 'gratis'>;
+  source: 'comp' | 'tester';
+  days: number;
+  reason: string;
+  locationQuota?: number | null;
+}) => attempt(() => proxyPost<{ entitlement: Entitlement }>({ action: 'adminGrantEntitlement', ...grant }));
 
-/**
- * Cancels the subscription at period end (does not revoke access immediately).
- */
-export async function cancelSubscription(
-  accountId: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    return await proxyPost({ action: 'cancelSubscription', accountId });
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
-}
+export const adminRevokeEntitlement = (id: string) =>
+  attempt(() => proxyPost<object>({ action: 'adminRevokeEntitlement', id }));

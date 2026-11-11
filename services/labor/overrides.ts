@@ -98,7 +98,7 @@ export function packLimitFor(pack: RulePack, override: LocationOverride, date: D
   switch (override.rule) {
     case 'rest.minHours': {
       const rest = pack.restBetweenShifts;
-      return rest ? { value: resolveDated(rest.minHours, date), hard: (rest.verdict ?? 'violation') === 'violation' } : undefined;
+      return rest ? { value: resolveDated(rest.minHours, date), hard: (rest.verdict ?? 'violation') === 'violation' && !rest.onlyOnShiftChange } : undefined;
     }
     case 'daily.maxHours': {
       const limits: PackLimit[] = [];
@@ -206,6 +206,8 @@ export function applyOverrides(pack: RulePack, overrides: readonly LocationOverr
             verdict: 'violation',
             // The business limit applies to every pair (Ontario's 13 h exemption is the law's).
             exemptIfPairTotalHoursLte: undefined,
+            // ... and to every pair, not only on a change of shift (Alberta).
+            onlyOnShiftChange: undefined,
             cite: overrideCite(o, rest.cite),
           }
           : { minHours: o.value, cite: overrideCite(o) };

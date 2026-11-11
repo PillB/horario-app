@@ -49,6 +49,12 @@ export type RestRule = {
   dailyRestReviewHours?: number;
   /** Netherlands: longer rest after a night duty that ends after a set time. */
   afterNightDuty?: { endsAfter: HHMM; minHours: number };
+  /**
+   * Alberta (ESC s.17(2)): the rest is owed when the employer changes the
+   * employee from one shift to another. The engine can't see that, so a short
+   * rest is a 'review' item, and it is not a constraint for auto-assign.
+   */
+  onlyOnShiftChange?: boolean;
   cite: Cite;
 };
 
@@ -104,6 +110,42 @@ export type ShiftClassification = {
 
 export type HoursCap = { hours: number; cite: Cite };
 
+/**
+ * Weekly cap on overtime hours (Mexico, LFT 66). Overtime is the hours marked
+ * as overtime, the hours above the daily limit and the ordinary hours above
+ * the weekly limit. A week across a change of the cap uses the stricter value.
+ */
+export type WeeklyOvertimeRule = {
+  hours: Dated<number>;
+  /**
+   * Hours past the cap that may still be worked at a higher rate (LFT 68: up
+   * to 4 h a week at 3×, and the worker may refuse them). More than that, or
+   * any excess when this is absent, is a violation.
+   */
+  beyond?: { hours: number; multiplier: number };
+  cite: Cite;
+};
+
+/**
+ * All work of one local day must fit inside this many consecutive hours, from
+ * the first start to the last end (Alberta, ESC s.16). `splitShiftsOnly`:
+ * only days with two or more shifts (British Columbia, ESA s.33).
+ */
+export type DailySpanRule = { hours: number; splitShiftsOnly?: boolean; cite: Cite };
+
+/**
+ * Illinois (ODRISA s.2): `minHours` consecutive hours of rest in every period
+ * of `days` consecutive days. Reported when work touches `days` calendar days
+ * in a row with no such rest between them.
+ */
+export type RestInConsecutiveDaysRule = {
+  minHours: number;
+  days: number;
+  /** Not owed to part-time employees: every calendar week of the run has at most this many hours. */
+  exemptIfWeeklyHoursLte?: number;
+  cite: Cite;
+};
+
 export type AverageRule = {
   hours: number;
   weeks: number;
@@ -124,6 +166,12 @@ export type NightRule = {
   monthlyPayFloor?: { minimumMonthlyWage: Dated<number>; pctOverMinimum: number };
   /** Brazil: a legal night hour is 52.5 minutes, so night time counts for more. */
   hourMinutes?: number;
+  /**
+   * Poland (KP art. 151^7 §1): the employer sets the night period inside this
+   * bracket; `window` is then only Horario's assumption, and work inside the
+   * bracket gets a 'review' finding that says so.
+   */
+  setByEmployerWithin?: TimeWindow;
   cite: Cite;
 };
 
@@ -153,6 +201,11 @@ export type BreakTrigger = {
 
 export type BreakRule = {
   triggers: BreakTrigger[];
+  /**
+   * What the triggers' hours measure. Default: hours worked. 'span': the
+   * length of the shift from start to end, breaks included (Alberta, ESC s.18).
+   */
+  measure?: 'span';
   /** Pieces shorter than this don't count (Germany, Netherlands: 15 min). */
   minBlockMinutes?: number;
   verdict?: 'violation' | 'warning';
@@ -163,9 +216,17 @@ export type BreakRule = {
 export type MealDeadlineRule = {
   byWorkHours: number;
   minMinutes: number;
-  /** A mutual waiver is valid only when the day is no longer than this. */
-  waivableIfWorkHoursLte: number;
-  premiumHours: number;
+  /** The meal may not start before this many hours of work (Washington: 2). */
+  notBeforeWorkHours?: number;
+  /**
+   * The meal is owed from this many hours of work (inclusive; Illinois: 7.5).
+   * Default: when more than `byWorkHours` are worked.
+   */
+  requiredFromWorkHours?: number;
+  /** A mutual waiver is valid only when the day is no longer than this. Absent: no waiver. */
+  waivableIfWorkHoursLte?: number;
+  /** Hours of premium pay owed for a missed meal (California: 1). */
+  premiumHours?: number;
   cite: Cite;
 };
 
@@ -193,6 +254,13 @@ export type WeeklyRestDaysRule = { days: Dated<number>; cite: Cite };
 export type SpreadOfHoursRule = { overHours: number; premiumHours: number; cite: Cite };
 
 export type TimeWindow = [HHMM, HHMM];
+
+/**
+ * Poland (KP art. 151^7 §3): a night worker's day may not exceed this when the
+ * work is particularly dangerous or strenuous. The engine does not know the
+ * kind of work, so a longer day is a 'review' item.
+ */
+export type NightWorkerStrenuousRule = { dailyHours: number; cite: Cite };
 
 export type MinorRule = {
   ageFrom: number;
@@ -243,15 +311,20 @@ export type RulePack = {
   dailyOvertimeMax?: HoursCap;
   /** Mexico (LFT 66): overtime on at most this many days per week. */
   overtimeDaysPerWeekMax?: { days: number; cite: Cite };
+  /** Weekly cap on overtime hours (Mexico, LFT 66 and 68). */
+  weeklyOvertimeMax?: WeeklyOvertimeRule;
   dailyTotalMax?: HoursCap & { verdict?: 'violation' | 'warning' };
+  dailySpanMax?: DailySpanRule;
   weeklyOrdinaryMax?: { hours: Dated<number>; cite: Cite };
   weeklyMax?: HoursCap & { verdict?: 'violation' | 'warning' };
   averageWeeklyMax?: AverageRule[];
   weeklyRest?: WeeklyRestRule;
   weeklyRestDays?: WeeklyRestDaysRule;
+  restInConsecutiveDays?: RestInConsecutiveDaysRule;
   night?: NightRule;
   nightDuty?: NightDutyRule;
   nightWorker?: NightWorkerRule;
+  nightWorkerStrenuousMax?: NightWorkerStrenuousRule;
   breaks?: BreakRule;
   mealDeadline?: MealDeadlineRule;
   overtimePay?: OvertimePayRule;
@@ -279,7 +352,7 @@ export type LaborShift = {
   overtimeHours?: number;
   /** The employee agreed (in writing where required) to a short rest before this shift. */
   restConsent?: boolean;
-  /** California mutual meal waiver for this shift. */
+  /** Mutual meal waiver for this shift (California, Washington). */
   mealWaiver?: boolean;
 };
 

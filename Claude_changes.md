@@ -6,6 +6,35 @@
 
 ---
 
+### CHG-099 — 2026-11-11 UTC
+**Type:** FEATURE + FIX (Pablo: "Everything except paddle. Document what is needed […] Finish and implement fixes of all pending and open tasks and issues")
+
+**Plans (product research §5.3, §6), without checkout:**
+- `constants/pricing.ts` rewritten: `gratis` / `esencial` / `pro` (was free / starter / growth / pro). US$19 / S/ 59 and US$39 / S/ 119 a month per location, a year = 10 months; people 10 / 40 / unlimited; 3 auto-schedules a month on Gratis (was 1, ever); forecast and sales upload on Pro. Stripe price ids and the MX / CO / BR / CL lists removed (not in the research; other countries pay USD).
+- Migration `20261111000099_plans_entitlements.sql`: `subscriptions.tier` renamed in place (free → gratis, starter → esencial, growth → pro); `account_entitlements` (immutable except one revoke, no deletes, one trial per account, tenant RLS read); per-month auto-schedule count and `consume_auto_assign()`.
+- `server/plans.ts` (new): effective plan = highest active entitlement or active subscription, else Gratis; first sight starts the 14-day Pro trial. `gatedClient` checks the plan at an action's first database request, so input is validated first (400) and no request of a gated action goes out unchecked. Refusals are HTTP 402 with a sentence that says what to do.
+- Proxy: `getSubscription` returns `plan`, `usage`, `isPlatformAdmin`; `getUsageLimit` / `incrementAutoAssign` use the plan's monthly limit; platform-admin actions `adminListEntitlements` / `adminGrantEntitlement` / `adminRevokeEntitlement` (allow-list `HORARIO_PLATFORM_ADMIN_USER_IDS`); payment actions still 501.
+- Client: `useSubscription` reads the plan from the proxy (was Clerk `publicMetadata.horario_tier`, which nothing wrote; `EXPO_PUBLIC_DEV_TIER` is gone). `PricingModal` rewritten (three plans, monthly / annual, PEN in Peru, translated, no buy button until `EXPO_PUBLIC_CHECKOUT_ENABLED=1`). Profile plan card shows plan, trial days left and usage, and opens the plans (it opened a hard-coded Clerk development URL). Upgrade banner opens the plans. `/admin` screen for grants. A plan refusal of the forecast shows the server's sentence in the demand step (`PlanRequiredError`).
+- `docs/manual-setup/SETUP_PADDLE.md` (new): what Pablo provides, keys, catalog, what gets built. Stripe and Culqi pages marked superseded.
+
+**Decisions (reversible):**
+- With the entitlements table missing (migration not applied) nothing is limited, so a deploy never locks the app; with the database unreachable the action runs and fails by itself.
+- Platform admins come from a server env allow-list, not Clerk `publicMetadata.platformRole` (the research's suggestion), because the session token does not carry public metadata without a Clerk template change.
+- Esencial is limited to 1 location until a paid quantity exists (`location_quota` on the grant).
+- Over the people limit: reads and deletes work, other scheduling writes are refused. Locations over the limit are not made read-only.
+
+**Open QA items fixed (walkthrough 2026-10-28):**
+- Labor rules (`services/labor/**`, tests `openItems.test.ts`): Mexico weekly overtime as a new engine rule `weeklyOvertimeMax` with the caps of the 2026 reform (the researcher found art. 66 rewritten; sources in the QA report); Poland night window 22:00–06:00 plus a review finding inside 21:00–07:00; Washington and Illinois state packs; BC split-shift 12 h span; Alberta pack `CA-AB`. New finding ids: `weekly.overtimeMax`, `daily.spanMax`, `rest.consecutiveDays`, `night.window`, `nightWorker.strenuousMax`.
+- Canada: a stored location whose place now resolves to another pack (federal `CA` with no province, Alberta as `CA-OTHER`) shows a re-confirm notice in Profile > Locations (`locationNeedsReconfirm`). No migration: `CA` may really mean federally regulated, and the law of a location is never changed without the user.
+- `labor-rules-golden.md` (shared QA folder) brought in line with the packs.
+
+**Not done (left to the audit thread, which owns those files; agreed 2026-11-11):** shift form shows raw ids after a chip tap; baseline targets saved one request per day; auto-assign shortfall wording; proxy rate limit.
+**Not done:** Paddle checkout; invite codes; email before a plan ends; minors' rules for BC, Alberta and Illinois 16–17; rules the schema cannot express (listed in the QA report).
+
+**Verification:** tsc, lint, jest; integration suite and the four pgTAP files against a local Postgres + PostgREST with every migration applied (migration run twice). Not checked in a browser.
+
+---
+
 ### [SUMMARY] — 2026-11-10 10:50 UTC
 **Last CHG completed:** CHG-095 (see CHG-096 below for the follow-up pass)
 **Current state:** The scheduler is four steps (team, templates, demand, roster) with one shown at a time; the tour is a non-blocking overlay with three guides; Home is a dashboard (this week, location setup, setup checklist, upcoming shifts, staffing gaps, quick actions). Checked in Chromium at 1280 and 390 px against a local Supabase.

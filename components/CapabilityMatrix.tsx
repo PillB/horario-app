@@ -53,7 +53,7 @@ const FEATURE_ROWS: FeatureRow[] = [
     key: 'unlimitedWorkers',
     i18nKey: 'capability.unlimitedWorkers',
     fallback: 'Unlimited workers',
-    tier: 'free',
+    tier: 'pro',
   },
   {
     key: 'shiftTemplates',
@@ -83,7 +83,7 @@ const FEATURE_ROWS: FeatureRow[] = [
     key: 'posCsvImport',
     i18nKey: 'capability.posCsvImport',
     fallback: 'POS CSV import',
-    tier: 'free',
+    tier: 'pro',
   },
   // Pro-only features
   {

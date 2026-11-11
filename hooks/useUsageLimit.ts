@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { TIER_LIMITS } from '@/constants/pricing';
 import { getUsageLimit, incrementAutoAssign } from '@/services/usageService';
 
-export const FREE_AUTO_ASSIGN_LIMIT = 1;
+/** Auto-schedules a month on Gratis. Paid plans have no limit: the server says so in `canAutoAssign`. */
+export const FREE_AUTO_ASSIGN_LIMIT = TIER_LIMITS.gratis.maxAutoSchedulesPerMonth;
 
 type UsageLimitState = {
   count: number;
@@ -37,14 +39,13 @@ export const useUsageLimit = (userId: string, accountId: string) => {
 
   const increment = useCallback(async () => {
     const result = await incrementAutoAssign(userId, accountId);
-    if (result.success) {
-      setState((prev) => ({
-        ...prev,
-        count: result.count,
-        canAutoAssign: result.count < FREE_AUTO_ASSIGN_LIMIT,
-      }));
+    if (!result.success) {
+      // Refused (limit reached) or failed: ask the server where the account stands.
+      void load();
+      return;
     }
-  }, [userId, accountId]);
+    setState((prev) => ({ ...prev, count: result.count, canAutoAssign: result.canAutoAssign }));
+  }, [userId, accountId, load]);
 
   return { ...state, increment, refresh: load };
 };

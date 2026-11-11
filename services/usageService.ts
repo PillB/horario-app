@@ -8,7 +8,7 @@ type UsageLimitResult =
   | { success: false; error: string };
 
 type IncrementResult =
-  | { success: true; count: number }
+  | { success: true; count: number; canAutoAssign: boolean }
   | { success: false; error: string };
 
 const proxyPost = async <T>(body: unknown): Promise<T | null> => {
@@ -47,11 +47,11 @@ export const incrementAutoAssign = async (
   userId: string,
   accountId: string
 ): Promise<IncrementResult> => {
-  const data = await proxyPost<{ count: number }>({
+  const data = await proxyPost<{ count: number; canAutoAssign?: boolean }>({
     action: 'incrementAutoAssign',
     userId,
     accountId,
   });
   if (!data) return { success: false, error: 'Unable to record usage' };
-  return { success: true, count: data.count };
+  return { success: true, count: data.count, canAutoAssign: data.canAutoAssign !== false };
 };

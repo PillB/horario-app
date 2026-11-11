@@ -897,7 +897,7 @@ export const it = {
     rosterAssignment: 'Assegnazione turni',
     demandTargets: 'Obiettivi di domanda',
     posCsvImport: 'Importa CSV cassa',
-    autoAssign: 'Assegnazione automatica',
+    autoAssign: 'Pianificazione automatica illimitata',
     advancedAnalytics: 'Analisi avanzate',
     multiLocation: 'Multi-sede',
     messaging: 'Messaggi e comunicazioni',

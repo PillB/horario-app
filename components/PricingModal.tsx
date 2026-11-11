@@ -1,481 +1,292 @@
 /**
- * PricingModal.tsx
+ * PricingModal — the three plans side by side: Gratis, Esencial, Pro.
  *
- * Full-screen upgrade modal shown when a user hits a feature gate.
- * Displays the pricing tiers with the required tier highlighted.
- * Handles Stripe checkout redirect and Culqi (Peru) payment.
+ * Prices, limits and plan names come from constants/pricing.ts; the current
+ * plan comes from the server (useSubscription). Prices are per location.
  *
- * Usage:
- *   const [pricingVisible, setPricingVisible] = useState(false);
- *   const [targetTier, setTargetTier] = useState<SubscriptionTier>('starter');
- *
- *   <PricingModal
- *     visible={pricingVisible}
- *     highlightTier={targetTier}
- *     onClose={() => setPricingVisible(false)}
- *   />
+ * Checkout is not built (docs/manual-setup/SETUP_PADDLE.md). Until
+ * EXPO_PUBLIC_CHECKOUT_ENABLED is "1" the paid plans show no buy button, only
+ * a note; with it, the button asks the proxy for a checkout page.
  */
-
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { brand, Colors } from '@/constants/Colors';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { brand, Colors, type ThemeColors } from '@/constants/Colors';
 import {
-  ANNUAL_DISCOUNT_PCT,
+  ANNUAL_MONTHS_FREE,
+  TIERS,
   TIER_LIMITS,
   TIER_META,
-  TIER_PRICES_LOCAL,
-  TIER_PRICES_USD,
+  TRIAL_DAYS,
+  formatPlanPrice,
+  pricesForCountry,
   type SubscriptionTier,
 } from '@/constants/pricing';
+import { useT } from '@/contexts/LocaleContext';
+import { useIdentity } from '@/contexts/IdentityContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useLocations } from '@/hooks/useLocations';
 import { useSubscription } from '@/hooks/useSubscription';
 import { createCheckoutSession } from '@/services/subscriptionService';
 
-const PAID_TIERS: Exclude<SubscriptionTier, 'free'>[] = ['starter', 'growth', 'pro'];
+const CHECKOUT_ENABLED = process.env.EXPO_PUBLIC_CHECKOUT_ENABLED === '1';
+
+type Interval = 'month' | 'year';
 
 type PricingModalProps = {
   visible: boolean;
-  /** Tier to pre-select / highlight */
+  /** Plan to draw attention to (the one a locked feature needs). */
   highlightTier?: SubscriptionTier;
   onClose: () => void;
-  /** Country code for localized pricing (ISO 2-char) */
-  countryCode?: string;
+  /** Country for the price list (ISO 3166-1 alpha-2). Default: the country of the account's first location. */
+  countryCode?: string | null;
 };
 
-export function PricingModal({
-  visible,
-  highlightTier = 'starter',
-  onClose,
-  countryCode = 'PE',
-}: PricingModalProps) {
+export function PricingModal({ visible, highlightTier = 'esencial', onClose, countryCode }: PricingModalProps) {
   const insets = useSafeAreaInsets();
-  const { tier: currentTier } = useSubscription();
-  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
-  const [loadingTier, setLoadingTier] = useState<SubscriptionTier | null>(null);
+  const { t } = useT();
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+  const styles = makeStyles(colors);
+  const { tier: currentTier, isTrialing, trialDaysLeft } = useSubscription();
+  const [interval, setBillingInterval] = useState<Interval>('month');
+  const [busyTier, setBusyTier] = useState<SubscriptionTier | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  const localPrices = TIER_PRICES_LOCAL[countryCode] ?? TIER_PRICES_LOCAL['PE'];
+  const { accountId } = useIdentity();
+  const { locations } = useLocations(accountId);
+  const country = countryCode ?? locations[0]?.countryCode ?? null;
+  const prices = pricesForCountry(country);
 
-  const handleUpgrade = useCallback(
-    async (tier: Exclude<SubscriptionTier, 'free'>) => {
-      setLoadingTier(tier);
-      try {
-        const result = await createCheckoutSession({
-          accountId: process.env.EXPO_PUBLIC_ACCOUNT_ID ?? '',
-          tier,
-          billingInterval,
-          countryCode,
-          successUrl: `${process.env.EXPO_PUBLIC_APP_ORIGIN ?? ''}/billing/success`,
-          cancelUrl: `${process.env.EXPO_PUBLIC_APP_ORIGIN ?? ''}/billing/cancel`,
-        });
-        if (result.success) {
-          // Open checkout URL in browser
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { openBrowserAsync } = require('expo-web-browser') as typeof import('expo-web-browser');
-          await openBrowserAsync(result.checkoutUrl);
-          onClose();
-        }
-      } finally {
-        setLoadingTier(null);
+  const handleChoose = useCallback(
+    async (tier: Exclude<SubscriptionTier, 'gratis'>) => {
+      setBusyTier(tier);
+      setCheckoutError(null);
+      const result = await createCheckoutSession({ tier, billingInterval: interval, countryCode: country ?? undefined });
+      setBusyTier(null);
+      if (!result.success) {
+        setCheckoutError(result.error);
+        return;
       }
+      Linking.openURL(result.checkoutUrl).catch(() => setCheckoutError(t('pricing.checkoutOpenFailed')));
     },
-    [billingInterval, countryCode, onClose],
+    [country, interval, t],
   );
 
+  const featureLines = (tier: SubscriptionTier): string[] => {
+    const limits = TIER_LIMITS[tier];
+    const people = Number.isFinite(limits.maxWorkers)
+      ? t('pricing.feature.people', { n: String(limits.maxWorkers) })
+      : t('pricing.feature.peopleUnlimited');
+    const autoSchedule = Number.isFinite(limits.maxAutoSchedulesPerMonth)
+      ? t('pricing.feature.autoScheduleLimited', { n: String(limits.maxAutoSchedulesPerMonth) })
+      : t('pricing.feature.autoScheduleUnlimited');
+    if (tier === 'gratis') {
+      return [people, t('pricing.feature.oneLocation'), t('pricing.feature.core'), t('pricing.feature.laborWarnings'), autoSchedule];
+    }
+    if (tier === 'esencial') {
+      return [t('pricing.feature.everythingIn', { plan: TIER_META.gratis.label }), people, autoSchedule];
+    }
+    return [
+      t('pricing.feature.everythingIn', { plan: TIER_META.esencial.label }),
+      people,
+      t('pricing.feature.multiLocation'),
+      t('pricing.feature.forecast'),
+    ];
+  };
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity
+          <ThemedText type="subtitle" accessibilityRole="header" style={styles.headerTitle}>
+            {t('pricing.title')}
+          </ThemedText>
+          <Pressable
             onPress={onClose}
             style={styles.closeBtn}
             accessibilityRole="button"
-            accessibilityLabel="Cerrar"
-          >
-            <Text style={styles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Actualiza tu plan</Text>
-          <View style={styles.closeBtn} />
+            accessibilityLabel={t('pricing.close')}
+            accessibilityHint={t('pricing.closeHint')}>
+            <ThemedText style={styles.closeText}>✕</ThemedText>
+          </Pressable>
         </View>
 
-        {/* Billing interval toggle */}
-        <View style={styles.intervalRow}>
-          <TouchableOpacity
-            style={[styles.intervalBtn, billingInterval === 'month' && styles.intervalBtnActive]}
-            onPress={() => setBillingInterval('month')}
-            accessibilityRole="button"
-            accessibilityLabel="Facturación mensual"
-          >
-            <Text style={[styles.intervalLabel, billingInterval === 'month' && styles.intervalLabelActive]}>
-              Mensual
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.intervalBtn, billingInterval === 'year' && styles.intervalBtnActive]}
-            onPress={() => setBillingInterval('year')}
-            accessibilityRole="button"
-            accessibilityLabel={`Facturación anual — ${ANNUAL_DISCOUNT_PCT}% descuento`}
-          >
-            <Text style={[styles.intervalLabel, billingInterval === 'year' && styles.intervalLabelActive]}>
-              Anual
-            </Text>
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountLabel}>-{ANNUAL_DISCOUNT_PCT}%</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}>
+          <ThemedText style={styles.muted}>{t('pricing.perLocation')}</ThemedText>
+          {isTrialing && trialDaysLeft !== null ? (
+            <ThemedText style={styles.trialNote}>{t('pricing.trialRunning', { n: String(trialDaysLeft) })}</ThemedText>
+          ) : null}
 
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {PAID_TIERS.map((tier) => {
+          <View style={styles.intervalRow} accessibilityRole="radiogroup" accessibilityLabel={t('pricing.intervalLabel')}>
+            {(['month', 'year'] as Interval[]).map((option) => {
+              const selected = interval === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setBillingInterval(option)}
+                  style={[styles.intervalBtn, selected && styles.intervalBtnActive]}
+                  accessibilityRole="radio"
+                  aria-checked={selected}
+                  accessibilityState={{ checked: selected }}
+                  accessibilityLabel={option === 'month' ? t('pricing.monthly') : t('pricing.annual')}
+                  accessibilityHint={t('pricing.intervalHint')}>
+                  <ThemedText style={[styles.intervalText, selected && styles.intervalTextActive]}>
+                    {option === 'month'
+                      ? t('pricing.monthly')
+                      : `${t('pricing.annual')} · ${t('pricing.monthsFree', { n: String(ANNUAL_MONTHS_FREE) })}`}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {TIERS.map((tier) => {
             const meta = TIER_META[tier];
-            const usdPrice = TIER_PRICES_USD[tier];
-            const localPrice = localPrices[tier];
-            const limits = TIER_LIMITS[tier];
-            const isHighlighted = tier === highlightTier;
+            const price = prices[tier];
             const isCurrent = tier === currentTier;
-            const isLoading = loadingTier === tier;
             const isPro = tier === 'pro';
-
-            const displayPrice = billingInterval === 'month'
-              ? localPrice.monthly
-              : Math.round(localPrice.monthly * (1 - ANNUAL_DISCOUNT_PCT / 100));
-            const usdDisplay = billingInterval === 'month'
-              ? usdPrice.monthly
-              : usdPrice.annualMonthly;
-
+            const amount = interval === 'month' ? price.monthly : price.annual;
             return (
               <View
                 key={tier}
-                style={[
-                  styles.card,
-                  isHighlighted && styles.cardHighlighted,
-                  isPro && styles.cardPro,
-                  isCurrent && styles.cardCurrent,
-                ]}
-              >
-                {meta.isPopular && (
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularLabel}>⭐ Más popular</Text>
-                  </View>
-                )}
-
+                style={[styles.card, tier === highlightTier && !isCurrent && styles.cardHighlighted, isCurrent && styles.cardCurrent]}>
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.tierName, isPro && styles.tierNamePro]}>
+                  <ThemedText type="defaultSemiBold" style={[styles.planName, isPro && styles.planNamePro]}>
                     {meta.label}
-                  </Text>
-                  <Text style={styles.tagline}>{meta.tagline}</Text>
+                  </ThemedText>
+                  {isCurrent ? (
+                    <View style={styles.currentBadge}>
+                      <ThemedText style={styles.currentText}>
+                        {isTrialing ? t('pricing.currentTrial') : t('pricing.current')}
+                      </ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
-                <View style={styles.priceRow}>
-                  <Text style={[styles.price, isPro && styles.pricePro]}>
-                    {localPrice.currency === 'PEN' ? 'S/' : localPrice.symbol}
-                    {displayPrice}
-                  </Text>
-                  <Text style={styles.priceSub}> / mes</Text>
-                </View>
-                <Text style={styles.usdEquiv}>(~${usdDisplay.toFixed(0)} USD/mes)</Text>
+                <ThemedText style={styles.price}>
+                  {tier === 'gratis'
+                    ? t('pricing.free')
+                    : `${formatPlanPrice(amount, prices)} ${interval === 'month' ? t('pricing.perMonth') : t('pricing.perYear')}`}
+                </ThemedText>
+                {tier !== 'gratis' && prices.taxIncluded ? (
+                  <ThemedText style={styles.muted}>{t('pricing.taxIncluded')}</ThemedText>
+                ) : null}
 
-                <View style={styles.limitsList}>
-                  <LimitRow
-                    label="Trabajadores"
-                    value={limits.maxWorkers === Infinity ? 'Ilimitados' : `Hasta ${limits.maxWorkers}`}
-                  />
-                  <LimitRow
-                    label="Locales"
-                    value={limits.maxLocations === Infinity ? 'Ilimitados' : `Hasta ${limits.maxLocations}`}
-                  />
-                  <LimitRow
-                    label="Horarios IA"
-                    value={limits.maxAiSchedulesPerMonth === Infinity ? 'Ilimitados' : `${limits.maxAiSchedulesPerMonth}/mes`}
-                  />
-                  {tier === 'starter' && <LimitRow label="Notif. WhatsApp" value="✅" />}
-                  {(tier === 'growth' || tier === 'pro') && <LimitRow label="Multisede" value="✅" />}
-                  {tier === 'pro' && <LimitRow label="Motor laboral completo" value="✅" />}
+                <View style={styles.features}>
+                  {featureLines(tier).map((line) => (
+                    <ThemedText key={line} style={styles.featureLine}>
+                      {`✓ ${line}`}
+                    </ThemedText>
+                  ))}
                 </View>
 
-                {isCurrent ? (
-                  <View style={styles.currentBadge}>
-                    <Text style={styles.currentLabel}>✓ Plan actual</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.upgradeBtn, isPro && styles.upgradeBtnPro, isHighlighted && styles.upgradeBtnHighlighted]}
-                    onPress={() => handleUpgrade(tier)}
-                    disabled={isLoading}
+                {CHECKOUT_ENABLED && tier !== 'gratis' && (!isCurrent || isTrialing) ? (
+                  <Pressable
+                    onPress={() => handleChoose(tier)}
+                    disabled={busyTier !== null}
+                    style={({ pressed }) => [styles.chooseBtn, isPro && styles.chooseBtnPro, pressed && styles.pressed]}
                     accessibilityRole="button"
-                    accessibilityLabel={`Actualizar a ${meta.label}`}
-                    accessibilityHint={`Activa el plan ${meta.label} por ${localPrice.symbol}${displayPrice}/mes`}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="#fff" size="small" />
+                    accessibilityLabel={t('pricing.choose', { plan: meta.label })}
+                    accessibilityHint={t('pricing.chooseHint')}
+                    accessibilityState={{ disabled: busyTier !== null }}>
+                    {busyTier === tier ? (
+                      <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.upgradeBtnText}>
-                        Activar {meta.label}
-                      </Text>
+                      <ThemedText style={styles.chooseText}>{t('pricing.choose', { plan: meta.label })}</ThemedText>
                     )}
-                  </TouchableOpacity>
-                )}
+                  </Pressable>
+                ) : null}
               </View>
             );
           })}
 
-          <Text style={styles.footer}>
-            Cancela cuando quieras · Sin permanencia · Precios en {
-              countryCode === 'PE' ? 'Soles (PEN)' :
-              countryCode === 'MX' ? 'Pesos MXN' :
-              countryCode === 'CO' ? 'Pesos COP' :
-              countryCode === 'BR' ? 'Reais (BRL)' :
-              countryCode === 'CL' ? 'Pesos CLP' : 'USD'
-            }
-          </Text>
+          {checkoutError ? (
+            <ThemedText style={styles.error} accessibilityRole="alert">
+              {checkoutError}
+            </ThemedText>
+          ) : null}
+          {!CHECKOUT_ENABLED ? <ThemedText style={styles.notice}>{t('pricing.checkoutSoon')}</ThemedText> : null}
+          <ThemedText style={styles.muted}>{t('pricing.trialTerms', { n: String(TRIAL_DAYS) })}</ThemedText>
+          <ThemedText style={styles.muted}>{t('pricing.planned')}</ThemedText>
         </ScrollView>
-      </View>
+      </ThemedView>
     </Modal>
   );
 }
 
-// ─── LimitRow ─────────────────────────────────────────────────────────────────
-
-function LimitRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.limitRow}>
-      <Text style={styles.limitLabel}>{label}</Text>
-      <Text style={styles.limitValue}>{value}</Text>
-    </View>
-  );
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtnText: {
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-  },
-  intervalRow: {
-    flexDirection: 'row',
-    margin: 16,
-    backgroundColor: Colors.light.surfaceSecondary,
-    borderRadius: 10,
-    padding: 3,
-  },
-  intervalBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  intervalBtnActive: {
-    backgroundColor: Colors.light.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  intervalLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.light.textSecondary,
-  },
-  intervalLabelActive: {
-    color: Colors.light.text,
-    fontWeight: '600',
-  },
-  discountBadge: {
-    backgroundColor: brand.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  discountLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  scroll: {
-    padding: 16,
-    gap: 12,
-  },
-  card: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 14,
-    padding: 18,
-    borderWidth: 1.5,
-    borderColor: Colors.light.border,
-    gap: 8,
-    marginBottom: 12,
-  },
-  cardHighlighted: {
-    borderColor: brand.primary,
-    shadowColor: brand.primary,
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  cardPro: {
-    borderColor: brand.proLight,
-    backgroundColor: brand.proSurface,
-  },
-  cardCurrent: {
-    opacity: 0.7,
-  },
-  popularBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: brand.primarySurface,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 4,
-  },
-  popularLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: brand.primaryDark,
-  },
-  cardHeader: {
-    gap: 2,
-  },
-  tierName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  tierNamePro: {
-    color: brand.pro,
-  },
-  tagline: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginTop: 4,
-  },
-  price: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: brand.primaryDark,
-  },
-  pricePro: {
-    color: brand.pro,
-  },
-  priceSub: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    paddingBottom: 4,
-  },
-  usdEquiv: {
-    fontSize: 11,
-    color: Colors.light.textTertiary,
-    marginTop: -4,
-  },
-  limitsList: {
-    gap: 6,
-    marginTop: 4,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  limitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  limitLabel: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-  },
-  limitValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  upgradeBtn: {
-    backgroundColor: brand.primary,
-    paddingVertical: 13,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  upgradeBtnPro: {
-    backgroundColor: brand.pro,
-  },
-  upgradeBtnHighlighted: {
-    shadowColor: brand.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  upgradeBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  currentBadge: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: Colors.light.surfaceSecondary,
-    borderRadius: 10,
-    marginTop: 8,
-  },
-  currentLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.textSecondary,
-  },
-  footer: {
-    fontSize: 12,
-    color: Colors.light.textTertiary,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitle: { flex: 1 },
+    closeBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    closeText: { fontSize: 18, color: colors.text },
+    scroll: { padding: 16, gap: 12, maxWidth: 720, width: '100%', alignSelf: 'center' },
+    muted: { fontSize: 13, color: colors.textSecondary },
+    trialNote: { fontSize: 14, color: colors.text },
+    intervalRow: { flexDirection: 'row', gap: 8 },
+    intervalBtn: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 10,
+      backgroundColor: colors.surface,
+    },
+    intervalBtnActive: { borderColor: brand.primaryDark, borderWidth: 2 },
+    intervalText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+    intervalTextActive: { color: colors.tintText, fontWeight: '600' },
+    card: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 16,
+      gap: 6,
+    },
+    cardHighlighted: { borderColor: brand.pro, borderWidth: 2 },
+    cardCurrent: { borderColor: brand.primaryDark, borderWidth: 2 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    planName: { fontSize: 18, color: colors.text },
+    planNamePro: { color: colors.text },
+    currentBadge: { backgroundColor: brand.primaryDark, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+    currentText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+    price: { fontSize: 22, fontWeight: '700', color: colors.text },
+    features: { gap: 4, marginTop: 6 },
+    featureLine: { fontSize: 14, color: colors.text },
+    chooseBtn: {
+      marginTop: 10,
+      minHeight: 44,
+      borderRadius: 10,
+      backgroundColor: brand.primaryDark,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    chooseBtnPro: { backgroundColor: brand.proDark },
+    chooseText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
+    pressed: { opacity: 0.85 },
+    notice: {
+      fontSize: 14,
+      color: colors.text,
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 10,
+      padding: 12,
+    },
+    error: { fontSize: 14, color: colors.error },
+  });

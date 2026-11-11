@@ -290,3 +290,16 @@ export function validateLocationInput(raw: unknown, options: LocationValidationO
     },
   };
 }
+
+/**
+ * True when the stored jurisdiction is no longer the one its stored place
+ * resolves to: rules were added for its region after it was confirmed (a
+ * Canadian location stored as federal `CA` with no province, an Alberta one
+ * stored as `CA-OTHER`). The jurisdiction is never changed for the user; the
+ * UI asks them to confirm the location again.
+ */
+export const locationNeedsReconfirm = (
+  location: Pick<BusinessLocation, 'countryCode' | 'regionCode' | 'cityCode' | 'jurisdictionCode'>,
+): boolean =>
+  location.jurisdictionCode !==
+  resolveJurisdiction({ country: location.countryCode, region: location.regionCode, city: location.cityCode });

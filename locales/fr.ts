@@ -897,7 +897,7 @@ export const fr = {
     rosterAssignment: 'Attribution des quarts',
     demandTargets: 'Objectifs de demande',
     posCsvImport: 'Import CSV caisse',
-    autoAssign: 'Attribution automatique',
+    autoAssign: 'Planification automatique illimitée',
     advancedAnalytics: 'Analyses avancées',
     multiLocation: 'Multi-sites',
     messaging: 'Messagerie & communication',
