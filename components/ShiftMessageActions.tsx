@@ -77,7 +77,7 @@ function ConfirmationToast({ visible }: { visible: boolean }): React.ReactElemen
 
   return (
     <Animated.View style={[styles.toast, { opacity }]} pointerEvents="none">
-      <ThemedText style={styles.toastText}>✓ Message sent</ThemedText>
+      <ThemedText style={styles.toastText}>✓ Message saved</ThemedText>
     </Animated.View>
   );
 }

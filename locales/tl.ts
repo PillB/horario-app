@@ -28,7 +28,7 @@ export const tl = {
     tryAgain: 'Subukang muli',
     publish: 'I-publish',
     unpublish: 'I-unpublish',
-    notify: 'Abisuhan',
+    notify: 'Markahang nasabihan',
     notified: 'Naabisuhan na',
     draft: 'Draft',
     published: 'Nai-publish na',
@@ -421,7 +421,7 @@ export const tl = {
       emptyDesc: 'Lumikha ng shift sa Paglikha ng Shift sa itaas — lilitaw ito dito agad.',
       publishA11y: 'I-publish ang shift na ito',
       unpublishA11y: 'Ibalik ang shift na ito sa draft',
-      notifyA11y: 'Magpadala ng abiso para sa shift na ito',
+      notifyA11y: 'Markahan na nasabihan na ang manggagawa tungkol sa shift na ito', notifyHint: 'Itinatala na nasabihan mo ang manggagawa. Walang mensaheng ipinapadala.',
       upcoming: {
         title: 'Mga paparating na shift',
         subtitle: 'Manatiling handa para sa susunod na window ng roster.',

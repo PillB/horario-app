@@ -2,6 +2,12 @@ import { StyleSheet } from 'react-native';
 import { Colors, brand, ThemeColors } from '@/constants/Colors';
 
 export const makeSchedulerStyles = (colors: ThemeColors) => StyleSheet.create({
+  notesModalBody: {
+    flex: 1,
+  },
+  notesModalMessages: {
+    maxHeight: '45%',
+  },
   screenContainer: {
     flex: 1,
     position: 'relative',

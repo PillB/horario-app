@@ -81,6 +81,7 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'updateShiftStatus',
   'markShiftNotified',
   'deleteRosterShift',
+  'sendShiftMessage',
   'upsertTargets',
   'deleteDemandTarget',
   // POS sales feed the demand forecast.
@@ -969,6 +970,53 @@ async function markShiftNotified(client: SupabaseClient, ctx: AuthContext, id: u
   return existing ? fail(409, 'Publish the shift before notifying') : notFound();
 }
 
+// ─── Shift messages ───────────────────────────────────────────────────────────
+// A message a manager writes for the worker of one roster shift. It is stored
+// as `pending`: no delivery channel (push, SMS, email) is connected, so nothing
+// leaves the server and the status says so.
+
+const SHIFT_MESSAGE_COLUMNS = 'id, roster_id, worker_id, channel, body, status, sent_at, created_at';
+const SHIFT_MESSAGE_MAX_BODY = 1000;
+const SHIFT_MESSAGE_LIST_LIMIT = 100;
+type ShiftMessageRow = {
+  id: string; roster_id: string; worker_id: string; channel: string; body: string; status: string;
+  sent_at: string | null; created_at: string;
+};
+const rowToShiftMessage = (row: ShiftMessageRow) => ({
+  id: row.id, shiftId: row.roster_id, workerId: row.worker_id, channel: row.channel, body: row.body,
+  status: row.status, sentAt: row.sent_at, createdAt: row.created_at,
+});
+
+async function sendShiftMessage(client: SupabaseClient, ctx: AuthContext, id: unknown, body: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const text = typeof body === 'string' ? body.trim() : '';
+  if (!text) return badRequest('body is required');
+  if (text.length > SHIFT_MESSAGE_MAX_BODY) return badRequest(`body must be ${SHIFT_MESSAGE_MAX_BODY} characters or fewer`);
+  const shift = await ownRosterRow(client, ctx, id);
+  if (isResult(shift)) return shift;
+  if (!shift) return notFound();
+  const { data, error } = await client
+    .from('shift_messages')
+    .insert({ account_id: ctx.accountId, roster_id: shift.id, worker_id: shift.worker_id, channel: 'push', body: text, status: 'pending' })
+    .select(SHIFT_MESSAGE_COLUMNS)
+    .single();
+  if (error) return dbFailure('insert shift_messages', error);
+  return ok({ success: true, message: rowToShiftMessage(data as ShiftMessageRow) });
+}
+
+async function listShiftMessages(client: SupabaseClient, ctx: AuthContext, id: unknown): Promise<Result> {
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client
+    .from('shift_messages')
+    .select(SHIFT_MESSAGE_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .eq('roster_id', id)
+    .order('created_at', { ascending: false })
+    .limit(SHIFT_MESSAGE_LIST_LIMIT);
+  if (error) return dbFailure('select shift_messages', error);
+  return ok({ messages: ((data ?? []) as ShiftMessageRow[]).map(rowToShiftMessage) });
+}
+
 
 // ─── Business locations ───────────────────────────────────────────────────────
 // Labor law follows the work location, so the jurisdiction lives here. The
@@ -1302,6 +1350,10 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return markShiftNotified(client, ctx, p.id);
     case 'deleteRosterShift':
       return deleteOwned(client, 'roster', ctx, p.id);
+    case 'sendShiftMessage':
+      return sendShiftMessage(client, ctx, p.id, p.body);
+    case 'listShiftMessages':
+      return listShiftMessages(client, ctx, p.id);
     case 'listLocations':
       return listLocations(client, ctx);
     case 'upsertLocation':

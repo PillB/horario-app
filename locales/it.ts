@@ -36,7 +36,7 @@ export const it = {
     tryAgain: 'Riprova',
     publish: 'Pubblica',
     unpublish: 'Ritira',
-    notify: 'Notifica',
+    notify: 'Segna come avvisato',
     notified: 'Notificato',
     draft: 'Bozza',
     published: 'Pubblicato',
@@ -432,7 +432,7 @@ export const it = {
       emptyDesc: 'Crea un turno nella sezione Creazione turni sopra — appare qui istantaneamente.',
       publishA11y: 'Pubblica questo turno',
       unpublishA11y: 'Riporta questo turno in bozza',
-      notifyA11y: 'Invia notifica per questo turno',
+      notifyA11y: 'Segna che il lavoratore è stato avvisato di questo turno', notifyHint: 'Registra che hai avvisato il lavoratore. Non viene inviato alcun messaggio.',
       upcoming: {
         title: 'Turni imminenti',
         subtitle: 'Rimani in anticipo sulla prossima finestra del piano.',

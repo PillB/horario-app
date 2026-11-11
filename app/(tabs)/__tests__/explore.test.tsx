@@ -30,6 +30,9 @@ jest.mock('@/contexts/LocaleContext', () => {
   };
 });
 
+// The insights panel loads its own data; it has its own tests.
+jest.mock('@/components/analytics/InsightsPanel', () => ({ InsightsPanel: () => null }));
+
 // Themed components need useColorScheme.
 jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',

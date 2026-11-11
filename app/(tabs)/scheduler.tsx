@@ -24,6 +24,16 @@ import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
 import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
 import { SyncNotice } from '@/components/scheduler/SyncNotice';
 import { SectionNav } from '@/components/scheduler/SectionNav';
+import { PlaybookLibrary } from '@/components/scheduler/PlaybookLibrary';
+import { AdvancedControls } from '@/components/scheduler/AdvancedControls';
+import PosUploadSection from '@/components/scheduler/PosUploadSection';
+import { ForecastEnhancementsCard } from '@/components/scheduler/ForecastEnhancementsCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
+import { TeamTools } from '@/components/scheduler/TeamTools';
+import { ShiftMessagesPanel } from '@/components/scheduler/ShiftMessagesPanel';
+import { usePosData } from '@/hooks/usePosData';
+import { useActivationMilestone } from '@/hooks/useActivationMilestone';
+import { useTimeToSchedule } from '@/hooks/useTimeToSchedule';
 import { useSchedulerHandlers } from '@/hooks/useSchedulerHandlers';
 import { makeSchedulerStyles } from '@/styles/scheduler.styles';
 import { FREE_AUTO_ASSIGN_LIMIT } from '@/hooks/useUsageLimit';
@@ -52,6 +62,10 @@ export default function SchedulerScreen() {
     rosterLoaded,
     syncStatus,
     retrySync,
+    lastSyncedAt,
+    handleConstraintsChange,
+    handleImportPlaybookTemplate,
+    accountId,
     forecastError,
     forecastModels,
     forecastNotices,
@@ -156,6 +170,33 @@ export default function SchedulerScreen() {
   // completion restored from storage or a later visit to an account whose
   // workers were all removed must not write sample rows (QA 2026-10-28).
   const { sampleDataOffered, takeSampleDataOffer } = useWelcomeTour();
+  // First-schedule milestone and time-to-schedule, measured on this device:
+  // the target is defined once a template exists, reached on the first publish.
+  const { activationState, markTargetDefined, markActivationReached, showSuccessFeedback, dismissSuccessFeedback } =
+    useActivationMilestone();
+  const { startSession, markSchedulePublished } = useTimeToSchedule();
+  const publishedCount = roster.filter((shift) => shift.status === 'Published').length;
+  const publishedSeenRef = React.useRef<number | null>(null);
+  // The message is for the visit in which the first publish happened, not every later visit.
+  const [activatedThisVisit, setActivatedThisVisit] = React.useState(false);
+  useEffect(() => { startSession(); }, [startSession]);
+  useEffect(() => {
+    if (templatesLoaded && shiftTemplates.length > 0) void markTargetDefined();
+  }, [templatesLoaded, shiftTemplates.length, markTargetDefined]);
+  useEffect(() => {
+    if (!rosterLoaded) return;
+    const seen = publishedSeenRef.current;
+    publishedSeenRef.current = publishedCount;
+    // Only a publish made in this visit counts, not shifts that were already published.
+    if (seen !== null && publishedCount > seen) {
+      if (!activationState.activation_reached) setActivatedThisVisit(true);
+      void markActivationReached();
+      void markSchedulePublished();
+    }
+  }, [rosterLoaded, publishedCount, activationState.activation_reached, markActivationReached, markSchedulePublished]);
+
+  // Uploaded sales history, for the forecast adjustments card on the demand step.
+  const { sales: posSales, refresh: refreshPosSales } = usePosData(accountId);
   useEffect(() => {
     if (!sampleDataOffered || !workersLoaded) return;
     if (!takeSampleDataOffer()) return;
@@ -168,6 +209,15 @@ export default function SchedulerScreen() {
     templateName: string;
     date: string;
   } | null>(null);
+
+  // Role and hours of the shift whose notes are open, for its messages.
+  const selectedShiftMessageContext = React.useMemo(() => {
+    if (!selectedShiftForNotes) return null;
+    const shift = roster.find((entry) => entry.id === selectedShiftForNotes.shiftId);
+    const template = shift ? shiftTemplates.find((tpl) => tpl.id === shift.templateId) : undefined;
+    if (!shift || !template) return null;
+    return { date: shift.date, role: template.role, startTime: template.start, endTime: template.end };
+  }, [roster, selectedShiftForNotes, shiftTemplates]);
 
   // [Finding 3] Banner text colours derived from theme-aware semantic tokens
   //   success: Colors[scheme].success on Colors[scheme].successSurface
@@ -254,6 +304,11 @@ export default function SchedulerScreen() {
         counts={{ workers: workers.length, templates: shiftTemplates.length, shifts: roster.length }}
       />
       </TourStep>
+      <SyncStatusBar
+        status={syncStatus.loading ? 'saving' : syncStatus.errors.length === 0 && lastSyncedAt ? 'saved' : 'idle'}
+        lastSyncedAt={lastSyncedAt}
+        onRetry={retrySync}
+      />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         {/* The paid-plan prompt sits where auto-assign is used. */}
         {activeSection === 'shifts' ? (
@@ -266,6 +321,25 @@ export default function SchedulerScreen() {
           truncated={syncStatus.truncated}
           onRetry={retrySync}
         />
+
+        {showSuccessFeedback && activatedThisVisit ? (
+          <ThemedView style={[styles.banner, styles.bannerSuccess]} accessibilityLiveRegion="polite" testID="activation-banner">
+            <ThemedText style={[styles.bannerText, { color: bannerSuccessTextColor }]}>
+              {activationState.time_to_activation_ms !== null
+                ? t('scheduler.activation.reachedIn', { n: String(Math.max(1, Math.round(activationState.time_to_activation_ms / 60000))) })
+                : t('scheduler.activation.reached')}
+            </ThemedText>
+            <ThemedText
+              onPress={dismissSuccessFeedback}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.dismiss')}
+              accessibilityHint={t('scheduler.activation.dismissHint')}
+              style={styles.linkText}
+            >
+              {t('common.dismiss')}
+            </ThemedText>
+          </ThemedView>
+        ) : null}
 
         {actionBanner ? (
           <ThemedView
@@ -314,6 +388,9 @@ export default function SchedulerScreen() {
             router={router}
           />
           </TourStep>
+          <ErrorBoundary>
+            <TeamTools accountId={accountId} workers={workers} onImported={retrySync} />
+          </ErrorBoundary>
         </View>
         ) : null}
 
@@ -346,6 +423,19 @@ export default function SchedulerScreen() {
             onBulkSave={handlePosTargetsGenerated}
           />
           </TourStep>
+          <ErrorBoundary>
+            <PosUploadSection accountId={accountId} onUploadComplete={() => { void refreshPosSales(); }} />
+          </ErrorBoundary>
+          {posSales.length > 0 ? (
+            <ErrorBoundary>
+              <ForecastEnhancementsCard
+                sales={posSales}
+                baseForecast={demandTargets}
+                roster={roster}
+                shiftTemplates={shiftTemplates}
+              />
+            </ErrorBoundary>
+          ) : null}
         </View>
         ) : null}
 
@@ -374,12 +464,21 @@ export default function SchedulerScreen() {
             workers={workers}
           />
           </TourStep>
+          <ErrorBoundary>
+            <PlaybookLibrary onImportTemplate={(tpl) => { void handleImportPlaybookTemplate(tpl); }} />
+          </ErrorBoundary>
         </View>
         ) : null}
 
         {/* With shifts on the roster it comes first; an empty roster starts with the form. */}
         {activeSection === 'shifts' ? (
-          roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>
+          <>
+            {roster.length > 0 ? <>{rosterPanel}{assignPanel}</> : <>{assignPanel}{rosterPanel}</>}
+            {/* Business limits for auto-assign; the stricter of these and the law applies. */}
+            <ErrorBoundary>
+              <AdvancedControls onConstraintsChange={handleConstraintsChange} />
+            </ErrorBoundary>
+          </>
         ) : null}
 
         <WellnessPrompt
@@ -396,6 +495,7 @@ export default function SchedulerScreen() {
         onRequestClose={() => setSelectedShiftForNotes(null)}
       >
         {selectedShiftForNotes ? (
+          <View style={styles.notesModalBody}>
           <ShiftNotesPanel
             shiftId={selectedShiftForNotes.shiftId}
             workerName={selectedShiftForNotes.workerName}
@@ -403,6 +503,14 @@ export default function SchedulerScreen() {
             date={selectedShiftForNotes.date}
             onClose={() => setSelectedShiftForNotes(null)}
           />
+          {selectedShiftMessageContext ? (
+            <ScrollView style={styles.notesModalMessages}>
+              <ErrorBoundary>
+                <ShiftMessagesPanel shiftId={selectedShiftForNotes.shiftId} {...selectedShiftMessageContext} />
+              </ErrorBoundary>
+            </ScrollView>
+          ) : null}
+          </View>
         ) : null}
       </Modal>
     </ThemedView>

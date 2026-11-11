@@ -364,7 +364,8 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
       ] = await Promise.all([
         listRoster(accountId, { fromDate: today, toDate: futureDate }),
         listRoster(accountId, { fromDate: pastDate, toDate: today }),
-        loadDemandTargets({ date: today }),
+        // Every stored target; the proxy's `date` filter is an exact match.
+        loadDemandTargets(),
         listWorkers(accountId),
         listShiftTemplates(accountId),
       ]);
@@ -381,7 +382,7 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
       );
 
       const gaps = computeCapacityGaps(
-        demandTargets,
+        demandTargets.filter((target) => target.date >= today && target.date <= futureDate),
         futureRoster,
         templates,
         workers,

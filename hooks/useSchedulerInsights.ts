@@ -5,7 +5,7 @@ export type InsightSeverity = 'critical' | 'warning' | 'tip';
 
 export type InsightAction = {
   label: string;
-  href: '/(tabs)/scheduler' | '/(tabs)/scheduler?section=demand' | '/(tabs)/scheduler?section=workers' | '/(tabs)/scheduler?section=templates';
+  href: '/(tabs)/scheduler' | '/(tabs)/scheduler?section=forecast' | '/(tabs)/scheduler?section=workers' | '/(tabs)/scheduler?section=templates';
 };
 
 export type SchedulerInsight = {
@@ -86,7 +86,7 @@ export function useSchedulerInsights(accountId: string): UseSchedulerInsightsRet
         body: `~$${uncoveredRevenue.toLocaleString()} in uncovered revenue exposure. Add demand targets and assign shifts.`,
         action: {
           label: 'Review demand targets',
-          href: '/(tabs)/scheduler?section=demand',
+          href: '/(tabs)/scheduler?section=forecast',
         },
         impactEstimate: 'high',
         impactPct: 40,

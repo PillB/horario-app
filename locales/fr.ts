@@ -36,7 +36,7 @@ export const fr = {
     tryAgain: 'Réessayer',
     publish: 'Publier',
     unpublish: 'Dépublier',
-    notify: 'Notifier',
+    notify: 'Marquer comme prévenu',
     notified: 'Notifié',
     draft: 'Brouillon',
     published: 'Publié',
@@ -432,7 +432,7 @@ export const fr = {
       emptyDesc: "Créez une équipe dans la section Création d'équipes ci-dessus — elle apparaît ici instantanément.",
       publishA11y: 'Publier cette équipe',
       unpublishA11y: 'Repasser cette équipe en brouillon',
-      notifyA11y: 'Envoyer une notification pour cette équipe',
+      notifyA11y: 'Marquer que la personne a été prévenue de ce poste', notifyHint: 'Enregistre que vous avez prévenu la personne. Aucun message n’est envoyé.',
       upcoming: {
         title: 'Prochaines équipes',
         subtitle: "Garder une longueur d'avance sur la prochaine fenêtre de planning.",

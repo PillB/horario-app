@@ -28,7 +28,7 @@ export const sw = {
     tryAgain: 'Jaribu tena',
     publish: 'Chapisha',
     unpublish: 'Futa uchapishaji',
-    notify: 'Arifu',
+    notify: 'Weka alama ameambiwa',
     notified: 'Amearifu',
     draft: 'Rasimu',
     published: 'Imechapishwa',
@@ -421,7 +421,7 @@ export const sw = {
       emptyDesc: 'Unda zamu katika Uundaji wa Zamu hapo juu — itaonekana hapa mara moja.',
       publishA11y: 'Chapisha zamu hii',
       unpublishA11y: 'Rudisha zamu hii kwenye rasimu',
-      notifyA11y: 'Tuma arifa kwa zamu hii',
+      notifyA11y: 'Weka alama kwamba mfanyakazi ameambiwa kuhusu zamu hii', notifyHint: 'Hurekodi kwamba umemwambia mfanyakazi. Hakuna ujumbe unaotumwa.',
       upcoming: {
         title: 'Zamu zinazokuja',
         subtitle: 'Kuwa mbele ya dirisha la ratiba lijalo.',

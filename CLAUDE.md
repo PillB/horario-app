@@ -93,13 +93,18 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Scheduler UI | Working | One step at a time behind a step bar (`components/scheduler/SectionNav.tsx`: team, shift templates, demand, roster; `?section=` deep link, `goToSection` in `useSchedulerHandlers`); data loads from the proxy and survives a reload; first-load / error / truncated notice with retry (`SyncNotice.tsx`); optimistic writes roll back with the server error in the banner; availability takes several weekdays at once — re-verified 2026-11-10 (CHG-095), full flow run in a browser (web only, no device) |
 | Worker management (add/view) | Partial | Persisted through the proxy (`useWorkers`); labor attributes birth date, night worker, weekly-limit opt-out, no fixed hours (`20261020000002_worker_labor_attributes.sql`, `utils/workerLaborValidation.ts`, 13+ and real past date checked server-side) — re-verified 2026-10-20. Remove (two-tap) in the UI; `updateWorker` in the hook, no edit form (CHG-088) |
 | Shift template management | Working | Persisted through the proxy (`useShiftTemplates`: load / add / update / remove, paged, rollback); delete refused with 409 while roster shifts use it; no edit form — re-verified 2026-10-21 (CHG-088) |
-| Roster (shift assignment) | Working | Persisted through the proxy (`useRoster`: load / add / update / status / notify / remove, paged); a status change clears `notified`, notify needs Published (409); one row per (account, date, worker, template) (`20261021000001_roster_unique_slot.sql`, 409 on duplicate); Publish / Unpublish / Notify / Remove buttons on each row — re-verified 2026-10-21 (CHG-088). Notify sets the flag only; no push |
+| Roster (shift assignment) | Working | Persisted through the proxy (`useRoster`: load / add / update / status / notify / remove, paged); a status change clears `notified`, notify needs Published (409); one row per (account, date, worker, template) (`20261021000001_roster_unique_slot.sql`, 409 on duplicate); Publish / Unpublish / Notify / Remove buttons on each row — re-verified 2026-10-21 (CHG-088). The "Mark as told" button sets the `notified` flag only and says so; nothing is sent (CHG-096) |
 | Availability tracking | Working | Persisted through the proxy (`worker_availability`, via `useWorkers` add / remove slot), validated by `utils/schedulingValidation.ts` on both sides — re-verified 2026-10-21 (CHG-088) |
 | Demand forecasting | Working | Statistical forecaster fitted in the client (`services/forecasting/`): seasonal naive, weekday profile with recency weighting, Holt-Winters (additive weekly season, damped trend); chosen per role by rolling-origin backtest on MASE vs. seasonal naive; intervals from backtest-error quantiles; `required` = forecast at the service level (default P80), rounded up. Proxy only pages history (`forecastHistory`, `listForecastSignals`). External API (EXPO_PUBLIC_FORECAST_API_URL) optional, tried first — added 2026-10-20 (CHG-086) |
 | Demand target overrides | Working | Persisted via proxy: `loadTargets` returns overrides only (paged, date / role filters), `upsertTargets` writes validated override rows, `deleteDemandTarget` (manager only, 404 when none); `useDemandForecast.removeOverride` rolls back on failure. No remove button in the UI yet — re-verified 2026-10-21 (CHG-088) |
 | Uncovered-loss metric | Working | Pure function, well-tested |
 | Onboarding checklist | Working | Persisted to Supabase via proxy |
 | Session wellness prompts | Working | In-memory, no persistence |
+| Streak, personalized actions, achievements, invite | Partial | On Home (CHG-097). Personalized actions are built from stored data; streak and invite code live on the device only; an invite code joins no one |
+| Team import and days off | Working / Partial | `components/scheduler/TeamTools.tsx`: CSV import / export saved through the proxy; days off stored on the device, respected by auto-assign (`workersOffOn`) — CHG-097 |
+| Playbooks, advanced controls, POS upload | Working | Templates step: `PlaybookLibrary` saves real templates. Roster step: `AdvancedControls` limits merge into auto-assign once changed. Demand step: `PosUploadSection` + `ForecastEnhancementsCard` — CHG-097 |
+| Shift messages | Partial | `sendShiftMessage` / `listShiftMessages` proxy actions on `shift_messages`; panel under each shift's notes (`ShiftMessagesPanel`). Stored as `pending`, never delivered — CHG-097 |
+| Analytics insights | Working | `components/analytics/InsightsPanel.tsx`: recommendations, capacity outlook, demand this week from stored roster, workers and targets — CHG-097 |
 | Push notifications | Missing | `notified` flag exists but no actual push |
 | Authentication | Working | Clerk sign-in; API routes verify Clerk session JWTs and fail closed (`server/proxyAuth.ts`) — re-verified 2026-10-18 |
 | Permissions (manager vs member) | Working | `canManage` = personal account, or org role `admin` / `org:admin`. Manager-only (`MANAGER_ACTIONS` in `app/api/secure-proxy+api.ts`, 403 for a member): every scheduling write (workers incl. labor attributes, availability, templates, roster upsert / status / notify / delete, demand overrides, POS upload), locations, billing. Members: every read, `forecast` (model rows stored only for a manager), their own onboarding and usage count. The client has no role signal, so write controls stay visible and the 403 text shows in the banner / form error — added 2026-10-21 (CHG-091). Reversible decision |
@@ -249,7 +254,7 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `services/forecasting/` | Forecast models (`models.ts`), backtest selection and intervals (`selection.ts`), per-role pipeline (`statisticalForecast.ts`) |
 | `utils/locationValidation.ts` | Location validation shared by client and proxy (jurisdiction must match the place) |
 | `components/locations/LocationSetupCard.tsx` | Location / jurisdiction confirmation form (detection pre-fills only) |
-| `services/supabaseClient.ts` | Anon client factory |
+| `services/supabaseClient.ts` | Anon client factory (unused by app code) |
 | `services/onboardingProgress.ts` | Onboarding persistence |
 | `hooks/useCompliance.ts` | Labor-rule findings for the visible roster week, per location |
 | `utils/autoAssignSettings.ts` | Legal + business constraints and time zone for an auto-assign run |
@@ -276,7 +281,8 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 6. ~~No authentication~~ — Clerk sessions verified in the API routes (`server/proxyAuth.ts`); the tenant comes from the session, not from env vars.
 7. ~~No error boundaries~~ — `ErrorBoundary` wraps the app in `app/_layout.tsx`.
 8. ~~`explore.tsx` placeholder~~ — it is the analytics screen (all-time, no date filter yet).
-13. About 6,300 lines of components, hooks and services are not reachable from any screen (CHG-095 audit lists them); wire or delete.
+13. Unwired features are wired in, not deleted (Pablo, 2026-11-10; CHG-097). Still unreachable: pricing (`PricingModal`, `FeatureGate`, `useReferral`, waiting on the tier decision), `useAutoAssign` / `useDemandAwareSchedule`, `services/supabaseClient.ts`.
+15. Device-only state with no table: streak, invite code, days off, first-schedule milestone and timing. Invite codes do not join anyone to a team; shift messages are stored as `pending` and never delivered (no channel).
 14. `e2e/` Playwright specs are stale and not in CI.
 9. ~~Sample shift dates hardcoded to December 2024~~ — no sample data in production code; the tour seeds sample rows only after workers loaded empty without error (CHG-088). Tests still use 2024 dates.
 10. No rate limiting on the secure proxy (authentication is enforced, see #6).

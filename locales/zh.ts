@@ -28,7 +28,7 @@ export const zh = {
     tryAgain: '再试一次',
     publish: '发布',
     unpublish: '取消发布',
-    notify: '通知',
+    notify: '标记为已告知',
     notified: '已通知',
     draft: '草稿',
     published: '已发布',
@@ -377,7 +377,7 @@ export const zh = {
       emptyDesc: '在上方班次创建中创建班次——将立即显示在此处。',
       publishA11y: '发布此班次',
       unpublishA11y: '将此班次移回草稿',
-      notifyA11y: '发送此班次通知',
+      notifyA11y: '标记已将此班次告知员工', notifyHint: '记录你已告知员工。不会发送任何消息。',
       upcoming: {
         title: '即将到来的班次',
         subtitle: '提前掌握下一个排班窗口。',

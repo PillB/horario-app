@@ -23,6 +23,7 @@ import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
+import { InsightsPanel } from '@/components/analytics/InsightsPanel';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { PageTitle } from '@/components/PageTitle';
@@ -292,6 +293,9 @@ export default function AnalyticsScreen() {
                 <ThemedText style={styles.primaryButtonText}>{t('analytics.openScheduler')}</ThemedText>
               </Pressable>
             </ThemedView>
+            <ErrorBoundary>
+              <InsightsPanel accountId={ACCOUNT_ID} />
+            </ErrorBoundary>
           </>
         )}
       </ScrollView>

@@ -39,7 +39,7 @@ export const en = {
     tryAgain: 'Try again',
     publish: 'Publish',
     unpublish: 'Unpublish',
-    notify: 'Notify',
+    notify: 'Mark as told',
     notified: 'Notified',
     draft: 'Draft',
     published: 'Published',
@@ -190,14 +190,30 @@ export const en = {
       desc: 'Add workers to unlock auto-assign and coverage tracking. Each worker added means fewer scheduling gaps.',
       cta: 'Invite a team member →',
       ctaA11y: 'Invite a team member to your roster',
+      ctaHint: 'Opens the invite code for your team',
     },
     personalizedActions: {
       title: 'Personalized actions',
+    },
+    feed: {
+      gapsTitle: 'Fill {n} staffing gap(s)',
+      gapsSummary: 'Published shifts do not cover the demand yet. Assign or auto-assign the open positions.',
+      draftsTitle: 'Publish {n} draft shift(s)',
+      draftsSummary: 'Drafts are not visible in coverage or analytics until they are published.',
+      availabilityTitle: 'Review team availability',
+      availabilitySummary: 'Add time off and changed hours so auto-assign only picks people who can work.',
+      forecastTitle: 'Set demand for the week',
+      forecastSummary: 'Run a forecast or enter targets so gaps can be measured.',
     },
   },
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    activation: {
+      reached: 'First schedule published. Your team can now be told their shifts.',
+      reachedIn: 'First schedule published, {n} min after you first opened the app.',
+      dismissHint: 'Hides this message',
+    },
     // Stored data: load state and failed saves (CHG-088)
     sync: {
       loading: 'Loading your saved schedule…',
@@ -477,10 +493,10 @@ export const en = {
       emptyDesc: 'Create a shift in Shift Creation above — it appears here instantly.',
       publishA11y: 'Publish this shift',
       unpublishA11y: 'Move this shift back to draft',
-      notifyA11y: 'Send notification for this shift',
+      notifyA11y: 'Mark this shift as told to the worker',
       publishHint: 'Checks availability and overlaps, then publishes the shift',
       unpublishHint: 'Moves the shift back to draft; it must be sent again after the next publish',
-      notifyHint: 'Records that the worker was sent this shift',
+      notifyHint: 'Records that you told the worker. No message is sent.',
       upcomingEmpty: 'No upcoming shifts. Assign one in Shift Creation above.',
       upcoming: {
         title: 'Upcoming shifts',
@@ -494,7 +510,7 @@ export const en = {
         scheduled: '{n} scheduled',
         shortfall: 'Shortfall: {n}',
       },
-      tooltip: '🗓 Your live roster calendar. Shifts appear as soon as you save them. Click "Publish" to lock a shift in, then "Notify" to alert the worker. Published shifts feed the Analytics tab with hours and coverage data.',
+      tooltip: '🗓 Your live roster calendar. Shifts appear as soon as you save them. Click "Publish" to lock a shift in, then tell the worker and mark the shift as told (no message is sent). Published shifts feed the Analytics tab with hours and coverage data.',
       // Calendar view
       calendarView: 'Calendar',
       listView: 'List',
@@ -578,7 +594,55 @@ export const en = {
   },
 
   // ─── Analytics screen ──────────────────────────────────────────────────────
+  shiftMessages: {
+    title: 'Messages for this shift',
+    notDelivered: 'Messages are saved with the shift. They are not delivered yet: no push, SMS or email channel is connected.',
+    empty: 'No messages saved for this shift.',
+    statusPending: 'Saved, not delivered',
+  },
+
+  teamTools: {
+    importTitle: 'Import your team',
+    importHelp: 'Paste one person per line: name, role, skills. Separate several skills with |.',
+    importPlaceholder: 'Ana Torres, Barista, opening|latte art',
+    importInputA11y: 'Team list as CSV',
+    importButton: 'Import team',
+    importButtonHint: 'Saves each line as a worker',
+    exportButton: 'Copy team as CSV',
+    exportButtonHint: 'Puts the current team in the box as CSV',
+    imported: '{n} worker(s) imported.',
+    exported: 'Your team is in the box as CSV.',
+    daysOffTitle: 'Days off',
+    daysOffHelp: 'Dates a person cannot work. Auto-assign skips them on those dates. Saved on this device only.',
+    daysOffWorker: 'Worker',
+    daysOffWorkerHint: 'Shows and adds days off for this person',
+    dayOffDate: 'Date (YYYY-MM-DD)',
+    dayOffDateHint: 'The day this person cannot work',
+    dayOffDateError: 'Enter a real date as YYYY-MM-DD.',
+    dayOffReason: 'Reason (optional)',
+    dayOffReasonPlaceholder: 'Holiday',
+    dayOffReasonHint: 'A note for yourself',
+    dayOffAdd: 'Add day off',
+    dayOffAddHint: 'Saves the day off for the selected person',
+    daysOffEmpty: 'No days off for this person.',
+    dayOffRemove: 'Remove day off on {date}',
+    dayOffRemoveHint: 'Deletes this day off',
+  },
+
   analytics: {
+    insights: {
+      actionsTitle: 'Recommended actions',
+      actionsEmpty: 'Nothing needs attention right now.',
+      strategicTitle: 'Longer-term',
+      capacityTitle: 'Capacity outlook',
+      gapRow: '{available} of {required} available',
+      workloadRow: '{hours} h in the last 4 weeks',
+      demandTitle: 'Demand this week',
+      demandPeak: 'Peak {day}: {n}',
+      demandAvg: '{n} per day',
+      demandChange: '{role}, {date}: {pct}% against last week',
+      accuracyRow: '{role}, {date}: forecast {predicted}, scheduled {actual}',
+    },
     title: 'Analytics',
     subtitle: 'Scheduling performance at a glance.',
     tooltip: '📊 Real-time scheduling metrics. Coverage rate shows how much demand you\'re filling. Revenue at risk estimates what uncovered slots cost you. Worker hours tracks fairness across your team. Check this tab after publishing shifts.',

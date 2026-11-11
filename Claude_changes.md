@@ -7,11 +7,67 @@
 ---
 
 ### [SUMMARY] — 2026-11-10 10:50 UTC
-**Last CHG completed:** CHG-095
+**Last CHG completed:** CHG-095 (see CHG-096 below for the follow-up pass)
 **Current state:** The scheduler is four steps (team, templates, demand, roster) with one shown at a time; the tour is a non-blocking overlay with three guides; Home is a dashboard (this week, location setup, setup checklist, upcoming shifts, staffing gaps, quick actions). Checked in Chromium at 1280 and 390 px against a local Supabase.
 **Active decisions:** Violet is for paid-plan prompts only, teal 700 for primary actions. No tour step blocks. Home shows nothing that is not backed by stored data (streak, feed, achievements and the local-only invite code are gone). `?section=` values stay `workers | templates | forecast | shifts`.
 **Next action:** Pablo decides on the unwired features listed under CHG-095 ("Not done"); then rewrite the Playwright specs in `e2e/` for the new layout and add them to CI.
 **Watch out for:** `e2e/*.spec.ts` are stale (they describe the pre-CHG-088 in-memory app and the old tour) and are not run in CI. Locale files still hold copy for removed features and guides (unused keys). The static `schedulerStyles` export is light-theme only.
+
+---
+
+### CHG-097 — 2026-11-10 UTC
+**Type:** FEATURE + REVERT (Pablo: "remove nothing, wire in, including things you previously removed")
+
+**Decision (Pablo, 2026-11-10):** nothing is deleted for being unwired. Unreachable features are wired in instead. This reverses the deletions of CHG-096 and the engagement removals of CHG-095. Do not delete an unwired feature again without asking.
+
+**Restored:** every file CHG-096 deleted (`CapabilityMatrix`, `SyncStatusBar` + `syncQueue`, `AdvancedControls`, `ForecastEnhancementsCard`, `PlaybookLibrary`, `useActivationMilestone`, `useAvailabilityGrid`, `useCapacityForecast`, `useDemandAnalysis`, `useLeaderInsights`, `useSchedulerInsights`, `useTeamSetup`, `useTimeToSchedule`, `useResponsive`, `utils/sanitize.ts`, their tests) and the translations it pruned; from CHG-095: `StreakCounter`, `PersonalizedFeed`, `ProfileAchievements`, `TeamInviteModal`, `useStreak`, `useEthicalReward`, `usePersonalizedFeed`, `useTeamInvite` and their tests. Not restored: the four Expo starter files (`HelloWave`, `ParallaxScrollView`, `Collapsible`, `ExternalLink`), which were template boilerplate, not features.
+
+**Wired in — where, and what data backs it:**
+- **Home** (`app/(tabs)/index.tsx`): "Personalized actions" now lists only true items built from stored data (open gaps, unpublished drafts, availability, missing demand), each linking to its scheduler step; streak (device storage, manual log); achievements (streak and published / scheduled counts); "Invite a team member" opens `TeamInviteModal` (code kept on the device). `useResponsive` supplies the wide-layout switch.
+- **Scheduler, team step**: `components/scheduler/TeamTools.tsx` (new) — CSV import / export through `useTeamSetup` (saved via the proxy), and days off through `useAvailabilityGrid` (device storage). Auto-assign skips a worker on a stored day off (`workersOffOn`). Worker and template names are checked with `validateDisplayString`.
+- **Scheduler, templates step**: `PlaybookLibrary`; importing saves real templates (`handleImportPlaybookTemplate`, duplicates skipped).
+- **Scheduler, demand step**: `PosUploadSection` (stores sales through `uploadPosSales`) and, once sales exist, `ForecastEnhancementsCard` fed by `usePosData`.
+- **Scheduler, roster step**: `AdvancedControls`; its rest and weekly limits are merged into auto-assign (`autoAssignSettings(date, location, businessConstraints)`, stricter wins) only after the manager changes a value. `SyncStatusBar` under the step bar shows loading / last loaded time. First-publish milestone and time-to-schedule (`useActivationMilestone`, `useTimeToSchedule`) are tracked; the milestone message shows once, in the visit it happens.
+- **Shift messages**: new proxy actions `sendShiftMessage` (manager only, in `SCHEDULING_WRITE_ACTIONS`) and `listShiftMessages` on the existing `shift_messages` table; `services/shiftMessaging.ts` now goes through the proxy (it posted to a `/shift-messages` route that never existed). `components/scheduler/ShiftMessagesPanel.tsx` (new) sits under each shift's notes: quick actions plus the stored log. Messages are stored as `pending` and the panel says they are not delivered (no channel is connected).
+- **Analytics**: `components/analytics/InsightsPanel.tsx` (new) — recommended actions and longer-term items (`useLeaderInsights`), capacity outlook (`useCapacityForecast`), demand this week (`useDemandAnalysis`).
+- **Profile**: `CapabilityMatrix` in the subscription card.
+
+**Bugs found while wiring:**
+- `useCapacityForecast` and `useDemandAnalysis` asked the proxy for targets with `date: <one day>`, an exact match, so they saw at most one day (same root cause as the Home checklist bug in CHG-095). They now load all overrides and filter by range.
+- `useSchedulerInsights` linked to `?section=demand`; the step is `forecast`.
+- `sendShiftMessage` tracked `schedule_published` for a broadcast; removed.
+
+**Kept from CHG-096:** "Mark as told" wording (nothing is sent), Home quick actions hidden while the setup checklist shows.
+
+**Still unwired (not touched here, pricing decision pending in the red-team thread):** `PricingModal`, `FeatureGate` / `useFeatureGate`, `subscriptionService`, `useReferral`; `useAutoAssign` / `useDemandAwareSchedule` (duplicate paths of the scheduler's own auto-assign); `services/supabaseClient.ts`; `services/forecastEngine.ts` is now reached through `usePosData`.
+
+**Honest limits:** streak, invite code, days off, milestone and timing live on the device only (no table). Invite codes do not join anyone to a team. Shift messages are stored, not delivered.
+
+**Verified:** jest, tsc, lint, web export; browser at 1280 and 390 px against a local Supabase: every page, CSV import (2 workers saved), day off added, playbook template imported, POS and advanced controls shown, shift message saved and listed.
+
+---
+
+### CHG-096 — 2026-11-10 UTC
+**Type:** CLEANUP + FIX (second audit pass: unreachable code, unused translations, "Notify" wording)
+
+Method: an import graph from every file under `app/` (static imports, `require`, `import()`, platform variants). A module no route reaches is dead, whatever its tests say.
+
+**Removed (reachable from no screen, no stored data behind them):** `CapabilityMatrix`, `SyncStatusBar` + `services/syncQueue.ts`, `AdvancedControls`, `ForecastEnhancementsCard`, `PlaybookLibrary`, `useActivationMilestone`, `useAvailabilityGrid`, `useCapacityForecast`, `useDemandAnalysis`, `useLeaderInsights`, `useSchedulerInsights`, `useTeamSetup`, `useTimeToSchedule`, `useResponsive`, `utils/sanitize.ts`, with their tests (about 5,700 lines of source). `clientDateValidation.test.tsx` lost the two cases for the removed hooks.
+
+**Translations:** 115 English keys that only the removed features used (`teamInvite`, `capability`, `advancedControls`, `sync`, `playbook`, `home.streak` / `achievements` / `invite`, old scheduler page title keys) are removed from all nine locale files (about 980 lines). Only keys with no literal use and no dynamic prefix (`t(\`a.b.${x}\`)`) were removed; `localeKeys.test.ts` passes.
+
+**Fixes:**
+- "Notify" set the `notified` flag and told the manager a notification was sent ("Sent notifications for Ana", 'Tap "Notify" to send their shift via Horario'). Nothing is sent (no push, no email). The button is now "Mark as told" in all nine languages, its hint says no message is sent, and the three banners in `useSchedulerHandlers` say the same.
+- Home showed the setup checklist and a "Quick actions" card with the same three links. Quick actions are hidden until setup is complete.
+
+**Kept, still unreachable (each needs a product decision, about 4,600 lines):**
+- Pricing: `PricingModal`, `FeatureGate`, `useFeatureGate`, `subscriptionService`, `useReferral` — waiting on the tier / checkout decision.
+- POS upload: `PosUploadSection`, `usePosData`, `services/forecastEngine.ts` — the proxy action and table exist, no screen offers the upload.
+- Shift messages: `ShiftMessageActions`, `services/shiftMessaging.ts` — table exists, no screen.
+- `useAutoAssign`, `useDemandAwareSchedule` — unused hooks whose tests cover the legal-limit merge; the scheduler calls `runAutoAssign` itself.
+- `services/supabaseClient.ts` — no app code uses the anon client; three test files still mock it.
+
+**Verified:** jest 1,040 passed (78 suites), tsc clean, lint clean, web export builds. Browser at 1280 and 390 px against a local Supabase: all pages, and add workers → availability → template → auto-assign → apply → publish.
 
 ---
 
