@@ -144,6 +144,13 @@ export default function SchedulerScreen() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    handleEditWorker,
+    editingWorkerId,
+    cancelWorkerEdit,
+    handleEditTemplate,
+    editingTemplateId,
+    cancelTemplateEdit,
+    handleRemoveOverride,
     handleRemoveAvailability,
     handleRemoveTemplate,
     handleRemoveShift,
@@ -372,6 +379,9 @@ export default function SchedulerScreen() {
             workers={workers}
             workersLoaded={workersLoaded}
             onRemoveWorker={handleRemoveWorker}
+            onEditWorker={handleEditWorker}
+            editingWorkerId={editingWorkerId}
+            onCancelEdit={cancelWorkerEdit}
             onRemoveAvailability={handleRemoveAvailability}
             workerForm={workerForm}
             updateWorkerField={updateWorkerField}
@@ -415,6 +425,7 @@ export default function SchedulerScreen() {
             runForecast={runForecast}
             baselineTargetsRef={baselineTargetsRef}
             demandTargets={demandTargets}
+            onRemoveOverride={handleRemoveOverride}
             roster={roster}
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
@@ -447,6 +458,9 @@ export default function SchedulerScreen() {
             shiftTemplates={shiftTemplates}
             templatesLoaded={templatesLoaded}
             onRemoveTemplate={handleRemoveTemplate}
+            onEditTemplate={handleEditTemplate}
+            editingTemplateId={editingTemplateId}
+            onCancelEdit={cancelTemplateEdit}
             templateForm={templateForm}
             updateTemplateField={updateTemplateField}
             handleAddTemplate={handleAddTemplate}

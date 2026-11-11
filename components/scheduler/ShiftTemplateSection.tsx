@@ -19,6 +19,7 @@ import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { TemplateIdPicker } from './TemplateIdPicker';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
+import { TextActionButton } from './TextActionButton';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, type ThemeColors } from '@/constants/Colors';
@@ -43,6 +44,11 @@ type Props = {
   /** False until the stored templates have loaded: the empty state waits for it. */
   templatesLoaded?: boolean;
   onRemoveTemplate?: (templateId: string) => void;
+  /** Loads the template into the form below for editing. */
+  onEditTemplate?: (templateId: string) => void;
+  /** The template the form is editing, or null when it adds a new one. */
+  editingTemplateId?: string | null;
+  onCancelEdit?: () => void;
   templateForm: TemplateFormState;
   updateTemplateField: (key: keyof TemplateFormState) => (value: string) => void;
   handleAddTemplate: () => void;
@@ -137,6 +143,9 @@ export const ShiftTemplateSection = ({
   shiftTemplates,
   templatesLoaded = true,
   onRemoveTemplate,
+  onEditTemplate,
+  editingTemplateId = null,
+  onCancelEdit,
   templateForm,
   updateTemplateField,
   handleAddTemplate,
@@ -198,6 +207,15 @@ export const ShiftTemplateSection = ({
                 <ThemedText style={styles.badgeText}>
                   {t('scheduler.templates.needed', { n: String(template.coverage) })}
                 </ThemedText>
+                {onEditTemplate ? (
+                  <TextActionButton
+                    label={t('scheduler.edit.edit')}
+                    onPress={() => onEditTemplate(template.id)}
+                    accessibilityLabel={t('scheduler.edit.templateA11y', { name: template.name })}
+                    accessibilityHint={t('scheduler.edit.hint')}
+                    testID={`edit-template-${template.id}`}
+                  />
+                ) : null}
                 {onRemoveTemplate ? (
                   <ConfirmRemoveButton
                     onConfirm={() => onRemoveTemplate(template.id)}
@@ -225,8 +243,8 @@ export const ShiftTemplateSection = ({
         </SectionCard>
 
         <SectionCard
-          title={t('scheduler.templates.addCardTitle')}
-          subtitle={t('scheduler.templates.addCardSubtitle')}
+          title={editingTemplateId ? t('scheduler.edit.templateTitle') : t('scheduler.templates.addCardTitle')}
+          subtitle={editingTemplateId ? t('scheduler.edit.templateSubtitle') : t('scheduler.templates.addCardSubtitle')}
           tooltip={t('scheduler.templates.addCardTooltip')}
         >
           <View style={styles.inlineInputs}>
@@ -299,13 +317,23 @@ export const ShiftTemplateSection = ({
             onPress={handleAddTemplate}
             style={styles.primaryButton}
             accessibilityRole="button"
-            accessibilityLabel={t('scheduler.templates.addButtonA11y')}
-            accessibilityHint={t('scheduler.templates.addButtonHint')}
+            accessibilityLabel={editingTemplateId ? t('scheduler.edit.save') : t('scheduler.templates.addButtonA11y')}
+            accessibilityHint={editingTemplateId ? t('scheduler.edit.saveHint') : t('scheduler.templates.addButtonHint')}
+            testID="add-template-btn"
           >
             <ThemedText style={styles.primaryButtonText}>
-              {t('scheduler.templates.addButton')}
+              {editingTemplateId ? t('scheduler.edit.save') : t('scheduler.templates.addButton')}
             </ThemedText>
           </Pressable>
+          {editingTemplateId && onCancelEdit ? (
+            <TextActionButton
+              label={t('common.cancel')}
+              onPress={onCancelEdit}
+              accessibilityLabel={t('common.cancel')}
+              accessibilityHint={t('scheduler.edit.cancelHint')}
+              testID="cancel-template-edit"
+            />
+          ) : null}
           {/* [7] Fix: errorText uses scheme-aware colors.error token */}
           {templateError ? (
             <ThemedText style={local.errorText}>{templateError}</ThemedText>

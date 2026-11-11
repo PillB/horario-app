@@ -19,6 +19,7 @@ import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { WorkerLaborFields } from './WorkerLaborFields';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
+import { TextActionButton } from './TextActionButton';
 import type { WorkerFormState } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
@@ -38,6 +39,11 @@ type Props = {
   /** False until the stored workers have loaded: the empty state waits for it. */
   workersLoaded?: boolean;
   onRemoveWorker?: (workerId: string) => void;
+  /** Loads the worker into the form below for editing. */
+  onEditWorker?: (workerId: string) => void;
+  /** The worker the form is editing, or null when it adds a new one. */
+  editingWorkerId?: string | null;
+  onCancelEdit?: () => void;
   onRemoveAvailability?: (workerId: string, slotId: string) => void;
   workerForm: WorkerFormState;
   updateWorkerField: <K extends keyof WorkerFormState>(key: K) => (value: WorkerFormState[K]) => void;
@@ -87,6 +93,9 @@ export const WorkerSection = ({
   workers,
   workersLoaded = true,
   onRemoveWorker,
+  onEditWorker,
+  editingWorkerId = null,
+  onCancelEdit,
   onRemoveAvailability,
   workerForm,
   updateWorkerField,
@@ -171,6 +180,15 @@ export const WorkerSection = ({
                     ) : null}
                   </View>
                 ))}
+                {onEditWorker ? (
+                  <TextActionButton
+                    label={t('scheduler.edit.edit')}
+                    onPress={() => onEditWorker(worker.id)}
+                    accessibilityLabel={t('scheduler.edit.workerA11y', { name: worker.name })}
+                    accessibilityHint={t('scheduler.edit.hint')}
+                    testID={`edit-worker-${worker.id}`}
+                  />
+                ) : null}
                 {onRemoveWorker ? (
                   <ConfirmRemoveButton
                     onConfirm={() => onRemoveWorker(worker.id)}
@@ -198,8 +216,8 @@ export const WorkerSection = ({
         </SectionCard>
 
         <SectionCard
-          title={t('scheduler.workers.addCardTitle')}
-          subtitle={t('scheduler.workers.addCardSubtitle')}
+          title={editingWorkerId ? t('scheduler.edit.workerTitle') : t('scheduler.workers.addCardTitle')}
+          subtitle={editingWorkerId ? t('scheduler.edit.workerSubtitle') : t('scheduler.workers.addCardSubtitle')}
           tooltip={t('scheduler.workers.addCardTooltip')}
         >
           {/* [11] InputField placeholder colour is handled inside InputField component;
@@ -254,15 +272,24 @@ export const WorkerSection = ({
               isAddWorkerDisabled && { opacity: 0.5 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={t('scheduler.workers.addButtonA11y')}
-            accessibilityHint={t('scheduler.workers.addButtonHint')}
+            accessibilityLabel={editingWorkerId ? t('scheduler.edit.save') : t('scheduler.workers.addButtonA11y')}
+            accessibilityHint={editingWorkerId ? t('scheduler.edit.saveHint') : t('scheduler.workers.addButtonHint')}
             accessibilityState={{ disabled: isAddWorkerDisabled }}
             testID="add-worker-btn"
           >
             <ThemedText style={styles.primaryButtonText}>
-              {t('scheduler.workers.addButton')}
+              {editingWorkerId ? t('scheduler.edit.save') : t('scheduler.workers.addButton')}
             </ThemedText>
           </Pressable>
+          {editingWorkerId && onCancelEdit ? (
+            <TextActionButton
+              label={t('common.cancel')}
+              onPress={onCancelEdit}
+              accessibilityLabel={t('common.cancel')}
+              accessibilityHint={t('scheduler.edit.cancelHint')}
+              testID="cancel-worker-edit"
+            />
+          ) : null}
           {workerError ? (
             <ThemedText style={styles.errorText}>{workerError}</ThemedText>
           ) : null}

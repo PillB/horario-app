@@ -17,6 +17,7 @@ import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { LostRevenueSummary } from './LostRevenueSummary';
+import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { type TFunction } from '@/hooks/useLocale';
@@ -73,6 +74,8 @@ type Props = {
 
   baselineTargetsRef: React.RefObject<DemandForecast[] | null>;
   demandTargets: DemandForecast[];
+  /** Removes a stored manual override (shown only on override rows). */
+  onRemoveOverride?: (target: { date: string; role: string }) => void;
   roster: Shift[];
   shiftTemplates: ShiftTemplate[];
   forecastError: string | null;
@@ -86,6 +89,10 @@ type Props = {
 const makeLocalStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     // Badge: 'Fallback' label — text must be ≥4.5:1 on its surface
+    targetActions: {
+      alignItems: 'flex-end',
+      gap: 6,
+    },
     fallbackBadge: {
       backgroundColor: colors.successSurface,
       borderRadius: 4,
@@ -291,6 +298,7 @@ export const DemandSection = ({
   runForecast,
   baselineTargetsRef,
   demandTargets,
+  onRemoveOverride,
   roster,
   shiftTemplates,
   forecastError,
@@ -1095,9 +1103,19 @@ export const DemandSection = ({
             </ThemedText>
           </View>
           {/* [3] Required-count label uses theme-aware success token ≥4.5:1 ✓ AA */}
-          <ThemedText style={local.requiredCountText}>
-            {t('scheduler.demand.requiredLabel', { n: String(target.required) })}
-          </ThemedText>
+          <View style={local.targetActions}>
+            <ThemedText style={local.requiredCountText}>
+              {t('scheduler.demand.requiredLabel', { n: String(target.required) })}
+            </ThemedText>
+            {onRemoveOverride && target.source === 'override' ? (
+              <ConfirmRemoveButton
+                onConfirm={() => onRemoveOverride({ date: target.date, role: target.role })}
+                accessibilityLabel={t('scheduler.remove.overrideA11y', { role: target.role, date: target.date })}
+                accessibilityHint={t('scheduler.remove.overrideHint')}
+                testID={`remove-override-${target.date}-${target.role}`}
+              />
+            ) : null}
+          </View>
         </View>
       ))}
     </SectionCard>

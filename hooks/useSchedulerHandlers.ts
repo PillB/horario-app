@@ -78,6 +78,8 @@ const EMPTY_WORKER_FORM: WorkerFormState = {
   noFixedHours: false,
 };
 
+const EMPTY_TEMPLATE_FORM = { name: '', role: '', start: '09:00', end: '17:00', coverage: '1' };
+
 /** The steps of the scheduler page, in working order. `shifts` is the roster. */
 export const SCHEDULER_SECTIONS = ['workers', 'templates', 'forecast', 'shifts'] as const;
 export type SchedulerSection = (typeof SCHEDULER_SECTIONS)[number];
@@ -104,6 +106,7 @@ export function useSchedulerHandlers() {
     demandTargets,
     triggerForecast,
     overrideTarget,
+    removeOverride,
     loading: forecastLoading,
     error: forecastError,
     forecasting,
@@ -118,6 +121,7 @@ export function useSchedulerHandlers() {
   const {
     workers,
     addWorker,
+    updateWorker,
     addAvailability,
     removeWorker,
     removeAvailability,
@@ -130,6 +134,7 @@ export function useSchedulerHandlers() {
   const {
     shiftTemplates,
     addShiftTemplate,
+    updateShiftTemplate,
     removeShiftTemplate,
     loading: templatesLoading,
     loaded: templatesLoaded,
@@ -198,13 +203,10 @@ export function useSchedulerHandlers() {
     notes: 'Weekend backlog',
   });
   const [workerForm, setWorkerForm] = useState<WorkerFormState>(EMPTY_WORKER_FORM);
-  const [templateForm, setTemplateForm] = useState({
-    name: '',
-    role: '',
-    start: '09:00',
-    end: '17:00',
-    coverage: '1',
-  });
+  const [templateForm, setTemplateForm] = useState(EMPTY_TEMPLATE_FORM);
+  /** The stored worker / template the form is editing; null = the form adds a new one. */
+  const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
@@ -734,12 +736,24 @@ export function useSchedulerHandlers() {
     }
     setWorkerError(null);
     const skills = workerForm.skills.split(',').map((s) => s.trim()).filter(Boolean);
-    const result = await addWorker(trimmedName, trimmedRole, skills, {
+    const labor = {
       birthDate: birthDate || null,
       nightWorker: workerForm.nightWorker,
       weeklyLimitOptOut: workerForm.weeklyLimitOptOut,
       noFixedHours: workerForm.noFixedHours,
-    });
+    };
+    if (editingWorkerId) {
+      const updated = await updateWorker(editingWorkerId, { name: trimmedName, role: trimmedRole, skills, ...labor });
+      if (updated.success) {
+        setWorkerForm(EMPTY_WORKER_FORM);
+        setEditingWorkerId(null);
+        showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
+      } else {
+        setWorkerError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+      }
+      return;
+    }
+    const result = await addWorker(trimmedName, trimmedRole, skills, labor);
     if (result.success) {
       setWorkerForm(EMPTY_WORKER_FORM);
       // Auto-populate availability and shift forms with the new worker's ID
@@ -759,7 +773,7 @@ export function useSchedulerHandlers() {
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, recordTourAction, t, workerForm, workers.length]);
+  }, [addWorker, editingWorkerId, recordTourAction, showActionBanner, t, updateWorker, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -777,9 +791,22 @@ export function useSchedulerHandlers() {
     if (!isValidTime(trimmedEnd)) { setTemplateError('End time must use the 24-hour HH:MM format (e.g. 17:00).'); return; }
     if (isNaN(coverageNum) || coverageNum < 1) { setTemplateError('Coverage must be at least 1.'); return; }
     setTemplateError(null);
+    if (editingTemplateId) {
+      const updated = await updateShiftTemplate(editingTemplateId, {
+        name: trimmedName, role: trimmedRole, startTime: trimmedStart, endTime: trimmedEnd, coverage: coverageNum,
+      });
+      if (updated.success) {
+        setTemplateForm(EMPTY_TEMPLATE_FORM);
+        setEditingTemplateId(null);
+        showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
+      } else {
+        setTemplateError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+      }
+      return;
+    }
     const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
     if (result.success) {
-      setTemplateForm({ name: '', role: '', start: '09:00', end: '17:00', coverage: '1' });
+      setTemplateForm(EMPTY_TEMPLATE_FORM);
       // Auto-populate shift form with the new template's ID
       setShiftForm((prev) => ({ ...prev, templateId: result.template.id }));
       void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
@@ -795,7 +822,7 @@ export function useSchedulerHandlers() {
     } else {
       setTemplateError(result.error ?? 'Failed to add template. Please try again.');
     }
-  }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
+  }, [addShiftTemplate, editingTemplateId, recordTourAction, shiftTemplates.length, showActionBanner, t, templateForm, updateShiftTemplate]);
 
   /** Saves one template from a playbook. A template already saved under that name, role and hours is skipped. */
   const handleImportPlaybookTemplate = useCallback(
@@ -1164,12 +1191,62 @@ export function useSchedulerHandlers() {
     [showActionBanner, t]
   );
 
+  /** Loads a stored worker into the form; saving then updates it instead of adding. */
+  const handleEditWorker = useCallback(
+    (workerId: string) => {
+      const worker = workers.find((w) => w.id === workerId);
+      if (!worker) return;
+      setWorkerError(null);
+      setEditingWorkerId(workerId);
+      setWorkerForm({
+        name: worker.name,
+        role: worker.role,
+        skills: worker.skills.join(', '),
+        birthDate: worker.birthDate ?? '',
+        nightWorker: worker.nightWorker ?? false,
+        weeklyLimitOptOut: worker.weeklyLimitOptOut ?? false,
+        noFixedHours: worker.noFixedHours ?? false,
+      });
+    },
+    [workers]
+  );
+
+  const cancelWorkerEdit = useCallback(() => {
+    setEditingWorkerId(null);
+    setWorkerError(null);
+    setWorkerForm(EMPTY_WORKER_FORM);
+  }, []);
+
+  const handleEditTemplate = useCallback(
+    (templateId: string) => {
+      const template = shiftTemplates.find((tmpl) => tmpl.id === templateId);
+      if (!template) return;
+      setTemplateError(null);
+      setEditingTemplateId(templateId);
+      setTemplateForm({
+        name: template.name,
+        role: template.role,
+        start: template.start,
+        end: template.end,
+        coverage: String(template.coverage),
+      });
+    },
+    [shiftTemplates]
+  );
+
+  const cancelTemplateEdit = useCallback(() => {
+    setEditingTemplateId(null);
+    setTemplateError(null);
+    setTemplateForm(EMPTY_TEMPLATE_FORM);
+  }, []);
+
   const handleRemoveWorker = useCallback(
     async (workerId: string) => {
       const name = workers.find((w) => w.id === workerId)?.name ?? workerId;
+      if (workerId === editingWorkerId) cancelWorkerEdit();
       reportRemoval(await removeWorker(workerId), name);
     },
-    [removeWorker, reportRemoval, workers]
+    [cancelWorkerEdit, editingWorkerId, removeWorker, reportRemoval, workers]
   );
 
   const handleRemoveAvailability = useCallback(
@@ -1183,9 +1260,18 @@ export function useSchedulerHandlers() {
   const handleRemoveTemplate = useCallback(
     async (templateId: string) => {
       const name = shiftTemplates.find((tmpl) => tmpl.id === templateId)?.name ?? templateId;
+      if (templateId === editingTemplateId) cancelTemplateEdit();
       reportRemoval(await removeShiftTemplate(templateId), name);
     },
-    [removeShiftTemplate, reportRemoval, shiftTemplates]
+    [cancelTemplateEdit, editingTemplateId, removeShiftTemplate, reportRemoval, shiftTemplates]
+  );
+
+  const handleRemoveOverride = useCallback(
+    async (target: { date: string; role: string }) => {
+      const result = await removeOverride(target);
+      reportRemoval({ success: result.success, error: result.error ?? undefined }, `${target.role} · ${target.date}`);
+    },
+    [removeOverride, reportRemoval]
   );
 
   const handleRemoveShift = useCallback(
@@ -1486,7 +1572,14 @@ export function useSchedulerHandlers() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    editingWorkerId,
+    handleEditWorker,
+    cancelWorkerEdit,
+    editingTemplateId,
+    handleEditTemplate,
+    cancelTemplateEdit,
     handleRemoveAvailability,
+    handleRemoveOverride,
     handleRemoveTemplate,
     handleRemoveShift,
     runForecast,
