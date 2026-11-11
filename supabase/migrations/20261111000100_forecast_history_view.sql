@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 20261111000099_forecast_history_view.sql
+-- Migration: 20261111000100_forecast_history_view.sql
 -- CHG-098 — the published roster feeds the demand forecast
 --
 -- The forecast learned only from `shifts`, a table nothing in the app writes,

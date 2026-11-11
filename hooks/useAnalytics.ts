@@ -24,6 +24,8 @@ import {
   type DbWorker,
 } from '@/services/rosterService';
 import { loadDemandTargets } from '@/services/demandForecast';
+import { isoWeekStart } from '@/utils/autoAssignSettings';
+import { addDaysToKey } from '@/utils/dateKeys';
 import { computeUncoveredLoss } from '@/utils/schedulerMetrics';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
@@ -56,6 +58,19 @@ export type AnalyticsRange = { from?: string; to?: string };
 /** True when `date` (YYYY-MM-DD) is inside the range. */
 export const inRange = (date: string, range?: AnalyticsRange): boolean =>
   (!range?.from || date >= range.from) && (!range?.to || date <= range.to);
+
+export const ANALYTICS_PERIODS = ['week', 'month', 'all'] as const;
+export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
+
+/** This ISO week (Monday to Sunday), the last 28 days up to today, or every date. */
+export const periodRange = (period: AnalyticsPeriod, today: string | null): AnalyticsRange | undefined => {
+  if (period === 'all' || !today) return undefined;
+  if (period === 'week') {
+    const monday = isoWeekStart(today);
+    return { from: monday, to: addDaysToKey(monday, 6) };
+  }
+  return { from: addDaysToKey(today, -27), to: today };
+};
 
 // ─── Pure computation helpers (exported for testing) ─────────────────────────
 

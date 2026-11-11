@@ -14,7 +14,7 @@ jest.mock('@/services/demandForecast', () => ({
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
-import { useAnalytics, shiftHours, stdDev } from '../useAnalytics';
+import { inRange, periodRange, useAnalytics, shiftHours, stdDev, type AnalyticsRange } from '../useAnalytics';
 import { listRoster, listWorkers, listShiftTemplates } from '@/services/rosterService';
 import { loadDemandTargets } from '@/services/demandForecast';
 
@@ -44,11 +44,11 @@ const mockTargets = [
 
 // ─── Helper: render the hook and capture returned state ───────────────────────
 
-function renderHook(accountId = 'acc') {
+function renderHook(accountId = 'acc', range?: AnalyticsRange) {
   let result: ReturnType<typeof useAnalytics> | null = null;
 
   function HookConsumer() {
-    result = useAnalytics(accountId);
+    result = useAnalytics(accountId, range);
     return null;
   }
 
@@ -96,6 +96,24 @@ describe('stdDev', () => {
   });
 });
 
+describe('date ranges (CHG-098)', () => {
+  it('inRange includes both ends and treats a missing end as open', () => {
+    expect(inRange('2026-04-01', { from: '2026-04-01', to: '2026-04-02' })).toBe(true);
+    expect(inRange('2026-04-02', { from: '2026-04-01', to: '2026-04-02' })).toBe(true);
+    expect(inRange('2026-04-03', { from: '2026-04-01', to: '2026-04-02' })).toBe(false);
+    expect(inRange('2026-04-03', { from: '2026-04-01' })).toBe(true);
+    expect(inRange('2026-04-03')).toBe(true);
+  });
+
+  it('periodRange gives the ISO week, the last 28 days, or nothing', () => {
+    // 2026-04-01 is a Wednesday.
+    expect(periodRange('week', '2026-04-01')).toEqual({ from: '2026-03-30', to: '2026-04-05' });
+    expect(periodRange('month', '2026-04-01')).toEqual({ from: '2026-03-05', to: '2026-04-01' });
+    expect(periodRange('all', '2026-04-01')).toBeUndefined();
+    expect(periodRange('week', null)).toBeUndefined();
+  });
+});
+
 // ─── Hook integration tests ───────────────────────────────────────────────────
 
 describe('useAnalytics', () => {
@@ -114,6 +132,20 @@ describe('useAnalytics', () => {
     (listRoster as jest.Mock).mockReturnValue(new Promise(() => {})); // never resolves
     const { getResult, unmount } = renderHook();
     expect(getResult().loading).toBe(true);
+    unmount();
+  });
+
+  it('counts only the shifts and demand inside the range', async () => {
+    const { getResult, unmount } = renderHook('acc', { from: '2026-04-02', to: '2026-04-03' });
+    await act(async () => { await Promise.resolve(); });
+
+    const { workerHours, publishedShifts, draftShifts, coverageRate } = getResult();
+    // In range: s2 (Alice, 8 h) and s3 (Bob, 8 h); the 04-04 draft and 04-01 are outside.
+    expect(publishedShifts).toBe(2);
+    expect(draftShifts).toBe(0);
+    expect(workerHours.map((e) => e.hours)).toEqual([8, 8]);
+    // Demand in range: 1 Barista on 04-02, covered by s2.
+    expect(coverageRate).toBe(100);
     unmount();
   });
 

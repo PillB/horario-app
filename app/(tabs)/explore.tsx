@@ -20,9 +20,8 @@ import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { TourStep } from '@/components/TourStep';
-import { useAnalytics, type AnalyticsRange, type WorkerHoursEntry } from '@/hooks/useAnalytics';
-import { isoWeekStart } from '@/utils/autoAssignSettings';
-import { addDaysToKey, todayKey } from '@/utils/dateKeys';
+import { ANALYTICS_PERIODS, periodRange, useAnalytics, type AnalyticsPeriod, type WorkerHoursEntry } from '@/hooks/useAnalytics';
+import { todayKey } from '@/utils/dateKeys';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
@@ -133,19 +132,6 @@ function FairnessGauge({ score }: { score: number }) {
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-
-export const ANALYTICS_PERIODS = ['week', 'month', 'all'] as const;
-export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
-
-/** This ISO week (Monday to Sunday), the last 28 days up to today, or every date. */
-export const periodRange = (period: AnalyticsPeriod, today: string | null): AnalyticsRange | undefined => {
-  if (period === 'all' || !today) return undefined;
-  if (period === 'week') {
-    const monday = isoWeekStart(today);
-    return { from: monday, to: addDaysToKey(monday, 6) };
-  }
-  return { from: addDaysToKey(today, -27), to: today };
-};
 
 export default function AnalyticsScreen() {
   const { t } = useT();
