@@ -29,6 +29,7 @@ import {
   ForecastGenerationResult,
 } from '@/services/demandForecast';
 import { resolvePack } from '@/services/labor/engine';
+import { READ_LIMIT, WRITE_LIMIT, rateLimiter } from '@/server/rateLimit';
 import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
 import { isDateKey, todayKey } from '@/utils/dateKeys';
@@ -105,6 +106,9 @@ const MANAGER_ACTIONS = new Set([
   'createCheckoutSession',
   'createBillingPortalSession',
 ]);
+
+/** Writes open to members (their own data); they share the write rate limit. */
+const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'incrementAutoAssign', 'forecast']);
 
 /** Logs the database error and returns a generic message. */
 const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
@@ -1352,7 +1356,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       const filters = cleanFilters(p.filters);
       const roleOnly = filters?.role ? { role: filters.role } : undefined;
       const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
-        hasRows(client, 'shifts', ctx, roleOnly),
+        hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
         hasRows(client, 'external_signals', ctx, filters),
         hasRows(client, 'demand_targets', ctx, filters),
       ]);
@@ -1473,6 +1477,16 @@ export async function POST(request: Request): Promise<Response> {
           : 'Only an admin of this business can do this',
       ),
     );
+  }
+
+  // Counted per signed-in user after authentication, so an anonymous flood
+  // cannot fill the table and one user cannot use up another's allowance.
+  const isWrite = MANAGER_ACTIONS.has(payload.action) || MEMBER_WRITE_ACTIONS.has(payload.action);
+  const verdict = rateLimiter.hit(`${auth.ctx.userId}:${isWrite ? 'w' : 'r'}`, isWrite ? WRITE_LIMIT : READ_LIMIT);
+  if (!verdict.allowed) {
+    const response = respond(fail(429, 'Too many requests. Wait a moment and try again'));
+    response.headers.set('Retry-After', String(verdict.retryAfterSeconds));
+    return response;
   }
 
   const client = getServiceClient();
