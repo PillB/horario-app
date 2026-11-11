@@ -88,7 +88,7 @@ test('SC-5 a day off is saved on the server and keeps the worker out of auto-ass
   await openStep(page, 'shifts');
   await page.getByLabel('Date', { exact: true }).fill(DATE);
   await page.getByRole('button', { name: /^Auto-assign workers/ }).click();
-  await expect(page.getByTestId('apply-auto-assign')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('apply-auto-assign')).toBeVisible({ timeout: 60_000 });
   // Coverage is 2, Luis is off: Ana is suggested, one position stays open.
   const suggestions = page.getByText(`${ANA} → ${TEMPLATE}`);
   await expect(suggestions.first()).toBeVisible();

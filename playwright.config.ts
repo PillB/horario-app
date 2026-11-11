@@ -39,7 +39,7 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 240_000,
     // Expo's CI mode turns off the dev server features the web bundle relies on here.
-    env: { ...(process.env as Record<string, string>), CI: '' },
+    env: { ...(process.env as Record<string, string>), CI: '0' },
     stdout: 'ignore',
     stderr: 'pipe',
   },

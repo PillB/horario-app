@@ -1,9 +1,22 @@
 /**
  * Home, page titles and the guided tour.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { open } from './helpers';
+
+/**
+ * Opens the guide picker and starts a guide. The page is rendered to HTML ahead
+ * of time, so the button can be on screen before it reacts: click until it does.
+ */
+const openGuidePicker = async (page: Page, guide: string) => {
+  const start = page.getByRole('button', { name: guide, exact: true });
+  await expect(async () => {
+    if (!(await start.isVisible())) await page.getByRole('button', { name: 'Start app tour' }).click();
+    await expect(start).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 60_000 });
+  await start.click();
+};
 
 test('TH-1 every page loads with its title and no page error', async ({ page }) => {
   const errors: string[] = [];
@@ -18,8 +31,7 @@ test('TH-1 every page loads with its title and no page error', async ({ page }) 
 
 test('TH-2 the tour button opens the guide picker and a guide can be walked and left', async ({ page }) => {
   await open(page, '/');
-  await page.getByRole('button', { name: 'Start app tour' }).click({ timeout: 60_000 });
-  await page.getByRole('button', { name: 'Quick Overview', exact: true }).click();
+  await openGuidePicker(page, 'Quick Overview');
   const card = page.getByTestId('tour-card');
   await expect(card).toBeVisible();
   const first = await card.innerText();
@@ -31,8 +43,7 @@ test('TH-2 the tour button opens the guide picker and a guide can be walked and 
 
 test('TH-3 the tour never blocks the page behind it', async ({ page }) => {
   await open(page, '/scheduler');
-  await page.getByRole('button', { name: 'Start app tour' }).click({ timeout: 60_000 });
-  await page.getByRole('button', { name: 'Scheduler Guide', exact: true }).click();
+  await openGuidePicker(page, 'Scheduler Guide');
   await expect(page.getByTestId('tour-card')).toBeVisible();
   // A step tab stays clickable while the card is up.
   await page.getByTestId('section-tab-templates').click();
