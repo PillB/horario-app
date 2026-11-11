@@ -477,8 +477,9 @@ function checkBreaks(pack: RulePack, duties: Duty[], emit: Emit) {
     const mealOwed = meal && (meal.requiredFromWorkHours !== undefined
       ? worked >= meal.requiredFromWorkHours - EPS
       : worked > meal.byWorkHours + EPS);
-    // A day already reported as short of break time is not reported again for the meal's timing.
-    if (meal && mealOwed && !breaksMissing) {
+    // A day already reported as short of break time is not reported again for the meal's timing,
+    // unless the meal rule carries its own consequence (premium pay), which must still be shown.
+    if (meal && mealOwed && (!breaksMissing || meal.premiumHours !== undefined)) {
       const waived = meal.waivableIfWorkHoursLte !== undefined && worked <= meal.waivableIfWorkHoursLte + EPS && d.shifts.every((s) => s.mealWaiver);
       // The meal must start before the worker has done `byWorkHours` of work (and not before `notBeforeWorkHours`).
       const timely = d.breaks.some((b) => {

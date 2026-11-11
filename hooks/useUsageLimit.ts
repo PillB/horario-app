@@ -37,14 +37,20 @@ export const useUsageLimit = (userId: string, accountId: string) => {
     load();
   }, [load]);
 
-  const increment = useCallback(async () => {
+  /**
+   * Counts one auto-schedule run. Call it before applying the run: `limit`
+   * means the plan's runs for the month are used up and nothing was counted.
+   * `failed` (network, server error) does not block the user.
+   */
+  const increment = useCallback(async (): Promise<'counted' | 'limit' | 'failed'> => {
     const result = await incrementAutoAssign(userId, accountId);
     if (!result.success) {
-      // Refused (limit reached) or failed: ask the server where the account stands.
+      if (result.limitReached) setState((prev) => ({ ...prev, canAutoAssign: false }));
       void load();
-      return;
+      return result.limitReached ? 'limit' : 'failed';
     }
     setState((prev) => ({ ...prev, count: result.count, canAutoAssign: result.canAutoAssign }));
+    return 'counted';
   }, [userId, accountId, load]);
 
   return { ...state, increment, refresh: load };

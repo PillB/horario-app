@@ -443,3 +443,22 @@ describe('Alberta (Employment Standards Code ss.16-19, 21-22)', () => {
     expect(weekly[0].verdict).toBe('warning');
   });
 });
+
+describe('a missing break does not hide a meal rule that carries premium pay (PR #59 review)', () => {
+  const zones = ZONES as Record<string, string>;
+  zones['US-CA'] = 'America/Los_Angeles';
+
+  it('California with a break override: both the break finding and the meal premium are reported', () => {
+    const shift = at('US-CA', MON, '09:00', '17:00');
+    const result = run('US-CA', [shift], {}, { overrides: [{ rule: 'breaks.minMinutes', value: 30, afterHours: 5 }] });
+    expect(has(result.findings, 'breaks.minimum')).toHaveLength(1);
+    const meal = has(result.findings, 'breaks.mealDeadline', 'violation');
+    expect(meal).toHaveLength(1);
+    expect(meal[0].hours).toBe(1);
+  });
+
+  it('Illinois (no premium): one finding for the day, not two', () => {
+    const result = run('US-IL', [at('US-IL', MON, '09:00', '17:00')]);
+    expect(has(result.findings, 'breaks.minimum').length + has(result.findings, 'breaks.mealDeadline').length).toBe(1);
+  });
+});

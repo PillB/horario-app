@@ -31,6 +31,8 @@
 **Not done (left to the audit thread, which owns those files; agreed 2026-11-11):** shift form shows raw ids after a chip tap; baseline targets saved one request per day; auto-assign shortfall wording; proxy rate limit.
 **Not done:** Paddle checkout; invite codes; email before a plan ends; minors' rules for BC, Alberta and Illinois 16–17; rules the schema cannot express (listed in the QA report).
 
+**Review follow-up (PR #59, same CHG):** the auto-schedule run is counted before it is saved (`applyAutoAssign`; `useUsageLimit.increment` returns `counted` / `limit` / `failed`, only `limit` blocks), so two tabs cannot both apply the last run of the month; the limit texts in `handleAutoAssign` use the locale key (one said "1 free auto-assign"). A day short of break time still reports the meal rule when that rule carries premium pay (California with a break override). Not changed: two managers adding a person at the same moment at the limit can end one over it; the schedule then says so and is read-only until one person is removed.
+
 **Verification:** tsc, lint, jest; integration suite and the four pgTAP files against a local Postgres + PostgREST with every migration applied (migration run twice). Not checked in a browser.
 
 ---

@@ -9,7 +9,8 @@ type UsageLimitResult =
 
 type IncrementResult =
   | { success: true; count: number; canAutoAssign: boolean }
-  | { success: false; error: string };
+  /** `limitReached`: the server refused because the plan's monthly runs are used up (HTTP 402). */
+  | { success: false; error: string; limitReached: boolean };
 
 const proxyPost = async <T>(body: unknown): Promise<T | null> => {
   try {
@@ -47,11 +48,19 @@ export const incrementAutoAssign = async (
   userId: string,
   accountId: string
 ): Promise<IncrementResult> => {
-  const data = await proxyPost<{ count: number; canAutoAssign?: boolean }>({
-    action: 'incrementAutoAssign',
-    userId,
-    accountId,
-  });
-  if (!data) return { success: false, error: 'Unable to record usage' };
-  return { success: true, count: data.count, canAutoAssign: data.canAutoAssign !== false };
+  try {
+    const token = await getSessionToken();
+    const res = await fetch(SECURE_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ action: 'incrementAutoAssign', userId, accountId }),
+    });
+    const data = (await res.json().catch(() => null)) as { count?: number; canAutoAssign?: boolean; error?: string } | null;
+    if (!res.ok || typeof data?.count !== 'number') {
+      return { success: false, error: data?.error ?? 'Unable to record usage', limitReached: res.status === 402 };
+    }
+    return { success: true, count: data.count, canAutoAssign: data.canAutoAssign !== false };
+  } catch {
+    return { success: false, error: 'Unable to record usage', limitReached: false };
+  }
 };
