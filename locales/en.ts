@@ -647,6 +647,13 @@ export const en = {
   },
 
   analytics: {
+    period: {
+      label: 'Dates to show',
+      hint: 'Shows the figures below for these dates only',
+      week: 'This week',
+      month: 'Last 4 weeks',
+      all: 'All dates',
+    },
     insights: {
       actionsTitle: 'Recommended actions',
       actionsEmpty: 'Nothing needs attention right now.',
