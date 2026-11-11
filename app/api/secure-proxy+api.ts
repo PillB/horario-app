@@ -75,6 +75,8 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'deleteWorker',
   'upsertAvailability',
   'deleteAvailability',
+  'upsertTimeOff',
+  'deleteTimeOff',
   'upsertShiftTemplate',
   'deleteShiftTemplate',
   'upsertRosterShift',
@@ -780,6 +782,56 @@ async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: 
   return ok({ success: true, availability: rowToAvailability(data as AvailabilityRow) });
 }
 
+// ─── Days off ─────────────────────────────────────────────────────────────────
+
+const TIME_OFF_COLUMNS = 'id, account_id, worker_id, date, reason, created_at';
+const TIME_OFF_MAX_REASON = 200;
+type TimeOffRow = { id: string; account_id: string; worker_id: string; date: string; reason: string; created_at?: string };
+
+const rowToTimeOff = (row: TimeOffRow) => ({
+  id: row.id, accountId: row.account_id, workerId: row.worker_id, date: row.date, reason: row.reason, createdAt: row.created_at,
+});
+
+/** Days off of the tenant's workers, oldest date first; `date` narrows to one day (auto-assign). */
+async function listTimeOff(client: SupabaseClient, ctx: AuthContext, payload: unknown): Promise<Result> {
+  const p = isRecord(payload) ? payload : {};
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
+  if (p.date !== undefined && !isISODate(p.date)) return badRequest('date must be a real YYYY-MM-DD date');
+  let query = client.from('worker_time_off').select(TIME_OFF_COLUMNS).eq('account_id', ctx.accountId);
+  if (isISODate(p.date)) query = query.eq('date', p.date);
+  const { data, error } = await query
+    .order('date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
+  if (error) return dbFailure('list worker_time_off', error);
+  const { rows, ...meta } = pageOf(data as TimeOffRow[] | null, page);
+  return ok({ ...meta, timeOff: rows.map(rowToTimeOff) });
+}
+
+/** One day off per worker and date: saving the same day again replaces its reason. */
+async function upsertTimeOff(client: SupabaseClient, ctx: AuthContext, input: unknown): Promise<Result> {
+  if (!isRecord(input)) return badRequest('timeOff is required');
+  const { workerId, date, reason } = input;
+  if (!isUuid(workerId)) return badRequest('workerId must be a UUID');
+  if (!isISODate(date)) return badRequest('date must be a real YYYY-MM-DD date');
+  if (reason !== undefined && typeof reason !== 'string') return badRequest('reason must be text');
+  const text = typeof reason === 'string' ? reason.trim() : '';
+  if (text.length > TIME_OFF_MAX_REASON) return badRequest(`reason must be ${TIME_OFF_MAX_REASON} characters or fewer`);
+
+  const owns = await ownsAll(client, 'workers', ctx, [workerId]);
+  if (owns !== true) return owns === false ? notFound() : owns;
+
+  // The worker is the caller's, so a conflicting row is too.
+  const { data, error } = await client
+    .from('worker_time_off')
+    .upsert({ account_id: ctx.accountId, worker_id: workerId, date, reason: text }, { onConflict: 'worker_id,date' })
+    .select(TIME_OFF_COLUMNS)
+    .single();
+  if (error) return dbFailure('upsert worker_time_off', error);
+  return ok({ success: true, timeOff: rowToTimeOff(data as TimeOffRow) });
+}
+
 // ─── Shift templates ──────────────────────────────────────────────────────────
 
 const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at';
@@ -1334,6 +1386,12 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return upsertAvailability(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
+    case 'listTimeOff':
+      return listTimeOff(client, ctx, p);
+    case 'upsertTimeOff':
+      return upsertTimeOff(client, ctx, p.timeOff);
+    case 'deleteTimeOff':
+      return deleteOwned(client, 'worker_time_off', ctx, p.id);
     case 'listShiftTemplates':
       return listTemplates(client, ctx, p.page);
     case 'upsertShiftTemplate':

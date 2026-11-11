@@ -216,6 +216,29 @@ export const deleteAvailability = async (id: string): Promise<MutationResult> =>
   return result.success ? { success: true } : result;
 };
 
+// ─── Days off ─────────────────────────────────────────────────────────────────
+
+export type DbTimeOff = { id: string; accountId: string; workerId: string; date: string; reason: string; createdAt?: string };
+
+export type UpsertTimeOffResult =
+  | { success: true; timeOff: DbTimeOff; error?: never }
+  | { success: false; timeOff?: never; error: string };
+
+/** Every stored day off, or only those on `date`. */
+export const fetchTimeOff = (date?: string): Promise<ListResult<DbTimeOff>> =>
+  fetchAllPages<DbTimeOff>('listTimeOff', 'timeOff', date ? { date } : {});
+
+export const upsertTimeOff = async (timeOff: { workerId: string; date: string; reason: string }): Promise<UpsertTimeOffResult> => {
+  const result = await mutate<{ timeOff?: DbTimeOff }>({ action: 'upsertTimeOff', timeOff }, 'Unable to save the day off');
+  if (!result.success) return result;
+  return result.timeOff ? { success: true, timeOff: result.timeOff } : { success: false, error: 'Unable to save the day off' };
+};
+
+export const deleteTimeOff = async (id: string): Promise<MutationResult> => {
+  const result = await mutate({ action: 'deleteTimeOff', id }, 'Unable to remove the day off');
+  return result.success ? { success: true } : result;
+};
+
 // ─── Shift Templates ──────────────────────────────────────────────────────────
 
 export const fetchShiftTemplates = (): Promise<ListResult<DbShiftTemplate>> =>

@@ -26,7 +26,7 @@ import {
 import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
-import { workersOffOn } from '@/hooks/useAvailabilityGrid';
+import { fetchWorkersOffOn } from '@/hooks/useTimeOff';
 import { validateDisplayString } from '@/utils/sanitize';
 import type { LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
@@ -1308,8 +1308,13 @@ export function useSchedulerHandlers() {
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
     // A person with a day off on this date (team step) is not suggested.
-    const offToday = await workersOffOn(workers.map((w) => w.id), date);
-    const eligibleWorkers = offToday.size > 0 ? workers.filter((w) => !offToday.has(w.id)) : workers;
+    // Unknown days off stop the run: a guess could suggest someone who is away.
+    const off = await fetchWorkersOffOn(date);
+    if (!off.ok) {
+      showActionBanner(t('teamTools.daysOffLoadError', { error: off.error }), 'error');
+      return;
+    }
+    const eligibleWorkers = off.workerIds.size > 0 ? workers.filter((w) => !off.workerIds.has(w.id)) : workers;
     autoAssignRunRef.current?.abort();
     const run = new AbortController();
     autoAssignRunRef.current = run;

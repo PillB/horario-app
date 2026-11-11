@@ -4,10 +4,10 @@
  *  - Import several workers at once from pasted CSV (name, role, skills), or
  *    copy the current team out as CSV (`useTeamSetup`). Imported workers are
  *    saved through the proxy like any other worker.
- *  - Days off: one-off dates a worker cannot work (`useAvailabilityGrid`).
- *    They are kept on this device, and auto-assign skips a worker on a day off.
+ *  - Days off: one-off dates a worker cannot work (`useTimeOff`), saved
+ *    through the proxy. Auto-assign skips a worker on a day off.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -15,9 +15,9 @@ import { ThemedView } from '@/components/ThemedView';
 import { InputField } from '@/components/scheduler/InputField';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useT } from '@/contexts/LocaleContext';
-import { useAvailabilityGrid } from '@/hooks/useAvailabilityGrid';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamSetup } from '@/hooks/useTeamSetup';
+import { useTimeOff } from '@/hooks/useTimeOff';
 
 type WorkerRef = { id: string; name: string };
 
@@ -62,7 +62,9 @@ export function TeamTools({ accountId, workers, onImported }: Props) {
   // ── Days off ─────────────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState('');
   const activeId = workers.some((w) => w.id === selectedId) ? selectedId : workers[0]?.id ?? '';
-  const { exceptions, addException, removeException } = useAvailabilityGrid(activeId);
+  const workerIds = useMemo(() => workers.map((w) => w.id), [workers]);
+  const { timeOff, error: timeOffError, addTimeOff, removeTimeOff } = useTimeOff(accountId, workerIds);
+  const exceptions = useMemo(() => timeOff.filter((item) => item.workerId === activeId), [activeId, timeOff]);
   const [date, setDate] = useState('');
   const [reason, setReason] = useState('');
   const [dayOffError, setDayOffError] = useState<string | null>(null);
@@ -75,7 +77,11 @@ export function TeamTools({ accountId, workers, onImported }: Props) {
       return;
     }
     setDayOffError(null);
-    await addException(trimmed, reason);
+    const result = await addTimeOff(activeId, trimmed, reason);
+    if (!result.success) {
+      setDayOffError(t('scheduler.sync.saveFailed', { error: result.error }));
+      return;
+    }
     setDate('');
     setReason('');
   };
@@ -174,6 +180,11 @@ export function TeamTools({ accountId, workers, onImported }: Props) {
             accessibilityHint={t('teamTools.dayOffReasonHint')}
             testID="day-off-reason"
           />
+          {timeOffError ? (
+            <ThemedText style={styles.error} accessibilityRole="alert" testID="days-off-load-error">
+              {t('teamTools.daysOffLoadError', { error: timeOffError })}
+            </ThemedText>
+          ) : null}
           {dayOffError ? <ThemedText style={styles.error} accessibilityRole="alert">{dayOffError}</ThemedText> : null}
           <Pressable
             onPress={() => { void handleAddDayOff(); }}
@@ -189,13 +200,17 @@ export function TeamTools({ accountId, workers, onImported }: Props) {
             <ThemedText style={styles.muted}>{t('teamTools.daysOffEmpty')}</ThemedText>
           ) : (
             exceptions.map((exception) => (
-              <View key={exception.date} style={styles.rowBetween} testID={`day-off-${exception.date}`}>
+              <View key={exception.id} style={styles.rowBetween} testID={`day-off-${exception.date}`}>
                 <View style={styles.rowText}>
                   <ThemedText type="defaultSemiBold">{exception.date}</ThemedText>
                   {exception.reason ? <ThemedText style={styles.muted}>{exception.reason}</ThemedText> : null}
                 </View>
                 <Pressable
-                  onPress={() => { void removeException(exception.date); }}
+                  onPress={() => {
+                    void removeTimeOff(exception.id).then((result) => {
+                      setDayOffError(result.success ? null : t('scheduler.sync.saveFailed', { error: result.error }));
+                    });
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={t('teamTools.dayOffRemove', { date: exception.date })}
                   accessibilityHint={t('teamTools.dayOffRemoveHint')}
