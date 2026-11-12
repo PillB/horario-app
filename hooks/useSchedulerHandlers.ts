@@ -28,7 +28,7 @@ import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
 import { fetchWorkersOffOn } from '@/hooks/useTimeOff';
 import { validateDisplayString } from '@/utils/sanitize';
-import type { LaborConstraints } from '@/services/shiftAssigner';
+import type { AssignedShift, CoverageShortfall, LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
 import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { useLocations } from '@/hooks/useLocations';
@@ -43,10 +43,6 @@ import {
   type OnboardingProgress,
   upsertOnboardingProgress,
 } from '@/services/onboardingProgress';
-import {
-  type AssignedShift,
-  type CoverageShortfall,
-} from '@/services/shiftAssigner';
 import { runAutoAssign } from '@/services/optimizer/autoAssignClient';
 import { useUsageLimit } from '@/hooks/useUsageLimit';
 import { trackEvent } from '@/services/analytics';
@@ -79,6 +75,20 @@ const EMPTY_WORKER_FORM: WorkerFormState = {
 };
 
 const EMPTY_TEMPLATE_FORM = { name: '', role: '', start: '09:00', end: '17:00', coverage: '1' };
+
+/** Runs `fn` unless a previous call of it is still running. */
+const useSingleFlight = (fn: () => Promise<void> | void) => {
+  const busy = useRef(false);
+  return useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await fn();
+    } finally {
+      busy.current = false;
+    }
+  }, [fn]);
+};
 
 /** The steps of the scheduler page, in working order. `shifts` is the roster. */
 export const SCHEDULER_SECTIONS = ['workers', 'templates', 'forecast', 'shifts'] as const;
@@ -1399,31 +1409,29 @@ export function useSchedulerHandlers() {
   }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
-    let savedCount = 0;
-    for (const target of targets) {
-      try {
-        await overrideTarget({
-          date: target.date,
-          role: target.role,
-          required: target.required,
-          source: 'override',
-          notes: target.notes,
-          lowerBound: target.lowerBound,
-          upperBound: target.upperBound,
-          confidence: target.confidence,
-        });
-        savedCount++;
-      } catch {
-        // Skip individual failures silently; report saved count at end.
-      }
+    // One batch, and its real outcome: before, each row was its own request and
+    // a row the server refused was still counted as saved.
+    const result = await seedBaselineTargets(targets.map((target) => ({
+      date: target.date,
+      role: target.role,
+      required: target.required,
+      source: 'override' as const,
+      notes: target.notes,
+      lowerBound: target.lowerBound,
+      upperBound: target.upperBound,
+      confidence: target.confidence,
+    })));
+    if (!result.success) {
+      showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+      return;
     }
     const distinctRoles = new Set(targets.map((tgt) => tgt.role)).size;
     const msg =
       distinctRoles > 1
-        ? t('scheduler.demand.posTargetsSavedMulti', { n: String(savedCount), roles: String(distinctRoles) })
-        : t('scheduler.demand.posTargetsSaved', { n: String(savedCount) });
+        ? t('scheduler.demand.posTargetsSavedMulti', { n: String(targets.length), roles: String(distinctRoles) })
+        : t('scheduler.demand.posTargetsSaved', { n: String(targets.length) });
     showActionBanner(msg, 'success');
-  }, [overrideTarget, showActionBanner, t]);
+  }, [seedBaselineTargets, showActionBanner, t]);
 
   /**
    * Seeds the app with realistic sample data after tour completion.
@@ -1481,6 +1489,12 @@ export function useSchedulerHandlers() {
   }, [workersLoaded, workersError, workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
+  // A second tap while a save is still on its way would add the row twice
+  // (each save mints a new id).
+  const handleAddWorkerOnce = useSingleFlight(handleAddWorker);
+  const handleAddTemplateOnce = useSingleFlight(handleAddTemplate);
+  const handleAvailabilitySubmitOnce = useSingleFlight(handleAvailabilitySubmit);
+
   return {
     // Data
     workers,
@@ -1570,9 +1584,9 @@ export function useSchedulerHandlers() {
     router,
 
     // Handlers
-    handleAddWorker,
-    handleAddTemplate,
-    handleAvailabilitySubmit,
+    handleAddWorker: handleAddWorkerOnce,
+    handleAddTemplate: handleAddTemplateOnce,
+    handleAvailabilitySubmit: handleAvailabilitySubmitOnce,
     handleShiftSubmit,
     handleTargetSubmit,
     handleFallbackSubmit,

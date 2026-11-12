@@ -38,6 +38,11 @@ Scope: everything on the open list that needs no product decision. Pricing is bu
 - The shortfall reason said "already have an overlapping shift" when the only eligible worker had just been placed in the same shift; reworded in all nine languages.
 - Analytics sub-labels said "all time" / "across all dates"; removed, since the dates are now chosen.
 
+**Added after the concurrency review of the red-team thread (2026-11-12)**
+- Add worker, Add template and Save availability ignore a second tap while the first save is still running (`useSingleFlight`); each tap minted a new id, so a double tap added the row twice.
+- POS-generated demand is saved as one batch and reports a refusal; before, each row was its own request and a refused row was counted as saved.
+- Left for after #59 merges, because they use its API: `expectedUpdatedAt` on the worker and template edit forms (409 when the row changed elsewhere), and applying auto-assign suggestions in one request.
+
 **Not done, and why**
 - Push / SMS / email delivery of shift messages and real-time updates: both need a provider or infrastructure decision.
 - Invite codes that join a team, and a server home for streaks: need the accounts model (`accounts` table), a product decision.
