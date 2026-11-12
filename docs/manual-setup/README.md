@@ -10,8 +10,8 @@ Complete them in order before enabling paid subscriptions.
 | # | Step | Platform | Time | Critical |
 |---|---|---|---|:---:|
 | 1 | [Run Supabase migrations](./SETUP_SUPABASE.md) | Supabase | 5 min | ✅ |
-| 2 | [Create Stripe products & prices](./SETUP_STRIPE.md) | Stripe | 15 min | ✅ |
-| 3 | [Set up Culqi for Peru (Yape)](./SETUP_CULQI.md) | Culqi | 20 min | ✅ Peru launch |
+| 2 | [Paddle account, catalog and keys](./SETUP_PADDLE.md) (checkout not built yet) | Paddle | see page | before taking payment |
+| 3 | ~~Stripe~~ / ~~Culqi~~: superseded by Paddle (CHG-099), pages kept for reference | | | |
 | 4 | [Configure Clerk JWT + webhook](./SETUP_CLERK.md) | Clerk | 10 min | ✅ |
 | 5 | [Add environment variables to Vercel](./SETUP_VERCEL.md) | Vercel | 5 min | ✅ |
 
@@ -20,11 +20,10 @@ Complete them in order before enabling paid subscriptions.
 ## After all steps are complete
 
 1. Deploy to Vercel: `git push` (or manual deploy from Vercel dashboard)
-2. Test checkout flow end-to-end (use Stripe test cards)
-3. Verify webhook events arrive in Supabase `subscriptions` table
-4. Verify Clerk `publicMetadata.horario_tier` updates after payment
-5. Remove `STRIPE_SECRET_KEY=FILL_ME_IN` from any non-.env.local files
+2. Apply the migrations (`migrate.yml`), including `20261111000099_plans_entitlements.sql`
+3. Set `HORARIO_PLATFORM_ADMIN_USER_IDS` to grant tester access on `/admin`
+4. Payments: follow [SETUP_PADDLE.md](./SETUP_PADDLE.md)
 
 ---
 
-*Last updated: 2026-04-05 — researched against 2024-2025 platform docs and community issues.*
+*Last updated: 2026-11-11 (CHG-099).*

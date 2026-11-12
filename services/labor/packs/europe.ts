@@ -13,6 +13,8 @@ const ARBZG = 'https://www.gesetze-im-internet.de/arbzg/BJNR117100994.html';
 const JARBSCHG = 'https://www.gesetze-im-internet.de/jarbschg/BJNR009650976.html';
 const OWTA = 'https://revisedacts.lawreform.ie/eli/1997/act/20/revised/en/html';
 
+const PL_MINISTRY = 'https://www.gov.pl/web/rodzina/ustalanie-i-rozliczanie-czasu-pracy';
+
 const HOSPITALITY = ['food_service', 'fast_food', 'full_service_restaurant', 'hospitality', 'hotel'] as const;
 
 export const EUROPE: Record<string, RulePack> = {
@@ -172,7 +174,7 @@ export const EUROPE: Record<string, RulePack> = {
     code: 'PL',
     currency: 'PLN',
     baselineOnly: undefined,
-    restBetweenShifts: { minHours: 11, cite: { source: 'Kodeks pracy art. 132', url: 'https://www.gov.pl/web/rodzina/ustalanie-i-rozliczanie-czasu-pracy', confidence: 'high' } },
+    restBetweenShifts: { minHours: 11, cite: { source: 'Kodeks pracy art. 132', url: PL_MINISTRY, confidence: 'high' } },
     dailyOrdinaryMax: { hours: 8, excess: 'overtime', cite: { source: 'Kodeks pracy art. 129', confidence: 'high' } },
     weeklyOrdinaryMax: { hours: 40, cite: { source: 'Kodeks pracy art. 129 (average over the reference period)', confidence: 'high' } },
     weeklyRest: { minHours: 35, cite: { source: 'Kodeks pracy art. 133', confidence: 'high' } },
@@ -180,7 +182,21 @@ export const EUROPE: Record<string, RulePack> = {
       triggers: [{ afterHours: 6, inclusive: true, minMinutes: 15 }, { afterHours: 9, minMinutes: 30 }, { afterHours: 16, minMinutes: 45 }],
       cite: { source: 'Kodeks pracy art. 134', confidence: 'high' },
     },
-    night: { window: ['21:00', '07:00'], premiumPct: 20, cite: { source: 'Kodeks pracy art. 151^7-151^8 (20% of the minimum-wage hourly rate)', confidence: 'high' } },
+    // KP art. 151^7 §1: the night period is 8 hours that the employer sets
+    // between 21:00 and 07:00. 22:00-06:00 is Horario's assumption (also the
+    // night period for minors); the engine asks to check it against the work rules.
+    night: {
+      window: ['22:00', '06:00'], setByEmployerWithin: ['21:00', '07:00'], premiumPct: 20,
+      cite: { source: 'Kodeks pracy art. 151^7 §1 (night = 8 hours between 21:00 and 07:00, set by the employer), art. 151^8 §1 (20% of the minimum-wage hourly rate per night hour)', url: PL_MINISTRY, confidence: 'high' },
+    },
+    // Poland has no average-hours limit for night workers; the EU floor's is not applied.
+    nightWorker: undefined,
+    // A night worker (§2) has at least 3 night hours in every 24 h, or at least
+    // 1/4 of the working time of the reference period at night.
+    nightWorkerStrenuousMax: {
+      dailyHours: 8,
+      cite: { source: 'Kodeks pracy art. 151^7 §2-§5: a night worker (≥ 3 night hours in each 24 h, or ≥ 1/4 of working time in the reference period) may not work more than 8 hours in 24 h on particularly dangerous or physically or mentally strenuous work (list set by the employer; not for managers or rescue work)', url: PL_MINISTRY, confidence: 'high' },
+    },
     notice: { hours: 7 * 24, verdict: 'violation', cite: { source: 'gov.pl: schedule at least 1 week before the period', confidence: 'high' } },
     minors: [{ ageFrom: 0, ageTo: 17, bannedWindows: [['22:00', '06:00']], cite: { source: 'gov.pl: no night work for minors', confidence: 'high' } }],
   },

@@ -1,5 +1,7 @@
 # SETUP\_CULQI.md
 
+> **Superseded (2026-11-11, CHG-099).** The app no longer uses Stripe or Culqi. Payments will go through Paddle: see [SETUP_PADDLE.md](./SETUP_PADDLE.md). This page is kept for reference only; its tier names (Starter, Growth) no longer exist.
+
 > **Last updated:** 2025 · Expo SDK 53 · Culqi API v2 · Node.js runtime (Vercel)
 
 ---

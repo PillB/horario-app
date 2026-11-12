@@ -13,6 +13,7 @@ import {
   nextTier,
   requiredTierForFeature,
   tierMeetsRequirement,
+  tierRank,
 } from '@/constants/pricing';
 
 export type FeatureGateResult = {
@@ -53,7 +54,7 @@ export function useFeatureGates(features: string[]): FeatureGateResult & { resul
 
   const results: Record<string, boolean> = {};
   let allAllowed = true;
-  let mostRestrictiveTier: SubscriptionTier = 'free';
+  let mostRestrictiveTier: SubscriptionTier = 'gratis';
 
   for (const feature of features) {
     const required = requiredTierForFeature(feature);
@@ -62,8 +63,7 @@ export function useFeatureGates(features: string[]): FeatureGateResult & { resul
     if (!can) {
       allAllowed = false;
       // Track the highest required tier among blocked features
-      const tiers: SubscriptionTier[] = ['free', 'starter', 'growth', 'pro'];
-      if (tiers.indexOf(required) > tiers.indexOf(mostRestrictiveTier)) {
+      if (tierRank(required) > tierRank(mostRestrictiveTier)) {
         mostRestrictiveTier = required;
       }
     }

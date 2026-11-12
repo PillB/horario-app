@@ -22,6 +22,7 @@ const MANAGER_ONLY: Record<string, Record<string, unknown>> = {
   // Includes the labor attributes (see the weekly-limit opt-out test below).
   upsertWorker: { worker: { name: 'Ana', role: 'Cook', nightWorker: true } },
   deleteWorker: { id: W1 },
+  importWorkers: { workers: [{ id: W1, name: 'Ana', role: 'Cook', skills: [] }] },
   upsertAvailability: { availability: { workerId: W1, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '17:00' } },
   deleteAvailability: { id: W1 },
   upsertShiftTemplate: { template: { name: 'Early', role: 'Cook', startTime: '06:00', endTime: '14:00', coverage: 1 } },
@@ -62,6 +63,13 @@ const MEMBER_OPEN = [
   'listPosSales',
   'getSubscription',
 ];
+
+/** Platform admins only (HORARIO_PLATFORM_ADMIN_USER_IDS): they act on any account. */
+const PLATFORM_ADMIN_ONLY: Record<string, Record<string, unknown>> = {
+  adminListEntitlements: { accountId: 'org_other' },
+  adminGrantEntitlement: { accountId: 'org_other', plan: 'pro', source: 'tester', days: 90, reason: 'friend of the house' },
+  adminRevokeEntitlement: { id: W1 },
+};
 
 const SCHEDULE_MESSAGE = /Only an admin of this business can change the schedule/;
 
@@ -104,11 +112,31 @@ describe('secure proxy: member vs manager actions (no database)', () => {
     return { status: res.status, body: (await res.json()) as Record<string, unknown> };
   };
 
+  it.each(Object.entries(PLATFORM_ADMIN_ONLY))('%s: 403 for an org admin and a personal account that are not platform admins', async (action, payload) => {
+    delete process.env.HORARIO_PLATFORM_ADMIN_USER_IDS;
+    for (const token of [admin(), personal(), member()]) {
+      const res = await call(token, { action, ...payload });
+      expect(res.status).toBe(403);
+      expect(String(res.body.error)).toMatch(/platform admin/);
+    }
+  });
+
+  it('lets only the listed user ids past the platform admin check', async () => {
+    process.env.HORARIO_PLATFORM_ADMIN_USER_IDS = 'user_other, user_solo';
+    try {
+      // Past the check, the bad input is a 400; the org admin is still refused.
+      expect((await call(personal(), { action: 'adminGrantEntitlement', accountId: 'org_other', plan: 'gratis' })).status).toBe(400);
+      expect((await call(admin(), { action: 'adminGrantEntitlement', accountId: 'org_other', plan: 'gratis' })).status).toBe(403);
+    } finally {
+      delete process.env.HORARIO_PLATFORM_ADMIN_USER_IDS;
+    }
+  });
+
   it('classifies every action the dispatcher handles', () => {
     const source = readFileSync(join(__dirname, '../../app/api/secure-proxy+api.ts'), 'utf8');
     const dispatch = source.slice(source.indexOf('async function dispatch('), source.indexOf('export async function POST('));
     const actions = [...dispatch.matchAll(/case '(\w+)':/g)].map((m) => m[1]).sort();
-    expect(actions).toEqual([...Object.keys(MANAGER_ONLY), ...MEMBER_OPEN].sort());
+    expect(actions).toEqual([...Object.keys(MANAGER_ONLY), ...MEMBER_OPEN, ...Object.keys(PLATFORM_ADMIN_ONLY)].sort());
   });
 
   it.each(Object.entries(MANAGER_ONLY))('refuses %s to an org member with 403', async (action, payload) => {

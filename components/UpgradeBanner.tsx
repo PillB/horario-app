@@ -5,19 +5,15 @@
  * - Trial:     shows trial days remaining with a green badge
  * - Pro:       renders nothing (hide to avoid clutter)
  */
-import React from 'react';
-import { View, Pressable, StyleSheet, Linking } from 'react-native';
+import React, { useState } from 'react';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { PricingModal } from '@/components/PricingModal';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
-
-// Derived from EXPO_PUBLIC_CLERK_FRONTEND_API so it works across all environments
-// (dev, staging, production) without hardcoding instance-specific hostnames.
-const CLERK_BILLING_URL =
-  `${process.env.EXPO_PUBLIC_CLERK_FRONTEND_API ?? 'https://clerk.horario.app'}/user/billing`;
 
 type Props = {
   /** Number of free auto-assigns remaining (from useUsageLimit) */
@@ -30,15 +26,14 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
   const { t } = useT();
+  const [pricingVisible, setPricingVisible] = useState(false);
 
   // Paid users on active plans don't see the banner
   if (isSubscribed && !isTrialing) return null;
 
   const openBilling = () => {
     void trackEvent('upgrade_cta_tapped', { tier, source: 'banner' });
-    Linking.openURL(CLERK_BILLING_URL).catch(() => {
-      // Silently ignore if the URL can't be opened
-    });
+    setPricingVisible(true);
   };
 
   if (isTrialing) {
@@ -65,11 +60,12 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
   const outcomeHeadline = limitReached
     ? t('upgrade.free.limitReached')
     : t('upgrade.free.autoAssignsLeft', { n: String(autoAssignUsesLeft), plural });
-  const outcomeCta = limitReached
-    ? t('upgrade.free.ctaUnlimited')
-    : t('upgrade.free.cta');
+  // The trial is automatic, so the banner never offers one.
+  const outcomeCta = t('upgrade.free.ctaUnlimited');
 
   return (
+    <>
+    {pricingVisible ? <PricingModal visible onClose={() => setPricingVisible(false)} /> : null}
     <Pressable
       onPress={openBilling}
       style={({ pressed }) => [styles.banner, styles.freeBanner, pressed && styles.bannerPressed]}
@@ -87,6 +83,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
         </View>
       </View>
     </Pressable>
+    </>
   );
 }
 

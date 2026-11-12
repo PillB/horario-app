@@ -88,6 +88,7 @@ export const JURISDICTIONS: readonly JurisdictionInfo[] = [
   J({ code: 'CA-ON', name: 'Ontario', country: 'CA', region: 'ON', timeZone: 'America/Toronto' }),
   J({ code: 'CA-QC', name: 'Quebec', country: 'CA', region: 'QC', timeZone: 'America/Toronto' }),
   J({ code: 'CA-BC', name: 'British Columbia', country: 'CA', region: 'BC', timeZone: 'America/Vancouver' }),
+  J({ code: 'CA-AB', name: 'Alberta', country: 'CA', region: 'AB', timeZone: 'America/Edmonton' }),
   J({ code: 'AU', name: 'Australia', country: 'AU', timeZone: 'Australia/Sydney' }),
 ];
 

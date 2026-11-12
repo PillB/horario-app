@@ -19,6 +19,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { brand, Colors } from '@/constants/Colors';
 import { TIER_META, type SubscriptionTier } from '@/constants/pricing';
+import { useT } from '@/contexts/LocaleContext';
 import { useFeatureGate } from '@/hooks/useFeatureGate';
 
 type FeatureGateProps = {
@@ -68,6 +69,7 @@ type LockedBadgeProps = {
 };
 
 function LockedBadge({ requiredTier, onUpgradePress }: LockedBadgeProps) {
+  const { t } = useT();
   const meta = TIER_META[requiredTier];
   const isPro = requiredTier === 'pro';
 
@@ -76,15 +78,15 @@ function LockedBadge({ requiredTier, onUpgradePress }: LockedBadgeProps) {
       style={[styles.badge, isPro && styles.badgePro]}
       onPress={() => onUpgradePress?.(requiredTier)}
       accessibilityRole="button"
-      accessibilityLabel={`Requiere plan ${meta.label}. Toca para actualizar.`}
-      accessibilityHint={`Actualiza al plan ${meta.label} para acceder a esta función`}
+      accessibilityLabel={t('pricing.gate.requires', { plan: meta.label })}
+      accessibilityHint={t('pricing.gate.hint')}
     >
       <Text style={styles.lock}>🔒</Text>
       <View style={styles.badgeText}>
         <Text style={[styles.badgeTitle, isPro && styles.badgeTitlePro]}>
-          Requiere {meta.label}
+          {t('pricing.gate.requires', { plan: meta.label })}
         </Text>
-        <Text style={styles.badgeSub}>{meta.tagline} · Actualizar</Text>
+        <Text style={styles.badgeSub}>{t('pricing.gate.seePlans')}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -105,6 +107,7 @@ export function FeatureGateOverlay({
   onUpgradePress,
 }: FeatureGateOverlayProps) {
   const { allowed, requiredTier, loading } = useFeatureGate(feature);
+  const { t } = useT();
 
   if (loading || allowed) return <>{children}</>;
 
@@ -125,13 +128,13 @@ export function FeatureGateOverlay({
         style={styles.overlay}
         onPress={() => onUpgradePress?.(requiredTier)}
         accessibilityRole="button"
-        accessibilityLabel={`Función bloqueada. Requiere plan ${meta.label}.`}
-        accessibilityHint="Toca para ver opciones de actualización"
+        accessibilityLabel={t('pricing.gate.requires', { plan: meta.label })}
+        accessibilityHint={t('pricing.gate.hint')}
       >
         <View style={styles.overlayBadge}>
           <Text style={styles.overlayLock}>🔒</Text>
-          <Text style={styles.overlayTitle}>Plan {meta.label}</Text>
-          <Text style={styles.overlaySub}>Toca para desbloquear</Text>
+          <Text style={styles.overlayTitle}>{t('pricing.gate.requires', { plan: meta.label })}</Text>
+          <Text style={styles.overlaySub}>{t('pricing.gate.seePlans')}</Text>
         </View>
       </TouchableOpacity>
     </View>

@@ -124,4 +124,54 @@ describe('useLocations', () => {
     });
     expect(hook.get().locations).toEqual([]);
   });
+
+  describe('saves that cross or are retried (CHG-100)', () => {
+    const input = { name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' };
+    const bodies = (spy: jest.SpyInstance, action: string) =>
+      spy.mock.calls.map((c) => JSON.parse(String(c[1]?.body)) as Record<string, unknown>).filter((b) => b.action === action);
+
+    it('keeps the id of a new location until a save succeeds, so a retry is the same location', async () => {
+      let attempt = 0;
+      const spy = mockProxy((body) => {
+        if (body.action === 'listLocations') return { body: { locations: [] } };
+        attempt += 1;
+        return attempt === 1
+          ? { status: 500, body: { error: 'Request failed' } }
+          : { body: { success: true, location: { ...lima, ...(body.location as object) } } };
+      });
+      const hook = await renderHook();
+      await act(async () => {
+        await hook.get().save(input);
+      });
+      await act(async () => {
+        await hook.get().save(input);
+      });
+      const ids = bodies(spy, 'upsertLocation').map((b) => (b.location as { id: string }).id);
+      expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/);
+      expect(ids[1]).toBe(ids[0]);
+      // The next new location is a different one.
+      await act(async () => {
+        await hook.get().save(input);
+      });
+      expect((bodies(spy, 'upsertLocation')[2]?.location as { id: string }).id).not.toBe(ids[0]);
+    });
+
+    it('sends the version it read with an edit and reloads when someone else changed it', async () => {
+      const stored = { ...lima, updatedAt: '2026-11-11T10:00:00.123456+00:00' };
+      const spy = mockProxy((body) =>
+        body.action === 'listLocations'
+          ? { body: { locations: [stored] } }
+          : { status: 409, body: { error: 'Someone else changed this while you were editing' } },
+      );
+      const hook = await renderHook();
+      let result: { ok: boolean } | undefined;
+      await act(async () => {
+        result = await hook.get().save({ ...input, id: lima.id, name: 'Lima Norte' });
+      });
+      expect(result?.ok).toBe(false);
+      expect(bodies(spy, 'upsertLocation')[0]?.ifUpdatedAt).toBe('2026-11-11T10:00:00.123456+00:00');
+      expect(bodies(spy, 'listLocations')).toHaveLength(2);
+      expect(hook.get().locations.map((l) => l.name)).toEqual(['Lima']);
+    });
+  });
 });

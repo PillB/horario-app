@@ -296,3 +296,33 @@ describe("a member's refused write (G1)", () => {
     expect(hook.result.roster[0].status).toBe('Draft');
   });
 });
+
+describe('a write whose answer is lost (CHG-100)', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('reloads after a failed add, so a row the server did save is shown and not added twice', async () => {
+    const stored: { id: string; name: string; role: string; skills: string[] }[] = [];
+    const fetchMock = installFakeProxy(async (body: ProxyBody): Promise<ProxyReply> => {
+      if (body.action === 'listWorkers') return { body: { workers: stored.map((w) => ({ accountId: 'acc-1', ...w })), hasMore: false } };
+      if (body.action === 'listWorkerAvailability') return { body: { availabilities: [], hasMore: false } };
+      if (body.action === 'upsertWorker') {
+        // Saved, but the answer never arrives.
+        stored.push(body.worker as (typeof stored)[number]);
+        return { status: 502, body: { error: 'Bad gateway' } };
+      }
+      return { body: { success: true } };
+    });
+    const hook = await renderHook(({ accountId }: { accountId: string }) => useWorkers(accountId), { accountId: 'acc-1' });
+    await act(async () => {
+      const result = await hook.result.addWorker('Ana', 'Cook', []);
+      expect(result.success).toBe(false);
+    });
+    await flush();
+    expect(callsOf(fetchMock, 'listWorkers').length).toBeGreaterThanOrEqual(2);
+    expect(hook.result.workers.map((w) => w.name)).toEqual(['Ana']);
+  });
+});

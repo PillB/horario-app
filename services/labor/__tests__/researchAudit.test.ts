@@ -13,7 +13,7 @@ import type { EvaluationContext, Finding, LaborShift, LaborWorker } from '../typ
 const ZONES: Record<string, string> = {
   BR: 'America/Sao_Paulo', CO: 'America/Bogota', PE: 'America/Lima', FR: 'Europe/Paris',
   'US-PA-PHILADELPHIA': 'America/New_York', 'US-IL-EVANSTON': 'America/Chicago', 'US-IL-CHICAGO': 'America/Chicago',
-  CA: 'America/Toronto', 'CA-BC': 'America/Vancouver', 'CA-OTHER': 'America/Edmonton',
+  CA: 'America/Toronto', 'CA-BC': 'America/Vancouver', 'CA-OTHER': 'America/Winnipeg',
 };
 
 let seq = 0;
@@ -142,7 +142,8 @@ describe('Canada: provincial employers are not under the Canada Labour Code', ()
     expect(resolveJurisdiction({ country: 'CA', region: 'ON' })).toBe('CA-ON');
     expect(resolveJurisdiction({ country: 'CA', region: 'QC' })).toBe('CA-QC');
     expect(resolveJurisdiction({ country: 'CA', region: 'FED' })).toBe('CA');
-    expect(resolveJurisdiction({ country: 'ca', region: 'ab' })).toBe('CA-OTHER');
+    expect(resolveJurisdiction({ country: 'ca', region: 'ab' })).toBe('CA-AB');
+    expect(resolveJurisdiction({ country: 'ca', region: 'mb' })).toBe('CA-OTHER');
     expect(resolveJurisdiction({ country: 'CA' })).toBe('CA-OTHER');
     expect(resolveJurisdiction({ country: 'CA', region: null })).toBe('CA-OTHER');
   });
@@ -154,7 +155,7 @@ describe('Canada: provincial employers are not under the Canada Labour Code', ()
     expect(getJurisdiction('CA')?.name).toMatch(/federally regulated/i);
   });
 
-  it('CA-OTHER-01 an Alberta location gets a review notice and warnings only, not federal 96 h notice', () => {
+  it('CA-OTHER-01 a Manitoba location gets a review notice and warnings only, not federal 96 h notice', () => {
     const shift = at('CA-OTHER', MON, '09:00', '15:00', { breaks: [['12:00', '12:30']] });
     const r = run('CA-OTHER', [at('CA-OTHER', '2026-10-18', '19:00', '23:00'), shift], {}, { publishedAt: shift.start - 72 * 3_600_000 });
     expect(has(r.findings, 'jurisdiction.baseline', 'review')).toHaveLength(1);

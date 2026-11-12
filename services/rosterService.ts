@@ -186,6 +186,18 @@ export const upsertWorker = async (worker: Partial<DbWorker> & Pick<DbWorker, 'n
   return result.success ? { success: true, worker: result.worker } : result;
 };
 
+/**
+ * Adds several people in one request: all of them or none. Each carries its
+ * own id, and the server leaves a person whose id is already stored as is, so
+ * the same import can be sent again safely.
+ */
+export const importWorkers = async (
+  workers: (Pick<DbWorker, 'id' | 'name' | 'role'> & { skills: string[] })[],
+): Promise<{ success: true; added: number; workers: DbWorker[] } | { success: false; error: string }> => {
+  const result = await mutate<{ added?: number; workers?: DbWorker[] }>({ action: 'importWorkers', workers }, 'Unable to import the team');
+  return result.success ? { success: true, added: result.added ?? 0, workers: result.workers ?? [] } : result;
+};
+
 export const deleteWorker = async (id: string): Promise<MutationResult> => {
   const result = await mutate({ action: 'deleteWorker', id }, 'Unable to delete worker');
   return result.success ? { success: true } : result;

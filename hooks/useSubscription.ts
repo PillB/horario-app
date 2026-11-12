@@ -1,111 +1,124 @@
 /**
- * useSubscription — reads the account's subscription tier.
+ * useSubscription — the account's plan, as the server computed it.
  *
- * Source of truth: Clerk publicMetadata.horario_tier (written by the secure
- * proxy webhook handler after every successful Stripe / Culqi payment).
- *
- * Tier values: 'free' | 'starter' | 'growth' | 'pro'
- * Status values: 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid'
- *
- * Falls back gracefully when auth is disabled (dev bypass) or Clerk hasn't
- * loaded yet. Never throws — always returns a valid state.
+ * Source of truth: the proxy's `getSubscription` (server/plans.ts reads
+ * `account_entitlements` and `subscriptions`). Until it answers, and when it
+ * fails, the state is Gratis: the client never unlocks anything by itself,
+ * and the server enforces the limits whatever is shown.
  */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { SubscriptionTier } from '@/constants/pricing';
-import { tierMeetsRequirement } from '@/constants/pricing';
+import { tierCanAccessFeature, tierMeetsRequirement, type SubscriptionTier } from '@/constants/pricing';
+import { useIdentity } from '@/contexts/IdentityContext';
+import {
+  getAccountPlan,
+  type AccountPlan,
+  type PlanSource,
+  type PlanUsage,
+  type SubscriptionStatus,
+} from '@/services/subscriptionService';
 
-export type { SubscriptionTier };
-
-const authEnabled = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
-
-export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid';
+export type { SubscriptionTier, SubscriptionStatus };
 
 export type SubscriptionState = {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
-  /** true when on any paid tier (starter/growth/pro) and status is active or trialing */
+  /** On a paid or granted plan that is not the trial. */
   isSubscribed: boolean;
-  /** true when in trial period */
+  /** On the free Pro trial. */
   isTrialing: boolean;
-  /** true when the subscription will cancel at end of current period */
+  source: PlanSource;
+  /** When the current plan or trial ends (ISO), null = no end date. */
+  endsAt: string | null;
+  /** Whole days left on the trial (at least 1 while it runs), null when not on it. */
+  trialDaysLeft: number | null;
+  limits: AccountPlan['limits'];
+  usage: PlanUsage | null;
   cancelAtPeriodEnd: boolean;
-  /** ISO date string of when the current billing period ends */
   currentPeriodEnd: string | null;
-  /** whether Clerk is still loading the user */
+  isPlatformAdmin: boolean;
   loading: boolean;
-  /** Shorthand tier checks */
+  /** Set when the plan could not be loaded. */
+  error: string | null;
   canAccess: (feature: string) => boolean;
+  refresh: () => void;
 };
 
-const FREE_STATE: SubscriptionState = {
-  tier: 'free',
-  status: 'active',
-  isSubscribed: false,
-  isTrialing: false,
-  cancelAtPeriodEnd: false,
-  currentPeriodEnd: null,
-  loading: false,
-  canAccess: () => false,
+const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 };
+
+type Loaded = {
+  plan: AccountPlan;
+  usage: PlanUsage;
+  status: SubscriptionStatus;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  isPlatformAdmin: boolean;
 };
 
-// ── Auth-enabled implementation ───────────────────────────────────────────────
+export const daysLeft = (endsAt: string | null, now: number): number | null => {
+  if (!endsAt) return null;
+  const ms = Date.parse(endsAt) - now;
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms / 86_400_000) : null;
+};
 
-function useSubscriptionAuth(): SubscriptionState {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { useUser } = require('@clerk/expo') as {
-    useUser: () => { user: { publicMetadata?: Record<string, unknown> } | null; isLoaded: boolean };
-  };
-  const { user, isLoaded } = useUser();
+export function useSubscription(): SubscriptionState {
+  const { accountId } = useIdentity();
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
 
-  if (!isLoaded) return { ...FREE_STATE, loading: true };
-  if (!user) return FREE_STATE;
+  const load = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    const result = await getAccountPlan();
+    if (requestId !== requestRef.current) return;
+    if (result.success) {
+      setLoaded({
+        plan: result.plan,
+        usage: result.usage,
+        status: result.subscription.status,
+        cancelAtPeriodEnd: result.subscription.cancelAtPeriodEnd,
+        currentPeriodEnd: result.subscription.currentPeriodEnd,
+        isPlatformAdmin: result.isPlatformAdmin === true,
+      });
+      setError(null);
+    } else {
+      setLoaded(null);
+      setError(result.error);
+    }
+    setLoading(false);
+    // accountId is not sent (the server takes the tenant from the session); a tenant switch reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
-  const meta = user.publicMetadata ?? {};
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  // Written by secure-proxy webhook handler after payment confirmation
-  const tier = (['free', 'starter', 'growth', 'pro'].includes(meta['horario_tier'] as string)
-    ? (meta['horario_tier'] as SubscriptionTier)
-    : 'free');
-  const status = (['active', 'trialing', 'past_due', 'cancelled', 'unpaid'].includes(meta['horario_status'] as string)
-    ? (meta['horario_status'] as SubscriptionStatus)
-    : 'active');
-  const cancelAtPeriodEnd = Boolean(meta['horario_cancel_at_period_end']);
-  const currentPeriodEnd = (meta['horario_period_end'] as string | null) ?? null;
-
-  const isSubscribed = tier !== 'free' && (status === 'active' || status === 'trialing');
-  const isTrialing = tier !== 'free' && status === 'trialing';
-
-  const canAccess = (feature: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { tierCanAccessFeature } = require('@/constants/pricing') as typeof import('@/constants/pricing');
-    return tierCanAccessFeature(tier, feature);
-  };
-
-  return { tier, status, isSubscribed, isTrialing, cancelAtPeriodEnd, currentPeriodEnd, loading: false, canAccess };
+  return useMemo(() => {
+    const tier: SubscriptionTier = loaded?.plan.plan ?? 'gratis';
+    const isTrialing = loaded?.plan.isTrial ?? false;
+    return {
+      tier,
+      status: loaded?.status ?? 'active',
+      isSubscribed: tier !== 'gratis' && !isTrialing,
+      isTrialing,
+      source: loaded?.plan.source ?? 'default',
+      endsAt: loaded?.plan.endsAt ?? null,
+      trialDaysLeft: isTrialing ? daysLeft(loaded?.plan.endsAt ?? null, Date.now()) : null,
+      limits: loaded?.plan.limits ?? GRATIS_LIMITS,
+      usage: loaded?.usage ?? null,
+      cancelAtPeriodEnd: loaded?.cancelAtPeriodEnd ?? false,
+      currentPeriodEnd: loaded?.currentPeriodEnd ?? null,
+      isPlatformAdmin: loaded?.isPlatformAdmin ?? false,
+      loading,
+      error,
+      canAccess: (feature: string) => tierCanAccessFeature(tier, feature),
+      refresh: () => void load(),
+    };
+  }, [loaded, loading, error, load]);
 }
-
-// ── Dev bypass — auth disabled ─────────────────────────────────────────────
-
-function useSubscriptionBypass(): SubscriptionState {
-  return {
-    ...FREE_STATE,
-    canAccess: (feature: string) => {
-      // In dev bypass, use env var EXPO_PUBLIC_DEV_TIER to simulate a tier
-      const devTier = (process.env.EXPO_PUBLIC_DEV_TIER ?? 'free') as SubscriptionTier;
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { tierCanAccessFeature } = require('@/constants/pricing') as typeof import('@/constants/pricing');
-      return tierCanAccessFeature(devTier, feature);
-    },
-  };
-}
-
-// ── Export the right hook based on config ────────────────────────────────────
-
-export const useSubscription: () => SubscriptionState = authEnabled
-  ? useSubscriptionAuth
-  : useSubscriptionBypass;
-
-// ── Convenience: check if tier meets a minimum requirement ───────────────────
 
 export function useTierCheck(required: SubscriptionTier): { allowed: boolean; loading: boolean } {
   const { tier, loading } = useSubscription();
