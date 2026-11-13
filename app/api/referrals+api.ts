@@ -77,6 +77,17 @@ async function handleCreate(db: SupabaseClient, ctx: AuthContext, channel: unkno
       expires_at: expiresAt,
     });
     if (!error) return { status: 200, body: { referralCode: code } };
+    if (error.code === '23P01') {
+      // Another request of this user created the pending code first (one pending code per user): return that one.
+      const { data: winner } = await db
+        .from('referrals')
+        .select('code')
+        .eq('account_id', ctx.accountId)
+        .eq('referrer_user_id', ctx.userId)
+        .eq('status', 'pending')
+        .maybeSingle();
+      if (winner?.code) return { status: 200, body: { referralCode: winner.code } };
+    }
     if (error.code !== '23505') {
       console.error('[referrals] create failed', error.message);
       return fail(500, 'Failed to create referral');

@@ -419,7 +419,7 @@ export const de = {
     rosterAssignment: 'Schichtzuweisung',
     demandTargets: 'Bedarfsziele',
     posCsvImport: 'POS-CSV-Import',
-    autoAssign: 'Automatische Zuweisung',
+    autoAssign: 'Unbegrenzte automatische Planung',
     advancedAnalytics: 'Erweiterte Analysen',
     multiLocation: 'Mehrere Standorte',
     messaging: 'Nachrichten & Kommunikation',

@@ -137,6 +137,9 @@ const DEFAULT_FORECAST_METADATA: ForecastGenerationMetadata = {
   fallbackReason: 'Secure forecasting service unavailable; using local estimates.',
 };
 
+/** The server refused because the account's plan does not include the action (HTTP 402). */
+export class PlanRequiredError extends Error {}
+
 const handleSecureFetch = async <T>(payload: Record<string, unknown>): Promise<T> => {
   const token = await getSessionToken();
 
@@ -153,7 +156,8 @@ const handleSecureFetch = async <T>(payload: Record<string, unknown>): Promise<T
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error?.error ?? `Secure proxy responded with status ${response.status}`);
+    const message = error?.error ?? `Secure proxy responded with status ${response.status}`;
+    throw response.status === 402 ? new PlanRequiredError(message) : new Error(message);
   }
 
   return (await response.json()) as T;
@@ -331,14 +335,16 @@ export const generateDemandForecast = async (
   try {
     return await generateStatisticalForecast(filters, options, { available: apiAvailable, failed: apiFailed });
   } catch (error) {
-    console.warn('Unable to generate forecast via secure proxy', error);
+    const planRequired = error instanceof PlanRequiredError;
+    if (!planRequired) console.warn('Unable to generate forecast via secure proxy', error);
     return {
       forecasts: [],
       metadata: {
         ...DEFAULT_FORECAST_METADATA,
         apiAvailable,
         method: 'none',
-        fallbackReason: 'Secure forecast service unavailable.',
+        // The plan message is the server's and says what to do; show it as it is.
+        fallbackReason: planRequired ? error.message : 'Secure forecast service unavailable.',
       },
     };
   }

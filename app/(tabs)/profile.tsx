@@ -9,18 +9,20 @@
  * Clerk hooks are only called when ClerkProvider is mounted in the tree.
  */
 
-import React, { useCallback } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { CapabilityMatrix } from '@/components/CapabilityMatrix';
+import { PricingModal } from '@/components/PricingModal';
 import { LocationsManager } from '@/components/locations/LocationsManager';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { TIER_META } from '@/constants/pricing';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { useT } from '@/contexts/LocaleContext';
 import { useWelcomeTour, TOUR_MODES } from '@/contexts/WelcomeTourContext';
@@ -32,7 +34,6 @@ import { PageTitle } from '@/components/PageTitle';
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const AUTH_ENABLED = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').startsWith('pk_');
-const BILLING_URL = 'https://pleased-falcon-63.clerk.accounts.dev/user/billing';
 const APP_VERSION = '1.0.0';
 
 // ─── Clerk user info — two-implementation pattern (same as useSubscription) ────
@@ -149,9 +150,8 @@ export default function ProfileScreen() {
   const signOut = useSignOut();
   const { startTourMode } = useWelcomeTour();
 
-  const handleBillingPress = useCallback(() => {
-    Linking.openURL(BILLING_URL);
-  }, []);
+  const [pricingVisible, setPricingVisible] = useState(false);
+  const handleBillingPress = useCallback(() => setPricingVisible(true), []);
 
   const handleSignOut = useCallback(async () => {
     if (signOut) {
@@ -166,31 +166,45 @@ export default function ProfileScreen() {
   // Plan display config
   const planConfig = (() => {
     if (subscription.loading) return null;
+    const title = TIER_META[subscription.tier].label;
     if (subscription.isTrialing) {
       return {
         badge: t('profile.subscription.trialBadge'),
         badgeColor: brand.accentDark,
         badgeBg: brand.accentSurface,
-        title: t('profile.subscription.trialTitle'),
-        desc: t('profile.subscription.trialDesc'),
+        title,
+        desc: t('profile.subscription.trialLeft', { n: String(subscription.trialDaysLeft ?? 1) }),
       };
     }
     if (subscription.isSubscribed) {
       return {
-        badge: t('profile.subscription.proBadge'),
+        badge: title.toUpperCase(),
         badgeColor: brand.proDark,
         badgeBg: brand.proSurface,
-        title: t('profile.subscription.proTitle'),
-        desc: t('profile.subscription.proDesc'),
+        title,
+        desc: subscription.endsAt
+          ? t('profile.subscription.until', { date: subscription.endsAt.slice(0, 10) })
+          : t('profile.subscription.paidDesc'),
       };
     }
     return {
       badge: t('profile.subscription.freeBadge'),
       badgeColor: colors.textSecondary,
       badgeBg: colors.border,
-      title: t('profile.subscription.freeTitle'),
-      desc: t('profile.subscription.freeDesc'),
+      title,
+      desc: t('profile.subscription.gratisDesc'),
     };
+  })();
+
+  const usageLine = (() => {
+    const { usage, limits } = subscription;
+    if (!usage) return null;
+    const of = (used: number, max: number | null) => (max === null ? String(used) : `${used} / ${max}`);
+    return t('profile.subscription.usage', {
+      people: of(usage.workers, limits.maxWorkers),
+      locations: of(usage.locations, limits.maxLocations),
+      runs: of(usage.autoSchedulesThisMonth, limits.maxAutoSchedulesPerMonth),
+    });
   })();
 
   return (
@@ -290,43 +304,33 @@ export default function ProfileScreen() {
             </View>
             <ThemedText style={styles.mutedText}>{planConfig.desc}</ThemedText>
 
-            {/* CTA */}
-            {subscription.isSubscribed || subscription.isTrialing ? (
+            {usageLine ? <ThemedText style={styles.mutedText}>{usageLine}</ThemedText> : null}
+            {subscription.error ? (
+              <ThemedText style={styles.mutedText} accessibilityRole="alert">
+                {t('profile.subscription.loadError')}
+              </ThemedText>
+            ) : null}
+
+            <Pressable
+              onPress={handleBillingPress}
+              style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.subscription.seePlans')}
+              accessibilityHint={t('profile.subscription.seePlansHint')}
+            >
+              <ThemedText style={styles.secondaryButtonText}>{t('profile.subscription.seePlans')}</ThemedText>
+            </Pressable>
+            {subscription.isPlatformAdmin ? (
               <Pressable
-                onPress={handleBillingPress}
-                style={({ pressed }) => [
-                  styles.secondaryButton,
-                  pressed && { opacity: 0.75 },
-                ]}
+                onPress={() => router.push('/admin' as Href)}
+                style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
                 accessibilityRole="button"
-                accessibilityLabel={t('profile.subscription.manageButtonA11y')}
-                accessibilityHint={t('profile.subscription.manageButtonHint')}
+                accessibilityLabel={t('profile.subscription.adminButton')}
+                accessibilityHint={t('profile.subscription.adminButtonHint')}
               >
-                <ThemedText style={styles.secondaryButtonText}>
-                  {t('profile.subscription.manageButton')}
-                </ThemedText>
+                <ThemedText style={styles.secondaryButtonText}>{t('profile.subscription.adminButton')}</ThemedText>
               </Pressable>
-            ) : (
-              <>
-                <Pressable
-                  onPress={handleBillingPress}
-                  style={({ pressed }) => [
-                    styles.upgradeButton,
-                    pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('profile.subscription.upgradeButtonA11y')}
-                  accessibilityHint={t('profile.subscription.upgradeButtonHint')}
-                >
-                  <ThemedText style={styles.upgradeButtonText}>
-                    {t('profile.subscription.upgradeButton')}
-                  </ThemedText>
-                </Pressable>
-                <ThemedText style={styles.pricingNote}>
-                  {t('profile.subscription.pricingNote')}
-                </ThemedText>
-              </>
-            )}
+            ) : null}
           </View>
         ) : null}
 
@@ -336,6 +340,7 @@ export default function ProfileScreen() {
             onUpgradePress={subscription.isSubscribed || subscription.isTrialing ? undefined : handleBillingPress}
           />
         </ErrorBoundary>
+        {pricingVisible ? <PricingModal visible onClose={() => setPricingVisible(false)} /> : null}
       </ThemedView>
 
       {/* ── Business locations ────────────────────────────────────────── */}

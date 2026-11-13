@@ -7,6 +7,10 @@
 import type { RulePack } from '../types';
 
 const FLSA_MINORS_CITE = { source: '29 CFR 570.35', url: 'https://webapps.dol.gov/elaws/whd/flsa/cl/e14.asp', confidence: 'high' } as const;
+const LFT_REFORM_2026 = 'https://www.diputados.gob.mx/LeyesBiblio/ref/lft/LFT_ref52_01may26.pdf';
+const WA_MINORS_URL = 'https://lni.wa.gov/workers-rights/youth-employment/hours-of-work';
+const ODRISA_URL = 'https://www.ilga.gov/legislation/ilcs/ilcs3.asp?ActID=2407';
+const AB_HOURS_URL = 'https://www.alberta.ca/hours-work-rest';
 
 export const AMERICAS: Record<string, RulePack> = {
   US: {
@@ -81,6 +85,41 @@ export const AMERICAS: Record<string, RulePack> = {
       },
     },
   },
+  // Washington. Not encoded: the paid 10 min rest period per 4 h worked (no more
+  // than 3 h without one, WAC 296-126-092(4)), because paid rest is not on the
+  // schedule; the extra meal period for 3+ h past the normal work day (092(3));
+  // minors' 6-day week and the Friday-Sunday hours of 16-17 year-olds (only
+  // their outer limits are checked).
+  'US-WA': {
+    code: 'US-WA',
+    currency: 'USD',
+    overtimePay: {
+      weekly: { after: 40, multiplier: 1.5 },
+      cite: { source: 'RCW 49.46.130 (over 40 h in a 7-day workweek at 1.5×; no daily overtime)', url: 'https://lni.wa.gov/workers-rights/wages/overtime/', confidence: 'high' },
+    },
+    mealDeadline: {
+      byWorkHours: 5, notBeforeWorkHours: 2, minMinutes: 30, waivableIfWorkHoursLte: 24,
+      cite: { source: 'WAC 296-126-092(1)-(2): a 30 min meal period starting between the 2nd and 5th hour of the shift; no more than 5 consecutive hours without one; the employee may waive it by agreement (L&I)', url: 'https://lni.wa.gov/workers-rights/workplace-policies/rest-breaks-meal-periods-and-schedules', confidence: 'high' },
+    },
+    minors: [
+      {
+        ageFrom: 14, ageTo: 15,
+        schoolDayMaxHours: 3, nonSchoolDayMaxHours: 8, schoolWeekMaxHours: 16, nonSchoolWeekMaxHours: 40,
+        allowedWindow: ['07:00', '19:00'], summerAllowedWindow: ['07:00', '21:00'],
+        breaks: [{ afterHours: 4, minMinutes: 30 }],
+        cite: { source: 'WAC 296-125-027 and L&I hours of work for minors (16 h in a school week; 6 days a week not checked); WAC 296-125-0285 (30 min meal: no more than 4 h without one)', url: WA_MINORS_URL, confidence: 'high' },
+      },
+      {
+        // Outer limits only: in a school week the law allows 4 h (8 h Friday to
+        // Sunday) and work until 22:00 (midnight Friday and Saturday).
+        ageFrom: 16, ageTo: 17,
+        maxDailyHours: 8, schoolWeekMaxHours: 20, nonSchoolWeekMaxHours: 48,
+        allowedWindow: ['05:00', '00:00'],
+        breaks: [{ afterHours: 5, minMinutes: 30 }],
+        cite: { source: 'WAC 296-125-027 and L&I hours of work for minors (16-17: 20 h in a school week, 28 h with a special variance; 48 h otherwise; 8 h a day; never between midnight and 05:00); WAC 296-125-0287 (30 min meal: no more than 5 h without one)', url: WA_MINORS_URL, confidence: 'high' },
+      },
+    ],
+  },
   'US-WA-SEATTLE': {
     code: 'US-WA-SEATTLE',
     currency: 'USD',
@@ -92,6 +131,42 @@ export const AMERICAS: Record<string, RulePack> = {
       },
       notice: { hours: 14 * 24, verdict: 'violation', cite: { source: 'Seattle Secure Scheduling Ordinance', confidence: 'high' } },
     },
+  },
+  // Illinois. ODRISA does not cover employees whose hours, days of work and
+  // meal periods are set by a collective agreement, among others (s.2(b), s.3).
+  'US-IL': {
+    code: 'US-IL',
+    currency: 'USD',
+    overtimePay: {
+      weekly: { after: 40, multiplier: 1.5 },
+      cite: { source: 'Illinois Minimum Wage Law, 820 ILCS 105/4a(1); 56 Ill. Adm. Code 210.400', url: 'https://labor.illinois.gov/faqs/minimum-wage-overtime-faq.html', confidence: 'high' },
+    },
+    // 20 min for 7.5 continuous hours, then 20 min more for each further 4.5 h.
+    breaks: {
+      triggers: [
+        { afterHours: 7.5, inclusive: true, minMinutes: 20 },
+        { afterHours: 12, inclusive: true, minMinutes: 40 },
+        { afterHours: 16.5, inclusive: true, minMinutes: 60 },
+      ],
+      cite: { source: 'One Day Rest in Seven Act, 820 ILCS 140/3 (P.A. 102-828, in force 2023-01-01): a 20 min meal period for 7.5 continuous hours and 20 min more for every additional 4.5 continuous hours', url: ODRISA_URL, confidence: 'high' },
+    },
+    mealDeadline: {
+      requiredFromWorkHours: 7.5, byWorkHours: 5, minMinutes: 20,
+      cite: { source: 'One Day Rest in Seven Act, 820 ILCS 140/3: the meal period begins no later than 5 hours after the start of the work period', url: ODRISA_URL, confidence: 'high' },
+    },
+    restInConsecutiveDays: {
+      minHours: 24, days: 7, exemptIfWeeklyHoursLte: 20,
+      cite: { source: 'One Day Rest in Seven Act, 820 ILCS 140/2 (P.A. 102-828, in force 2023-01-01): 24 consecutive hours of rest in every consecutive seven-day period; not for part-time employees of 20 h a week or less (s.2(b)(1)); a seventh day needs an IDOL permit and voluntary work', url: ODRISA_URL, confidence: 'high' },
+    },
+    minors: [
+      {
+        ageFrom: 14, ageTo: 15,
+        schoolDayMaxHours: 3, nonSchoolDayMaxHours: 8, schoolWeekMaxHours: 18, nonSchoolWeekMaxHours: 40,
+        allowedWindow: ['07:00', '19:00'], summerAllowedWindow: ['07:00', '21:00'],
+        breaks: [{ afterHours: 5, minMinutes: 30 }],
+        cite: { source: 'Child Labor Law of 2024, 820 ILCS 206/25 (P.A. 103-721, in force 2025-01-01): under 16; a 30 min meal period no later than the 5th consecutive hour of work (IDOL)', url: 'https://labor.illinois.gov/laws-rules/fls/child-labor-law-compliance.html', confidence: 'high' },
+      },
+    ],
   },
   'US-IL-CHICAGO': {
     code: 'US-IL-CHICAGO',
@@ -224,9 +299,43 @@ export const AMERICAS: Record<string, RulePack> = {
       daily: [{ after: 8, multiplier: 1.5 }, { after: 12, multiplier: 2 }],
       cite: { source: 'BC Employment Standards Act ss.35, 40', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-40', confidence: 'high' },
     },
+    dailySpanMax: {
+      hours: 12, splitShiftsOnly: true,
+      cite: { source: 'BC Employment Standards Act s.33: an employee working a split shift must complete the shift within 12 hours of starting work', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-33', confidence: 'high' },
+    },
     weeklyRest: {
       minHours: 32, verdict: 'premium', premiumMultiplier: 1.5,
       cite: { source: 'BC Employment Standards Act s.36(1): 32 consecutive hours free each week, or 1.5× for time worked in that period', url: 'https://www2.gov.bc.ca/gov/content/employment-business/employment-standards-advice/employment-standards/forms-resources/igm/esa-part-4-section-36', confidence: 'high' },
+    },
+  },
+  // Alberta, Employment Standards Code Part 2, Divisions 3-4. Not encoded: 4
+  // consecutive days of rest after 24 consecutive work days (s.19(2)).
+  'CA-AB': {
+    code: 'CA-AB',
+    currency: 'CAD',
+    dailySpanMax: {
+      hours: 12,
+      cite: { source: 'Alberta Employment Standards Code s.16: hours of work confined within 12 consecutive hours in a work day (unless an accident, urgent work or a variance)', url: AB_HOURS_URL, confidence: 'high' },
+    },
+    restBetweenShifts: {
+      minHours: 8, onlyOnShiftChange: true,
+      cite: { source: 'Alberta Employment Standards Code s.17(2): no change from one shift to another without 24 hours\' written notice and 8 hours of rest between shifts', url: AB_HOURS_URL, confidence: 'high' },
+    },
+    breaks: {
+      measure: 'span', minBlockMinutes: 15,
+      triggers: [{ afterHours: 5, minMinutes: 30 }, { afterHours: 10, inclusive: true, minMinutes: 60 }],
+      cite: { source: 'Alberta Employment Standards Code s.18: one 30 min break in a shift over 5 h, two in a shift of 10 h or more (paid or unpaid; by agreement in 2 periods of at least 15 min)', url: AB_HOURS_URL, confidence: 'high' },
+    },
+    weeklyRest: {
+      minHours: 24, verdict: 'warning',
+      cite: { source: 'Alberta Employment Standards Code s.19(1): 1 day of rest each work week, or 2, 3 or 4 consecutive days in each period of 2, 3 or 4 work weeks', url: AB_HOURS_URL, confidence: 'high' },
+    },
+    // "Whichever is greater" of the daily and weekly excess equals the engine's
+    // daily overtime plus the regular hours above 44.
+    overtimePay: {
+      weekly: { after: 44, multiplier: 1.5 },
+      daily: [{ after: 8, multiplier: 1.5 }],
+      cite: { source: 'Alberta Employment Standards Code ss.21-22: hours over 8 a day or 44 a week, whichever is greater, at 1.5×', url: 'https://www.alberta.ca/overtime-hours-overtime-pay', confidence: 'high' },
     },
   },
   'CA-OTHER': {
@@ -291,7 +400,7 @@ export const AMERICAS: Record<string, RulePack> = {
     shiftClassification: { night: ['20:00', '06:00'], mixedIfNightHoursLt: 3.5 },
     dailyOrdinaryMax: {
       hours: { day: 8, night: 7, mixed: 7.5 }, excess: 'overtime',
-      cite: { source: 'LFT arts. 60-61', url: 'https://www.diputados.gob.mx/LeyesBiblio/ref/lft/LFT_ref52_01may26.pdf', confidence: 'high' },
+      cite: { source: 'LFT arts. 60-61', url: LFT_REFORM_2026, confidence: 'high' },
     },
     weeklyOrdinaryMax: {
       hours: [
@@ -301,10 +410,26 @@ export const AMERICAS: Record<string, RulePack> = {
         { from: '2029-01-01', value: 42 },
         { from: '2030-01-01', value: 40 },
       ],
-      cite: { source: 'LFT art. 59 + transitorio 2º (DOF 2026-05-01)', url: 'https://www.diputados.gob.mx/LeyesBiblio/ref/lft/LFT_ref52_01may26.pdf', confidence: 'high' },
+      cite: { source: 'LFT art. 59 + transitorio 2º (DOF 2026-05-01)', url: LFT_REFORM_2026, confidence: 'high' },
     },
-    dailyOvertimeMax: { hours: 4, cite: { source: 'LFT art. 66', confidence: 'high' } },
-    overtimeDaysPerWeekMax: { days: 4, cite: { source: 'LFT art. 66 (≤ 4 days a week, DOF 2026-05-01)', confidence: 'high' } },
+    dailyOvertimeMax: { hours: 4, cite: { source: 'LFT art. 66 (≤ 4 h a day, DOF 2026-05-01)', url: LFT_REFORM_2026, confidence: 'high' } },
+    overtimeDaysPerWeekMax: { days: 4, cite: { source: 'LFT art. 66 (≤ 4 days a week, DOF 2026-05-01)', url: LFT_REFORM_2026, confidence: 'high' } },
+    // Art. 66 as reformed (in force 2026-05-01) caps overtime at 12 h a week,
+    // reached in steps by transitorio 4º: 9 h in 2026 and 2027, 10 h in 2028,
+    // 11 h in 2029, 12 h from 2030, each from 1 January. Before the reform the
+    // cap was also 9 h (3 h a day, 3 times a week). Overtime is paid at 2×
+    // (art. 66); art. 68 allows up to 4 more hours a week at 3×, which the
+    // worker is not obliged to work.
+    weeklyOvertimeMax: {
+      hours: [
+        { from: '1970-01-01', value: 9 },
+        { from: '2028-01-01', value: 10 },
+        { from: '2029-01-01', value: 11 },
+        { from: '2030-01-01', value: 12 },
+      ],
+      beyond: { hours: 4, multiplier: 3 },
+      cite: { source: 'LFT art. 66 + transitorio 4º (DOF 2026-05-01): 9 h a week in 2026-2027, 10 h in 2028, 11 h in 2029, 12 h from 2030; art. 68: up to 4 more hours a week at +200%', url: LFT_REFORM_2026, confidence: 'high' },
+    },
     dailyTotalMax: { hours: 12, cite: { source: 'LFT art. 68 (ordinary + overtime ≤ 12 h/day)', confidence: 'high' } },
     breaks: { triggers: [{ afterHours: 0, minMinutes: 30 }], verdict: 'warning', cite: { source: 'LFT art. 63 (≥ 30 min in a continuous shift)', confidence: 'high' } },
     weeklyRest: { minHours: 24, cite: { source: 'LFT art. 69', confidence: 'high' } },

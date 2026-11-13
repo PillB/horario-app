@@ -825,7 +825,7 @@ export const zh = {
     rosterAssignment: '班次分配',
     demandTargets: '需求目标',
     posCsvImport: 'POS CSV导入',
-    autoAssign: '自动分配',
+    autoAssign: '无限次自动排班',
     advancedAnalytics: '高级分析',
     multiLocation: '多地点',
     messaging: '消息与沟通',

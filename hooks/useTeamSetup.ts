@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { log } from '@/services/logger';
-import type { DbShiftTemplate } from '@/services/rosterService';
+import { importWorkers, type DbShiftTemplate } from '@/services/rosterService';
+import { newUuid, validateWorkerInput } from '@/utils/schedulingValidation';
 import type { ShiftTemplate } from '@/utils/schedulerMetrics';
 import { useWorkers, type WorkerWithAvailability } from '@/hooks/useWorkers';
 
@@ -75,7 +76,8 @@ const escapeCSVCell = (value: string): string => {
  */
 export const useTeamSetup = (accountId: string) => {
   const workersHook = useWorkers(accountId);
-  const { workers, addWorker } = workersHook;
+  const { workers, refresh } = workersHook;
+  const importIdsRef = useRef<{ csv: string; ids: string[] } | null>(null);
 
   // ── bulkImportWorkers ───────────────────────────────────────────────────────
 
@@ -86,14 +88,14 @@ export const useTeamSetup = (accountId: string) => {
    * A header row is detected by checking whether the first non-blank row's
    * first cell matches /^name$/i.  If so, it is skipped.
    *
-   * Returns the number of successfully imported workers and any per-row error
-   * messages so the caller can surface them to the user.
+   * Every row is checked first. With a bad row nothing is imported and the row
+   * errors are returned; otherwise all people are saved in one request.
    */
   const bulkImportWorkers = useCallback(
     async (csv: string): Promise<BulkImportResult> => {
       const lines = csv.split(/\r?\n/);
       const errors: string[] = [];
-      let imported = 0;
+      const rows: { name: string; role: string; skills: string[] }[] = [];
 
       // Determine whether a header row is present
       let startIndex = 0;
@@ -130,25 +132,35 @@ export const useTeamSetup = (accountId: string) => {
               .map((s) => s.trim())
               .filter(Boolean)
           : [];
-
-        try {
-          const result = await addWorker(name, role, skills);
-          if (result.success) {
-            imported++;
-            log.info('UI', 'Bulk-imported worker', { name, role });
-          } else {
-            errors.push(`Row ${humanIndex}: Failed to save "${name}" — ${result.error}`);
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          errors.push(`Row ${humanIndex}: Unexpected error for "${name}" — ${message}`);
+        const checked = validateWorkerInput({ name, role, skills });
+        if (!checked.ok) {
+          errors.push(`Row ${humanIndex}: ${checked.error}`);
+          continue;
         }
+        rows.push({ name: checked.value.name, role: checked.value.role, skills: checked.value.skills });
       }
 
-      log.info('UI', 'Bulk import complete', { imported, errorCount: errors.length });
-      return { imported, errors };
+      // All or nothing: a file with a bad row is fixed and imported once, so
+      // importing it again cannot add the good rows a second time.
+      if (errors.length || rows.length === 0) return { imported: 0, errors };
+
+      // The ids belong to this exact text: if the answer is lost and the same
+      // text is imported again, the server recognises the people it already saved.
+      if (importIdsRef.current?.csv !== csv || importIdsRef.current.ids.length !== rows.length) {
+        importIdsRef.current = { csv, ids: rows.map(() => newUuid()) };
+      }
+      const ids = importIdsRef.current.ids;
+      const result = await importWorkers(rows.map((row, i) => ({ ...row, id: ids[i] as string })));
+      if (!result.success) {
+        log.warn('UI', 'Bulk import refused', { reason: result.error });
+        return { imported: 0, errors: [result.error] };
+      }
+      importIdsRef.current = null;
+      void refresh();
+      log.info('UI', 'Bulk import complete', { imported: result.added });
+      return { imported: result.added, errors: [] };
     },
-    [addWorker],
+    [refresh],
   );
 
   // ── validateWorkerAgainstTemplates ──────────────────────────────────────────
@@ -163,7 +175,7 @@ export const useTeamSetup = (accountId: string) => {
   const validateWorkerAgainstTemplates = useCallback(
     (
       worker: Pick<WorkerWithAvailability, 'name' | 'role'>,
-      templates: Array<ShiftTemplate | DbShiftTemplate>,
+      templates: (ShiftTemplate | DbShiftTemplate)[],
     ): string | null => {
       if (templates.length === 0) {
         // No templates exist yet — warn but do not block

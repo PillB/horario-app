@@ -881,7 +881,7 @@ export const hi = {
     rosterAssignment: 'शिफ्ट असाइनमेंट',
     demandTargets: 'मांग लक्ष्य',
     posCsvImport: 'POS CSV आयात',
-    autoAssign: 'स्वतः असाइन',
+    autoAssign: 'असीमित ऑटो-शेड्यूल',
     advancedAnalytics: 'उन्नत विश्लेषण',
     multiLocation: 'बहु-स्थान',
     messaging: 'संदेश और संचार',

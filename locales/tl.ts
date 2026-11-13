@@ -881,7 +881,7 @@ export const tl = {
     rosterAssignment: 'Pagtatalaga ng shift',
     demandTargets: 'Mga target ng demand',
     posCsvImport: 'POS CSV import',
-    autoAssign: 'Awtomatikong pagtatalaga',
+    autoAssign: 'Walang limitasyong auto-schedule',
     advancedAnalytics: 'Advanced na analytics',
     multiLocation: 'Maramihang lokasyon',
     messaging: 'Pagmemensahe at komunikasyon',

@@ -10,6 +10,7 @@ import { LocationHistoryList } from '@/components/locations/LocationHistoryList'
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { locationNeedsReconfirm } from '@/utils/locationValidation';
 import { useT } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useLocations } from '@/hooks/useLocations';
@@ -85,6 +86,11 @@ export function LocationsManager({ accountId }: { accountId: string }) {
             <ThemedText style={styles.muted}>
               {getJurisdiction(location.jurisdictionCode)?.name ?? location.jurisdictionCode} · {location.timeZone}
             </ThemedText>
+            {locationNeedsReconfirm(location) ? (
+              <ThemedText style={styles.reconfirm} accessibilityRole="alert">
+                {t('locations.reconfirm')}
+              </ThemedText>
+            ) : null}
           </View>
           <Pressable
             onPress={() => {
@@ -156,6 +162,7 @@ const makeStyles = (colors: ThemeColors) =>
     container: { gap: 10 },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     muted: { fontSize: 13, lineHeight: 19, color: colors.textSecondary },
+    reconfirm: { fontSize: 13, lineHeight: 19, color: colors.text, backgroundColor: colors.warningSurface, borderRadius: 6, padding: 6 },
     errorText: { fontSize: 13, color: colors.error, flexShrink: 1 },
     locationRow: {
       flexDirection: 'row',

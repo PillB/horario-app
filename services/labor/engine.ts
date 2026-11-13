@@ -223,6 +223,7 @@ export function evaluateShifts(ctx: EvaluationContext, worker: LaborWorker, shif
   checkNight(pack, ctx, worker, duties, emit);
   checkWeekly(pack, ctx, worker, duties, ordinaryByDay, startsOn, emit);
   checkWeeklyRestDays(pack, ctx, duties, startsOn, emit);
+  checkRestInConsecutiveDays(pack, ctx, duties, startsOn, emit);
   checkNotice(pack, ctx, worker, duties, emit);
   checkMinors(pack, ctx, worker, duties, startsOn, emit);
   const pay = computeOvertimePay(pack, duties, startsOn, emit);
@@ -329,7 +330,16 @@ function checkDaily(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
         message: `${round2(total)} h in one day exceeds the ${pack.dailyTotalMax.hours} h absolute daily maximum.`,
       });
     }
+    const strenuous = pack.nightWorkerStrenuousMax;
+    const workedToday = day.reduce((n, d) => n + workedH(d), 0);
+    if (strenuous && worker.nightWorker && workedToday > strenuous.dailyHours + EPS) {
+      emit({
+        rule: 'nightWorker.strenuousMax', verdict: 'review', shiftIds, hours: round2(workedToday), cite: strenuous.cite,
+        message: `A night worker is scheduled for ${round2(workedToday)} h in one day. If the work is on the employer's list of particularly dangerous or strenuous work, the limit is ${strenuous.dailyHours} h.`,
+      });
+    }
     if (pack.spreadOfHours) checkSpread(pack.spreadOfHours, day, emit);
+    if (pack.dailySpanMax) checkSpan(pack.dailySpanMax, day, emit);
     ordinaryByDay.set(date, { ordinary, overtime });
   }
   return ordinaryByDay;
@@ -342,6 +352,21 @@ function checkSpread(rule: NonNullable<RulePack['spreadOfHours']>, day: Duty[], 
     emit({
       rule: 'daily.spreadOfHours', verdict: 'premium', shiftIds: day.flatMap(ids), hours: rule.premiumHours, cite: rule.cite,
       message: `The workday spans ${round2(spread)} h (more than ${rule.overHours} h): ${rule.premiumHours} extra hour at minimum wage is due.`,
+    });
+  }
+}
+
+/** The day's work, first start to last end, must fit inside the rule's consecutive hours. */
+function checkSpan(rule: NonNullable<RulePack['dailySpanMax']>, day: Duty[], emit: Emit) {
+  const shiftCount = day.reduce((n, d) => n + d.shifts.length, 0);
+  if (rule.splitShiftsOnly && shiftCount < 2) return;
+  const span = (Math.max(...day.map((x) => x.end)) - Math.min(...day.map((x) => x.start))) / HOUR;
+  if (span > rule.hours + EPS) {
+    emit({
+      rule: 'daily.spanMax', verdict: 'violation', shiftIds: day.flatMap(ids), hours: round2(span), cite: rule.cite,
+      message: rule.splitShiftsOnly
+        ? `This split shift takes ${round2(span)} h from its first start to its last end; it must be completed within ${rule.hours} h of starting.`
+        : `The day's work takes ${round2(span)} h from its first start to its last end; it must fit inside ${rule.hours} consecutive hours.`,
     });
   }
 }
@@ -370,7 +395,12 @@ function checkRest(pack: RulePack, ctx: EvaluationContext, duties: Duty[], emit:
         why = `${min} h after a night shift ending after ${after.endsAfter}`;
       }
       const exempt = rest.exemptIfPairTotalHoursLte !== undefined && workedH(prev) + workedH(next) <= rest.exemptIfPairTotalHoursLte + EPS;
-      if (gapH < min - EPS && !exempt) {
+      if (gapH < min - EPS && !exempt && rest.onlyOnShiftChange) {
+        emit({
+          rule: 'rest.betweenShifts', verdict: 'review', shiftIds: pair, hours: round2(gapH), cite: rest.cite,
+          message: `Only ${round2(gapH)} h of rest between shifts. If this moves the employee from one shift to another, at least ${min} h of rest are required.`,
+        });
+      } else if (gapH < min - EPS && !exempt) {
         emit({
           rule: 'rest.betweenShifts', verdict: rest.verdict ?? 'violation', shiftIds: pair, hours: round2(gapH), cite: rest.cite,
           message: rest.verdict === 'warning'
@@ -426,26 +456,43 @@ function checkBreaks(pack: RulePack, duties: Duty[], emit: Emit) {
   for (const d of duties) {
     const worked = workedH(d);
     const rule = pack.breaks;
+    let breaksMissing = false;
     if (rule) {
-      const required = breakTriggerMinutes(rule.triggers, worked);
+      const span = rule.measure === 'span';
+      const measured = span ? (d.end - d.start) / HOUR : worked;
+      const required = breakTriggerMinutes(rule.triggers, measured);
       const minBlock = (rule.minBlockMinutes ?? 0) * MINUTE;
       const taken = d.breaks.map((b) => b.end - b.start).filter((b) => b >= minBlock).reduce((n, b) => n + b, 0) / MINUTE;
       if (required > 0 && taken < required - EPS) {
+        breaksMissing = true;
         emit({
           rule: 'breaks.minimum', verdict: rule.verdict ?? 'violation', shiftIds: ids(d), cite: rule.cite,
-          message: `${round2(worked)} h of work needs at least ${required} min of break; ${round2(taken)} min scheduled.`,
+          message: span
+            ? `A ${round2(measured)} h shift needs at least ${required} min of break; ${round2(taken)} min scheduled.`
+            : `${round2(worked)} h of work needs at least ${required} min of break; ${round2(taken)} min scheduled.`,
         });
       }
     }
     const meal = pack.mealDeadline;
-    if (meal && worked > meal.byWorkHours + EPS) {
-      const waived = worked <= meal.waivableIfWorkHoursLte + EPS && d.shifts.every((s) => s.mealWaiver);
-      // The meal must start before the worker has done `byWorkHours` of work.
-      const timely = d.breaks.some((b) => b.end - b.start >= meal.minMinutes * MINUTE && workBefore(d, b.start) <= meal.byWorkHours * HOUR + 1);
+    const mealOwed = meal && (meal.requiredFromWorkHours !== undefined
+      ? worked >= meal.requiredFromWorkHours - EPS
+      : worked > meal.byWorkHours + EPS);
+    // A day already reported as short of break time is not reported again for the meal's timing,
+    // unless the meal rule carries its own consequence (premium pay), which must still be shown.
+    if (meal && mealOwed && (!breaksMissing || meal.premiumHours !== undefined)) {
+      const waived = meal.waivableIfWorkHoursLte !== undefined && worked <= meal.waivableIfWorkHoursLte + EPS && d.shifts.every((s) => s.mealWaiver);
+      // The meal must start before the worker has done `byWorkHours` of work (and not before `notBeforeWorkHours`).
+      const timely = d.breaks.some((b) => {
+        const before = workBefore(d, b.start);
+        return b.end - b.start >= meal.minMinutes * MINUTE && before <= meal.byWorkHours * HOUR + 1 && before >= (meal.notBeforeWorkHours ?? 0) * HOUR - 1;
+      });
       if (!waived && !timely) {
+        const when = meal.notBeforeWorkHours !== undefined
+          ? `between hour ${meal.notBeforeWorkHours} and hour ${meal.byWorkHours} of work`
+          : `by the end of hour ${meal.byWorkHours}`;
         emit({
           rule: 'breaks.mealDeadline', verdict: 'violation', shiftIds: ids(d), hours: meal.premiumHours, cite: meal.cite,
-          message: `A ${meal.minMinutes} min meal must start by the end of hour ${meal.byWorkHours}; 1 h of premium pay is due.`,
+          message: `A ${meal.minMinutes} min meal must start ${when}${meal.premiumHours !== undefined ? `; ${meal.premiumHours} h of premium pay is due` : ''}.`,
         });
       }
     }
@@ -468,6 +515,18 @@ function checkNight(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
           message: `${round2(h)} h of night work earn a ${night.premiumPct}% premium.`,
         });
       }
+    }
+  }
+  const bracket = night?.setByEmployerWithin;
+  if (night && bracket) {
+    // One finding per evaluation: the night hours above rest on an assumed window.
+    const inBracket = duties.filter((d) => msInWindow(d.work, bracket, tz) > 0);
+    if (inBracket.length) {
+      const assumed = resolveDated(night.window, inBracket[0].date);
+      emit({
+        rule: 'night.window', verdict: 'review', shiftIds: inBracket.flatMap(ids), cite: night.cite,
+        message: `The employer sets the night period inside ${bracket[0]}–${bracket[1]}. Horario assumes ${assumed[0]}–${assumed[1]}; check the night hours against the period in your work rules.`,
+      });
     }
   }
   const floor = night?.monthlyPayFloor;
@@ -528,10 +587,10 @@ function checkNight(pack: RulePack, ctx: EvaluationContext, worker: LaborWorker,
 function checkWeekly(
   pack: RulePack, ctx: EvaluationContext, worker: LaborWorker, duties: Duty[], ordinaryByDay: Map<DateKey, DayHours>, startsOn: number, emit: Emit,
 ) {
-  const weeks = new Map<DateKey, { duties: Duty[]; ordinary: number; total: number; overtimeDays: number }>();
+  const weeks = new Map<DateKey, { duties: Duty[]; ordinary: number; total: number; overtimeDays: number; overtime: number }>();
   for (const d of duties) {
     const key = weekStartOf(d.date, startsOn);
-    const w = weeks.get(key) ?? { duties: [], ordinary: 0, total: 0, overtimeDays: 0 };
+    const w = weeks.get(key) ?? { duties: [], ordinary: 0, total: 0, overtimeDays: 0, overtime: 0 };
     w.duties.push(d);
     w.total += workedH(d);
     weeks.set(key, w);
@@ -539,6 +598,7 @@ function checkWeekly(
   for (const [date, day] of ordinaryByDay) {
     const w = weeks.get(weekStartOf(date, startsOn))!;
     w.ordinary += day.ordinary;
+    w.overtime += day.overtime;
     if (day.overtime > EPS) w.overtimeDays += 1;
   }
   const weekKeys = [...weeks.keys()].sort();
@@ -547,6 +607,8 @@ function checkWeekly(
     const w = weeks.get(key)!;
     const shiftIds = w.duties.flatMap(ids);
     const wom = pack.weeklyOrdinaryMax;
+    // Overtime of the week: the days' overtime plus the ordinary hours above the weekly limit.
+    let weekOvertime = w.overtime;
     if (wom) {
       const end = addDaysToKey(key, 6);
       const atStart = resolveDated(wom.hours, key);
@@ -559,6 +621,7 @@ function checkWeekly(
         });
       }
       if (w.ordinary > limit + EPS) {
+        weekOvertime += w.ordinary - limit;
         emit({
           rule: 'weekly.overtime', verdict: 'premium', shiftIds, hours: round2(w.ordinary - limit), cite: wom.cite,
           message: `${round2(w.ordinary - limit)} h above the ${limit} h weekly limit are overtime.`,
@@ -571,6 +634,26 @@ function checkWeekly(
         rule: 'weekly.overtimeDays', verdict: 'violation', shiftIds, cite: otDays.cite,
         message: `Overtime on ${w.overtimeDays} days this week; at most ${otDays.days} days are allowed.`,
       });
+    }
+    const otCap = pack.weeklyOvertimeMax;
+    if (otCap) {
+      // A week across a change of the cap uses the stricter value, as the weekly limit does.
+      const cap = Math.min(resolveDated(otCap.hours, key), resolveDated(otCap.hours, addDaysToKey(key, 6)));
+      const over = weekOvertime - cap;
+      const allowed = otCap.beyond?.hours ?? 0;
+      if (over > EPS && otCap.beyond && over <= allowed + EPS) {
+        emit({
+          rule: 'weekly.overtimeMax', verdict: 'premium', shiftIds, hours: round2(over), multiplier: otCap.beyond.multiplier, cite: otCap.cite,
+          message: `${round2(weekOvertime)} h of overtime this week exceeds the ${cap} h weekly limit: the ${round2(over)} h above it are paid at ${otCap.beyond.multiplier}× and the worker may refuse them.`,
+        });
+      } else if (over > EPS) {
+        emit({
+          rule: 'weekly.overtimeMax', verdict: 'violation', shiftIds, hours: round2(weekOvertime), cite: otCap.cite,
+          message: otCap.beyond
+            ? `${round2(weekOvertime)} h of overtime this week exceeds the ${cap} h weekly limit by more than the ${allowed} h that may be worked at ${otCap.beyond.multiplier}×.`
+            : `${round2(weekOvertime)} h of overtime this week exceeds the ${cap} h weekly limit.`,
+        });
+      }
     }
     if (pack.weeklyMax && w.total > pack.weeklyMax.hours + EPS) {
       emit({
@@ -687,6 +770,43 @@ function checkWeeklyRestDays(pack: RulePack, ctx: EvaluationContext, duties: Dut
       });
     }
   }
+}
+
+/**
+ * Rest in every period of consecutive days (Illinois: 24 h in every 7 days).
+ * A run is a chain of working days with no rest of `minHours` between them;
+ * a run whose work touches `days` local calendar days in a row is reported.
+ */
+function checkRestInConsecutiveDays(pack: RulePack, ctx: EvaluationContext, duties: Duty[], startsOn: number, emit: Emit) {
+  const rule = pack.restInConsecutiveDays;
+  if (!rule || !duties.length) return;
+  const weekHours = new Map<DateKey, number>();
+  for (const d of duties) {
+    const k = weekStartOf(d.date, startsOn);
+    weekHours.set(k, (weekHours.get(k) ?? 0) + workedH(d));
+  }
+  const sorted = [...duties].sort((a, b) => a.start - b.start);
+  let run: Duty[] = [];
+  const close = () => {
+    if (!run.length) return;
+    const first = run[0].date;
+    const last = wallClockAt(run[run.length - 1].end - 1, ctx.timeZone).dateKey;
+    const days = daysBetweenKeys(first, last) + 1;
+    const exempt = rule.exemptIfWeeklyHoursLte !== undefined
+      && run.every((d) => (weekHours.get(weekStartOf(d.date, startsOn)) ?? 0) <= rule.exemptIfWeeklyHoursLte! + EPS);
+    if (days >= rule.days && !exempt) {
+      emit({
+        rule: 'rest.consecutiveDays', verdict: 'violation', shiftIds: run.flatMap(ids), cite: rule.cite,
+        message: `Work on ${days} days in a row from ${first} with no ${rule.minHours} consecutive hours of rest; ${rule.minHours} h of rest are required in every ${rule.days} consecutive days.`,
+      });
+    }
+    run = [];
+  };
+  for (const d of sorted) {
+    if (run.length && d.start - run[run.length - 1].end >= rule.minHours * HOUR - 1) close();
+    run.push(d);
+  }
+  close();
 }
 
 // ─── Notice ──────────────────────────────────────────────────────────────────

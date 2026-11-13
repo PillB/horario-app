@@ -881,7 +881,7 @@ export const sw = {
     rosterAssignment: 'Ugawaji wa zamu',
     demandTargets: 'Malengo ya mahitaji',
     posCsvImport: 'Uingizaji wa CSV ya POS',
-    autoAssign: 'Ugawaji otomatiki',
+    autoAssign: 'Upangaji otomatiki bila kikomo',
     advancedAnalytics: 'Uchambuzi wa hali ya juu',
     multiLocation: 'Maeneo mengi',
     messaging: 'Ujumbe na mawasiliano',

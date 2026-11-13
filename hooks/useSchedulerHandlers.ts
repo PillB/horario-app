@@ -1303,11 +1303,11 @@ export function useSchedulerHandlers() {
   const handleAutoAssign = useCallback(async () => {
     if (!canAutoAssign) {
       if (Platform.OS === 'web') {
-        showActionBanner('Free limit reached. Upgrade to Pro for unlimited auto-assign.', 'error');
+        showActionBanner(t('upgrade.limitReachedBanner'), 'error');
       } else {
         Alert.alert(
           'Free limit reached',
-          'You have used your 1 free auto-assign. Upgrade to Pro for unlimited optimizations.',
+          t('upgrade.limitReachedBanner'),
           [{ text: 'OK' }]
         );
       }
@@ -1379,6 +1379,12 @@ export function useSchedulerHandlers() {
   const applyAutoAssign = useCallback(async () => {
     if (!autoAssignSuggestions?.length) return;
     setAutoAssignApplying(true);
+    // The run is counted before it is saved, so two tabs cannot both apply the last run of the month.
+    if ((await incrementUsage()) === 'limit') {
+      setAutoAssignApplying(false);
+      showActionBanner(t('upgrade.limitReachedBanner'), 'error');
+      return;
+    }
     let successCount = 0;
     let firstError: string | null = null;
     for (const suggestion of autoAssignSuggestions) {
@@ -1396,11 +1402,7 @@ export function useSchedulerHandlers() {
     setAutoAssignSuggestions(null);
     setAutoAssignShortfalls(null);
     setAutoAssignApplying(false);
-    if (successCount > 0) {
-      // Record freemium usage after at least one shift was successfully applied
-      await incrementUsage();
-      void trackEvent('auto_assign_used', { successCount });
-    }
+    if (successCount > 0) void trackEvent('auto_assign_used', { successCount });
     showActionBanner(
       `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).` +
         (firstError ? ` ${t('scheduler.sync.saveFailed', { error: firstError })}` : ''),
