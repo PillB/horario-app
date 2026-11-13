@@ -86,6 +86,41 @@ describe('useRoster', () => {
     expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
   });
 
+  it('adds several shifts in one request and keeps the stored rows (CHG-098)', async () => {
+    const fetchMock = proxy({
+      addRosterShifts: () => {
+        const sent = callsOf(fetchMock, 'addRosterShifts')[0].shifts as Record<string, unknown>[];
+        return { body: { success: true, shifts: sent.map((s) => ({ accountId: 'acc-1', notified: false, ...s })) } };
+      },
+    });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      result = await hook.result.addShifts([
+        { date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false },
+        { date: '2026-11-10', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false },
+      ]);
+    });
+    expect(result).toEqual({ success: true });
+    expect(callsOf(fetchMock, 'addRosterShifts')).toHaveLength(1);
+    expect(callsOf(fetchMock, 'upsertRosterShift')).toHaveLength(0);
+    expect(hook.result.roster.map((s) => s.date)).toEqual(['2026-11-02', '2026-11-03', '2026-11-09', '2026-11-10']);
+  });
+
+  it('removes every shift of a refused batch', async () => {
+    proxy({ addRosterShifts: { status: 409, body: { error: 'One of these shifts is already on the roster. Nothing was added. Reload and try again' } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      result = await hook.result.addShifts([
+        { date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false },
+        { date: '2026-11-10', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false },
+      ]);
+    });
+    expect(result.success).toBe(false);
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
+  });
+
   it('keeps an added shift the server stores', async () => {
     const fetchMock = proxy();
     const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });

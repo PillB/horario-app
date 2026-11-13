@@ -2,7 +2,8 @@
  * useAnalytics — live scheduling-performance metrics.
  *
  * Fetches all roster shifts, workers, templates, and demand targets in parallel
- * (no date filter — all-time view) and computes the key SMB metrics:
+ * and computes the key SMB metrics, for every stored date or for the dates of
+ * an optional range (`AnalyticsRange`, both ends included):
  *
  *  - coverageRate      % of total demand covered by Published shifts
  *  - draftShifts       count of Draft shifts awaiting approval
@@ -23,6 +24,8 @@ import {
   type DbWorker,
 } from '@/services/rosterService';
 import { loadDemandTargets } from '@/services/demandForecast';
+import { isoWeekStart } from '@/utils/autoAssignSettings';
+import { addDaysToKey } from '@/utils/dateKeys';
 import { computeUncoveredLoss } from '@/utils/schedulerMetrics';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
 
@@ -49,6 +52,26 @@ export type AnalyticsSummary = {
   refresh: () => void;
 };
 
+/** Dates to count, both ends included; a missing end is open. */
+export type AnalyticsRange = { from?: string; to?: string };
+
+/** True when `date` (YYYY-MM-DD) is inside the range. */
+export const inRange = (date: string, range?: AnalyticsRange): boolean =>
+  (!range?.from || date >= range.from) && (!range?.to || date <= range.to);
+
+export const ANALYTICS_PERIODS = ['week', 'month', 'all'] as const;
+export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
+
+/** This ISO week (Monday to Sunday), the last 28 days up to today, or every date. */
+export const periodRange = (period: AnalyticsPeriod, today: string | null): AnalyticsRange | undefined => {
+  if (period === 'all' || !today) return undefined;
+  if (period === 'week') {
+    const monday = isoWeekStart(today);
+    return { from: monday, to: addDaysToKey(monday, 6) };
+  }
+  return { from: addDaysToKey(today, -27), to: today };
+};
+
 // ─── Pure computation helpers (exported for testing) ─────────────────────────
 
 /** Computes hours for a single shift from its template duration. */
@@ -72,7 +95,9 @@ export const stdDev = (values: number[]): number => {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useAnalytics(accountId: string): AnalyticsSummary {
+export function useAnalytics(accountId: string, range?: AnalyticsRange): AnalyticsSummary {
+  const from = range?.from;
+  const to = range?.to;
   const [coverageRate, setCoverageRate] = useState(0);
   const [hasDemand, setHasDemand] = useState(false);
   const [draftShifts, setDraftShifts] = useState(0);
@@ -90,8 +115,9 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
     setError(null);
 
     try {
-      // Fetch all four data sources in parallel — no date filter = all-time view.
-      const [shifts, workers, dbTemplates, targets] = await Promise.all([
+      // The range is applied here, not in the request: the targets filter of the
+      // proxy matches one exact date only.
+      const [allShifts, workers, dbTemplates, allTargets] = await Promise.all([
         listRoster(accountId),
         listWorkers(accountId),
         listShiftTemplates(accountId),
@@ -99,6 +125,9 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
       ]);
 
       if (requestId !== requestIdRef.current) return;
+
+      const shifts = allShifts.filter((s) => inRange(s.date, { from, to }));
+      const targets = allTargets.filter((target) => inRange(target.date, { from, to }));
 
       const workerMap = new Map<string, DbWorker>(workers.map((w) => [w.id, w]));
       const templateMap = new Map<string, DbShiftTemplate>(
@@ -187,7 +216,7 @@ export function useAnalytics(accountId: string): AnalyticsSummary {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, from, to]);
 
   useEffect(() => {
     load();

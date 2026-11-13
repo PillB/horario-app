@@ -36,6 +36,8 @@ export type DbWorker = {
   weeklyLimitOptOut?: boolean;
   noFixedHours?: boolean;
   createdAt?: string;
+  /** As the server sent it; passed back unchanged as `ifUpdatedAt` by an edit. */
+  updatedAt?: string;
 };
 
 export type DbAvailability = {
@@ -56,6 +58,8 @@ export type DbShiftTemplate = {
   endTime: string;
   coverage: number;
   createdAt?: string;
+  /** As the server sent it; passed back unchanged as `ifUpdatedAt` by an edit. */
+  updatedAt?: string;
 };
 
 export type DbRosterShift = {
@@ -177,10 +181,15 @@ export const fetchWorkers = (): Promise<ListResult<DbWorker>> => fetchAllPages<D
 /** @deprecated returns [] on failure; use fetchWorkers. */
 export const listWorkers = async (_accountId?: string): Promise<DbWorker[]> => orEmpty(await fetchWorkers());
 
-export const upsertWorker = async (worker: Partial<DbWorker> & Pick<DbWorker, 'name' | 'role'>): Promise<UpsertWorkerResult> => {
+/**
+ * `ifUpdatedAt` is the row's `updatedAt` as it was read: the server then saves
+ * only while the row is still that (409 when someone changed it, 404 when it
+ * was deleted).
+ */
+export const upsertWorker = async (worker: Partial<DbWorker> & Pick<DbWorker, 'name' | 'role'>, ifUpdatedAt?: string): Promise<UpsertWorkerResult> => {
   const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = worker;
   const result = await mutate<{ worker: DbWorker }>(
-    { action: 'upsertWorker', worker: { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } },
+    { action: 'upsertWorker', worker: { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours }, ...(ifUpdatedAt ? { ifUpdatedAt } : {}) },
     'Unable to save worker',
   );
   return result.success ? { success: true, worker: result.worker } : result;
@@ -228,6 +237,29 @@ export const deleteAvailability = async (id: string): Promise<MutationResult> =>
   return result.success ? { success: true } : result;
 };
 
+// ─── Days off ─────────────────────────────────────────────────────────────────
+
+export type DbTimeOff = { id: string; accountId: string; workerId: string; date: string; reason: string; createdAt?: string };
+
+export type UpsertTimeOffResult =
+  | { success: true; timeOff: DbTimeOff; error?: never }
+  | { success: false; timeOff?: never; error: string };
+
+/** Every stored day off, or only those on `date`. */
+export const fetchTimeOff = (date?: string): Promise<ListResult<DbTimeOff>> =>
+  fetchAllPages<DbTimeOff>('listTimeOff', 'timeOff', date ? { date } : {});
+
+export const upsertTimeOff = async (timeOff: { workerId: string; date: string; reason: string }): Promise<UpsertTimeOffResult> => {
+  const result = await mutate<{ timeOff?: DbTimeOff }>({ action: 'upsertTimeOff', timeOff }, 'Unable to save the day off');
+  if (!result.success) return result;
+  return result.timeOff ? { success: true, timeOff: result.timeOff } : { success: false, error: 'Unable to save the day off' };
+};
+
+export const deleteTimeOff = async (id: string): Promise<MutationResult> => {
+  const result = await mutate({ action: 'deleteTimeOff', id }, 'Unable to remove the day off');
+  return result.success ? { success: true } : result;
+};
+
 // ─── Shift Templates ──────────────────────────────────────────────────────────
 
 export const fetchShiftTemplates = (): Promise<ListResult<DbShiftTemplate>> =>
@@ -239,10 +271,12 @@ export const listShiftTemplates = async (_accountId?: string): Promise<DbShiftTe
 
 export const upsertShiftTemplate = async (
   template: Omit<DbShiftTemplate, 'accountId' | 'id'> & { id?: string; accountId?: string },
+  /** See upsertWorker. */
+  ifUpdatedAt?: string,
 ): Promise<UpsertTemplateResult> => {
   const { id, name, role, startTime, endTime, coverage } = template;
   const result = await mutate<{ template: DbShiftTemplate }>(
-    { action: 'upsertShiftTemplate', template: { id, name, role, startTime, endTime, coverage } },
+    { action: 'upsertShiftTemplate', template: { id, name, role, startTime, endTime, coverage }, ...(ifUpdatedAt ? { ifUpdatedAt } : {}) },
     'Unable to save template',
   );
   return result.success ? { success: true, template: result.template } : result;
@@ -279,6 +313,14 @@ export const upsertRosterShift = async (
     'Unable to save shift',
   );
   return result.success ? { success: true, shift: result.shift } : result;
+};
+
+/** Adds several new shifts in one request: all of them or none. Each carries its own id. */
+export const addRosterShifts = async (
+  shifts: (Pick<DbRosterShift, 'id' | 'date' | 'workerId' | 'templateId' | 'status'> & { location?: string | null })[],
+): Promise<{ success: true; shifts: DbRosterShift[] } | { success: false; error: string }> => {
+  const result = await mutate<{ shifts?: DbRosterShift[] }>({ action: 'addRosterShifts', shifts }, 'Unable to save the shifts');
+  return result.success ? { success: true, shifts: result.shifts ?? [] } : result;
 };
 
 /** Changing the status clears `notified` on the server too. */

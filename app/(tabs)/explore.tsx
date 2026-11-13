@@ -11,6 +11,7 @@
  *   FairnessGauge — color-coded fairness label with a progress bar
  */
 import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -19,7 +20,8 @@ import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { TourStep } from '@/components/TourStep';
-import { useAnalytics, type WorkerHoursEntry } from '@/hooks/useAnalytics';
+import { ANALYTICS_PERIODS, periodRange, useAnalytics, type AnalyticsPeriod, type WorkerHoursEntry } from '@/hooks/useAnalytics';
+import { todayKey } from '@/utils/dateKeys';
 import { formatCurrency } from '@/utils/schedulerUtils';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
@@ -137,6 +139,12 @@ export default function AnalyticsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors, colorScheme ?? 'light');
+  // "Today" is known only in the browser: the page's HTML is built ahead of
+  // time, so the default (all dates) is what both renders start from.
+  const [period, setPeriod] = useState<AnalyticsPeriod>('all');
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => { setToday(todayKey()); }, []);
+  const range = useMemo(() => periodRange(period, today), [period, today]);
   const {
     coverageRate,
     hasDemand,
@@ -148,7 +156,7 @@ export default function AnalyticsScreen() {
     loading,
     error,
     refresh,
-  } = useAnalytics(ACCOUNT_ID);
+  } = useAnalytics(ACCOUNT_ID, range);
 
   const router = useRouter();
   const maxHours = workerHours.length > 0 ? workerHours[0].hours : 0;
@@ -168,6 +176,27 @@ export default function AnalyticsScreen() {
           <ThemedText style={styles.mutedText}>
             {t('analytics.subtitle')}
           </ThemedText>
+          <View style={styles.periodRow} accessibilityRole="radiogroup" accessibilityLabel={t('analytics.period.label')}>
+            {ANALYTICS_PERIODS.map((option) => {
+              const selected = option === period;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setPeriod(option)}
+                  accessibilityRole="radio"
+                  aria-checked={selected}
+                  accessibilityLabel={t(`analytics.period.${option}`)}
+                  accessibilityHint={t('analytics.period.hint')}
+                  testID={`analytics-period-${option}`}
+                  style={[styles.periodChip, selected && styles.periodChipSelected]}
+                >
+                  <ThemedText style={[styles.periodChipText, selected && styles.periodChipTextSelected]}>
+                    {t(`analytics.period.${option}`)}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
         </ThemedView>
 
         {loading ? (
@@ -315,6 +344,32 @@ const makeStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
     header: {
       gap: 6,
       marginBottom: 4,
+    },
+    periodRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 6,
+    },
+    periodChip: {
+      minHeight: 40,
+      paddingHorizontal: 14,
+      justifyContent: 'center',
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    periodChipSelected: {
+      backgroundColor: brand.primaryDark,
+      borderColor: brand.primaryDark,
+    },
+    periodChipText: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    periodChipTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
     loadingContainer: {
       padding: 16,

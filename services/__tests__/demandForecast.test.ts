@@ -5,6 +5,7 @@ import {
   fetchForecastHistory,
   loadDemandTargets,
   upsertDemandTarget,
+  upsertDemandTargets,
   DemandForecast,
 } from '../demandForecast';
 import { addDaysToKey, weekdayOfKey } from '@/utils/dateKeys';
@@ -364,6 +365,31 @@ describe('loadDemandTargets', () => {
       'Unable to load demand targets from secure proxy',
       expect.any(Error),
     );
+  });
+});
+
+describe('upsertDemandTargets (CHG-098)', () => {
+  const days = (n: number): DemandForecast[] =>
+    Array.from({ length: n }, (_, i) => ({ date: `2026-01-${String((i % 28) + 1).padStart(2, '0')}`, role: `r${i}`, required: 2, source: 'override' as const }));
+
+  test('saves a week in one request', async () => {
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValue(makeOkResponse({ success: true, targets: [] }));
+    const results = await upsertDemandTargets(days(7));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).targets).toHaveLength(7);
+    expect(results.every((r) => r.success)).toBe(true);
+  });
+
+  test('splits at 500 and reports a failed batch on its own targets only', async () => {
+    mockFetch.mockClear();
+    mockFetch
+      .mockResolvedValueOnce(makeOkResponse({ success: true, targets: [] }))
+      .mockResolvedValueOnce(makeOkResponse({ success: false, error: 'Validation failed' }));
+    const results = await upsertDemandTargets(days(501));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(results.slice(0, 500).every((r) => r.success)).toBe(true);
+    expect(results[500]).toMatchObject({ success: false, error: 'Validation failed' });
   });
 });
 

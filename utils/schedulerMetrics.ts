@@ -7,6 +7,8 @@ export type ShiftTemplate = {
   start: string;
   end: string;
   coverage: number;
+  /** The stored row's `updatedAt`, exactly as the server sent it. */
+  updatedAt?: string;
 };
 
 export type Shift = {

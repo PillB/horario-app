@@ -30,6 +30,7 @@ import PosUploadSection from '@/components/scheduler/PosUploadSection';
 import { ForecastEnhancementsCard } from '@/components/scheduler/ForecastEnhancementsCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { TeamTools } from '@/components/scheduler/TeamTools';
+import { LocationPicker } from '@/components/scheduler/LocationPicker';
 import { ShiftMessagesPanel } from '@/components/scheduler/ShiftMessagesPanel';
 import { usePosData } from '@/hooks/usePosData';
 import { useActivationMilestone } from '@/hooks/useActivationMilestone';
@@ -144,6 +145,16 @@ export default function SchedulerScreen() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    handleEditWorker,
+    editingWorkerId,
+    cancelWorkerEdit,
+    handleEditTemplate,
+    editingTemplateId,
+    cancelTemplateEdit,
+    handleRemoveOverride,
+    locations,
+    selectedLocationId,
+    selectLocation,
     handleRemoveAvailability,
     handleRemoveTemplate,
     handleRemoveShift,
@@ -239,6 +250,7 @@ export default function SchedulerScreen() {
 
   const assignPanel = (
         <View>
+          <LocationPicker locations={locations} selectedId={selectedLocationId} onSelect={selectLocation} />
           <TourStep target="shift-assign-section">
           <ShiftTemplateSection
             part="assign"
@@ -372,6 +384,9 @@ export default function SchedulerScreen() {
             workers={workers}
             workersLoaded={workersLoaded}
             onRemoveWorker={handleRemoveWorker}
+            onEditWorker={handleEditWorker}
+            editingWorkerId={editingWorkerId}
+            onCancelEdit={cancelWorkerEdit}
             onRemoveAvailability={handleRemoveAvailability}
             workerForm={workerForm}
             updateWorkerField={updateWorkerField}
@@ -415,6 +430,7 @@ export default function SchedulerScreen() {
             runForecast={runForecast}
             baselineTargetsRef={baselineTargetsRef}
             demandTargets={demandTargets}
+            onRemoveOverride={handleRemoveOverride}
             roster={roster}
             shiftTemplates={shiftTemplates}
             forecastError={forecastError}
@@ -447,6 +463,9 @@ export default function SchedulerScreen() {
             shiftTemplates={shiftTemplates}
             templatesLoaded={templatesLoaded}
             onRemoveTemplate={handleRemoveTemplate}
+            onEditTemplate={handleEditTemplate}
+            editingTemplateId={editingTemplateId}
+            onCancelEdit={cancelTemplateEdit}
             templateForm={templateForm}
             updateTemplateField={updateTemplateField}
             handleAddTemplate={handleAddTemplate}

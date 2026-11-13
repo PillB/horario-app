@@ -8,6 +8,7 @@ import { useCallback } from 'react';
 
 import { log } from '@/services/logger';
 import {
+  addRosterShifts,
   deleteRosterShift,
   fetchRoster,
   markShiftNotified,
@@ -64,6 +65,34 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       if (result.success) log.info('ROSTER', 'Shift added', { shiftId: input.id, date: input.date, status: input.status });
       else log.warn('ROSTER', 'Shift add rolled back', { shiftId: input.id, reason: result.error });
       return result;
+    },
+    [accountId, write],
+  );
+
+  /**
+   * Adds several new shifts in one request: all are stored or none
+   * (applying an auto-assign result must never leave half a schedule).
+   */
+  const addShifts = useCallback(
+    async (shifts: Omit<Shift, 'id'>[]): Promise<MutationResult> => {
+      const inputs: (DbRosterShift & { id: string })[] = [];
+      for (const shift of shifts) {
+        const checked = validateRosterShiftInput({ ...shift, notified: false, id: newUuid() });
+        if (!checked.ok) return { success: false, error: checked.error };
+        inputs.push({ ...checked.value, id: checked.value.id as string, accountId, notified: false });
+      }
+      if (!inputs.length) return { success: true };
+      const ids = new Set(inputs.map((s) => s.id));
+      const result = await write({
+        id: inputs[0].id,
+        apply: (prev) => [...prev, ...inputs.map(dbToShift)],
+        commit: () => addRosterShifts(inputs.map(({ id, date, workerId, templateId, location, status }) => ({ id, date, workerId, templateId, location, status }))),
+        rollback: (prev) => prev.filter((s) => !ids.has(s.id)),
+        reconcile: (prev, r) => (r.success ? r.shifts.reduce((list, s) => upsertById(list, dbToShift(s)), prev) : prev),
+      });
+      if (result.success) log.info('ROSTER', 'Shifts added', { count: inputs.length });
+      else log.warn('ROSTER', 'Shifts add rolled back', { count: inputs.length, reason: result.error });
+      return result.success ? { success: true } : { success: false, error: result.error };
     },
     [accountId, write],
   );
@@ -162,6 +191,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     error: list.error,
     truncated: list.truncated,
     addShift,
+    addShifts,
     updateShift,
     setShiftStatus,
     notifyShift,

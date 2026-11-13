@@ -41,6 +41,7 @@ import {
   ForecastGenerationResult,
 } from '@/services/demandForecast';
 import { resolvePack } from '@/services/labor/engine';
+import { READ_LIMIT, WRITE_LIMIT, rateLimiter } from '@/server/rateLimit';
 import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
 import { isDateKey, todayKey } from '@/utils/dateKeys';
@@ -88,9 +89,12 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'importWorkers',
   'upsertAvailability',
   'deleteAvailability',
+  'upsertTimeOff',
+  'deleteTimeOff',
   'upsertShiftTemplate',
   'deleteShiftTemplate',
   'upsertRosterShift',
+  'addRosterShifts',
   'updateShiftStatus',
   'markShiftNotified',
   'deleteRosterShift',
@@ -116,6 +120,9 @@ const MANAGER_ACTIONS = new Set([
   'createCheckoutSession',
   'createBillingPortalSession',
 ]);
+
+/** Writes open to members (their own data); they share the write rate limit. */
+const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'incrementAutoAssign', 'forecast']);
 
 /** Logs the database error and returns a generic message. */
 const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
@@ -283,11 +290,19 @@ const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
   return result;
 };
 
+/**
+ * Imported shifts plus Published roster shifts (view `forecast_shift_history`,
+ * 20261113000104): scheduling with the app builds the forecast's history.
+ */
+const FORECAST_HISTORY_SOURCE = 'forecast_shift_history';
+
 const fetchHistoricalShifts = async (client: SupabaseClient, ctx: AuthContext, filters?: ForecastFilters) => {
   let query = client
-    .from('shifts')
+    .from(FORECAST_HISTORY_SOURCE)
     .select('date, role, worker_id, hours')
     .eq('account_id', ctx.accountId)
+    // History only: a Published shift on a future date is a plan.
+    .lt('date', new Date().toISOString().slice(0, 10))
     .order('date', { ascending: true })
     .limit(500);
   if (filters?.date) query = query.eq('date', filters.date);
@@ -468,7 +483,7 @@ async function forecastHistory(client: SupabaseClient, ctx: AuthContext, p: Reco
   }
   const offset = page * FORECAST_HISTORY_PAGE_SIZE;
   let query = client
-    .from('shifts')
+    .from(FORECAST_HISTORY_SOURCE)
     .select('date, role, hours', page === 0 ? { count: 'exact' } : undefined)
     .eq('account_id', ctx.accountId)
     .gte('date', p.from as string)
@@ -719,11 +734,11 @@ async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags:
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
 
-const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at';
+const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at, updated_at';
 type WorkerRow = {
   id: string; account_id: string; name: string; role: string; skills: string[] | null;
   birth_date: string | null; night_worker: boolean | null; weekly_limit_opt_out: boolean | null; no_fixed_hours: boolean | null;
-  created_at?: string;
+  created_at?: string; updated_at?: string;
 };
 
 const rowToWorker = (row: WorkerRow) => ({
@@ -737,6 +752,7 @@ const rowToWorker = (row: WorkerRow) => ({
   weeklyLimitOptOut: Boolean(row.weekly_limit_opt_out),
   noFixedHours: Boolean(row.no_fixed_hours),
   createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
@@ -754,9 +770,10 @@ async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: 
   return ok({ ...meta, workers: rows.map(rowToWorker) });
 }
 
-async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown): Promise<Result> {
+async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown, ifUpdatedAt?: unknown): Promise<Result> {
   const checked = validateWorkerInput(worker);
   if (!checked.ok) return badRequest(checked.error);
+  if (ifUpdatedAt !== undefined && !isStoredTimestamp(ifUpdatedAt)) return badRequest('ifUpdatedAt must be the updatedAt of the worker as it was read');
   const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = checked.value;
 
   // Labor attributes: absent fields are left as stored (or the column default on insert).
@@ -772,6 +789,7 @@ async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: un
       ...(noFixedHours !== undefined ? { no_fixed_hours: noFixedHours } : {}),
     },
     WORKER_COLUMNS,
+    ifUpdatedAt,
   );
   return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });
 }
@@ -884,10 +902,60 @@ async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: 
   return ok({ success: true, availability: rowToAvailability(data as AvailabilityRow) });
 }
 
+// ─── Days off ─────────────────────────────────────────────────────────────────
+
+const TIME_OFF_COLUMNS = 'id, account_id, worker_id, date, reason, created_at';
+const TIME_OFF_MAX_REASON = 200;
+type TimeOffRow = { id: string; account_id: string; worker_id: string; date: string; reason: string; created_at?: string };
+
+const rowToTimeOff = (row: TimeOffRow) => ({
+  id: row.id, accountId: row.account_id, workerId: row.worker_id, date: row.date, reason: row.reason, createdAt: row.created_at,
+});
+
+/** Days off of the tenant's workers, oldest date first; `date` narrows to one day (auto-assign). */
+async function listTimeOff(client: SupabaseClient, ctx: AuthContext, payload: unknown): Promise<Result> {
+  const p = isRecord(payload) ? payload : {};
+  const page = readPage(p.page);
+  if (typeof page === 'string') return badRequest(page);
+  if (p.date !== undefined && !isISODate(p.date)) return badRequest('date must be a real YYYY-MM-DD date');
+  let query = client.from('worker_time_off').select(TIME_OFF_COLUMNS).eq('account_id', ctx.accountId);
+  if (isISODate(p.date)) query = query.eq('date', p.date);
+  const { data, error } = await query
+    .order('date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(...pageRange(page));
+  if (error) return dbFailure('list worker_time_off', error);
+  const { rows, ...meta } = pageOf(data as TimeOffRow[] | null, page);
+  return ok({ ...meta, timeOff: rows.map(rowToTimeOff) });
+}
+
+/** One day off per worker and date: saving the same day again replaces its reason. */
+async function upsertTimeOff(client: SupabaseClient, ctx: AuthContext, input: unknown): Promise<Result> {
+  if (!isRecord(input)) return badRequest('timeOff is required');
+  const { workerId, date, reason } = input;
+  if (!isUuid(workerId)) return badRequest('workerId must be a UUID');
+  if (!isISODate(date)) return badRequest('date must be a real YYYY-MM-DD date');
+  if (reason !== undefined && typeof reason !== 'string') return badRequest('reason must be text');
+  const text = typeof reason === 'string' ? reason.trim() : '';
+  if (text.length > TIME_OFF_MAX_REASON) return badRequest(`reason must be ${TIME_OFF_MAX_REASON} characters or fewer`);
+
+  const owns = await ownsAll(client, 'workers', ctx, [workerId]);
+  if (owns !== true) return owns === false ? notFound() : owns;
+
+  // The worker is the caller's, so a conflicting row is too.
+  const { data, error } = await client
+    .from('worker_time_off')
+    .upsert({ account_id: ctx.accountId, worker_id: workerId, date, reason: text }, { onConflict: 'worker_id,date' })
+    .select(TIME_OFF_COLUMNS)
+    .single();
+  if (error) return dbFailure('upsert worker_time_off', error);
+  return ok({ success: true, timeOff: rowToTimeOff(data as TimeOffRow) });
+}
+
 // ─── Shift templates ──────────────────────────────────────────────────────────
 
-const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at';
-type TemplateRow = { id: string; account_id: string; name: string; role: string; start_time: string; end_time: string; coverage: number; created_at?: string };
+const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at, updated_at';
+type TemplateRow = { id: string; account_id: string; name: string; role: string; start_time: string; end_time: string; coverage: number; created_at?: string; updated_at?: string };
 
 const rowToTemplate = (row: TemplateRow) => ({
   id: row.id,
@@ -898,6 +966,7 @@ const rowToTemplate = (row: TemplateRow) => ({
   endTime: row.end_time,
   coverage: row.coverage,
   createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
@@ -915,14 +984,16 @@ async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput
   return ok({ ...meta, templates: rows.map(rowToTemplate) });
 }
 
-async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown): Promise<Result> {
+async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown, ifUpdatedAt?: unknown): Promise<Result> {
   const checked = validateShiftTemplateInput(tmpl);
   if (!checked.ok) return badRequest(checked.error);
+  if (ifUpdatedAt !== undefined && !isStoredTimestamp(ifUpdatedAt)) return badRequest('ifUpdatedAt must be the updatedAt of the template as it was read');
   const { id, name, role, startTime, endTime, coverage } = checked.value;
   const result = await updateOrInsert<TemplateRow>(
     client, 'shift_templates', ctx, id,
     { name, role, start_time: startTime, end_time: endTime, coverage },
     TEMPLATE_COLUMNS,
+    ifUpdatedAt,
   );
   return 'error' in result ? result.error : ok({ success: true, template: rowToTemplate(result.row) });
 }
@@ -1016,6 +1087,56 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
   const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
+
+/** Shifts one request may add. */
+const ADD_ROSTER_SHIFTS_MAX = 200;
+
+/**
+ * Adds several new shifts in one step (applying an auto-assign result): every
+ * row is checked first, then all are inserted by one statement, so a schedule
+ * is never half applied. Each row carries its own id. A shift that is already
+ * on the roster (same id, or same date, worker and template) refuses the whole
+ * request with 409 and nothing is added.
+ */
+async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts: unknown): Promise<Result> {
+  if (!Array.isArray(shifts) || shifts.length === 0 || shifts.length > ADD_ROSTER_SHIFTS_MAX) {
+    return badRequest(`shifts must be a list of 1 to ${ADD_ROSTER_SHIFTS_MAX} shifts`);
+  }
+  const rows: Record<string, unknown>[] = [];
+  const workerIds: string[] = [];
+  const templateIds: string[] = [];
+  for (let i = 0; i < shifts.length; i += 1) {
+    const checked = validateRosterShiftInput(shifts[i]);
+    if (!checked.ok) return badRequest(`Shift ${i + 1}: ${checked.error}`);
+    const { id, date, workerId, templateId, location, status } = checked.value;
+    if (id === undefined || !isUuid(id)) return badRequest(`Shift ${i + 1}: id must be a UUID`);
+    rows.push({ id, account_id: ctx.accountId, date, worker_id: workerId, template_id: templateId, location, status, notified: false });
+    workerIds.push(workerId);
+    templateIds.push(templateId);
+  }
+  if (new Set(rows.map((r) => r.id)).size !== rows.length) return badRequest('Each shift needs a different id');
+
+  const [ownsWorkers, ownsTemplates] = await Promise.all([
+    ownsAll(client, 'workers', ctx, workerIds),
+    ownsAll(client, 'shift_templates', ctx, templateIds),
+  ]);
+  if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
+  if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
+
+  const { data, error } = await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+  if (error) {
+    if (error.code === '23505') {
+      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+      return fail(409, 'One of these shifts is already on the roster. Nothing was added. Reload and try again');
+    }
+    if (error.code === '23503') {
+      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+      return fail(409, 'Something these shifts refer to was just deleted. Nothing was added. Reload and try again');
+    }
+    return dbFailure('add roster shifts', error);
+  }
+  return ok({ success: true, shifts: ((data ?? []) as unknown as RosterRow[]).map(rowToRosterShift) });
 }
 
 /** The caller's roster row, null when it has none with this id. */
@@ -1519,7 +1640,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       const filters = cleanFilters(p.filters);
       const roleOnly = filters?.role ? { role: filters.role } : undefined;
       const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
-        hasRows(client, 'shifts', ctx, roleOnly),
+        hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
         hasRows(client, 'external_signals', ctx, filters),
         hasRows(client, 'demand_targets', ctx, filters),
       ]);
@@ -1552,7 +1673,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'listWorkers':
       return listWorkers(client, ctx, p.page);
     case 'upsertWorker':
-      return upsertWorker(client, ctx, p.worker);
+      return upsertWorker(client, ctx, p.worker, p.ifUpdatedAt);
     case 'deleteWorker':
       return deleteOwned(client, 'workers', ctx, p.id);
     case 'importWorkers':
@@ -1563,16 +1684,24 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       return upsertAvailability(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
+    case 'listTimeOff':
+      return listTimeOff(client, ctx, p);
+    case 'upsertTimeOff':
+      return upsertTimeOff(client, ctx, p.timeOff);
+    case 'deleteTimeOff':
+      return deleteOwned(client, 'worker_time_off', ctx, p.id);
     case 'listShiftTemplates':
       return listTemplates(client, ctx, p.page);
     case 'upsertShiftTemplate':
-      return upsertTemplate(client, ctx, p.template);
+      return upsertTemplate(client, ctx, p.template, p.ifUpdatedAt);
     case 'deleteShiftTemplate':
       return deleteOwned(client, 'shift_templates', ctx, p.id);
     case 'listRoster':
       return listRoster(client, ctx, p);
     case 'upsertRosterShift':
       return upsertRosterShift(client, ctx, p.shift);
+    case 'addRosterShifts':
+      return addRosterShifts(client, ctx, p.shifts);
     case 'updateShiftStatus':
       return updateShiftStatus(client, ctx, p.id, p.status);
     case 'markShiftNotified':
@@ -1646,6 +1775,16 @@ export async function POST(request: Request): Promise<Response> {
 
   if (ADMIN_ACTIONS.has(payload.action) && !isPlatformAdmin(auth.ctx)) {
     return respond(fail(403, 'Only a platform admin can do this'));
+  }
+
+  // Counted per signed-in user after authentication, so an anonymous flood
+  // cannot fill the table and one user cannot use up another's allowance.
+  const isWrite = MANAGER_ACTIONS.has(payload.action) || MEMBER_WRITE_ACTIONS.has(payload.action);
+  const verdict = rateLimiter.hit(`${auth.ctx.userId}:${isWrite ? 'w' : 'r'}`, isWrite ? WRITE_LIMIT : READ_LIMIT);
+  if (!verdict.allowed) {
+    const response = respond(fail(429, 'Too many requests. Wait a moment and try again'));
+    response.headers.set('Retry-After', String(verdict.retryAfterSeconds));
+    return response;
   }
 
   const client = getServiceClient();

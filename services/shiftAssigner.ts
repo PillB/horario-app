@@ -560,7 +560,7 @@ export function describeReason(code: ShortfallReasonCode, template: ShiftTemplat
     case 'no_availability':
       return `No "${template.role}" workers have availability covering ${template.start}–${template.end} on this day.`;
     case 'overlap':
-      return `All eligible "${template.role}" workers have a conflicting shift on ${date}.`;
+      return `Every eligible "${template.role}" worker is already on this shift or on one that overlaps it on ${date}.`;
     case 'max_hours':
       return `All eligible "${template.role}" workers would exceed labor-law hour limits (daily or weekly).`;
     case 'min_rest':

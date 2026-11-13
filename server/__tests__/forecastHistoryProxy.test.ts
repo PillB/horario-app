@@ -112,7 +112,7 @@ describe('secure proxy forecast history actions', () => {
       rows: 4,
       total: 2500,
     });
-    expect(mockTables).toEqual(['shifts']);
+    expect(mockTables).toEqual(['forecast_shift_history']);
     expect(mockCalls).toEqual(
       expect.arrayContaining([
         { method: 'eq', args: ['account_id', 'user_a'] },

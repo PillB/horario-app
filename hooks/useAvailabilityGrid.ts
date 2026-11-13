@@ -39,6 +39,27 @@ const buildEmptyGrid = (): AvailabilityGrid =>
 const storageKey = (workerId: string): string =>
   `${EXCEPTIONS_STORAGE_PREFIX}${workerId}`;
 
+/** The days off this device stored for a worker (before CHG-098 moved them to the server). */
+export const readStoredExceptions = async (workerId: string): Promise<AvailabilityException[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(storageKey(workerId));
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((e): e is AvailabilityException => typeof (e as AvailabilityException | null)?.date === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+export const clearStoredExceptions = async (workerId: string): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(storageKey(workerId));
+  } catch {
+    // The upload is repeated next time; saving a day twice only replaces its reason.
+  }
+};
+
 /**
  * Ids of the workers with a stored day off on `date`. Used by auto-assign so a
  * person on a day off is not suggested. Unreadable storage counts as no days off.

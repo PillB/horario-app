@@ -26,7 +26,7 @@ import {
 import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
-import { workersOffOn } from '@/hooks/useAvailabilityGrid';
+import { fetchWorkersOffOn } from '@/hooks/useTimeOff';
 import { validateDisplayString } from '@/utils/sanitize';
 import type { AssignedShift, CoverageShortfall, LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
@@ -74,6 +74,22 @@ const EMPTY_WORKER_FORM: WorkerFormState = {
   noFixedHours: false,
 };
 
+const EMPTY_TEMPLATE_FORM = { name: '', role: '', start: '09:00', end: '17:00', coverage: '1' };
+
+/** Runs `fn` unless a previous call of it is still running. */
+const useSingleFlight = (fn: () => Promise<void> | void) => {
+  const busy = useRef(false);
+  return useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await fn();
+    } finally {
+      busy.current = false;
+    }
+  }, [fn]);
+};
+
 /** The steps of the scheduler page, in working order. `shifts` is the roster. */
 export const SCHEDULER_SECTIONS = ['workers', 'templates', 'forecast', 'shifts'] as const;
 export type SchedulerSection = (typeof SCHEDULER_SECTIONS)[number];
@@ -100,6 +116,7 @@ export function useSchedulerHandlers() {
     demandTargets,
     triggerForecast,
     overrideTarget,
+    removeOverride,
     loading: forecastLoading,
     error: forecastError,
     forecasting,
@@ -114,6 +131,7 @@ export function useSchedulerHandlers() {
   const {
     workers,
     addWorker,
+    updateWorker,
     addAvailability,
     removeWorker,
     removeAvailability,
@@ -126,6 +144,7 @@ export function useSchedulerHandlers() {
   const {
     shiftTemplates,
     addShiftTemplate,
+    updateShiftTemplate,
     removeShiftTemplate,
     loading: templatesLoading,
     loaded: templatesLoaded,
@@ -136,6 +155,7 @@ export function useSchedulerHandlers() {
   const {
     roster,
     addShift,
+    addShifts,
     setShiftStatus,
     notifyShift,
     removeShift,
@@ -194,13 +214,10 @@ export function useSchedulerHandlers() {
     notes: 'Weekend backlog',
   });
   const [workerForm, setWorkerForm] = useState<WorkerFormState>(EMPTY_WORKER_FORM);
-  const [templateForm, setTemplateForm] = useState({
-    name: '',
-    role: '',
-    start: '09:00',
-    end: '17:00',
-    coverage: '1',
-  });
+  const [templateForm, setTemplateForm] = useState(EMPTY_TEMPLATE_FORM);
+  /** The stored worker / template the form is editing; null = the form adds a new one. */
+  const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
@@ -243,9 +260,13 @@ export function useSchedulerHandlers() {
   useEffect(() => () => autoAssignRunRef.current?.abort(), []);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
-  // Auto-assign has no location picker yet, so it uses the account's only
-  // location; with none (or several) no jurisdiction is applied.
-  const autoAssignLocation = useMemo(() => resolveShiftLocation(locations), [locations]);
+  // New shifts and auto-assign use the location picked in the roster step,
+  // else the account's only location; with none no jurisdiction is applied.
+  const [pickedLocationId, setPickedLocationId] = useState<string | null>(null);
+  const autoAssignLocation = useMemo(
+    () => locations.find((l) => l.id === pickedLocationId) ?? resolveShiftLocation(locations),
+    [locations, pickedLocationId]
+  );
   const scheduleLocations = useMemo(
     () => ({ locations, loaded: locationsLoaded }),
     [locations, locationsLoaded]
@@ -323,8 +344,7 @@ export function useSchedulerHandlers() {
           const aDate = new Date(`${a.date}T${a.template?.start ?? '00:00'}:00`).getTime();
           const bDate = new Date(`${b.date}T${b.template?.start ?? '00:00'}:00`).getTime();
           return aDate - bDate;
-        })
-        .slice(0, 4),
+        }),
     [forecastTimeZone, roster, shiftTemplates, workers]
   );
 
@@ -730,12 +750,24 @@ export function useSchedulerHandlers() {
     }
     setWorkerError(null);
     const skills = workerForm.skills.split(',').map((s) => s.trim()).filter(Boolean);
-    const result = await addWorker(trimmedName, trimmedRole, skills, {
+    const labor = {
       birthDate: birthDate || null,
       nightWorker: workerForm.nightWorker,
       weeklyLimitOptOut: workerForm.weeklyLimitOptOut,
       noFixedHours: workerForm.noFixedHours,
-    });
+    };
+    if (editingWorkerId) {
+      const updated = await updateWorker(editingWorkerId, { name: trimmedName, role: trimmedRole, skills, ...labor });
+      if (updated.success) {
+        setWorkerForm(EMPTY_WORKER_FORM);
+        setEditingWorkerId(null);
+        showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
+      } else {
+        setWorkerError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+      }
+      return;
+    }
+    const result = await addWorker(trimmedName, trimmedRole, skills, labor);
     if (result.success) {
       setWorkerForm(EMPTY_WORKER_FORM);
       // Auto-populate availability and shift forms with the new worker's ID
@@ -755,7 +787,7 @@ export function useSchedulerHandlers() {
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, recordTourAction, t, workerForm, workers.length]);
+  }, [addWorker, editingWorkerId, recordTourAction, showActionBanner, t, updateWorker, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -773,9 +805,22 @@ export function useSchedulerHandlers() {
     if (!isValidTime(trimmedEnd)) { setTemplateError('End time must use the 24-hour HH:MM format (e.g. 17:00).'); return; }
     if (isNaN(coverageNum) || coverageNum < 1) { setTemplateError('Coverage must be at least 1.'); return; }
     setTemplateError(null);
+    if (editingTemplateId) {
+      const updated = await updateShiftTemplate(editingTemplateId, {
+        name: trimmedName, role: trimmedRole, startTime: trimmedStart, endTime: trimmedEnd, coverage: coverageNum,
+      });
+      if (updated.success) {
+        setTemplateForm(EMPTY_TEMPLATE_FORM);
+        setEditingTemplateId(null);
+        showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
+      } else {
+        setTemplateError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+      }
+      return;
+    }
     const result = await addShiftTemplate(trimmedName, trimmedRole, trimmedStart, trimmedEnd, coverageNum);
     if (result.success) {
-      setTemplateForm({ name: '', role: '', start: '09:00', end: '17:00', coverage: '1' });
+      setTemplateForm(EMPTY_TEMPLATE_FORM);
       // Auto-populate shift form with the new template's ID
       setShiftForm((prev) => ({ ...prev, templateId: result.template.id }));
       void trackEvent('template_added', { isFirst: shiftTemplates.length === 0 });
@@ -791,7 +836,7 @@ export function useSchedulerHandlers() {
     } else {
       setTemplateError(result.error ?? 'Failed to add template. Please try again.');
     }
-  }, [addShiftTemplate, recordTourAction, shiftTemplates.length, templateForm]);
+  }, [addShiftTemplate, editingTemplateId, recordTourAction, shiftTemplates.length, showActionBanner, t, templateForm, updateShiftTemplate]);
 
   /** Saves one template from a playbook. A template already saved under that name, role and hours is skipped. */
   const handleImportPlaybookTemplate = useCallback(
@@ -1160,12 +1205,62 @@ export function useSchedulerHandlers() {
     [showActionBanner, t]
   );
 
+  /** Loads a stored worker into the form; saving then updates it instead of adding. */
+  const handleEditWorker = useCallback(
+    (workerId: string) => {
+      const worker = workers.find((w) => w.id === workerId);
+      if (!worker) return;
+      setWorkerError(null);
+      setEditingWorkerId(workerId);
+      setWorkerForm({
+        name: worker.name,
+        role: worker.role,
+        skills: worker.skills.join(', '),
+        birthDate: worker.birthDate ?? '',
+        nightWorker: worker.nightWorker ?? false,
+        weeklyLimitOptOut: worker.weeklyLimitOptOut ?? false,
+        noFixedHours: worker.noFixedHours ?? false,
+      });
+    },
+    [workers]
+  );
+
+  const cancelWorkerEdit = useCallback(() => {
+    setEditingWorkerId(null);
+    setWorkerError(null);
+    setWorkerForm(EMPTY_WORKER_FORM);
+  }, []);
+
+  const handleEditTemplate = useCallback(
+    (templateId: string) => {
+      const template = shiftTemplates.find((tmpl) => tmpl.id === templateId);
+      if (!template) return;
+      setTemplateError(null);
+      setEditingTemplateId(templateId);
+      setTemplateForm({
+        name: template.name,
+        role: template.role,
+        start: template.start,
+        end: template.end,
+        coverage: String(template.coverage),
+      });
+    },
+    [shiftTemplates]
+  );
+
+  const cancelTemplateEdit = useCallback(() => {
+    setEditingTemplateId(null);
+    setTemplateError(null);
+    setTemplateForm(EMPTY_TEMPLATE_FORM);
+  }, []);
+
   const handleRemoveWorker = useCallback(
     async (workerId: string) => {
       const name = workers.find((w) => w.id === workerId)?.name ?? workerId;
+      if (workerId === editingWorkerId) cancelWorkerEdit();
       reportRemoval(await removeWorker(workerId), name);
     },
-    [removeWorker, reportRemoval, workers]
+    [cancelWorkerEdit, editingWorkerId, removeWorker, reportRemoval, workers]
   );
 
   const handleRemoveAvailability = useCallback(
@@ -1179,9 +1274,18 @@ export function useSchedulerHandlers() {
   const handleRemoveTemplate = useCallback(
     async (templateId: string) => {
       const name = shiftTemplates.find((tmpl) => tmpl.id === templateId)?.name ?? templateId;
+      if (templateId === editingTemplateId) cancelTemplateEdit();
       reportRemoval(await removeShiftTemplate(templateId), name);
     },
-    [removeShiftTemplate, reportRemoval, shiftTemplates]
+    [cancelTemplateEdit, editingTemplateId, removeShiftTemplate, reportRemoval, shiftTemplates]
+  );
+
+  const handleRemoveOverride = useCallback(
+    async (target: { date: string; role: string }) => {
+      const result = await removeOverride(target);
+      reportRemoval({ success: result.success, error: result.error ?? undefined }, `${target.role} · ${target.date}`);
+    },
+    [removeOverride, reportRemoval]
   );
 
   const handleRemoveShift = useCallback(
@@ -1218,8 +1322,13 @@ export function useSchedulerHandlers() {
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
     // A person with a day off on this date (team step) is not suggested.
-    const offToday = await workersOffOn(workers.map((w) => w.id), date);
-    const eligibleWorkers = offToday.size > 0 ? workers.filter((w) => !offToday.has(w.id)) : workers;
+    // Unknown days off stop the run: a guess could suggest someone who is away.
+    const off = await fetchWorkersOffOn(date);
+    if (!off.ok) {
+      showActionBanner(t('teamTools.daysOffLoadError', { error: off.error }), 'error');
+      return;
+    }
+    const eligibleWorkers = off.workerIds.size > 0 ? workers.filter((w) => !off.workerIds.has(w.id)) : workers;
     autoAssignRunRef.current?.abort();
     const run = new AbortController();
     autoAssignRunRef.current = run;
@@ -1267,67 +1376,67 @@ export function useSchedulerHandlers() {
     );
   }, [autoAssignLocation, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
+  /** The suggestions whose run is already counted against the plan. */
+  const countedRunRef = useRef<AssignedShift[] | null>(null);
+
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
     if (!autoAssignSuggestions?.length) return;
     setAutoAssignApplying(true);
     // The run is counted before it is saved, so two tabs cannot both apply the last run of the month.
-    if ((await incrementUsage()) === 'limit') {
+    // A second try after a refused save is the same run, so it is not counted twice.
+    if (countedRunRef.current !== autoAssignSuggestions && (await incrementUsage()) === 'limit') {
       setAutoAssignApplying(false);
       showActionBanner(t('upgrade.limitReachedBanner'), 'error');
       return;
     }
-    let successCount = 0;
-    let firstError: string | null = null;
-    for (const suggestion of autoAssignSuggestions) {
-      const result = await addShift({
-        date: suggestion.date,
-        workerId: suggestion.workerId,
-        templateId: suggestion.templateId,
-        location: autoAssignLocation?.id ?? '',
-        status: 'Draft',
-        notified: false,
-      });
-      if (result.success) successCount += 1;
-      else firstError ??= result.error;
+    countedRunRef.current = autoAssignSuggestions;
+    // One request: every suggestion is stored or none is, never half a schedule.
+    const result = await addShifts(autoAssignSuggestions.map((suggestion) => ({
+      date: suggestion.date,
+      workerId: suggestion.workerId,
+      templateId: suggestion.templateId,
+      location: autoAssignLocation?.id ?? '',
+      status: 'Draft' as const,
+      notified: false,
+    })));
+    setAutoAssignApplying(false);
+    if (!result.success) {
+      // The suggestions stay, so the manager can apply again after the roster reloaded.
+      showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+      return;
     }
+    const successCount = autoAssignSuggestions.length;
     setAutoAssignSuggestions(null);
     setAutoAssignShortfalls(null);
-    setAutoAssignApplying(false);
-    if (successCount > 0) void trackEvent('auto_assign_used', { successCount });
-    showActionBanner(
-      `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).` +
-        (firstError ? ` ${t('scheduler.sync.saveFailed', { error: firstError })}` : ''),
-      successCount === autoAssignSuggestions.length ? 'success' : firstError ? 'error' : 'info'
-    );
-  }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
+    void trackEvent('auto_assign_used', { successCount });
+    showActionBanner(`Applied ${successCount} of ${successCount} auto-assign suggestion(s).`, 'success');
+  }, [addShifts, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
-    let savedCount = 0;
-    for (const target of targets) {
-      try {
-        await overrideTarget({
-          date: target.date,
-          role: target.role,
-          required: target.required,
-          source: 'override',
-          notes: target.notes,
-          lowerBound: target.lowerBound,
-          upperBound: target.upperBound,
-          confidence: target.confidence,
-        });
-        savedCount++;
-      } catch {
-        // Skip individual failures silently; report saved count at end.
-      }
+    // One batch, and its real outcome: before, each row was its own request and
+    // a row the server refused was still counted as saved.
+    const result = await seedBaselineTargets(targets.map((target) => ({
+      date: target.date,
+      role: target.role,
+      required: target.required,
+      source: 'override' as const,
+      notes: target.notes,
+      lowerBound: target.lowerBound,
+      upperBound: target.upperBound,
+      confidence: target.confidence,
+    })));
+    if (!result.success) {
+      showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+      return;
     }
     const distinctRoles = new Set(targets.map((tgt) => tgt.role)).size;
     const msg =
       distinctRoles > 1
-        ? t('scheduler.demand.posTargetsSavedMulti', { n: String(savedCount), roles: String(distinctRoles) })
-        : t('scheduler.demand.posTargetsSaved', { n: String(savedCount) });
+        ? t('scheduler.demand.posTargetsSavedMulti', { n: String(targets.length), roles: String(distinctRoles) })
+        : t('scheduler.demand.posTargetsSaved', { n: String(targets.length) });
     showActionBanner(msg, 'success');
-  }, [overrideTarget, showActionBanner, t]);
+  }, [seedBaselineTargets, showActionBanner, t]);
 
   /**
    * Seeds the app with realistic sample data after tour completion.
@@ -1385,6 +1494,12 @@ export function useSchedulerHandlers() {
   }, [workersLoaded, workersError, workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
+  // A second tap while a save is still on its way would add the row twice
+  // (each save mints a new id).
+  const handleAddWorkerOnce = useSingleFlight(handleAddWorker);
+  const handleAddTemplateOnce = useSingleFlight(handleAddTemplate);
+  const handleAvailabilitySubmitOnce = useSingleFlight(handleAvailabilitySubmit);
+
   return {
     // Data
     workers,
@@ -1474,9 +1589,9 @@ export function useSchedulerHandlers() {
     router,
 
     // Handlers
-    handleAddWorker,
-    handleAddTemplate,
-    handleAvailabilitySubmit,
+    handleAddWorker: handleAddWorkerOnce,
+    handleAddTemplate: handleAddTemplateOnce,
+    handleAvailabilitySubmit: handleAvailabilitySubmitOnce,
     handleShiftSubmit,
     handleTargetSubmit,
     handleFallbackSubmit,
@@ -1484,7 +1599,17 @@ export function useSchedulerHandlers() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    editingWorkerId,
+    handleEditWorker,
+    cancelWorkerEdit,
+    editingTemplateId,
+    handleEditTemplate,
+    cancelTemplateEdit,
     handleRemoveAvailability,
+    locations,
+    selectedLocationId: autoAssignLocation?.id ?? null,
+    selectLocation: setPickedLocationId,
+    handleRemoveOverride,
     handleRemoveTemplate,
     handleRemoveShift,
     runForecast,

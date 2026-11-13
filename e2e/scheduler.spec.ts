@@ -1,272 +1,130 @@
-import { test, expect, Page } from '@playwright/test';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const SCHEDULER_URL = 'http://localhost:8081/(tabs)/scheduler';
-const NAV_TIMEOUT = 30_000;
-const VISIBLE_TIMEOUT = 10_000;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /**
- * Navigate to the scheduler page and wait until the network is idle so that
- * all async data-fetching (Supabase, etc.) has settled before assertions run.
+ * The scheduling flow, end to end: team, templates, days off, auto-assign,
+ * publish, analytics. One serial run that builds on its own rows.
  */
-async function goToScheduler(page: Page): Promise<void> {
-  // Use domcontentloaded so goto returns quickly without waiting for Clerk's
-  // async session-verification round-trip (which can take 20-30 s on first load).
-  await page.goto(SCHEDULER_URL, { timeout: NAV_TIMEOUT, waitUntil: 'domcontentloaded' });
-  // Wait until the page heading is rendered — reliable signal that React has
-  // hydrated and the scheduler UI is ready for interaction.
-  await page.getByRole('heading', { name: /scheduler/i }).waitFor({
-    state: 'visible',
-    timeout: NAV_TIMEOUT,
-  });
-}
+import { expect, test, type Page } from '@playwright/test';
 
-/**
- * Fill a labelled text input identified by its exact accessible name.
- * Uses exact:true to prevent strict-mode violations when multiple inputs
- * share a common substring (e.g. "Role" vs "Worker role" vs "Template role").
- */
-async function fillField(
-  page: Page,
-  label: string,
-  value: string,
-): Promise<void> {
-  const field = page.getByRole('textbox', { name: label, exact: true });
-  await field.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-  await field.clear();
-  await field.fill(value);
-}
+import { addTemplate, addWorker, dateIn, open, openStep, proxyResponse, unique } from './helpers';
 
-/**
- * Click a button identified by its exact accessible name and wait for any
- * resulting network activity to settle.
- */
-async function clickButton(page: Page, name: string): Promise<void> {
-  const btn = page.getByRole('button', { name, exact: true });
-  await btn.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-  await btn.click();
-  // Cap networkidle at 5s and swallow — Supabase realtime WebSocket connections
-  // prevent the page from ever reaching true networkidle, so the test's own
-  // assertions are the reliable gate, not network quiescence.
-  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-}
+const ROLE = unique('Barista');
+const ANA = unique('Ana');
+const LUIS = unique('Luis');
+const TEMPLATE = unique('Morning');
+// A date no other run of the day reuses is not needed: the role is unique.
+const DATE = dateIn(9);
 
-// ---------------------------------------------------------------------------
-// Shared state passed between tests via a project-scoped fixture workaround.
-// Tests run with workers: 1 (sequential) so module state is safe.
-// ---------------------------------------------------------------------------
+test.describe.configure({ mode: 'serial' });
 
-let createdWorkerId = '';
+/** The list starts with the next few shifts; a shared tenant can hold more. */
+const showAllShifts = async (page: Page) => {
+  const more = page.getByTestId('roster-show-all');
+  if ((await more.count()) > 0 && (await more.innerText()).startsWith('Show all')) await more.click();
+};
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+test('SC-1 adds two workers and they survive a reload', async ({ page }) => {
+  await openStep(page, 'workers');
+  await addWorker(page, ANA, ROLE);
+  await addWorker(page, LUIS, ROLE);
+  await page.reload();
+  await expect(page.getByText(ANA, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(LUIS, { exact: true }).first()).toBeVisible();
+});
 
-test.describe('Scheduler happy paths', () => {
-  test.beforeEach(async ({ page }) => {
-    await goToScheduler(page);
-  });
+test('SC-2 edits a worker through the form', async ({ page }) => {
+  await openStep(page, 'workers');
+  await page.getByRole('button', { name: `Edit worker ${LUIS}` }).click();
+  await expect(page.getByLabel('Worker name')).toHaveValue(LUIS);
+  await page.getByLabel('Worker skills').fill('Latte art');
+  const saved = proxyResponse(page, 'upsertWorker');
+  await page.getByTestId('add-worker-btn').click();
+  expect((await saved).status()).toBe(200);
+  await expect(page.getByTestId('scheduler-action-banner')).toContainText(`${LUIS} updated`);
+  await expect(page.getByLabel('Worker name')).toHaveValue('');
+  await page.reload();
+  await expect(page.getByText('Latte art').first()).toBeVisible({ timeout: 60_000 });
+});
 
-  // -------------------------------------------------------------------------
-  // Happy Path 1: Add a worker
-  // -------------------------------------------------------------------------
-  test('HP-1: adds a new worker successfully', async ({ page }) => {
-    // HP-1 is the first test in this browser context — Clerk session init on
-    // first navigation takes ~30 s. All subsequent tests reuse the warm session.
-    test.setTimeout(90_000);
-    // Exact aria-labels: "Worker name", "Worker role", "Worker skills"
-    // Using "Yuki Tanaka" — not in sample data, prevents false-positive list check.
-    await fillField(page, 'Worker name', 'Yuki Tanaka');
-    await fillField(page, 'Worker role', 'Barista');
-    await fillField(page, 'Worker skills', 'espresso, latte art');
-
-    await clickButton(page, 'Add worker');
-
-    // After saving, the "Worker ID" field is auto-populated with the new UUID.
-    // This is more reliable than searching for the worker name in the list,
-    // because the name text may first appear in a toast that disappears quickly.
-    const workerIdField = page.getByRole('textbox', { name: 'Worker ID', exact: true });
-    await expect(workerIdField).not.toHaveValue('', { timeout: VISIBLE_TIMEOUT });
-
-    // Capture the worker-id so later tests can pre-fill it.
-    // Cap at 5 s to avoid Playwright's 30 s default locator timeout.
-    const idValue = await workerIdField.inputValue().catch(() => '');
-    if (idValue) {
-      createdWorkerId = idValue;
+test('SC-3 gives both workers availability on every weekday', async ({ page }) => {
+  await openStep(page, 'workers');
+  for (const name of [ANA, LUIS]) {
+    await page.getByRole('button', { name: `Select worker ${name}` }).first().click();
+    for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      const chip = page.getByTestId(`availability-day-${day}`);
+      if ((await chip.getAttribute('aria-checked')) !== 'true') await chip.click();
     }
-  });
+    const saved = proxyResponse(page, 'upsertAvailability');
+    await page.getByRole('button', { name: 'Add availability', exact: true }).click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.getByRole('button', { name: 'Assign now' }).or(page.getByText('Availability saved')).first()).toBeVisible();
+  }
+});
 
-  // -------------------------------------------------------------------------
-  // Happy Path 2: Set worker availability
-  // -------------------------------------------------------------------------
-  test('HP-2: sets availability for an existing worker', async ({ page }) => {
-    // If we captured a worker ID from HP-1, pre-fill it.
-    if (createdWorkerId) {
-      const workerIdField = page.getByRole('textbox', { name: /worker id/i });
-      const isVisible = await workerIdField.isVisible().catch(() => false);
-      if (isVisible) {
-        await workerIdField.clear();
-        await workerIdField.fill(createdWorkerId);
-      }
-    }
+test('SC-4 adds a shift template, then edits its coverage', async ({ page }) => {
+  await openStep(page, 'templates');
+  await addTemplate(page, TEMPLATE, ROLE);
+  await page.getByRole('button', { name: `Edit template ${TEMPLATE}` }).click();
+  await expect(page.getByLabel('Template name')).toHaveValue(TEMPLATE);
+  await page.getByLabel('Required coverage').fill('2');
+  const saved = proxyResponse(page, 'upsertShiftTemplate');
+  await page.getByTestId('add-template-btn').click();
+  expect((await saved).status()).toBe(200);
+  await expect(page.getByTestId('scheduler-action-banner')).toContainText(`${TEMPLATE} updated`);
+});
 
-    // Exact aria-labels: "Day", "From", "To" — each appears once in the page.
-    await fillField(page, 'Day', 'Mon');
-    await fillField(page, 'From', '09:00');
-    await fillField(page, 'To', '17:00');
+test('SC-5 a day off is saved on the server and keeps the worker out of auto-assign', async ({ page }) => {
+  await openStep(page, 'workers');
+  const daysOff = page.getByTestId('team-days-off');
+  await daysOff.getByRole('radio', { name: LUIS, exact: true }).click();
+  await page.getByTestId('day-off-date').fill(DATE);
+  await page.getByTestId('day-off-reason').fill('Family');
+  const saved = proxyResponse(page, 'upsertTimeOff');
+  await page.getByTestId('day-off-add').click();
+  expect((await saved).status()).toBe(200);
+  await page.reload();
+  const reloaded = page.getByTestId('team-days-off');
+  await reloaded.getByRole('radio', { name: LUIS, exact: true }).click({ timeout: 60_000 });
+  await expect(reloaded.getByText(DATE)).toBeVisible();
 
-    await clickButton(page, 'Add availability');
+  await openStep(page, 'shifts');
+  await page.getByLabel('Date', { exact: true }).fill(DATE);
+  await page.getByRole('button', { name: /^Auto-assign workers/ }).click();
+  await expect(page.getByTestId('apply-auto-assign')).toBeVisible({ timeout: 60_000 });
+  // Coverage is 2, Luis is off: Ana is suggested, one position stays open.
+  const suggestions = page.getByText(`${ANA} → ${TEMPLATE}`);
+  await expect(suggestions.first()).toBeVisible();
+  await expect(page.getByText(`${LUIS} → ${TEMPLATE}`)).toHaveCount(0);
+  const stored = proxyResponse(page, 'addRosterShifts');
+  await page.getByTestId('apply-auto-assign').click();
+  expect((await stored).status()).toBe(200);
+  // One request saves every suggestion; then the suggestions go away.
+  await expect(page.getByTestId('apply-auto-assign')).toHaveCount(0, { timeout: 30_000 });
+  await showAllShifts(page);
+  await expect(page.getByRole('button', { name: `Publish this shift: ${ANA}, ${DATE}` })).toBeVisible();
+});
 
-    // Any visible success indicator is acceptable.
-    const feedback = page
-      .getByText(/(availability saved|success|added|Mon)/i)
-      .first();
-    await expect(feedback).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-  });
+test('SC-6 publishes the shift and marks the worker as told', async ({ page }) => {
+  await openStep(page, 'shifts');
+  await expect(page.locator('[data-testid^="remove-shift-"]').first()).toBeVisible({ timeout: 60_000 });
+  await showAllShifts(page);
+  const publish = page.getByRole('button', { name: `Publish this shift: ${ANA}, ${DATE}` });
+  await expect(publish).toBeVisible({ timeout: 60_000 });
+  const published = proxyResponse(page, 'updateShiftStatus');
+  await publish.click();
+  expect((await published).status()).toBe(200);
+  const told = proxyResponse(page, 'markShiftNotified');
+  await page.getByRole('button', { name: `Mark this shift as told to the worker: ${ANA}, ${DATE}` }).click();
+  expect((await told).status()).toBe(200);
+  await expect(page.getByTestId('scheduler-action-banner')).toContainText('No message was sent');
+});
 
-  // -------------------------------------------------------------------------
-  // Happy Path 3: Create a shift template
-  // -------------------------------------------------------------------------
-  test('HP-3: creates a shift template', async ({ page }) => {
-    // Scroll to the ShiftTemplateSection in case it is below the fold.
-    const templateSection = page.getByText(/shift template/i).first();
-    await templateSection.scrollIntoViewIfNeeded();
-
-    // Exact aria-labels from ShiftTemplateSection InputField components:
-    //   "Template name", "Template role", "Shift start time",
-    //   "Shift end time", "Required coverage"
-    // Using "Afternoon Barista" — not in sample data.
-    await fillField(page, 'Template name', 'Afternoon Barista');
-    await fillField(page, 'Template role', 'Barista');
-    await fillField(page, 'Shift start time', '14:00');
-    await fillField(page, 'Shift end time', '22:00');
-    await fillField(page, 'Required coverage', '2');
-
-    await clickButton(page, 'Add template');
-
-    // Success banner: '"{name}" saved — ready to assign shifts.'
-    const templateEntry = page.getByText(/Afternoon Barista/i).first();
-    await expect(templateEntry).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-  });
-
-  // -------------------------------------------------------------------------
-  // Happy Path 4: Create a roster shift
-  // -------------------------------------------------------------------------
-  test('HP-4: assigns a shift to a worker', async ({ page }) => {
-    // Scroll to the shift-creation section.
-    const rosterSection = page.getByText(/assign workers into templates/i).first();
-    await rosterSection.scrollIntoViewIfNeeded();
-
-    // The shift assignment form's Date field is the SECOND "Date" textbox on
-    // the page (the first belongs to the manual demand form).
-    const dateField = page.getByRole('textbox', { name: 'Date', exact: true }).nth(1);
-    await dateField.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await dateField.clear();
-    await dateField.fill('2026-04-06');
-
-    // The roster Worker picker — exact "Worker" aria-label is unique.
-    const workerField = page.getByRole('textbox', { name: 'Worker', exact: true }).first();
-    const workerVisible = await workerField.isVisible().catch(() => false);
-    if (workerVisible) {
-      await workerField.clear();
-      await workerField.fill(createdWorkerId || 'Alice Chen');
-    }
-
-    // Submit button label: t('scheduler.shifts.saveButton') = 'Save and notify team'
-    await clickButton(page, 'Save and notify team');
-
-    // Verify either a success message or the shift appearing in the roster.
-    const confirmation = page
-      .getByText(/(shift assigned|success|2026-04-06|saved|notif)/i)
-      .first();
-    await expect(confirmation).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-  });
-
-  // -------------------------------------------------------------------------
-  // Happy Path 5: POS CSV upload
-  // -------------------------------------------------------------------------
-  test('HP-5: parses a pasted POS CSV and shows a preview table', async ({
-    page,
-  }) => {
-    const CSV_CONTENT =
-      'date,revenue,covers\n2026-03-01,1500.00,45\n2026-03-02,1200.50,38';
-
-    // Step 1: scroll to demand section and select the POS Import mode radio.
-    const demandSection = page.getByText(/demand targets/i).first();
-    await demandSection.scrollIntoViewIfNeeded();
-
-    const posRadio = page.getByRole('radio', { name: /POS Import/i });
-    await posRadio.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await posRadio.click();
-
-    // Step 2: fill the CSV textarea.
-    // Exact aria-label: t('scheduler.demand.posText') = 'Paste CSV (date,revenue,covers,notes)'
-    const csvInput = page.getByRole('textbox', {
-      name: 'Paste CSV (date,revenue,covers,notes)',
-      exact: true,
-    });
-    await csvInput.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await csvInput.clear();
-    await csvInput.fill(CSV_CONTENT);
-
-    // Step 3: click Preview CSV button.
-    // Exact aria-label: t('scheduler.demand.posPreviewBtn') = 'Preview CSV'
-    await clickButton(page, 'Preview CSV');
-
-    // Step 4: assert the two CSV dates appear in the preview table.
-    const firstRow = page.getByText('2026-03-01').first();
-    const secondRow = page.getByText('2026-03-02').first();
-
-    await expect(firstRow).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-    await expect(secondRow).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-
-    // No fatal error should be visible.
-    const fatalError = page.getByText(/fatal error/i).first();
-    await expect(fatalError).not.toBeVisible();
-  });
-
-  // -------------------------------------------------------------------------
-  // Happy Path 6: Demand forecast — homogeneous fallback
-  // -------------------------------------------------------------------------
-  test('HP-6: adds homogeneous demand targets via fallback form', async ({
-    page,
-  }) => {
-    // Scroll to demand targets section.
-    const demandSection = page.getByText(/demand targets/i).first();
-    await demandSection.scrollIntoViewIfNeeded();
-
-    // Ensure Homogeneous demand mode is selected (it is the default, but be explicit).
-    const homogRadio = page.getByRole('radio', { name: /Homogeneous demand/i });
-    await homogRadio.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await homogRadio.click();
-
-    // The homogeneous form has two "Role" textboxes on the page; use .first()
-    // which maps to the demand-form Role (the worker/template role fields
-    // have exact labels "Worker role" and "Template role").
-    const rolField = page.getByRole('textbox', { name: 'Role', exact: true }).first();
-    await rolField.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT });
-    await rolField.clear();
-    await rolField.fill('Server');
-
-    // Exact English aria-labels: "Start date", "Days", "Daily demand"
-    await fillField(page, 'Start date', '2026-04-06');
-    await fillField(page, 'Days', '7');
-    await fillField(page, 'Daily demand', '4');
-
-    // Submit: t('scheduler.demand.saveBaseline') = 'Save baseline targets'
-    await clickButton(page, 'Save baseline targets');
-
-    // Verify a success message or that target entries have appeared.
-    const confirmation = page
-      .getByText(/(demand target|saved|baseline|Server)/i)
-      .first();
-    await expect(confirmation).toBeVisible({ timeout: VISIBLE_TIMEOUT });
-  });
+test('SC-7 analytics shows the worker and filters by period', async ({ page }) => {
+  await open(page, '/explore');
+  await expect(page.getByTestId('analytics-coverage-rate')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(ANA).first()).toBeVisible();
+  await page.getByTestId('analytics-period-month').click();
+  await expect(page.getByTestId('analytics-period-month')).toHaveAttribute('aria-checked', 'true');
+  // The shift is nine days ahead: outside "last 4 weeks".
+  await expect(page.getByText(ANA)).toHaveCount(0);
+  await page.getByTestId('analytics-period-all').click();
+  await expect(page.getByText(ANA).first()).toBeVisible();
 });

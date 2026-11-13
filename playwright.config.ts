@@ -6,10 +6,13 @@ const AUTH_STATE = path.join(__dirname, '.playwright-auth', 'state.json');
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
-  timeout: 30_000,
+  // The first visit to a page compiles its bundle in the dev server.
+  timeout: 120_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // No retries: the flow uses the account's free auto-assign, which a second attempt would not have.
+  retries: 0,
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
@@ -22,15 +25,22 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // A sandbox with its own Chromium build can point at it.
+        launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
+      },
     },
   ],
-  // The dev server is expected to already be running when tests execute.
-  // Uncomment the block below to have Playwright start it automatically.
-  // webServer: {
-  //   command: 'npx expo start --web --port 8081',
-  //   url: 'http://localhost:8081',
-  //   reuseExistingServer: true,
-  //   timeout: 120_000,
-  // },
+  // Locally the dev server is reused when it already runs; CI starts it.
+  webServer: {
+    command: 'npx expo start --web --port 8081',
+    url: 'http://localhost:8081',
+    reuseExistingServer: true,
+    timeout: 240_000,
+    // Expo's CI mode turns off the dev server features the web bundle relies on here.
+    env: { ...(process.env as Record<string, string>), CI: '0' },
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
 });

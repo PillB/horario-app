@@ -18,13 +18,14 @@ import type { ShiftTemplate } from '@/utils/schedulerMetrics';
 import { newUuid, validateShiftTemplateInput } from '@/utils/schedulingValidation';
 import { removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
 
-const dbToTemplate = (db: Pick<DbShiftTemplate, 'id' | 'name' | 'role' | 'startTime' | 'endTime' | 'coverage'>): ShiftTemplate => ({
+const dbToTemplate = (db: Pick<DbShiftTemplate, 'id' | 'name' | 'role' | 'startTime' | 'endTime' | 'coverage' | 'updatedAt'>): ShiftTemplate => ({
   id: db.id,
   name: db.name,
   role: db.role,
   start: db.startTime,
   end: db.endTime,
   coverage: db.coverage,
+  ...(db.updatedAt ? { updatedAt: db.updatedAt } : {}),
 });
 
 const loadTemplates = async (): Promise<LoadResult<ShiftTemplate>> => {
@@ -50,8 +51,9 @@ export const useShiftTemplates = (accountId: string) => {
       const previous = index === -1 ? null : items[index];
       const result = await write({
         id,
-        apply: (prev) => upsertById(prev, dbToTemplate(input)),
-        commit: () => upsertShiftTemplate(input),
+        apply: (prev) => upsertById(prev, dbToTemplate({ ...input, updatedAt: previous?.updatedAt })),
+        // An edit saves only while the stored row is still the one this list read.
+        commit: () => upsertShiftTemplate(input, previous?.updatedAt),
         rollback: (prev) => (previous ? prev.map((t) => (t.id === id ? previous : t)) : removeById(prev, id)),
         reconcile: (prev, r) => (r.success ? upsertById(prev, dbToTemplate(r.template)) : prev),
       });

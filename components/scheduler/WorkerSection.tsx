@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Pressable,
@@ -19,6 +19,7 @@ import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { WorkerLaborFields } from './WorkerLaborFields';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
+import { TextActionButton } from './TextActionButton';
 import type { WorkerFormState } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
@@ -38,6 +39,11 @@ type Props = {
   /** False until the stored workers have loaded: the empty state waits for it. */
   workersLoaded?: boolean;
   onRemoveWorker?: (workerId: string) => void;
+  /** Loads the worker into the form below for editing. */
+  onEditWorker?: (workerId: string) => void;
+  /** The worker the form is editing, or null when it adds a new one. */
+  editingWorkerId?: string | null;
+  onCancelEdit?: () => void;
   onRemoveAvailability?: (workerId: string, slotId: string) => void;
   workerForm: WorkerFormState;
   updateWorkerField: <K extends keyof WorkerFormState>(key: K) => (value: WorkerFormState[K]) => void;
@@ -74,6 +80,21 @@ const makeLocalStyles = (colors: ThemeColors) =>
     ghostEmptyCtaText: {
       color: colors.textSecondary,
     },
+    // Name above, hours and actions below: side by side, seven availability
+    // chips squeezed the name into a one-letter column (CHG-098).
+    workerRow: {
+      gap: 8,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    workerHead: {
+      gap: 4,
+    },
+    workerSlots: {
+      justifyContent: 'flex-start',
+      alignItems: 'center',
+    },
     slotRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -83,10 +104,19 @@ const makeLocalStyles = (colors: ThemeColors) =>
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
+/** Monday first, then by start time: slots are stored in the order they were added. */
+const sortSlots = <T extends { day: string; from: string }>(slots: readonly T[]): T[] =>
+  [...slots].sort(
+    (x, y) => WEEK_DAYS.indexOf(x.day as (typeof WEEK_DAYS)[number]) - WEEK_DAYS.indexOf(y.day as (typeof WEEK_DAYS)[number]) || x.from.localeCompare(y.from),
+  );
+
 export const WorkerSection = ({
   workers,
   workersLoaded = true,
   onRemoveWorker,
+  onEditWorker,
+  editingWorkerId = null,
+  onCancelEdit,
   onRemoveAvailability,
   workerForm,
   updateWorkerField,
@@ -111,6 +141,11 @@ export const WorkerSection = ({
   const nameRef = useRef<TextInput | null>(null);
   const roleRef = useRef<TextInput | null>(null);
   const skillsRef = useRef<TextInput | null>(null);
+
+  // Editing starts from a row that can be far above the form: bring the form into view.
+  useEffect(() => {
+    if (editingWorkerId) nameRef.current?.focus();
+  }, [editingWorkerId]);
 
   // Focus refs for availability form fields
   const selectedDays = availabilityForm.day.split(',').map((d) => d.trim()).filter(Boolean);
@@ -142,8 +177,8 @@ export const WorkerSection = ({
           tooltip={t('scheduler.workers.tooltip')}
         >
           {workers.map((worker) => (
-            <View key={worker.id} style={styles.rowBetween}>
-              <View style={styles.rowContent}>
+            <View key={worker.id} style={localStyles.workerRow}>
+              <View style={localStyles.workerHead}>
                 <ThemedText type="defaultSemiBold">{worker.name}</ThemedText>
                 {/* [1][6] role text: textSecondary passes AA in both light and dark mode */}
                 <ThemedText style={localStyles.roleText}>{worker.role}</ThemedText>
@@ -156,8 +191,8 @@ export const WorkerSection = ({
                   ))}
                 </View>
               </View>
-              <View style={styles.availabilityList}>
-                {worker.availability.map((slot, index) => (
+              <View style={[styles.availabilityList, localStyles.workerSlots]}>
+                {sortSlots(worker.availability).map((slot, index) => (
                   <View key={slot.id ?? `${worker.id}-${index}`} style={localStyles.slotRow}>
                     <AvailabilityLabel day={slot.day} from={slot.from} to={slot.to} />
                     {onRemoveAvailability && slot.id ? (
@@ -171,6 +206,15 @@ export const WorkerSection = ({
                     ) : null}
                   </View>
                 ))}
+                {onEditWorker ? (
+                  <TextActionButton
+                    label={t('scheduler.edit.edit')}
+                    onPress={() => onEditWorker(worker.id)}
+                    accessibilityLabel={t('scheduler.edit.workerA11y', { name: worker.name })}
+                    accessibilityHint={t('scheduler.edit.hint')}
+                    testID={`edit-worker-${worker.id}`}
+                  />
+                ) : null}
                 {onRemoveWorker ? (
                   <ConfirmRemoveButton
                     onConfirm={() => onRemoveWorker(worker.id)}
@@ -198,8 +242,8 @@ export const WorkerSection = ({
         </SectionCard>
 
         <SectionCard
-          title={t('scheduler.workers.addCardTitle')}
-          subtitle={t('scheduler.workers.addCardSubtitle')}
+          title={editingWorkerId ? t('scheduler.edit.workerTitle') : t('scheduler.workers.addCardTitle')}
+          subtitle={editingWorkerId ? t('scheduler.edit.workerSubtitle') : t('scheduler.workers.addCardSubtitle')}
           tooltip={t('scheduler.workers.addCardTooltip')}
         >
           {/* [11] InputField placeholder colour is handled inside InputField component;
@@ -254,15 +298,24 @@ export const WorkerSection = ({
               isAddWorkerDisabled && { opacity: 0.5 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={t('scheduler.workers.addButtonA11y')}
-            accessibilityHint={t('scheduler.workers.addButtonHint')}
+            accessibilityLabel={editingWorkerId ? t('scheduler.edit.save') : t('scheduler.workers.addButtonA11y')}
+            accessibilityHint={editingWorkerId ? t('scheduler.edit.saveHint') : t('scheduler.workers.addButtonHint')}
             accessibilityState={{ disabled: isAddWorkerDisabled }}
             testID="add-worker-btn"
           >
             <ThemedText style={styles.primaryButtonText}>
-              {t('scheduler.workers.addButton')}
+              {editingWorkerId ? t('scheduler.edit.save') : t('scheduler.workers.addButton')}
             </ThemedText>
           </Pressable>
+          {editingWorkerId && onCancelEdit ? (
+            <TextActionButton
+              label={t('common.cancel')}
+              onPress={onCancelEdit}
+              accessibilityLabel={t('common.cancel')}
+              accessibilityHint={t('scheduler.edit.cancelHint')}
+              testID="cancel-worker-edit"
+            />
+          ) : null}
           {workerError ? (
             <ThemedText style={styles.errorText}>{workerError}</ThemedText>
           ) : null}

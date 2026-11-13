@@ -137,6 +137,34 @@ describe('useWorkers', () => {
     expect(hook.result.workers[0]).toMatchObject({ name: 'Alicia', availability: [{ id: AV1 }] });
   });
 
+  it('sends the stored updatedAt unchanged with an edit, and the new one with the next (CHG-098)', async () => {
+    const stamps = ['2026-11-13T09:00:00.654321+00:00', '2026-11-13T09:05:00.000001+00:00'];
+    let saves = 0;
+    const fetchMock = installFakeProxy((body) => {
+      if (body.action === 'listWorkers') return { body: { workers: [{ ...dbWorker(W1, 'Alice'), updatedAt: stamps[0] }], hasMore: false } };
+      if (body.action === 'listWorkerAvailability') return { body: { availabilities: [], hasMore: false } };
+      saves += 1;
+      return { body: { success: true, worker: { accountId: 'acc-1', ...(body.worker as object), updatedAt: stamps[saves] } } };
+    });
+    const hook = await renderHook(useWorkers, 'acc-1');
+    await act(async () => {
+      await hook.result.updateWorker(W1, { name: 'Alicia', role: 'Support', skills: [] });
+    });
+    await act(async () => {
+      await hook.result.updateWorker(W1, { name: 'Ali', role: 'Support', skills: [] });
+    });
+    expect(callsOf(fetchMock, 'upsertWorker').map((b) => b.ifUpdatedAt)).toEqual(stamps);
+  });
+
+  it('sends no ifUpdatedAt when adding a worker', async () => {
+    const fetchMock = proxy();
+    const hook = await renderHook(useWorkers, 'acc-1');
+    await act(async () => {
+      await hook.result.addWorker('Cora', 'Support', []);
+    });
+    expect(callsOf(fetchMock, 'upsertWorker')[0]).not.toHaveProperty('ifUpdatedAt');
+  });
+
   it('puts a deleted worker back in place when the delete is refused (still rostered)', async () => {
     proxy({ deleteWorker: { status: 409, body: { error: 'Record is still referenced' } } });
     const hook = await renderHook(useWorkers, 'acc-1');

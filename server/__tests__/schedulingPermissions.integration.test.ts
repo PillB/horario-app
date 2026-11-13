@@ -206,6 +206,70 @@ describeIfDb('scheduling permissions and roster notified (local Supabase)', () =
     });
   });
 
+  describe('CHG-098: edits that hold when two people save at once', () => {
+    it('lets one of two edits of the same worker through, and tells the other', async () => {
+      const created = await asAdmin({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Caro', role: 'Cook' } });
+      const { id, updatedAt } = created.body.worker as { id: string; updatedAt: string };
+      expect(updatedAt).toEqual(expect.any(String));
+      const both = await Promise.all([
+        asAdmin({ action: 'upsertWorker', worker: { id, name: 'Caro A', role: 'Cook' }, ifUpdatedAt: updatedAt }),
+        asAdmin({ action: 'upsertWorker', worker: { id, name: 'Caro B', role: 'Cook' }, ifUpdatedAt: updatedAt }),
+      ]);
+      expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
+      const winner = both.find((r) => r.status === 200)!.body.worker as { name: string; updatedAt: string };
+      const stored = ((await asAdmin({ action: 'listWorkers' })).body.workers as { id: string; name: string }[]).find((w) => w.id === id);
+      expect(stored?.name).toBe(winner.name);
+      // The fresh stamp saves; after a delete the edit is refused and never re-creates the row.
+      expect((await asAdmin({ action: 'upsertWorker', worker: { id, name: 'Caro C', role: 'Cook' }, ifUpdatedAt: winner.updatedAt })).status).toBe(200);
+      expect((await asAdmin({ action: 'deleteWorker', id })).status).toBe(200);
+      expect((await asAdmin({ action: 'upsertWorker', worker: { id, name: 'Caro D', role: 'Cook' }, ifUpdatedAt: winner.updatedAt })).status).toBe(404);
+    });
+
+    it('refuses a template edit made from a stale copy', async () => {
+      const created = await asAdmin({ action: 'upsertShiftTemplate', template: { id: randomUUID(), name: 'Split', role: 'Cook', startTime: '10:00', endTime: '15:00', coverage: 1 } });
+      const tmpl = created.body.template as { id: string; updatedAt: string };
+      const edit = (name: string, stamp: string) =>
+        asAdmin({ action: 'upsertShiftTemplate', template: { id: tmpl.id, name, role: 'Cook', startTime: '10:00', endTime: '15:00', coverage: 1 }, ifUpdatedAt: stamp });
+      // updated_at is the transaction time: wait so the first edit gets a later stamp than the insert.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect((await edit('Split 1', tmpl.updatedAt)).status).toBe(200);
+      const stale = await edit('Split 2', tmpl.updatedAt);
+      expect(stale.status).toBe(409);
+      expect(String(stale.body.error)).toMatch(/Someone else changed this/);
+    });
+
+    it('adds a batch of shifts all at once or not at all', async () => {
+      const date = '2026-12-07';
+      const good = await asAdmin({
+        action: 'addRosterShifts',
+        shifts: [
+          { id: randomUUID(), date, workerId: worker1, templateId: template1 },
+          { id: randomUUID(), date, workerId: worker2, templateId: template2, notified: false },
+        ],
+      });
+      expect(good.status).toBe(200);
+      expect((good.body.shifts as Shift[]).map((s) => [s.status, s.notified])).toEqual([['Draft', false], ['Draft', false]]);
+
+      // One row repeats a stored slot: nothing of this batch is stored.
+      const mixed = await asAdmin({
+        action: 'addRosterShifts',
+        shifts: [
+          { id: randomUUID(), date, workerId: worker1, templateId: template2 },
+          { id: randomUUID(), date, workerId: worker1, templateId: template1 },
+        ],
+      });
+      expect(mixed.status).toBe(409);
+      expect(String(mixed.body.error)).toMatch(/Nothing was added/);
+      const stored = (await asAdmin({ action: 'listRoster', fromDate: date, toDate: date })).body.shifts as Shift[];
+      expect(stored).toHaveLength(2);
+
+      // Another tenant's worker is not found, and a member may not add.
+      const foreign = await call(signToken(`user_other_${run}`), { action: 'addRosterShifts', shifts: [{ id: randomUUID(), date, workerId: worker1, templateId: template1 }] });
+      expect(foreign.status).toBe(404);
+      expect((await asMember({ action: 'addRosterShifts', shifts: [{ id: randomUUID(), date: '2026-12-08', workerId: worker1, templateId: template1 }] })).status).toBe(403);
+    });
+  });
+
   describe('G5: location history cannot be erased with the service-role key', () => {
     it('refuses a direct delete and a purge younger than 2 years', async () => {
       const location = await asAdmin({
