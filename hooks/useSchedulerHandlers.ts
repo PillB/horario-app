@@ -155,6 +155,7 @@ export function useSchedulerHandlers() {
   const {
     roster,
     addShift,
+    addShifts,
     setShiftStatus,
     notifyShift,
     removeShift,
@@ -1375,40 +1376,42 @@ export function useSchedulerHandlers() {
     );
   }, [autoAssignLocation, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
+  /** The suggestions whose run is already counted against the plan. */
+  const countedRunRef = useRef<AssignedShift[] | null>(null);
+
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
     if (!autoAssignSuggestions?.length) return;
     setAutoAssignApplying(true);
     // The run is counted before it is saved, so two tabs cannot both apply the last run of the month.
-    if ((await incrementUsage()) === 'limit') {
+    // A second try after a refused save is the same run, so it is not counted twice.
+    if (countedRunRef.current !== autoAssignSuggestions && (await incrementUsage()) === 'limit') {
       setAutoAssignApplying(false);
       showActionBanner(t('upgrade.limitReachedBanner'), 'error');
       return;
     }
-    let successCount = 0;
-    let firstError: string | null = null;
-    for (const suggestion of autoAssignSuggestions) {
-      const result = await addShift({
-        date: suggestion.date,
-        workerId: suggestion.workerId,
-        templateId: suggestion.templateId,
-        location: autoAssignLocation?.id ?? '',
-        status: 'Draft',
-        notified: false,
-      });
-      if (result.success) successCount += 1;
-      else firstError ??= result.error;
+    countedRunRef.current = autoAssignSuggestions;
+    // One request: every suggestion is stored or none is, never half a schedule.
+    const result = await addShifts(autoAssignSuggestions.map((suggestion) => ({
+      date: suggestion.date,
+      workerId: suggestion.workerId,
+      templateId: suggestion.templateId,
+      location: autoAssignLocation?.id ?? '',
+      status: 'Draft' as const,
+      notified: false,
+    })));
+    setAutoAssignApplying(false);
+    if (!result.success) {
+      // The suggestions stay, so the manager can apply again after the roster reloaded.
+      showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
+      return;
     }
+    const successCount = autoAssignSuggestions.length;
     setAutoAssignSuggestions(null);
     setAutoAssignShortfalls(null);
-    setAutoAssignApplying(false);
-    if (successCount > 0) void trackEvent('auto_assign_used', { successCount });
-    showActionBanner(
-      `Applied ${successCount} of ${autoAssignSuggestions.length} auto-assign suggestion(s).` +
-        (firstError ? ` ${t('scheduler.sync.saveFailed', { error: firstError })}` : ''),
-      successCount === autoAssignSuggestions.length ? 'success' : firstError ? 'error' : 'info'
-    );
-  }, [addShift, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
+    void trackEvent('auto_assign_used', { successCount });
+    showActionBanner(`Applied ${successCount} of ${successCount} auto-assign suggestion(s).`, 'success');
+  }, [addShifts, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     // One batch, and its real outcome: before, each row was its own request and

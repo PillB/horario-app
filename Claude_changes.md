@@ -75,9 +75,9 @@ Scope: everything on the open list that needs no product decision. Pricing is bu
 **Done**
 - **Edit forms.** "Edit" on a worker or template row loads it into the form below, which then saves the change (`updateWorker` / `updateShiftTemplate`, already in the hooks) and offers Cancel. The form takes focus so it scrolls into view. `components/scheduler/TextActionButton.tsx` (new) is the small text button used for Edit / Cancel / Show all.
 - **Demand overrides can be removed.** Override rows in the demand list have a two-tap Remove (`useDemandForecast.removeOverride`).
-- **Days off are stored on the server.** New table `worker_time_off` (`20261111000098`, one row per worker and date, tenant RLS, cascade on worker delete), proxy actions `listTimeOff` (members), `upsertTimeOff` / `deleteTimeOff` (manager only, in `SCHEDULING_WRITE_ACTIONS`), `hooks/useTimeOff.ts`. Days an earlier version kept on the device are uploaded once and removed from the device only after the server accepted them. Auto-assign asks the server who is off (`fetchWorkersOffOn`) and stops with an error when that cannot be read, instead of guessing nobody is off.
+- **Days off are stored on the server.** New table `worker_time_off` (`20261113000103`, one row per worker and date, tenant RLS, cascade on worker delete), proxy actions `listTimeOff` (members), `upsertTimeOff` / `deleteTimeOff` (manager only, in `SCHEDULING_WRITE_ACTIONS`), `hooks/useTimeOff.ts`. Days an earlier version kept on the device are uploaded once and removed from the device only after the server accepted them. Auto-assign asks the server who is off (`fetchWorkersOffOn`) and stops with an error when that cannot be read, instead of guessing nobody is off.
 - **Analytics date filter.** This week / last 4 weeks / all dates (`AnalyticsRange`, `periodRange` in `hooks/useAnalytics.ts`); "today" is read after mount.
-- **The published roster feeds the forecast.** View `forecast_shift_history` (`20261111000100`): imported `shifts` plus Published roster shifts (template role and clock hours), on dates without imported rows so a day is never counted twice. The proxy's `forecastHistory`, `forecast` and `status` read the view; service role only. Closes debt #12.
+- **The published roster feeds the forecast.** View `forecast_shift_history` (`20261113000104`): imported `shifts` plus Published roster shifts (template role and clock hours), on dates without imported rows so a day is never counted twice. The proxy's `forecastHistory`, `forecast` and `status` read the view; service role only. Closes debt #12.
 - **Location picker.** With more than one location, the roster step asks which one new shifts and auto-assign are for (`LocationPicker.tsx`); before, such an account got no legal limits in auto-assign.
 - **Proxy rate limit** (`server/rateLimit.ts`): per signed-in user, 600 reads and 240 writes a minute, 429 with `Retry-After`. Counted in each server instance's memory, so it bounds one client on one instance; it is not a global quota. Closes debt #10 as far as the app can without a shared store.
 - **Browser tests rewritten and in CI.** `e2e/` had described the pre-CHG-088 app. Now 14 tests for the current app (team, edit, availability, templates, days off and auto-assign, publish, analytics filter, validation errors, titles, tour), run by a new `e2e` job in `ci.yml` against a dev server with the local auth bypass and a local Supabase. No retries: the flow uses the account's one free auto-assign.
@@ -93,10 +93,11 @@ Scope: everything on the open list that needs no product decision. Pricing is bu
 **Added after the concurrency review of the red-team thread (2026-11-12)**
 - Add worker, Add template and Save availability ignore a second tap while the first save is still running (`useSingleFlight`); each tap minted a new id, so a double tap added the row twice.
 - POS-generated demand is saved as one batch and reports a refusal; before, each row was its own request and a refused row was counted as saved.
-- Left for after #59 merges, because they use its API: `expectedUpdatedAt` on the worker and template edit forms (409 when the row changed elsewhere), and applying auto-assign suggestions in one request.
+- Done after #59 merged (2026-11-13), with its `updateOrInsert(…, expectedUpdatedAt)`: `upsertWorker` and `upsertShiftTemplate` take `ifUpdatedAt` (both lists now return `updatedAt`; `useWorkers.updateWorker` and `useShiftTemplates` send the stored value unchanged), so a save made from a stale copy gets 409, one made after a delete 404, and the list reloads. New manager-only action `addRosterShifts` (1 to 200 new shifts, each with its own id, one INSERT: all or none, 409 with "Nothing was added" when a slot is taken); `useRoster.addShifts` and `applyAutoAssign` use it. A refused apply keeps the suggestions and the retry is not counted as a second run. Still open: counting the run and saving it are two requests, so a run whose save is refused and then abandoned stays counted.
 
 **Merged with main after #59 (2026-11-13)**
 - Conflicts in `CLAUDE.md` and the proxy only: the platform-admin check runs first, then the rate limit. Debt item 17 now lists only what is still open.
+- The two migrations were renumbered to `20261113000103` / `…104`: #59's `…099` to `…102` are already applied where it merged, and `supabase db push` refuses a file numbered before the last applied one.
 
 **Not done, and why**
 - Push / SMS / email delivery of shift messages and real-time updates: both need a provider or infrastructure decision.
@@ -104,7 +105,7 @@ Scope: everything on the open list that needs no product decision. Pricing is bu
 - Date and time pickers: a new dependency per platform; text inputs are validated on both sides.
 - Open pull requests #22 and #51 are older Codex branches of Pablo's, left alone.
 
-**Verified:** jest, tsc, lint, web export, `supabase test db` (4 files, 115 tests), Playwright 14/14 locally; browser at 1280 and 390 px.
+**Verified:** jest, tsc, lint, web export, `supabase test db` (7 files, 157 tests after the merge), proxy integration tests against a local database (48), Playwright 14/14 locally; browser at 1280 and 390 px.
 
 ---
 

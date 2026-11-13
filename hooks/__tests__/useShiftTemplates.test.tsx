@@ -87,6 +87,21 @@ describe('useShiftTemplates', () => {
     expect(hook.result.shiftTemplates[0]).toMatchObject({ name: 'Morning', start: '09:00', coverage: 2 });
   });
 
+  it('sends the stored updatedAt with an edit and none with an add (CHG-098)', async () => {
+    const stamp = '2026-11-13T09:00:00.654321+00:00';
+    const fetchMock = proxy({ listShiftTemplates: { body: { templates: [{ ...dbTemplate, updatedAt: stamp }], hasMore: false } } });
+    const hook = await renderHook(useShiftTemplates, 'acc-1');
+    await act(async () => {
+      await hook.result.updateShiftTemplate(T1, { name: 'Early', role: 'Support', startTime: '06:00', endTime: '14:00', coverage: 3 });
+    });
+    await act(async () => {
+      await hook.result.addShiftTemplate('Late', 'Support', '14:00', '22:00', 1);
+    });
+    const sent = callsOf(fetchMock, 'upsertShiftTemplate');
+    expect(sent[0].ifUpdatedAt).toBe(stamp);
+    expect(sent[1]).not.toHaveProperty('ifUpdatedAt');
+  });
+
   it('puts a template back when the delete is refused because shifts use it', async () => {
     proxy({ deleteShiftTemplate: { status: 409, body: { error: 'Record is still referenced' } } });
     const hook = await renderHook(useShiftTemplates, 'acc-1');

@@ -93,10 +93,10 @@ test('SC-5 a day off is saved on the server and keeps the worker out of auto-ass
   const suggestions = page.getByText(`${ANA} → ${TEMPLATE}`);
   await expect(suggestions.first()).toBeVisible();
   await expect(page.getByText(`${LUIS} → ${TEMPLATE}`)).toHaveCount(0);
-  const stored = proxyResponse(page, 'upsertRosterShift');
+  const stored = proxyResponse(page, 'addRosterShifts');
   await page.getByTestId('apply-auto-assign').click();
   expect((await stored).status()).toBe(200);
-  // Every suggestion is saved before the suggestions go away.
+  // One request saves every suggestion; then the suggestions go away.
   await expect(page.getByTestId('apply-auto-assign')).toHaveCount(0, { timeout: 30_000 });
   await showAllShifts(page);
   await expect(page.getByRole('button', { name: `Publish this shift: ${ANA}, ${DATE}` })).toBeVisible();

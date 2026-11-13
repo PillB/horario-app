@@ -30,6 +30,7 @@ const MANAGER_ONLY: Record<string, Record<string, unknown>> = {
   upsertShiftTemplate: { template: { name: 'Early', role: 'Cook', startTime: '06:00', endTime: '14:00', coverage: 1 } },
   deleteShiftTemplate: { id: T1 },
   upsertRosterShift: { shift: { date: '2026-11-02', workerId: W1, templateId: T1 } },
+  addRosterShifts: { shifts: [{ id: W1, date: '2026-11-02', workerId: W1, templateId: T1 }] },
   updateShiftStatus: { id: W1, status: 'Published' },
   markShiftNotified: { id: W1 },
   deleteRosterShift: { id: W1 },

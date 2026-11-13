@@ -46,6 +46,8 @@ export type WorkerWithAvailability = {
   nightWorker?: boolean;
   weeklyLimitOptOut?: boolean;
   noFixedHours?: boolean;
+  /** The stored row's `updatedAt`, exactly as the server sent it. */
+  updatedAt?: string;
 };
 
 export type WorkerChanges = { name: string; role: string; skills: string[] } & Partial<WorkerLaborAttributes>;
@@ -64,6 +66,7 @@ const toStoredWorker = (db: DbWorker, availability: WorkerAvailabilitySlot[]): S
   weeklyLimitOptOut: db.weeklyLimitOptOut ?? false,
   noFixedHours: db.noFixedHours ?? false,
   availability,
+  ...(db.updatedAt ? { updatedAt: db.updatedAt } : {}),
 });
 
 const loadWorkers = async (): Promise<LoadResult<StoredWorker>> => {
@@ -124,7 +127,8 @@ export const useWorkers = (accountId: string) => {
       const result = await write({
         id,
         apply: (prev) => prev.map((w) => (w.id === id ? { ...w, ...checked.value, id } : w)),
-        commit: () => upsertWorker(input),
+        // Saves only while the stored row is still the one this list read.
+        commit: () => upsertWorker(input, previous.updatedAt),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
         reconcile: (prev, r) => (r.success ? prev.map((w) => (w.id === id ? toStoredWorker(r.worker, w.availability) : w)) : prev),
       });

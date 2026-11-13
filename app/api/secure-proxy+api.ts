@@ -94,6 +94,7 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'upsertShiftTemplate',
   'deleteShiftTemplate',
   'upsertRosterShift',
+  'addRosterShifts',
   'updateShiftStatus',
   'markShiftNotified',
   'deleteRosterShift',
@@ -291,7 +292,7 @@ const cleanFilters = (filters: unknown): ForecastFilters | undefined => {
 
 /**
  * Imported shifts plus Published roster shifts (view `forecast_shift_history`,
- * 20261111000100): scheduling with the app builds the forecast's history.
+ * 20261113000104): scheduling with the app builds the forecast's history.
  */
 const FORECAST_HISTORY_SOURCE = 'forecast_shift_history';
 
@@ -733,11 +734,11 @@ async function upsertOnboarding(client: SupabaseClient, ctx: AuthContext, flags:
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
 
-const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at';
+const WORKER_COLUMNS = 'id, account_id, name, role, skills, birth_date, night_worker, weekly_limit_opt_out, no_fixed_hours, created_at, updated_at';
 type WorkerRow = {
   id: string; account_id: string; name: string; role: string; skills: string[] | null;
   birth_date: string | null; night_worker: boolean | null; weekly_limit_opt_out: boolean | null; no_fixed_hours: boolean | null;
-  created_at?: string;
+  created_at?: string; updated_at?: string;
 };
 
 const rowToWorker = (row: WorkerRow) => ({
@@ -751,6 +752,7 @@ const rowToWorker = (row: WorkerRow) => ({
   weeklyLimitOptOut: Boolean(row.weekly_limit_opt_out),
   noFixedHours: Boolean(row.no_fixed_hours),
   createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
@@ -768,9 +770,10 @@ async function listWorkers(client: SupabaseClient, ctx: AuthContext, pageInput: 
   return ok({ ...meta, workers: rows.map(rowToWorker) });
 }
 
-async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown): Promise<Result> {
+async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: unknown, ifUpdatedAt?: unknown): Promise<Result> {
   const checked = validateWorkerInput(worker);
   if (!checked.ok) return badRequest(checked.error);
+  if (ifUpdatedAt !== undefined && !isStoredTimestamp(ifUpdatedAt)) return badRequest('ifUpdatedAt must be the updatedAt of the worker as it was read');
   const { id, name, role, skills, birthDate, nightWorker, weeklyLimitOptOut, noFixedHours } = checked.value;
 
   // Labor attributes: absent fields are left as stored (or the column default on insert).
@@ -786,6 +789,7 @@ async function upsertWorker(client: SupabaseClient, ctx: AuthContext, worker: un
       ...(noFixedHours !== undefined ? { no_fixed_hours: noFixedHours } : {}),
     },
     WORKER_COLUMNS,
+    ifUpdatedAt,
   );
   return 'error' in result ? result.error : ok({ success: true, worker: rowToWorker(result.row) });
 }
@@ -950,8 +954,8 @@ async function upsertTimeOff(client: SupabaseClient, ctx: AuthContext, input: un
 
 // ─── Shift templates ──────────────────────────────────────────────────────────
 
-const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at';
-type TemplateRow = { id: string; account_id: string; name: string; role: string; start_time: string; end_time: string; coverage: number; created_at?: string };
+const TEMPLATE_COLUMNS = 'id, account_id, name, role, start_time, end_time, coverage, created_at, updated_at';
+type TemplateRow = { id: string; account_id: string; name: string; role: string; start_time: string; end_time: string; coverage: number; created_at?: string; updated_at?: string };
 
 const rowToTemplate = (row: TemplateRow) => ({
   id: row.id,
@@ -962,6 +966,7 @@ const rowToTemplate = (row: TemplateRow) => ({
   endTime: row.end_time,
   coverage: row.coverage,
   createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput: unknown): Promise<Result> {
@@ -979,14 +984,16 @@ async function listTemplates(client: SupabaseClient, ctx: AuthContext, pageInput
   return ok({ ...meta, templates: rows.map(rowToTemplate) });
 }
 
-async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown): Promise<Result> {
+async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: unknown, ifUpdatedAt?: unknown): Promise<Result> {
   const checked = validateShiftTemplateInput(tmpl);
   if (!checked.ok) return badRequest(checked.error);
+  if (ifUpdatedAt !== undefined && !isStoredTimestamp(ifUpdatedAt)) return badRequest('ifUpdatedAt must be the updatedAt of the template as it was read');
   const { id, name, role, startTime, endTime, coverage } = checked.value;
   const result = await updateOrInsert<TemplateRow>(
     client, 'shift_templates', ctx, id,
     { name, role, start_time: startTime, end_time: endTime, coverage },
     TEMPLATE_COLUMNS,
+    ifUpdatedAt,
   );
   return 'error' in result ? result.error : ok({ success: true, template: rowToTemplate(result.row) });
 }
@@ -1080,6 +1087,56 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
   const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
+
+/** Shifts one request may add. */
+const ADD_ROSTER_SHIFTS_MAX = 200;
+
+/**
+ * Adds several new shifts in one step (applying an auto-assign result): every
+ * row is checked first, then all are inserted by one statement, so a schedule
+ * is never half applied. Each row carries its own id. A shift that is already
+ * on the roster (same id, or same date, worker and template) refuses the whole
+ * request with 409 and nothing is added.
+ */
+async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts: unknown): Promise<Result> {
+  if (!Array.isArray(shifts) || shifts.length === 0 || shifts.length > ADD_ROSTER_SHIFTS_MAX) {
+    return badRequest(`shifts must be a list of 1 to ${ADD_ROSTER_SHIFTS_MAX} shifts`);
+  }
+  const rows: Record<string, unknown>[] = [];
+  const workerIds: string[] = [];
+  const templateIds: string[] = [];
+  for (let i = 0; i < shifts.length; i += 1) {
+    const checked = validateRosterShiftInput(shifts[i]);
+    if (!checked.ok) return badRequest(`Shift ${i + 1}: ${checked.error}`);
+    const { id, date, workerId, templateId, location, status } = checked.value;
+    if (id === undefined || !isUuid(id)) return badRequest(`Shift ${i + 1}: id must be a UUID`);
+    rows.push({ id, account_id: ctx.accountId, date, worker_id: workerId, template_id: templateId, location, status, notified: false });
+    workerIds.push(workerId);
+    templateIds.push(templateId);
+  }
+  if (new Set(rows.map((r) => r.id)).size !== rows.length) return badRequest('Each shift needs a different id');
+
+  const [ownsWorkers, ownsTemplates] = await Promise.all([
+    ownsAll(client, 'workers', ctx, workerIds),
+    ownsAll(client, 'shift_templates', ctx, templateIds),
+  ]);
+  if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
+  if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
+
+  const { data, error } = await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+  if (error) {
+    if (error.code === '23505') {
+      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+      return fail(409, 'One of these shifts is already on the roster. Nothing was added. Reload and try again');
+    }
+    if (error.code === '23503') {
+      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+      return fail(409, 'Something these shifts refer to was just deleted. Nothing was added. Reload and try again');
+    }
+    return dbFailure('add roster shifts', error);
+  }
+  return ok({ success: true, shifts: ((data ?? []) as unknown as RosterRow[]).map(rowToRosterShift) });
 }
 
 /** The caller's roster row, null when it has none with this id. */
@@ -1616,7 +1673,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'listWorkers':
       return listWorkers(client, ctx, p.page);
     case 'upsertWorker':
-      return upsertWorker(client, ctx, p.worker);
+      return upsertWorker(client, ctx, p.worker, p.ifUpdatedAt);
     case 'deleteWorker':
       return deleteOwned(client, 'workers', ctx, p.id);
     case 'importWorkers':
@@ -1636,13 +1693,15 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'listShiftTemplates':
       return listTemplates(client, ctx, p.page);
     case 'upsertShiftTemplate':
-      return upsertTemplate(client, ctx, p.template);
+      return upsertTemplate(client, ctx, p.template, p.ifUpdatedAt);
     case 'deleteShiftTemplate':
       return deleteOwned(client, 'shift_templates', ctx, p.id);
     case 'listRoster':
       return listRoster(client, ctx, p);
     case 'upsertRosterShift':
       return upsertRosterShift(client, ctx, p.shift);
+    case 'addRosterShifts':
+      return addRosterShifts(client, ctx, p.shifts);
     case 'updateShiftStatus':
       return updateShiftStatus(client, ctx, p.id, p.status);
     case 'markShiftNotified':
