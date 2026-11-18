@@ -32,6 +32,8 @@ $$;
 create or replace function private.roster_no_overlap()
 returns trigger
 language plpgsql
+-- Runs as its owner: the roles that write the roster have no access to schema private.
+security definer
 set search_path = ''
 as $$
 declare
@@ -72,6 +74,8 @@ begin
   end if;
   return new;
 end $$;
+
+revoke all on function private.roster_no_overlap() from public, anon, authenticated;
 
 drop trigger if exists roster_no_overlap on public.roster;
 create trigger roster_no_overlap

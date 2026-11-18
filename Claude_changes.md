@@ -19,6 +19,8 @@
 - Stored rows are not re-checked, and editing a template's times can still make two stored shifts overlap.
 - Offset paging can still skip a row when another is deleted mid-read; the next load shows it. Keyset paging would change every list action and is not done.
 
+**CI follow-up:** the first CI run failed every roster write with 42501 ("permission denied for schema private"): the trigger ran as `service_role`, which cannot use schema `private`. `roster_no_overlap()` is now SECURITY DEFINER (empty `search_path`, execute revoked from public / anon / authenticated), and the pgTAP file writes as `service_role` too (18 assertions).
+
 **Tests:** jest (new: the hook passes `countAutoAssign`; a repeated row is kept once). pgTAP `roster_atomic_rules` (16) checked against a local Postgres 16 with a stand-in for the pgTAP functions, plus a parallel run (6 simultaneous inserts on each of 3 dates: 1 row stored per date; 2 with the trigger disabled). New integration tests (overlap 409, two simultaneous adds, counted / not counted / 402 with three runs at once) are in the suite but could not run locally: this container has no PostgREST, so CI runs them first.
 
 ---

@@ -3,7 +3,7 @@
 -- an auto-schedule run is counted and saved together or not at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000000d1', 'acct_o', 'Ana', 'Cook'),
@@ -63,6 +63,16 @@ select is(
 select is(
   public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f6","date":"2026-12-13","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]'),
   '{"limited": true}'::jsonb, 'at the limit nothing is saved');
+
+-- The proxy writes as service_role, which has no access to schema private.
+set local role service_role;
+select lives_ok(
+  $$insert into public.roster (account_id, date, worker_id, template_id) values ('acct_o', '2026-12-20', '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000e1')$$,
+  'the service role can add a shift');
+select throws_ok(
+  $$insert into public.roster (account_id, date, worker_id, template_id) values ('acct_o', '2026-12-20', '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000e2')$$,
+  '23P01', null, 'and its overlapping shift is refused');
+reset role;
 
 select * from finish();
 rollback;
