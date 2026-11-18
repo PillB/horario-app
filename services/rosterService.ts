@@ -151,6 +151,21 @@ const mutate = async <T extends Record<string, unknown>>(
 
 type Page<T> = { hasMore?: boolean } & Record<string, unknown> & { [key: string]: T[] | unknown };
 
+/**
+ * Pages are read by position, so a row someone adds while a long list is being
+ * read moves a row onto the next page as well: keep each id once.
+ */
+const withoutRepeats = <T>(rows: T[]): T[] => {
+  const seen = new Set<unknown>();
+  return rows.filter((row) => {
+    const id = (row as { id?: unknown }).id;
+    if (id === undefined || id === null) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
 /** Reads pages 0, 1, … of a list action until `hasMore` is false or LIST_MAX_PAGES is reached. */
 const fetchAllPages = async <T>(
   action: string,
@@ -163,9 +178,9 @@ const fetchAllPages = async <T>(
       const result = await proxyPost<Page<T>>({ action, ...extra, page });
       const pageRows = result[key];
       rows.push(...(Array.isArray(pageRows) ? (pageRows as T[]) : []));
-      if (result.hasMore !== true) return { ok: true, data: rows, truncated: false };
+      if (result.hasMore !== true) return { ok: true, data: withoutRepeats(rows), truncated: false };
     }
-    return { ok: true, data: rows, truncated: true };
+    return { ok: true, data: withoutRepeats(rows), truncated: true };
   } catch (err) {
     console.warn(`Unable to ${action}`, err);
     return { ok: false, error: messageOf(err, `Unable to ${action}`) };
@@ -315,11 +330,20 @@ export const upsertRosterShift = async (
   return result.success ? { success: true, shift: result.shift } : result;
 };
 
-/** Adds several new shifts in one request: all of them or none. Each carries its own id. */
+/**
+ * Adds several new shifts in one request: all of them or none. Each carries its own id.
+ * `countAutoAssign` also counts one auto-schedule run against the plan, in the
+ * same database transaction: refused shifts are not counted, and a run over the
+ * month's limit saves nothing.
+ */
 export const addRosterShifts = async (
   shifts: (Pick<DbRosterShift, 'id' | 'date' | 'workerId' | 'templateId' | 'status'> & { location?: string | null })[],
+  options: { countAutoAssign?: boolean } = {},
 ): Promise<{ success: true; shifts: DbRosterShift[] } | { success: false; error: string }> => {
-  const result = await mutate<{ shifts?: DbRosterShift[] }>({ action: 'addRosterShifts', shifts }, 'Unable to save the shifts');
+  const result = await mutate<{ shifts?: DbRosterShift[] }>(
+    { action: 'addRosterShifts', shifts, ...(options.countAutoAssign ? { countAutoAssign: true } : {}) },
+    'Unable to save the shifts',
+  );
   return result.success ? { success: true, shifts: result.shifts ?? [] } : result;
 };
 

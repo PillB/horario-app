@@ -22,6 +22,7 @@ const OWNER = `user_plan_${run}`;
 const OTHER = `user_plan_other_${run}`;
 const PLATFORM_ADMIN = `user_platform_${run}`;
 const RACER = `user_plan_race_${run}`;
+const AUTO = `user_plan_auto_${run}`;
 
 describeIfDb('plans and entitlements (local Supabase)', () => {
   let route: Route;
@@ -163,6 +164,39 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect(error).toBeNull();
     expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 3, canAutoAssign: true });
     expect((await asOwner({ action: 'incrementAutoAssign' })).body).toMatchObject({ count: 1 });
+  });
+
+  it('counts an auto-schedule only when its shifts are saved, and saves nothing over the limit (CHG-101)', async () => {
+    await planOf(AUTO);
+    await endTrial(AUTO);
+    const asAuto = (body: Record<string, unknown>) => call(AUTO, body);
+    const worker = ((await asAuto({ action: 'upsertWorker', worker: { name: 'Auto', role: 'Cook' } })).body.worker as { id: string }).id;
+    const template = async (name: string, startTime: string, endTime: string) =>
+      ((await asAuto({ action: 'upsertShiftTemplate', template: { name, role: 'Cook', startTime, endTime, coverage: 1 } })).body.template as { id: string }).id;
+    const early = await template('Early', '06:00', '14:00');
+    const mid = await template('Mid', '10:00', '18:00');
+    const apply = (date: string, templateId: string) =>
+      asAuto({ action: 'addRosterShifts', countAutoAssign: true, shifts: [{ id: randomUUID(), date, workerId: worker, templateId }] });
+    const used = async () => ((await asAuto({ action: 'getUsageLimit' })).body as { count: number }).count;
+
+    expect((await apply('2026-12-01', early)).status).toBe(200);
+    expect(await used()).toBe(1);
+    // A run the roster refuses costs nothing.
+    const refused = await apply('2026-12-01', mid);
+    expect(refused.status).toBe(409);
+    expect(String(refused.body.error)).toMatch(/already has a shift.*Nothing was added/);
+    expect(await used()).toBe(1);
+    // Adding shifts by hand is not a run.
+    expect((await asAuto({ action: 'addRosterShifts', shifts: [{ id: randomUUID(), date: '2026-12-02', workerId: worker, templateId: early }] })).status).toBe(200);
+    expect(await used()).toBe(1);
+
+    // Three runs at once with two left: two are saved, the third saves nothing.
+    const three = await Promise.all(['2026-12-03', '2026-12-04', '2026-12-05'].map((date) => apply(date, early)));
+    expect(three.map((r) => r.status).sort()).toEqual([200, 200, 402]);
+    expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/3 auto-schedules a month.*Nothing was added/);
+    expect(await used()).toBe(3);
+    const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-03', toDate: '2026-12-05' })).body.shifts as unknown[];
+    expect(stored).toHaveLength(2);
   });
 
   it('lets only a platform admin grant and revoke, and the grant lifts the limits', async () => {

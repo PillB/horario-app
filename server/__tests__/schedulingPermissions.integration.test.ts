@@ -270,6 +270,44 @@ describeIfDb('scheduling permissions and roster notified (local Supabase)', () =
     });
   });
 
+  describe('CHG-101: one person is never on two shifts at once', () => {
+    it('refuses a second shift that overlaps, whichever template it uses', async () => {
+      const mid = await asAdmin({ action: 'upsertShiftTemplate', template: { id: randomUUID(), name: 'Mid', role: 'Cook', startTime: '10:00', endTime: '18:00', coverage: 1 } });
+      const midId = (mid.body.template as { id: string }).id;
+      const date = '2026-12-14';
+      await saveShift({ id: randomUUID(), date, workerId: worker1, templateId: template1 });
+
+      const clash = await asAdmin({ action: 'upsertRosterShift', shift: { id: randomUUID(), date, workerId: worker1, templateId: midId } });
+      expect(clash.status).toBe(409);
+      expect(String(clash.body.error)).toMatch(/already has a shift on 2026-12-14 from 06:00 to 14:00/);
+      // Back to back is fine, and so is someone else at the same time.
+      await saveShift({ id: randomUUID(), date, workerId: worker1, templateId: template2 });
+      await saveShift({ id: randomUUID(), date, workerId: worker2, templateId: midId });
+
+      // Two managers at the same moment, each with a different template: one shift is stored.
+      const raceDate = '2026-12-15';
+      const both = await Promise.all([
+        asAdmin({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: raceDate, workerId: worker1, templateId: template1 } }),
+        asAdmin({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: raceDate, workerId: worker1, templateId: midId } }),
+      ]);
+      expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
+      const stored = (await asAdmin({ action: 'listRoster', fromDate: raceDate, toDate: raceDate })).body.shifts as Shift[];
+      expect(stored).toHaveLength(1);
+
+      // A batch with an overlapping shift adds nothing.
+      const batch = await asAdmin({
+        action: 'addRosterShifts',
+        shifts: [
+          { id: randomUUID(), date: '2026-12-16', workerId: worker1, templateId: template1 },
+          { id: randomUUID(), date: '2026-12-16', workerId: worker1, templateId: midId },
+        ],
+      });
+      expect(batch.status).toBe(409);
+      expect(String(batch.body.error)).toMatch(/already has a shift.*Nothing was added/);
+      expect((await asAdmin({ action: 'listRoster', fromDate: '2026-12-16', toDate: '2026-12-16' })).body.shifts).toHaveLength(0);
+    });
+  });
+
   describe('G5: location history cannot be erased with the service-role key', () => {
     it('refuses a direct delete and a purge younger than 2 years', async () => {
       const location = await asAdmin({
