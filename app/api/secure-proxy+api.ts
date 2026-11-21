@@ -1008,10 +1008,10 @@ async function upsertTemplate(client: SupabaseClient, ctx: AuthContext, tmpl: un
 
 // ─── Roster ───────────────────────────────────────────────────────────────────
 
-const ROSTER_COLUMNS = 'id, account_id, date, worker_id, template_id, location, status, notified, created_at, updated_at';
+const ROSTER_COLUMNS = 'id, account_id, date, worker_id, template_id, location, status, notified, published_at, created_at, updated_at';
 type RosterRow = {
   id: string; account_id: string; date: string; worker_id: string; template_id: string;
-  location: string | null; status: string; notified: boolean; created_at?: string; updated_at?: string;
+  location: string | null; status: string; notified: boolean; published_at?: string | null; created_at?: string; updated_at?: string;
 };
 
 const rowToRosterShift = (row: RosterRow) => ({
@@ -1023,6 +1023,8 @@ const rowToRosterShift = (row: RosterRow) => ({
   location: row.location ?? '',
   status: row.status as 'Draft' | 'Published',
   notified: row.notified,
+  // Set by the database when the status becomes Published (CHG-103).
+  publishedAt: row.published_at ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });

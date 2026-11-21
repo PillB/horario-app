@@ -1,17 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
-import { Colors, type ThemeColors } from '@/constants/Colors';
+import { Colors, brand, type ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { useT } from '@/contexts/LocaleContext';
 
+/**
+ * A milestone built from stored data (CHG-103). `done` decides it; progress
+ * and goal, when given, show how far a counted milestone is ("2 of 4 weeks").
+ * Milestones are a path to competence (setup, then habits), not points:
+ * nothing is ranked against other people.
+ */
 type Achievement = {
   id: string;
   title: string;
   description: string;
   progress: number;
   goal?: number;
+  done?: boolean;
 };
 
 type ProfileAchievementsProps = {
@@ -47,12 +54,24 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 14,
       lineHeight: 21,
     },
+    cardDone: {
+      borderColor: colors.tint,
+    },
+    textBlock: {
+      flexShrink: 1,
+      paddingRight: 8,
+    },
+    badgeTodo: {
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
     badge: {
       fontWeight: '700',
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 99,
-      backgroundColor: colors.tint,
+      // White on #0F766E is 5.47:1 (colors.tint #0D9488 was 3.74:1).
+      backgroundColor: brand.primaryDark,
       color: '#FFFFFF',
       overflow: 'hidden',
     },
@@ -91,25 +110,37 @@ export function ProfileAchievements({ items }: ProfileAchievementsProps) {
         {items.map((achievement) => {
           const safeGoal = achievement.goal && achievement.goal > 0 ? achievement.goal : 1;
           const percent = Math.min(100, Math.max(0, Math.round((achievement.progress / safeGoal) * 100)));
+          const done = achievement.done ?? percent >= 100;
+          const counted = safeGoal > 1;
+          const status = done
+            ? t('home.achievements.done')
+            : percent === 0 ? t('home.achievements.notStarted')
+              : t('home.achievements.progressOf', { n: String(achievement.progress), m: String(safeGoal) });
           return (
-            <ThemedView key={achievement.id} style={styles.card}>
+            <ThemedView
+              key={achievement.id}
+              style={[styles.card, done && styles.cardDone]}
+              accessibilityLabel={`${achievement.title}. ${status}`}>
               <View style={styles.rowBetween}>
-                <View>
+                <View style={styles.textBlock}>
                   <ThemedText type="defaultSemiBold">{achievement.title}</ThemedText>
                   <ThemedText style={styles.helperText}>{achievement.description}</ThemedText>
                 </View>
-                <ThemedText style={styles.badge}>{percent}%</ThemedText>
+                <ThemedText style={done ? styles.badge : styles.badgeTodo}>{done ? '✓' : counted ? `${percent}%` : '○'}</ThemedText>
               </View>
-              <View style={styles.progressTrack}>
-                {percent === 0 ? (
-                  <View style={styles.progressFillEmpty} />
-                ) : (
-                  <View style={[styles.progressFill, { width: `${percent}%` }]} />
-                )}
-              </View>
-              <ThemedText style={styles.helperText}>
-                {percent === 0 ? t('home.achievements.notStarted') : `${achievement.progress} of ${safeGoal}`}
-              </ThemedText>
+              {counted && !done ? (
+                <View
+                  style={styles.progressTrack}
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{ now: Math.min(achievement.progress, safeGoal), min: 0, max: safeGoal }}>
+                  {percent === 0 ? (
+                    <View style={styles.progressFillEmpty} />
+                  ) : (
+                    <View style={[styles.progressFill, { width: `${percent}%` }]} />
+                  )}
+                </View>
+              ) : null}
+              <ThemedText style={styles.helperText}>{status}</ThemedText>
             </ThemedView>
           );
         })}

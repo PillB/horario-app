@@ -71,6 +71,8 @@ export type DbRosterShift = {
   location: string;
   status: 'Draft' | 'Published';
   notified: boolean;
+  /** When the status last became Published (set by the database); null for a draft. */
+  publishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };

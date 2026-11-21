@@ -6,6 +6,33 @@
 
 ---
 
+### CHG-103 — 2026-11-21 UTC
+**Type:** FEATURE (Pablo: "gamify the website"; coordinator: evidence-based gamification for SMB managers and staff, older users included, no dark patterns, red team each choice)
+
+**What changed:**
+- Migration `20261122000107_roster_published_at.sql`: `roster.published_at`, set by trigger `roster_published_at` when a shift becomes Published, kept on later edits, cleared on Draft; a client value is ignored. Backfill: Published rows get `updated_at` (at or after the real publish time, so old weeks can only look later), with `roster_updated_at` disabled so open edit forms still match. The proxy returns `publishedAt`.
+- Home "Schedules posted ahead" (`components/StreakCounter.tsx`, `hooks/usePostingHabit.ts`, `utils/postingHabit.ts`) replaces the self-reported daily streak ("Log today's progress"). A week counts when 90% of its shifts were published by Monday minus N days (business time zone); N = 7, or the location's legal notice when longer; a fair-workweek notice whose coverage the app cannot tell is named, not imposed. Shows weeks in a row, "N of the last M weeks", labelled week cells (symbol + date, never colour alone), the next week to post with its deadline and a link to the roster.
+- `useEthicalReward`: tiers in weeks (1, 4, 8) with informational copy that names the benefit to the team; keys translated.
+- `ProfileAchievements` → milestones from stored data: setup, first week posted ahead, four in a row, next 7 days fully staffed. Done shows ✓ and "Done"; counted milestones a labelled progress bar; "x of y" is translated.
+- Habit and milestone cards can be hidden on the device (`hooks/useHiddenCard.ts`), with "Show habits and milestones" at the bottom of Home.
+- Copy: removed unsourced numbers ("7shifts … 40% fewer no-shows", "40% fewer swaps", "30% within a month") from the English tour strings and the Spanish one; replaced with Schneider & Harknett (ASR 84(1), 2019) and the Gap stable scheduling experiment (Williams, Lambert & Kesavan 2018: +7% median sales, +5% labour productivity, 19 of 28 stores randomised). The `.why` tour strings are not rendered anywhere today; the other seven locales still carry the old sentences there.
+
+**Research used (checked):** self-determination theory (Ryan & Deci 2000; informational vs controlling rewards, Deci, Koestner & Ryan 1999); Sailer et al. 2017 (badges / progress serve competence); Silverman & Barasch, J. Consumer Research 2022 (a highlighted broken streak lowers persistence; a way to repair it reduces that); Mollick & Rothbard (games at work help with consent, hurt when imposed; from the customer-research thread); Sailer & Homner 2020 (effects shrink in rigorous studies, so the design rests on a real habit, not on the game layer).
+
+**Red team (5 per decision):**
+- *Weekly unit, not daily.* Wrong if: a business posts two-week or monthly rosters (each week still counts: fine); a business never closes and posts daily (rare for SMBs); weeks start Sunday for some (Monday is fixed; `weekStartsOn` is not read yet); a business posts the schedule but in WhatsApp, not Horario (the habit reads 0: the copy says "published", and the roster is where it is published); the manager only edits, never publishes (correctly not counted).
+- *90% share by the deadline.* Too lax if a manager posts 90% and changes the rest late (changes after posting are what fair-workweek laws price, not forbid); too strict for a five-shift week (one late shift of 5 = 80%: late). Alternatives considered: "all shifts" (punishes normal swaps), "first publish of the week" (one shift would count the whole week). Kept as a constant `POSTED_SHARE`, tested.
+- *published_at from the database.* Wrong if a shift is unpublished and republished to fix a typo (the time moves later: conservative); backfilled rows look later than they were (conservative, documented); moving a published shift to another week keeps its old time (counts it as posted for the new week; small and rare); clock skew is impossible (one database clock); the proxy is the only writer, and a client cannot set it (pgTAP test).
+- *Run plus "N of M".* A run alone breaks hard (Silverman & Barasch); "N of M" alone hides recent momentum; empty weeks skipped could hide a slide (a closed week is not a failure); late weeks are grey, not red (less shame, but less signal: the cell still says "posted later"); best run only covers the shown weeks (labelled as recent).
+- *Goal from the law.* The pack's fair-workweek notice depends on size and chain thresholds the app does not know, so it is named, not imposed (a covered employer may under-aim: the sentence tells them); several locations take the strictest; jurisdictions without a notice rule get 7 days, which is a choice, not a law (said in the goal sentence); Quebec 5 days / NYC retail 72 h are below 7 and do not lower the goal.
+- *Who is gamified.* Only the manager's own habit; nothing scores, ranks or rewards staff, and nothing rewards more hours or extra shifts (a game that pushed staff past rest or weekly limits would fight the labor engine). Older owners are put off by hype (customer-research thread): calm copy, no confetti, no points, hideable. Young staff live in WhatsApp: nothing here asks them to install or open anything.
+
+**Limits:** the habit reads up to ~11 weeks of roster on each Home load (paged, 500 a page); no server aggregate yet. `useStreak` is now unreachable (kept, per the 2026-11-10 rule). The labor engine's `notice.advance` check can now be fed `published_at`, not done here. Other locales fall back to English for the new keys (Spanish is translated).
+
+**Tests:** jest 1,249 pass (new: `utils/__tests__/postingHabit.test.ts` 17, `hooks/__tests__/usePostingHabit.test.tsx` 2, rewritten `StreakCounter` 6 and `ProfileAchievements` 5 tests, tier keys); tsc and lint clean. pgTAP `roster_published_at` (6) run against a local Postgres 16 with every migration and stand-ins for the pgTAP functions; `roster_atomic_rules` (18) and `template_time_guards` (9) still pass with the new trigger. Browser (Chromium, proxy answers stubbed): Home at 1280 and 390 px, no horizontal scroll, screenshots in project files `gamification/`.
+
+---
+
 ### CHG-102 — 2026-11-21 UTC
 **Type:** FIX (Pablo, before deploy: "red team your analyses […] each design decision or choice and consider 5 ways it could be wrong or limited or improved and test")
 

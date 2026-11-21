@@ -12,11 +12,11 @@ import { Checklist } from '@/components/scheduler/Checklist';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useEthicalReward } from '@/hooks/useEthicalReward';
 import { useLiveRosterSummary } from '@/hooks/useLiveRosterSummary';
 import { usePersonalizedFeed, type FeedItem } from '@/hooks/usePersonalizedFeed';
 import { useResponsive } from '@/hooks/useResponsive';
-import { useStreak } from '@/hooks/useStreak';
+import { useHiddenCard } from '@/hooks/useHiddenCard';
+import { usePostingHabit } from '@/hooks/usePostingHabit';
 import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useLocations } from '@/hooks/useLocations';
 import { useT } from '@/contexts/LocaleContext';
@@ -44,8 +44,9 @@ export default function HomeScreen() {
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
-  const { streakCount, longestStreak, isFresh, progress, recordAction } = useStreak('roster-health');
-  const { tier } = useEthicalReward(streakCount);
+  // The weekly "posted ahead" habit, from when shifts were published (CHG-103).
+  const postingHabit = usePostingHabit(ACCOUNT_ID, locations);
+  const habitsCard = useHiddenCard('home-habits');
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
 
   // Suggested next actions, built from what is stored: open gaps, unpublished
@@ -121,6 +122,34 @@ export default function HomeScreen() {
     [router, setup.targets, setup.templates, setup.workers, t],
   );
   const setupDone = setupSteps.filter((step) => step.completed).length;
+
+  // Milestones from stored data only (CHG-103): setup, then the posting habit,
+  // then coverage. Nothing compares people or counts hours worked.
+  const habit = postingHabit.habit;
+  const milestones = useMemo(() => {
+    const noticeDays = String(postingHabit.goal.days);
+    return [
+      {
+        id: 'setup', title: t('home.achievements.setupTitle'), description: t('home.achievements.setupDesc'),
+        progress: setupDone, goal: setupSteps.length,
+      },
+      {
+        id: 'first-ahead', title: t('home.achievements.firstAheadTitle', { n: noticeDays }),
+        description: t('home.achievements.firstAheadDesc'),
+        progress: Math.min(1, habit?.aheadWeeks ?? 0), goal: 1,
+      },
+      {
+        id: 'four-in-a-row', title: t('home.achievements.fourInARowTitle'),
+        description: t('home.achievements.fourInARowDesc', { n: noticeDays }),
+        progress: Math.min(4, habit?.bestRun ?? 0), goal: 4,
+      },
+      {
+        id: 'fully-staffed', title: t('home.achievements.fullyStaffedTitle'),
+        description: setup.targets > 0 ? t('home.achievements.fullyStaffedDesc') : t('home.achievements.fullyStaffedNeedsDemand'),
+        progress: setup.targets > 0 && shiftCount > 0 && staffingGaps.length === 0 ? 1 : 0, goal: 1,
+      },
+    ];
+  }, [habit, postingHabit.goal.days, setup.targets, setupDone, setupSteps.length, shiftCount, staffingGaps.length, t]);
   const showSetup = !rosterLoading && !rosterError && setupDone < setupSteps.length;
 
   return (
@@ -281,44 +310,36 @@ export default function HomeScreen() {
         </ThemedView>
       ) : null}
 
+      {habitsCard.hidden ? null : (
+      <>
       <TourStep target="streak-counter">
       <ThemedView style={styles.card}>
         <StreakCounter
-          label={t('home.streak.title')}
-          streakCount={streakCount}
-          longestStreak={longestStreak}
-          progress={progress}
-          isFresh={isFresh}
-          rewardTitle={tier?.title}
-          rewardMessage={tier?.message}
-          onRecordToday={() => recordAction()}
+          habit={postingHabit.habit}
+          goal={postingHabit.goal}
+          loading={postingHabit.loading}
+          error={postingHabit.error}
+          onRetry={postingHabit.refresh}
+          onOpenRoster={() => router.push(schedulerHref('shifts'))}
         />
       </ThemedView>
       </TourStep>
 
+      {!rosterLoading && !rosterError ? (
       <ThemedView style={styles.card}>
-        <ProfileAchievements
-          items={[
-            // Real counts only: the streak, and this week's published shifts.
-            {
-              id: 'ach-1',
-              title: t('home.achievements.coverageChecks'),
-              description: t('home.achievements.coverageChecksDesc'),
-              progress: streakCount,
-              goal: 7,
-            },
-            ...(shiftCount > 0
-              ? [{
-                id: 'ach-2',
-                title: t('home.achievements.draftsPublished'),
-                description: t('home.achievements.draftsPublishedDesc'),
-                progress: publishedCount,
-                goal: shiftCount,
-              }]
-              : []),
-          ]}
-        />
+        <ProfileAchievements items={milestones} />
       </ThemedView>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('home.achievements.hideA11y')}
+        accessibilityHint={t('home.achievements.hideHint')}
+        onPress={() => habitsCard.setHidden(true)}
+        style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+        <ThemedText style={styles.inviteButtonText}>{t('home.achievements.hide')}</ThemedText>
+      </Pressable>
+      </>
+      )}
 
       <ThemedView style={styles.card}>
         <ThemedText type="defaultSemiBold">{t('home.invite.title')}</ThemedText>
@@ -334,6 +355,16 @@ export default function HomeScreen() {
         </Pressable>
       </ThemedView>
 
+      {habitsCard.hidden ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.achievements.showA11y')}
+          accessibilityHint={t('home.achievements.showHint')}
+          onPress={() => habitsCard.setHidden(false)}
+          style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+          <ThemedText style={styles.inviteButtonText}>{t('home.achievements.show')}</ThemedText>
+        </Pressable>
+      ) : null}
     </ScrollView>
     <TeamInviteModal visible={inviteModalVisible} mode={inviteMode} onClose={closeInvite} />
     </>
@@ -351,6 +382,12 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
     },
     pressed: {
       opacity: 0.75,
+    },
+    textButton: {
+      alignSelf: 'flex-start',
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: 4,
     },
     actionPressed: {
       backgroundColor: colors.background,

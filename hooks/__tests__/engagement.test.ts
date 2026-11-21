@@ -37,8 +37,9 @@ describe('computeNextStreak', () => {
 
 describe('pickRewardTier', () => {
   it('returns the highest eligible tier', () => {
-    const tier = pickRewardTier(8);
-    expect(tier?.title).toMatch(/Weekly/);
+    expect(pickRewardTier(8)?.titleKey).toBe('home.habit.tiers.steadyTitle');
+    expect(pickRewardTier(5)?.titleKey).toBe('home.habit.tiers.monthTitle');
+    expect(pickRewardTier(1)?.titleKey).toBe('home.habit.tiers.firstTitle');
   });
 
   it('awards nothing before the first action', () => {
