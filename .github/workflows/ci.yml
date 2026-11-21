@@ -31,6 +31,20 @@ jobs:
       - run: npm test -- --ci
       - run: npx expo export --platform web
 
+  drift:
+    name: Clock and time-zone drift (suite under other clocks and zones)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # scripts/testing/drift.js: Lima, Kiritimati (UTC+14), clock +30 and +400 days, a US fall-back night.
+      - run: npm run test:drift
+
   database:
     name: Database isolation tests (local Supabase)
     runs-on: ubuntu-latest

@@ -12,6 +12,8 @@
     "lint": "expo lint",
     "lint:complexity": "node scripts/complexity/gate.js",
     "test": "jest",
+    "test:drift": "node scripts/testing/drift.js",
+    "labor:drift": "jest --ci --testMatch '<rootDir>/scripts/labor/drift.check.ts' --",
     "prepare": "husky",
     "test:integration": "jest --runInBand server/__tests__/.*\\.integration\\.test\\.ts",
     "test:db": "supabase test db",
@@ -72,6 +74,9 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/scripts/testing/fakeNow.js"
+    ],
     "testPathIgnorePatterns": [
       "<rootDir>/node_modules/",
       "<rootDir>/e2e/",
