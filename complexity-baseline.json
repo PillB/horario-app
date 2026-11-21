@@ -16,7 +16,7 @@
     },
     "app/api/secure-proxy+api.ts": {
       "POST": 17,
-      "addRosterShifts": 24,
+      "addRosterShifts": 17,
       "adminGrantEntitlement": 20,
       "dispatch": 50,
       "forecastHistory": 17,
