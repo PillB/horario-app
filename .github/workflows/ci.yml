@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
+      - name: Cyclomatic complexity ceiling (ratchet, scripts/complexity/gate.js)
+        run: npm run lint:complexity
       - run: npm test -- --ci
       - run: npx expo export --platform web
 

@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "build": "expo export --platform web",
     "lint": "expo lint",
+    "lint:complexity": "node scripts/complexity/gate.js",
     "test": "jest",
     "prepare": "husky",
     "test:integration": "jest --runInBand server/__tests__/.*\\.integration\\.test\\.ts",
