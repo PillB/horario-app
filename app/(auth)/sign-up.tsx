@@ -68,7 +68,7 @@ export default function SignUpScreen() {
         await setActive({ session: result.createdSessionId });
         router.replace('/');
       } else {
-        setError('Verification incomplete. Please try again.');
+        setError(t('auth.signUp.verify.errDefault'));
       }
     } catch (err: unknown) {
       setError(extractClerkError(err));
@@ -83,7 +83,7 @@ export default function SignUpScreen() {
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <PageTitle title="Verify your email" />
+        <PageTitle title={t('auth.signUp.verify.title')} />
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
@@ -93,34 +93,34 @@ export default function SignUpScreen() {
             <View style={styles.logoMark}>
               <ThemedText style={styles.logoIcon}>H</ThemedText>
             </View>
-            <ThemedText style={styles.wordmark}>Horario</ThemedText>
+            <ThemedText style={styles.wordmark}>{t('auth.appName')}</ThemedText>
           </View>
 
           <View style={styles.card}>
             <View style={styles.verifyIcon}>
               <ThemedText style={styles.verifyEmoji}>📬</ThemedText>
             </View>
-            <ThemedText style={styles.heading}>Check your email</ThemedText>
+            <ThemedText style={styles.heading} accessibilityRole="header">{t('auth.signUp.verify.title')}</ThemedText>
             <ThemedText style={styles.subheading}>
-              We sent a 6-digit code to{'\n'}
+              {t('auth.signUp.verify.sentTo')}{'\n'}
               <ThemedText style={styles.emailHighlight}>{email}</ThemedText>
             </ThemedText>
 
             <View style={styles.fields}>
               <View style={styles.field}>
-                <ThemedText style={styles.label}>Verification code</ThemedText>
+                <ThemedText style={styles.label}>{t('auth.signUp.verify.codeLabel')}</ThemedText>
                 <TextInput
                   value={code}
                   onChangeText={setCode}
                   onFocus={() => setCodeFocused(true)}
                   onBlur={() => setCodeFocused(false)}
-                  placeholder="123456"
+                  placeholder={t('auth.signUp.verify.codePlaceholder')}
                   placeholderTextColor="#94A3B8"
                   keyboardType="number-pad"
                   returnKeyType="done"
                   onSubmitEditing={code ? handleVerify : undefined}
                   style={[styles.input, styles.codeInput, codeFocused && styles.inputFocused]}
-                  accessibilityLabel="Verification code"
+                  accessibilityLabel={t('auth.signUp.verify.codeA11y')}
                   maxLength={6}
                 />
               </View>
@@ -140,11 +140,12 @@ export default function SignUpScreen() {
                   pressed && code && !loading && styles.primaryBtnPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Verify email"
+                accessibilityLabel={t('auth.signUp.verify.verifyButtonA11y')}
+                accessibilityHint={t('auth.signUp.verify.verifyButtonHint')}
                 accessibilityState={{ disabled: !code || loading }}>
                 {loading
                   ? <ActivityIndicator color="#FFFFFF" size="small" />
-                  : <ThemedText style={styles.primaryBtnText}>Verify email</ThemedText>}
+                  : <ThemedText style={styles.primaryBtnText}>{t('auth.signUp.verify.verifyButton')}</ThemedText>}
               </Pressable>
             </View>
 
@@ -152,8 +153,9 @@ export default function SignUpScreen() {
               onPress={() => setPendingVerification(false)}
               style={styles.backLink}
               accessibilityRole="button"
-              accessibilityLabel="Go back">
-              <ThemedText style={styles.footerLink}>← Back to sign up</ThemedText>
+              accessibilityLabel={t('auth.signUp.verify.backButtonA11y')}
+              accessibilityHint={t('auth.signUp.verify.backButtonHint')}>
+              <ThemedText style={styles.footerLink}>{t('auth.signUp.verify.backButton')}</ThemedText>
             </Pressable>
           </View>
         </ScrollView>
@@ -168,7 +170,7 @@ export default function SignUpScreen() {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <PageTitle title="Create account" />
+      <PageTitle title={t('auth.signUp.title')} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -179,25 +181,23 @@ export default function SignUpScreen() {
           <View style={styles.logoMark}>
             <ThemedText style={styles.logoIcon}>H</ThemedText>
           </View>
-          <ThemedText style={styles.wordmark}>Horario</ThemedText>
-          <ThemedText style={styles.tagline}>Smart scheduling, simplified.</ThemedText>
+          <ThemedText style={styles.wordmark}>{t('auth.appName')}</ThemedText>
+          <ThemedText style={styles.tagline}>{t('auth.tagline')}</ThemedText>
         </View>
 
         {/* Freemium hook */}
         <View style={styles.promoCard}>
-          <ThemedText style={styles.promoText}>
-            ✦ Your first optimized schedule is free — no card required
-          </ThemedText>
+          <ThemedText style={styles.promoText}>{t('auth.signUp.promo')}</ThemedText>
         </View>
 
         {/* Form card */}
         <View style={styles.card}>
-          <ThemedText style={styles.heading}>Create your account</ThemedText>
+          <ThemedText style={styles.heading} accessibilityRole="header">{t('auth.signUp.title')}</ThemedText>
           <ThemedText style={styles.subheading}>{t('auth.signUp.subtitle')}</ThemedText>
 
           <View style={styles.fields}>
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Work email</ThemedText>
+              <ThemedText style={styles.label}>{t('auth.signUp.emailLabel')}</ThemedText>
               <TextInput
                 value={email}
                 onChangeText={(v) => {
@@ -209,31 +209,31 @@ export default function SignUpScreen() {
                 }}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
-                placeholder="you@company.com"
+                placeholder={t('auth.signUp.emailPlaceholder')}
                 placeholderTextColor="#94A3B8"
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoComplete="email"
                 returnKeyType="next"
                 style={[styles.input, emailFocused && styles.inputFocused]}
-                accessibilityLabel="Email address"
+                accessibilityLabel={t('auth.signUp.emailA11y')}
               />
             </View>
 
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Password</ThemedText>
+              <ThemedText style={styles.label}>{t('auth.signUp.passwordLabel')}</ThemedText>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 onFocus={() => setPasswordFocused(true)}
                 onBlur={() => setPasswordFocused(false)}
-                placeholder="Min 8 characters"
+                placeholder={t('auth.signUp.passwordPlaceholder')}
                 placeholderTextColor="#94A3B8"
                 secureTextEntry
                 returnKeyType="done"
                 onSubmitEditing={canSubmit ? handleSignUp : undefined}
                 style={[styles.input, passwordFocused && styles.inputFocused]}
-                accessibilityLabel="Password"
+                accessibilityLabel={t('auth.signUp.passwordA11y')}
               />
             </View>
 
@@ -252,26 +252,25 @@ export default function SignUpScreen() {
                 pressed && canSubmit && styles.primaryBtnPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Create account"
+              accessibilityLabel={t('auth.signUp.buttonA11y')}
+              accessibilityHint={t('auth.signUp.buttonHint')}
               accessibilityState={{ disabled: !canSubmit }}>
               {loading
                 ? <ActivityIndicator color="#FFFFFF" size="small" />
-                : <ThemedText style={styles.primaryBtnText}>Create free account →</ThemedText>}
+                : <ThemedText style={styles.primaryBtnText}>{t('auth.signUp.button')}</ThemedText>}
             </Pressable>
 
-            <ThemedText style={styles.legalText}>
-              By signing up you agree to our Terms of Service and Privacy Policy.
-            </ThemedText>
+            <ThemedText style={styles.legalText}>{t('auth.signUp.terms')}</ThemedText>
             <ThemedText style={styles.pricingNote}>
               {t('auth.signUp.pricing')}
             </ThemedText>
           </View>
 
           <View style={styles.footer}>
-            <ThemedText style={styles.footerText}>Already have an account?</ThemedText>
+            <ThemedText style={styles.footerText}>{t('auth.signUp.hasAccount')}</ThemedText>
             <Link href="/(auth)/sign-in" asChild>
-              <Pressable accessibilityRole="link" accessibilityLabel="Sign in">
-                <ThemedText style={styles.footerLink}> Sign in</ThemedText>
+              <Pressable accessibilityRole="link" accessibilityLabel={t('auth.signUp.signInLinkA11y')} accessibilityHint={t('auth.signUp.signInLinkHint')}>
+                <ThemedText style={styles.footerLink}> {t('auth.signUp.signInLink')}</ThemedText>
               </Pressable>
             </Link>
           </View>
@@ -279,7 +278,7 @@ export default function SignUpScreen() {
 
         {/* Trust signals */}
         <View style={styles.trust}>
-          <ThemedText style={styles.trustText}>Free to start · No credit card · Cancel anytime</ThemedText>
+          <ThemedText style={styles.trustText}>{t('auth.signUp.trustText')}</ThemedText>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

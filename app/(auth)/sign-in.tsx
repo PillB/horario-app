@@ -14,6 +14,7 @@ import { Link, useRouter, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { brand } from '@/constants/Colors';
 import { PageTitle } from '@/components/PageTitle';
+import { useT } from '@/contexts/LocaleContext';
 
 // ─── Clerk error-code → user-friendly message map ──────────────────────────
 const CLERK_ERROR_MESSAGES: Record<string, string> = {
@@ -52,6 +53,7 @@ function resolveClerkError(err: unknown): string {
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
+  const { t } = useT();
 
   // Collect both __clerk_ticket (magic-link / org invitation) and
   // afterSignInUrl (deep-link redirect from referring screen).
@@ -155,7 +157,7 @@ export default function SignInScreen() {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <PageTitle title="Sign in" />
+      <PageTitle title={t('auth.signIn.button')} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -166,49 +168,49 @@ export default function SignInScreen() {
           <View style={styles.logoMark}>
             <ThemedText style={styles.logoIcon}>H</ThemedText>
           </View>
-          <ThemedText style={styles.wordmark}>Horario</ThemedText>
-          <ThemedText style={styles.tagline}>Smart scheduling, simplified.</ThemedText>
+          <ThemedText style={styles.wordmark}>{t('auth.appName')}</ThemedText>
+          <ThemedText style={styles.tagline}>{t('auth.tagline')}</ThemedText>
         </View>
 
         {/* Form card */}
         <View style={styles.card}>
-          <ThemedText style={styles.heading}>Welcome back</ThemedText>
-          <ThemedText style={styles.subheading}>Sign in to continue</ThemedText>
+          <ThemedText style={styles.heading} accessibilityRole="header">{t('auth.signIn.title')}</ThemedText>
+          <ThemedText style={styles.subheading}>{t('auth.signIn.subtitle')}</ThemedText>
 
           <View style={styles.fields}>
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Email</ThemedText>
+              <ThemedText style={styles.label}>{t('auth.signIn.emailLabel')}</ThemedText>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
-                placeholder="you@example.com"
+                placeholder={t('auth.signIn.emailPlaceholder')}
                 placeholderTextColor="#94A3B8"
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoComplete="email"
                 returnKeyType="next"
                 style={[styles.input, emailFocused && styles.inputFocused]}
-                accessibilityLabel="Email address"
+                accessibilityLabel={t('auth.signIn.emailA11y')}
               />
             </View>
 
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Password</ThemedText>
+              <ThemedText style={styles.label}>{t('auth.signIn.passwordLabel')}</ThemedText>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 onFocus={() => setPasswordFocused(true)}
                 onBlur={() => setPasswordFocused(false)}
-                placeholder="••••••••"
+                placeholder={t('auth.signIn.passwordPlaceholder')}
                 placeholderTextColor="#94A3B8"
                 secureTextEntry
                 autoComplete="password"
                 returnKeyType="done"
                 onSubmitEditing={canSubmit ? handleSignIn : undefined}
                 style={[styles.input, passwordFocused && styles.inputFocused]}
-                accessibilityLabel="Password"
+                accessibilityLabel={t('auth.signIn.passwordA11y')}
               />
             </View>
 
@@ -227,19 +229,20 @@ export default function SignInScreen() {
                 pressed && canSubmit && styles.primaryBtnPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Sign in"
+              accessibilityLabel={t('auth.signIn.buttonA11y')}
+              accessibilityHint={t('auth.signIn.buttonHint')}
               accessibilityState={{ disabled: !canSubmit }}>
               {loading
                 ? <ActivityIndicator color="#FFFFFF" size="small" />
-                : <ThemedText style={styles.primaryBtnText}>Sign in</ThemedText>}
+                : <ThemedText style={styles.primaryBtnText}>{t('auth.signIn.button')}</ThemedText>}
             </Pressable>
           </View>
 
           <View style={styles.footer}>
-            <ThemedText style={styles.footerText}>Don&apos;t have an account?</ThemedText>
+            <ThemedText style={styles.footerText}>{t('auth.signIn.noAccount')}</ThemedText>
             <Link href="/(auth)/sign-up" asChild>
-              <Pressable accessibilityRole="link" accessibilityLabel="Create account">
-                <ThemedText style={styles.footerLink}> Create one free</ThemedText>
+              <Pressable accessibilityRole="link" accessibilityLabel={t('auth.signIn.createLinkA11y')} accessibilityHint={t('auth.signIn.createLinkHint')}>
+                <ThemedText style={styles.footerLink}> {t('auth.signIn.createLink')}</ThemedText>
               </Pressable>
             </Link>
           </View>
@@ -247,7 +250,7 @@ export default function SignInScreen() {
 
         {/* Trust signals */}
         <View style={styles.trust}>
-          <ThemedText style={styles.trustText}>Free to start · No credit card · Cancel anytime</ThemedText>
+          <ThemedText style={styles.trustText}>{t('auth.signIn.trustText')}</ThemedText>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

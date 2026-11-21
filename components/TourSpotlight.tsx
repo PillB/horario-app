@@ -251,6 +251,13 @@ function GuideModePicker({ colors }: { colors: ThemeColors }) {
 }
 
 
+const PUBLIC_ROUTES = ['/welcome', '/sign-in', '/sign-up'];
+
+/** Routes a signed-out visitor sees; the guide stays closed there. */
+export function isPublicRoute(pathname: string | null | undefined): boolean {
+  return !!pathname && PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 export function TourSpotlight() {
   const {
     isActive,
@@ -297,6 +304,9 @@ export function TourSpotlight() {
   const rect = useTargetRect(currentStep, isActive && onStepScreen);
 
   if (!isActive) return null;
+  // Never over the public landing page or the sign-in forms: the guide is for
+  // the app, and it opens once the visitor is inside it.
+  if (isPublicRoute(pathname)) return null;
   if (tourMode === null) return <GuideModePicker colors={colors} />;
   if (!currentStep) return null;
 

@@ -530,7 +530,7 @@ export const it = {
   // ─── Auth screens ──────────────────────────────────────────────────────────
   auth: {
     appName: 'Horario',
-    tagline: 'Pianificazione intelligente, semplificata.',
+    tagline: 'Turni equi, verificati secondo il diritto del lavoro.',
     signIn: {
       title: 'Bentornato',
       subtitle: 'Accedi per continuare',
@@ -545,16 +545,16 @@ export const it = {
       noAccount: 'Non hai un account?',
       createLink: 'Creane uno gratis',
       createLinkA11y: 'Crea account',
-      trustText: 'Gratis per iniziare · Nessuna carta di credito · Cancella in qualsiasi momento',
+      trustText: 'Gratis fino a 10 persone · Senza carta',
       errDefault: 'Accesso non completato. Riprova.',
       errToken: 'Token di accesso non valido o scaduto.',
       errCredentials: 'Accesso fallito. Controlla le tue credenziali.',
     },
     signUp: {
-      promo: '✦ Il tuo primo piano ottimizzato è gratuito — nessuna carta richiesta',
+      promo: 'Gratis per 1 sede e fino a 10 persone, senza limiti di tempo. Le nuove attività hanno anche tutte le funzioni Pro gratis per 14 giorni. Senza carta.',
       title: 'Crea il tuo account',
       subtitle: 'Crea turni equi che rispettano il diritto del lavoro locale.',
-      emailLabel: 'Email di lavoro',
+      emailLabel: 'Email',
       emailPlaceholder: 'tu@azienda.com',
       emailA11y: 'Indirizzo email',
       passwordLabel: 'Password',
@@ -567,7 +567,7 @@ export const it = {
       hasAccount: 'Hai già un account?',
       signInLink: 'Accedi',
       signInLinkA11y: 'Accedi',
-      trustText: 'Gratis per iniziare · Nessuna carta di credito · Cancella in qualsiasi momento',
+      trustText: 'Senza carta · Se smetti di pagare, conservi i tuoi dati e passi al piano gratuito',
       verify: {
         title: 'Controlla la tua email',
         emoji: '📬',
@@ -604,15 +604,14 @@ export const it = {
     },
     free: {
       badge: 'GRATIS',
-      limitReached: 'Smetti di creare piani manualmente — hai raggiunto il limite gratuito.',
+      limitReached: 'Hai usato i turni automatici gratuiti di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai altri.',
       autoAssignsLeft: '{n} assegnazione{plural} automatica{plural} gratuita{plural} rimasta{plural}',
-      cta: 'Assegna tutto il tuo team con un solo tocco. Prova Pro gratis per 14 giorni →',
-      ctaUnlimited: 'Sblocca assegnazioni automatiche illimitate — nessun costo per dipendente →',
-      pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente · disdici quando vuoi',
+      ctaUnlimited: 'Esencial: turni automatici illimitati fino a 40 persone, senza costi per persona. Vedi i piani',
+      pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente',
     },
     buttonA11y: 'Passa al piano Pro',
-    buttonHint: 'Apre la pagina di fatturazione per iniziare la prova Pro gratuita',
-    limitReachedBanner: 'Limite gratuito raggiunto. Passa a Pro per assegnazioni automatiche illimitate.',
+    buttonHint: 'Apre i piani e i prezzi',
+    limitReachedBanner: 'Hai usato i turni automatici gratuiti di questo mese. Puoi continuare a mano o vedere i piani per turni automatici illimitati.',
   },
 
   // ─── Language selector ─────────────────────────────────────────────────────

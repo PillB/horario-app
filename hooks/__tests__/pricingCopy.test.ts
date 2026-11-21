@@ -23,10 +23,11 @@ const strings = (value: unknown, out: string[] = []): string[] => {
 
 describe('pricing copy', () => {
   it.each(Object.keys(LOCALES))('%s quotes US$19 per location and a 14-day trial, never $12', (code) => {
-    const locale = LOCALES[code] as { auth: { signUp: { pricing: string } }; upgrade: { free: { pricing: string; cta: string } } };
+    const locale = LOCALES[code] as { auth: { signUp: { pricing: string } }; upgrade: { free: { pricing: string } } } & { auth: { signUp: { promo: string } } };
     expect(locale.auth.signUp.pricing).toMatch(/19/);
     expect(locale.upgrade.free.pricing).toMatch(/19/);
-    expect(locale.upgrade.free.cta).toMatch(/14/);
+    // The trial is automatic (no button offers it): the sign-up offer states it.
+    expect(locale.auth.signUp.promo).toMatch(/14/);
     const all = strings(LOCALES[code]);
     expect(all.filter((s) => /\$\s?12\b|\b12\s?\$|12\/mo/.test(s))).toEqual([]);
     expect(all.filter((s) => /1[,. ]200\+?/.test(s))).toEqual([]);
