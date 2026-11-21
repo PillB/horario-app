@@ -58,16 +58,16 @@ export const AMERICAS: Record<string, RulePack> = {
       coverage: 'NYC Fair Workweek covers fast-food chains and retail employers with 20+ NYC employees.',
       clopening: {
         minHours: 11, consentRequired: true, premium: { kind: 'flat', amount: 100 }, industries: ['fast_food'],
-        cite: { source: 'NYC Fair Workweek Law (fast food)', url: 'https://www.nyc.gov/site/dca/about/fair-workweek-law.page', confidence: 'high' },
+        cite: { source: 'NYC Fair Workweek Law (fast food)', url: 'https://www.nyc.gov/site/dca/workers/workersrights/fastfood-retail-workers.page', confidence: 'high' },
       },
       notice: {
         hours: 14 * 24, verdict: 'violation', industries: ['fast_food'],
-        cite: { source: 'NYC Fair Workweek Law (fast food)', url: 'https://www.nyc.gov/site/dca/about/fair-workweek-law.page', confidence: 'high' },
+        cite: { source: 'NYC Fair Workweek Law (fast food)', url: 'https://www.nyc.gov/site/dca/workers/workersrights/fastfood-retail-workers.page', confidence: 'high' },
       },
     },
     notice: {
       hours: 72, verdict: 'violation', industries: ['retail'],
-      cite: { source: 'NYC Fair Workweek Law (retail)', url: 'https://www.nyc.gov/site/dca/about/fair-workweek-law.page', confidence: 'high' },
+      cite: { source: 'NYC Fair Workweek Law (retail)', url: 'https://www.nyc.gov/site/dca/workers/workersrights/retail-workers.page', confidence: 'high' },
     },
   },
   'US-OR': {
