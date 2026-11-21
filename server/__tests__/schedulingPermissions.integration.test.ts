@@ -308,6 +308,26 @@ describeIfDb('scheduling permissions and roster notified (local Supabase)', () =
     });
   });
 
+  describe('CHG-102: a template edit cannot double-book anyone', () => {
+    it('refuses new times that put a person on two shifts at once', async () => {
+      const add = async (name: string, startTime: string, endTime: string) =>
+        (await asAdmin({ action: 'upsertShiftTemplate', template: { id: randomUUID(), name, role: 'Cook', startTime, endTime, coverage: 1 } })).body.template as { id: string; updatedAt: string };
+      const dawn = await add('Dawn', '02:00', '05:00');
+      const dusk = await add('Dusk', '05:00', '08:00');
+      // Only shifts from yesterday on are checked, so the date follows the clock.
+      const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+      await saveShift({ id: randomUUID(), date, workerId: worker2, templateId: dawn.id });
+      await saveShift({ id: randomUUID(), date, workerId: worker2, templateId: dusk.id });
+
+      const edit = (startTime: string, endTime: string) =>
+        asAdmin({ action: 'upsertShiftTemplate', template: { id: dusk.id, name: 'Dusk', role: 'Cook', startTime, endTime, coverage: 1 } });
+      const refused = await edit('04:00', '08:00');
+      expect(refused.status).toBe(409);
+      expect(String(refused.body.error)).toMatch(new RegExp(`^With these times Bea would be on two shifts at once on ${date}`));
+      expect((await edit('05:00', '09:00')).status).toBe(200);
+    });
+  });
+
   describe('G5: location history cannot be erased with the service-role key', () => {
     it('refuses a direct delete and a purge younger than 2 years', async () => {
       const location = await asAdmin({
