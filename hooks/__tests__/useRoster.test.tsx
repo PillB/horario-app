@@ -107,6 +107,17 @@ describe('useRoster', () => {
     expect(hook.result.roster.map((s) => s.date)).toEqual(['2026-11-02', '2026-11-03', '2026-11-09', '2026-11-10']);
   });
 
+  it('asks the server to count an auto-schedule run in the same request (CHG-101)', async () => {
+    const fetchMock = proxy({ addRosterShifts: { body: { success: true, shifts: [] } } });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    const shift = { date: '2026-11-09', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft' as const, notified: false };
+    await act(async () => {
+      await hook.result.addShifts([shift], { countAutoAssign: true });
+      await hook.result.addShifts([{ ...shift, date: '2026-11-10' }]);
+    });
+    expect(callsOf(fetchMock, 'addRosterShifts').map((c) => c.countAutoAssign)).toEqual([true, undefined]);
+  });
+
   it('removes every shift of a refused batch', async () => {
     proxy({ addRosterShifts: { status: 409, body: { error: 'One of these shifts is already on the roster. Nothing was added. Reload and try again' } } });
     const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });

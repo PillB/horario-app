@@ -165,7 +165,7 @@ export function useSchedulerHandlers() {
     truncated: rosterTruncated,
     refresh: refreshRoster,
   } = useRoster(accountId);
-  const { canAutoAssign, count: usageCount, increment: incrementUsage } = useUsageLimit(userId, accountId);
+  const { canAutoAssign, count: usageCount, refresh: refreshUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
 
@@ -1376,21 +1376,12 @@ export function useSchedulerHandlers() {
     );
   }, [autoAssignLocation, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
-  /** The suggestions whose run is already counted against the plan. */
-  const countedRunRef = useRef<AssignedShift[] | null>(null);
-
   /** Persists all pending auto-assign suggestions to the roster. */
   const applyAutoAssign = useCallback(async () => {
     if (!autoAssignSuggestions?.length) return;
     setAutoAssignApplying(true);
-    // The run is counted before it is saved, so two tabs cannot both apply the last run of the month.
-    // A second try after a refused save is the same run, so it is not counted twice.
-    if (countedRunRef.current !== autoAssignSuggestions && (await incrementUsage()) === 'limit') {
-      setAutoAssignApplying(false);
-      showActionBanner(t('upgrade.limitReachedBanner'), 'error');
-      return;
-    }
-    countedRunRef.current = autoAssignSuggestions;
+    // The run is counted in the same request that saves it (and in the same database
+    // transaction): a save that is refused costs no run, and a run over the limit saves nothing.
     // One request: every suggestion is stored or none is, never half a schedule.
     const result = await addShifts(autoAssignSuggestions.map((suggestion) => ({
       date: suggestion.date,
@@ -1399,7 +1390,8 @@ export function useSchedulerHandlers() {
       location: autoAssignLocation?.id ?? '',
       status: 'Draft' as const,
       notified: false,
-    })));
+    })), { countAutoAssign: true });
+    void refreshUsage();
     setAutoAssignApplying(false);
     if (!result.success) {
       // The suggestions stay, so the manager can apply again after the roster reloaded.
@@ -1411,7 +1403,7 @@ export function useSchedulerHandlers() {
     setAutoAssignShortfalls(null);
     void trackEvent('auto_assign_used', { successCount });
     showActionBanner(`Applied ${successCount} of ${successCount} auto-assign suggestion(s).`, 'success');
-  }, [addShifts, autoAssignLocation, autoAssignSuggestions, incrementUsage, showActionBanner, t]);
+  }, [addShifts, autoAssignLocation, autoAssignSuggestions, refreshUsage, showActionBanner, t]);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     // One batch, and its real outcome: before, each row was its own request and

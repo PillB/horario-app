@@ -129,6 +129,8 @@ const dbFailure = (context: string, error: { message?: string; code?: string } |
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
   if (error?.code === '23505') return fail(409, 'Conflicting record');
   if (error?.code === '23503') return fail(409, 'Record is still referenced');
+  // Raised by the roster_no_overlap trigger; its message names the clashing shift.
+  if (error?.code === '23P01') return fail(409, `${error.message ?? 'This person already has a shift at that time'}. Reload and try again`);
   return fail(500, 'Database request failed');
 };
 
@@ -1089,6 +1091,43 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
 }
 
+type RosterWrite = { data: unknown; error: { code?: string; message?: string } | { refusal: Result } | null };
+
+/**
+ * Counts one auto-schedule run against the plan and saves its shifts in one
+ * database transaction (apply_auto_assign, migration 20261118000105): a run the
+ * roster refuses is not counted, and a run over the month's limit saves nothing.
+ */
+async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows: Record<string, unknown>[]): Promise<RosterWrite> {
+  const resolved = await resolvePlan(client, ctx.accountId);
+  if (!resolved.ok) return { data: null, error: { refusal: dbFailure('resolve plan', resolved.error) } };
+  const limit = resolved.plan.limits.maxAutoSchedulesPerMonth;
+  const { data, error } = await client.rpc('apply_auto_assign', {
+    p_user_id: ctx.userId,
+    p_account_id: ctx.accountId,
+    p_limit: limit,
+    p_rows: rows.map(({ id, date, worker_id, template_id, location, status }) => ({ id, date, worker_id, template_id, location, status })),
+  });
+  const usedUp: RosterWrite = {
+    data: null,
+    error: {
+      refusal: fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Nothing was added. Upgrade for unlimited auto-schedule`),
+    },
+  };
+  if (error?.code === 'PGRST202' || error?.code === '42883') {
+    // The function is not there yet (migration pending): count, then save, as before it existed.
+    console.error('[secure-proxy] apply_auto_assign is missing; apply migration 20261118000105. Counting and saving in two steps.');
+    const counted = await client.rpc('consume_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId, p_limit: limit });
+    if (counted.error) return { data: null, error: counted.error };
+    if (Number(counted.data ?? 0) < 0) return usedUp;
+    return client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+  }
+  if (error) return { data: null, error };
+  const answer = data as { rows?: unknown[]; limited?: boolean } | null;
+  if (answer?.limited) return usedUp;
+  return { data: answer?.rows ?? [], error: null };
+}
+
 /** Shifts one request may add. */
 const ADD_ROSTER_SHIFTS_MAX = 200;
 
@@ -1099,7 +1138,7 @@ const ADD_ROSTER_SHIFTS_MAX = 200;
  * on the roster (same id, or same date, worker and template) refuses the whole
  * request with 409 and nothing is added.
  */
-async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts: unknown): Promise<Result> {
+async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts: unknown, countAutoAssign?: unknown): Promise<Result> {
   if (!Array.isArray(shifts) || shifts.length === 0 || shifts.length > ADD_ROSTER_SHIFTS_MAX) {
     return badRequest(`shifts must be a list of 1 to ${ADD_ROSTER_SHIFTS_MAX} shifts`);
   }
@@ -1124,11 +1163,16 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
   if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
   if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
 
-  const { data, error } = await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+  const { data, error } = countAutoAssign === true ? await applyAutoAssignRun(client, ctx, rows) : await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
   if (error) {
+    if ('refusal' in error) return error.refusal;
     if (error.code === '23505') {
       console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
       return fail(409, 'One of these shifts is already on the roster. Nothing was added. Reload and try again');
+    }
+    if (error.code === '23P01') {
+      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+      return fail(409, `${error.message ?? 'One of these shifts overlaps another shift of the same person'}. Nothing was added. Reload and run auto-assign again`);
     }
     if (error.code === '23503') {
       console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
@@ -1701,7 +1745,7 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'upsertRosterShift':
       return upsertRosterShift(client, ctx, p.shift);
     case 'addRosterShifts':
-      return addRosterShifts(client, ctx, p.shifts);
+      return addRosterShifts(client, ctx, p.shifts, p.countAutoAssign);
     case 'updateShiftStatus':
       return updateShiftStatus(client, ctx, p.id, p.status);
     case 'markShiftNotified':

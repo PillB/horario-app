@@ -253,6 +253,16 @@ describe('listRoster', () => {
     );
   });
 
+  it('keeps a shift once when a later page repeats it (CHG-101)', async () => {
+    const second = { ...shift, id: 'shift-2' };
+    (global as unknown as { fetch: jest.Mock }).fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue({ shifts: [shift, second], hasMore: true }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: jest.fn().mockResolvedValue({ shifts: [second], hasMore: false }) });
+    const result = await listRoster();
+    expect(result.map((s) => s.id)).toEqual([shift.id, 'shift-2']);
+  });
+
   it('returns empty array on error', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     mockFetchReject('Network error');

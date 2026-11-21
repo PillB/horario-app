@@ -6,6 +6,25 @@
 
 ---
 
+### CHG-101 — 2026-11-18 UTC
+**Type:** FIX (Pablo: "pr 60 merged"; the concurrency items CLAUDE.md §11 #17 still listed after CHG-098 and CHG-100)
+
+**Fixed:**
+- Double booking: trigger `roster_no_overlap` (migration `20261118000105_roster_atomic_rules.sql`) refuses a new shift, or one whose date, worker or template changes, that overlaps another shift of the same worker. It takes a per-account `pg_advisory_xact_lock` first, so two requests at the same moment are checked one after the other. Error code 23P01; the proxy answers 409 with the clashing shift's date and times. Before, the server only knew the unique slot, so two managers (or two tabs) could each add an overlapping shift with a different template.
+- Auto-schedule count: `apply_auto_assign()` counts the run (`consume_auto_assign`) and inserts its shifts in one transaction. `addRosterShifts` takes `countAutoAssign: true` and uses it; over the limit it answers 402 and saves nothing; a run the roster refuses is not counted. `applyAutoAssign` in `useSchedulerHandlers` no longer calls `incrementAutoAssign` first (a refused, abandoned save stayed counted). A database without the function yet: count, then insert, as before.
+- Paged lists: `fetchAllPages` keeps each id once (a row added while a long list is read moves another row onto the next page too).
+
+**Limits, on purpose:**
+- The overlap is measured in the template's wall-clock times (an end at or before the start is the next day), without the location's time zone: the shifts of a spring-forward or fall-back night are compared as if the night had 24 hours. Rest between shifts and hour limits stay client-side (they depend on the location's rules).
+- Stored rows are not re-checked, and editing a template's times can still make two stored shifts overlap.
+- Offset paging can still skip a row when another is deleted mid-read; the next load shows it. Keyset paging would change every list action and is not done.
+
+**CI follow-up:** the first CI run failed every roster write with 42501 ("permission denied for schema private"): the trigger ran as `service_role`, which cannot use schema `private`. `roster_no_overlap()` is now SECURITY DEFINER (empty `search_path`, execute revoked from public / anon / authenticated), and the pgTAP file writes as `service_role` too (18 assertions).
+
+**Tests:** jest (new: the hook passes `countAutoAssign`; a repeated row is kept once). pgTAP `roster_atomic_rules` (16) checked against a local Postgres 16 with a stand-in for the pgTAP functions, plus a parallel run (6 simultaneous inserts on each of 3 dates: 1 row stored per date; 2 with the trigger disabled). New integration tests (overlap 409, two simultaneous adds, counted / not counted / 402 with three runs at once) are in the suite but could not run locally: this container has no PostgREST, so CI runs them first.
+
+---
+
 ### CHG-100 — 2026-11-11 UTC
 **Type:** FIX (Pablo, on the open review finding of PR #59: "research best practices and techniques and common issues and fix. consider connection pooling, outbox pattern, optimistic locking and other best practices and patterns to improve this issue and others in the code")
 

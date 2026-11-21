@@ -74,7 +74,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
    * (applying an auto-assign result must never leave half a schedule).
    */
   const addShifts = useCallback(
-    async (shifts: Omit<Shift, 'id'>[]): Promise<MutationResult> => {
+    async (shifts: Omit<Shift, 'id'>[], options: { countAutoAssign?: boolean } = {}): Promise<MutationResult> => {
       const inputs: (DbRosterShift & { id: string })[] = [];
       for (const shift of shifts) {
         const checked = validateRosterShiftInput({ ...shift, notified: false, id: newUuid() });
@@ -86,7 +86,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const result = await write({
         id: inputs[0].id,
         apply: (prev) => [...prev, ...inputs.map(dbToShift)],
-        commit: () => addRosterShifts(inputs.map(({ id, date, workerId, templateId, location, status }) => ({ id, date, workerId, templateId, location, status }))),
+        commit: () => addRosterShifts(inputs.map(({ id, date, workerId, templateId, location, status }) => ({ id, date, workerId, templateId, location, status })), options),
         rollback: (prev) => prev.filter((s) => !ids.has(s.id)),
         reconcile: (prev, r) => (r.success ? r.shifts.reduce((list, s) => upsertById(list, dbToShift(s)), prev) : prev),
       });
