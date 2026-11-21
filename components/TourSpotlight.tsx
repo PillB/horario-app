@@ -269,6 +269,8 @@ export function TourSpotlight() {
     nextStep,
     prevStep,
     skipTour,
+    firstLaunchPending,
+    claimFirstLaunch,
   } = useWelcomeTour();
 
   const { t } = useT();
@@ -278,6 +280,11 @@ export function TourSpotlight() {
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
   const { width: screenW, height: screenH } = useWindowDimensions();
+
+  // The first-launch picker waits until the visitor is inside the app.
+  useEffect(() => {
+    if (firstLaunchPending && !isPublicRoute(pathname)) claimFirstLaunch();
+  }, [firstLaunchPending, pathname, claimFirstLaunch]);
 
   // Take the user to the step's screen (and scheduler step) when it changes.
   useEffect(() => {

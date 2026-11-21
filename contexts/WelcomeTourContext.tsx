@@ -17,6 +17,7 @@
 import React, {
   createContext,
   useCallback,
+  useState,
   useContext,
   useEffect,
   useMemo,
@@ -74,6 +75,10 @@ type TourAction =
 export type TourTargetRef = React.RefObject<View | null>;
 
 type WelcomeTourContextValue = TourState & {
+  /** The picker has never been shown on this device and should open once the visitor is in the app. */
+  firstLaunchPending: boolean;
+  /** Opens the picker for the first launch and records that it was shown. */
+  claimFirstLaunch: () => void;
   currentSteps: readonly TourStepMeta[];
   /** The current step, or null when no guide is running. */
   currentStep: TourStepMeta | null;
@@ -224,6 +229,12 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
 
   // ── First launch: open the picker once ───────────────────────────────────
   const hydratedRef = useRef(false);
+  const [firstLaunchPending, setFirstLaunchPending] = useState(false);
+  const claimFirstLaunch = useCallback(() => {
+    setFirstLaunchPending(false);
+    dispatch({ type: 'START_TOUR' });
+    AsyncStorage.setItem(SEEN_KEY, '1').catch(() => undefined);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -243,10 +254,9 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
           }
         }
         if (hasCompleted) dispatch({ type: 'SET_HAS_COMPLETED', payload: true });
-        if (!hasCompleted && seenRaw === null) {
-          dispatch({ type: 'START_TOUR' });
-          AsyncStorage.setItem(SEEN_KEY, '1').catch(() => undefined);
-        }
+        // Opened (and marked seen) by claimFirstLaunch once the visitor is in
+        // the app: on the landing page or a sign-in form it would be wasted.
+        if (!hasCompleted && seenRaw === null) setFirstLaunchPending(true);
       } catch {
         // Storage read failure is non-fatal; the tour stays closed.
       } finally {
@@ -317,6 +327,8 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
   const value = useMemo<WelcomeTourContextValue>(
     () => ({
       ...state,
+      firstLaunchPending,
+      claimFirstLaunch,
       currentSteps,
       currentStep,
       totalSteps,
@@ -335,6 +347,8 @@ export function WelcomeTourProvider({ children }: { children: React.ReactNode })
     }),
     [
       state,
+      firstLaunchPending,
+      claimFirstLaunch,
       currentSteps,
       currentStep,
       totalSteps,

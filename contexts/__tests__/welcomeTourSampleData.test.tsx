@@ -132,3 +132,21 @@ describe('WelcomeTour guides (CHG-095)', () => {
     expect(tourReducer(state, { type: 'ADVANCE_FROM', mode: 'overview', index: 0 }).currentStepIndex).toBe(1);
   });
 });
+
+describe('WelcomeTour first launch (CHG-103)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AsyncStorage = require('@react-native-async-storage/async-storage') as { setItem: jest.Mock };
+
+  it('waits to open and to be marked seen until the visitor is in the app', async () => {
+    AsyncStorage.setItem.mockClear();
+    const tour = await mount();
+    expect(tour.current.firstLaunchPending).toBe(true);
+    expect(tour.current.isActive).toBe(false);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith('horario.tourSeen', '1');
+
+    await act(async () => { tour.current.claimFirstLaunch(); });
+    expect(tour.current.firstLaunchPending).toBe(false);
+    expect(tour.current.isActive).toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('horario.tourSeen', '1');
+  });
+});
