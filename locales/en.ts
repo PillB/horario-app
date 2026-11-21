@@ -219,7 +219,7 @@ export const en = {
       fourInARowDesc: 'Post four weeks in a row at least {n} days ahead.',
       fullyStaffedTitle: 'Next 7 days fully staffed',
       fullyStaffedDesc: 'Every role has the published people its demand asks for.',
-      fullyStaffedNeedsDemand: 'Set demand first, so coverage can be checked.',
+      fullyStaffedNeedsDemand: 'Set demand for the next 7 days, so coverage can be checked.',
       hide: 'Hide',
       hideA11y: 'Hide habits and milestones',
       hideHint: 'Hides these cards on this device. You can show them again at the bottom of Home.',

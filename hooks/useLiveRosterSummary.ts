@@ -42,6 +42,8 @@ export type LiveRosterSummary = {
   /** How many of those are published. */
   publishedCount: number;
   staffingGaps: LiveStaffingGap[];
+  /** Demand targets inside the upcoming window: no gaps means "staffed" only when this is > 0. */
+  windowTargets: number;
   /** What the account has set up so far (drives the "next step" card). */
   setup: { workers: number; templates: number; targets: number };
   loading: boolean;
@@ -59,7 +61,7 @@ const MAX_UPCOMING = 10;
 export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
   const [upcomingShifts, setUpcomingShifts] = useState<LiveUpcomingShift[]>([]);
   const [staffingGaps, setStaffingGaps] = useState<LiveStaffingGap[]>([]);
-  const [counts, setCounts] = useState({ shiftCount: 0, publishedCount: 0 });
+  const [counts, setCounts] = useState({ shiftCount: 0, publishedCount: 0, windowTargets: 0 });
   const [setup, setSetup] = useState({ workers: 0, templates: 0, targets: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,8 +132,8 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
           return acc;
         }, {});
 
-      const gaps: LiveStaffingGap[] = targets
-        .filter((target) => target.date >= fromDate && target.date <= toDate)
+      const inWindow = targets.filter((target) => target.date >= fromDate && target.date <= toDate);
+      const gaps: LiveStaffingGap[] = inWindow
         .map((target) => {
           const scheduled = coverageByDateRole[`${target.date}::${target.role}`] ?? 0;
           return { ...target, scheduled, gap: Math.max(0, target.required - scheduled) };
@@ -139,14 +141,18 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
         .filter((t) => t.gap > 0);
 
       setUpcomingShifts(resolved);
-      setCounts({ shiftCount: shifts.length, publishedCount: shifts.filter((s) => s.status === 'Published').length });
+      setCounts({
+        shiftCount: shifts.length,
+        publishedCount: shifts.filter((s) => s.status === 'Published').length,
+        windowTargets: inWindow.length,
+      });
       setStaffingGaps(gaps);
       setSetup({ workers: workers.length, templates: dbTemplates.length, targets: targets.length });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load roster summary.');
       setUpcomingShifts([]);
-      setCounts({ shiftCount: 0, publishedCount: 0 });
+      setCounts({ shiftCount: 0, publishedCount: 0, windowTargets: 0 });
       setStaffingGaps([]);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);

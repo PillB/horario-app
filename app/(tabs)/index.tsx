@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useRouter, type Href } from 'expo-router';
+import { useCallback, useMemo, useRef } from 'react';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -39,7 +39,7 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const { isWideLayout } = useResponsive();
   const {
-    upcomingShifts, shiftCount, publishedCount, staffingGaps, setup, loading: rosterLoading, error: rosterError, refresh,
+    upcomingShifts, shiftCount, publishedCount, staffingGaps, windowTargets, setup, loading: rosterLoading, error: rosterError, refresh,
   } = useLiveRosterSummary(ACCOUNT_ID);
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
@@ -47,6 +47,24 @@ export default function HomeScreen() {
   // The weekly "posted ahead" habit, from when shifts were published (CHG-103).
   const postingHabit = usePostingHabit(ACCOUNT_ID, locations);
   const habitsCard = useHiddenCard('home-habits');
+
+  // Tabs stay mounted: coming back from the roster (where a week was just
+  // published) must show it. The first focus is the mount, which already loads.
+  const focusedOnce = useRef(false);
+  const reloadRef = useRef(() => {});
+  reloadRef.current = () => {
+    refresh();
+    postingHabit.refresh();
+  };
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusedOnce.current) {
+        focusedOnce.current = true;
+        return;
+      }
+      reloadRef.current();
+    }, []),
+  );
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
 
   // Suggested next actions, built from what is stored: open gaps, unpublished
@@ -145,11 +163,12 @@ export default function HomeScreen() {
       },
       {
         id: 'fully-staffed', title: t('home.achievements.fullyStaffedTitle'),
-        description: setup.targets > 0 ? t('home.achievements.fullyStaffedDesc') : t('home.achievements.fullyStaffedNeedsDemand'),
-        progress: setup.targets > 0 && shiftCount > 0 && staffingGaps.length === 0 ? 1 : 0, goal: 1,
+        // Only demand inside the next 7 days can be checked; no demand there is not "staffed".
+        description: windowTargets > 0 ? t('home.achievements.fullyStaffedDesc') : t('home.achievements.fullyStaffedNeedsDemand'),
+        progress: windowTargets > 0 && staffingGaps.length === 0 ? 1 : 0, goal: 1,
       },
     ];
-  }, [habit, postingHabit.goal.days, setup.targets, setupDone, setupSteps.length, shiftCount, staffingGaps.length, t]);
+  }, [habit, postingHabit.goal.days, setupDone, setupSteps.length, staffingGaps.length, t, windowTargets]);
   const showSetup = !rosterLoading && !rosterError && setupDone < setupSteps.length;
 
   return (
