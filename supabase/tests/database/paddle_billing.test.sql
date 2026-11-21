@@ -4,7 +4,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(27);
 
 set local role service_role;
 
@@ -19,6 +19,11 @@ insert into f values
 create function pg_temp.apply(p_event text, p_at text, p_account text, p_name text) returns text language sql as $$
   select (public.apply_paddle_subscription(p_event, 'subscription.updated', p_at::timestamptz, '{}'::jsonb, p_account,
     (select fields from f where name = p_name))) ->> 'outcome'
+$$;
+-- The same, for a given subscription id and status.
+create function pg_temp.apply_as(p_event text, p_at text, p_account text, p_sub text, p_status text) returns text language sql as $$
+  select (public.apply_paddle_subscription(p_event, 'subscription.updated', p_at::timestamptz, '{}'::jsonb, p_account,
+    (select fields || jsonb_build_object('paddle_subscription_id', p_sub, 'status', p_status) from f where name = 'active'))) ->> 'outcome'
 $$;
 
 -- An existing Gratis row (getSubscription provisions one) becomes the paid plan.
@@ -62,6 +67,31 @@ select is(public.record_paddle_event('evt_01aaaaaaaaaaaaaaaaaaaaaa07', 'transact
 update f set fields = jsonb_set(fields, '{paddle_subscription_id}', '"sub_01cccccccccccccccccccccccc"') where name = 'second';
 select is(pg_temp.apply('evt_01aaaaaaaaaaaaaaaaaaaaaa08', '2026-11-30T10:00:01Z', null, 'second'), 'applied',
   'a subscription event without a reference finds the account through its transaction');
+
+-- Review finding 2: a replacement subscription's cancel arrives before its own activation.
+insert into public.subscriptions (account_id, tier, status, payment_provider, paddle_subscription_id)
+  values ('acct_repl', 'pro', 'cancelled', 'paddle', 'sub_01dddddddddddddddddddddddd');
+select is(pg_temp.apply_as('evt_01aaaaaaaaaaaaaaaaaaaaaa10', '2026-12-02T10:00:00Z', 'acct_repl', 'sub_01eeeeeeeeeeeeeeeeeeeeeeee', 'cancelled'),
+  'stale', 'the replacement''s cancel does not replace the subscription in force');
+select is(pg_temp.apply_as('evt_01aaaaaaaaaaaaaaaaaaaaaa11', '2026-12-01T10:00:00Z', 'acct_repl', 'sub_01eeeeeeeeeeeeeeeeeeeeeeee', 'active'),
+  'stale', 'its older activation, arriving after the cancel, is stale too');
+select is((select status from public.subscriptions where account_id = 'acct_repl'), 'cancelled', 'so no paid plan is granted');
+
+-- Review finding 1: the subscription event arrives (without a reference) before its transaction.
+select is(pg_temp.apply_as('evt_01aaaaaaaaaaaaaaaaaaaaaa12', '2026-12-03T10:00:00Z', null, 'sub_01ffffffffffffffffffffffff', 'active'),
+  'unmatched', 'a subscription event with no account waits');
+select is(public.record_paddle_event('evt_01aaaaaaaaaaaaaaaaaaaaaa13', 'transaction.completed', '2026-12-03T10:00:02Z',
+  '{"data":{"id":"txn_02","subscription_id":"sub_01ffffffffffffffffffffffff"}}'::jsonb, 'acct_late'), true, 'then its transaction names the account');
+select is((select status || ' ' || paddle_subscription_id from public.subscriptions where account_id = 'acct_late'),
+  'active sub_01ffffffffffffffffffffffff', 'and the waiting event is applied');
+
+-- A newer event waiting unmatched wins over an older one that arrives with the account.
+select is(pg_temp.apply_as('evt_01aaaaaaaaaaaaaaaaaaaaaa14', '2026-12-04T12:00:00Z', null, 'sub_01gggggggggggggggggggggggg', 'past_due'),
+  'unmatched', 'the newer event arrives first, without an account');
+select is(pg_temp.apply_as('evt_01aaaaaaaaaaaaaaaaaaaaaa15', '2026-12-04T10:00:00Z', 'acct_order', 'sub_01gggggggggggggggggggggggg', 'active'),
+  'stale', 'the older one, with the account, is stale');
+select is((select status from public.subscriptions where account_id = 'acct_order'), 'past_due',
+  'the account ends on the newest state of its subscription');
 
 reset role;
 set local role authenticated;

@@ -61,6 +61,10 @@ create table if not exists public.paddle_events (
   occurred_at  timestamptz not null,
   received_at  timestamptz not null default now(),
   account_id   text,
+  -- The subscription the event is about (a subscription event's id, a transaction's subscription_id).
+  paddle_subscription_id text,
+  -- A subscription event's fields as the app stores them, kept so an unmatched event can be applied later.
+  fields       jsonb,
   -- applied | stale | unmatched | second_subscription | recorded
   outcome      text        not null default 'recorded'
     check (outcome in ('applied', 'stale', 'unmatched', 'second_subscription', 'recorded')),
@@ -68,111 +72,83 @@ create table if not exists public.paddle_events (
 );
 
 create index if not exists paddle_events_account_idx on public.paddle_events (account_id, occurred_at desc);
-create index if not exists paddle_events_transaction_subscription_idx
-  on public.paddle_events ((payload -> 'data' ->> 'subscription_id')) where event_type like 'transaction.%';
+create index if not exists paddle_events_subscription_idx on public.paddle_events (paddle_subscription_id, occurred_at desc)
+  where paddle_subscription_id is not null;
 create index if not exists paddle_events_outcome_idx on public.paddle_events (outcome) where outcome in ('unmatched', 'second_subscription');
 
 alter table public.paddle_events enable row level security;
 revoke all on public.paddle_events from anon, authenticated;
--- Events are written only by the two functions below (they run as their owner);
+-- Events are written only by the functions below (they run as their owner);
 -- the service role can read the record but not edit or delete it.
 grant select on public.paddle_events to service_role;
 revoke insert, update, delete, truncate on public.paddle_events from service_role;
 
--- ── 3. apply_paddle_subscription ─────────────────────────────────────────────
+-- ── 3. Applying events ───────────────────────────────────────────────────────
 --
--- p_account_id: the account the signed checkout reference names (verified by
--- the webhook), or null when the event carries none; then the account is the
--- one already linked to the subscription id, else the one a recorded
--- transaction event for that subscription named.
 -- p_fields: the subscription as the app stores it (server/paddle.ts,
 -- subscriptionFieldsFromEvent): paddle_subscription_id, paddle_customer_id,
 -- paddle_price_id, tier, status, quantity, billing_interval,
 -- current_period_start, current_period_end, cancel_at_period_end.
 --
--- Returns { outcome, account_id }. outcome:
+-- Ordering is per subscription: an event older than any event already
+-- recorded for the same subscription is stale, whether or not that newer
+-- event changed the account's row (CHG-104 review: a replacement
+-- subscription's cancel arriving before its own activation).
+--
+-- Outcomes:
 --   duplicate            the event id was seen before; nothing done
---   unmatched            no account for it; recorded for review
---   stale                an event that happened later was already applied
+--   unmatched            no account for it yet; kept, and applied when the
+--                        transaction that names the account is recorded
+--   stale                a later event of this subscription is already recorded,
+--                        or it is an ended subscription that is not the account's
 --   second_subscription  the account already pays through another live
 --                        subscription; recorded, not applied (refund one)
---   applied              the row now reflects the event
+--   applied              the account's row now reflects the event
 
-create or replace function public.apply_paddle_subscription(
-  p_event_id text,
-  p_event_type text,
-  p_occurred_at timestamptz,
-  p_payload jsonb,
-  p_account_id text,
-  p_fields jsonb
-)
-returns jsonb
+-- Applies a recorded subscription event to an account. Caller holds nothing; this takes the account's lock.
+create or replace function private.apply_paddle_fields(p_event_id text, p_occurred_at timestamptz, p_account text, p_fields jsonb)
+returns text
 language plpgsql
 volatile
--- Runs as its owner: the service role cannot write paddle_events directly.
 security definer
 set search_path = ''
 as $$
 declare
   sub_id text := p_fields ->> 'paddle_subscription_id';
-  account text := nullif(p_account_id, '');
-  current_row public.subscriptions%rowtype;
   new_status text := p_fields ->> 'status';
+  current_row public.subscriptions%rowtype;
   v_outcome text;
 begin
-  if sub_id is null or new_status is null then
-    raise exception 'apply_paddle_subscription: subscription id and status are required' using errcode = '22023';
-  end if;
-
-  insert into public.paddle_events (event_id, event_type, occurred_at, payload)
-  values (p_event_id, p_event_type, p_occurred_at, p_payload)
-  on conflict (event_id) do nothing;
-  if not found then
-    return jsonb_build_object('outcome', 'duplicate', 'account_id', null);
-  end if;
-
-  if account is null then
-    select s.account_id into account from public.subscriptions s where s.paddle_subscription_id = sub_id;
-  end if;
-  if account is null then
-    -- The transaction that created the subscription carried the signed reference
-    -- (recorded by record_paddle_event), in case the subscription's own copy is missing.
-    select e.account_id into account
-    from public.paddle_events e
-    where e.event_type like 'transaction.%'
-      and e.account_id is not null
-      and e.payload -> 'data' ->> 'subscription_id' = sub_id
-    order by e.occurred_at desc
-    limit 1;
-  end if;
-  if account is null then
-    update public.paddle_events set outcome = 'unmatched' where event_id = p_event_id;
-    return jsonb_build_object('outcome', 'unmatched', 'account_id', null);
-  end if;
-
   -- One billing change per account at a time.
-  perform pg_advisory_xact_lock(hashtextextended('billing:' || account, 0));
+  perform pg_advisory_xact_lock(hashtextextended('billing:' || p_account, 0));
 
-  select * into current_row from public.subscriptions s where s.account_id = account;
-
-  if found and current_row.paddle_subscription_id is not null and current_row.paddle_subscription_id <> sub_id
-     and current_row.status in ('active', 'trialing', 'past_due', 'paused')
-     and new_status in ('active', 'trialing', 'past_due') then
-    v_outcome := 'second_subscription';
-  elsif found and current_row.paddle_subscription_id = sub_id
-     and current_row.paddle_occurred_at is not null and current_row.paddle_occurred_at > p_occurred_at then
-    v_outcome := 'stale';
-  elsif found and current_row.paddle_subscription_id is not null and current_row.paddle_subscription_id <> sub_id
-     and new_status not in ('active', 'trialing', 'past_due') then
-    -- An old, ended subscription reporting in: the live one stays.
+  if exists (
+    select 1 from public.paddle_events e
+    where e.paddle_subscription_id = sub_id
+      and e.event_type like 'subscription.%'
+      and e.event_id <> p_event_id
+      and e.occurred_at > p_occurred_at
+  ) then
     v_outcome := 'stale';
   else
+    select * into current_row from public.subscriptions s where s.account_id = p_account;
+    if found and current_row.paddle_subscription_id is not null and current_row.paddle_subscription_id <> sub_id then
+      if new_status not in ('active', 'trialing', 'past_due') then
+        -- An ended subscription that is not the one in force: the row stays.
+        v_outcome := 'stale';
+      elsif current_row.status in ('active', 'trialing', 'past_due', 'paused') then
+        v_outcome := 'second_subscription';
+      end if;
+    end if;
+  end if;
+
+  if v_outcome is null then
     insert into public.subscriptions as s (
       account_id, tier, status, payment_provider, paddle_customer_id, paddle_subscription_id, paddle_price_id,
       quantity, billing_interval, current_period_start, current_period_end, cancel_at_period_end,
       past_due_since, paddle_occurred_at
     ) values (
-      account,
+      p_account,
       p_fields ->> 'tier',
       new_status,
       'paddle',
@@ -209,14 +185,103 @@ begin
     v_outcome := 'applied';
   end if;
 
-  update public.paddle_events set outcome = v_outcome, account_id = account where event_id = p_event_id;
+  update public.paddle_events set outcome = v_outcome, account_id = p_account where event_id = p_event_id;
+  return v_outcome;
+end $$;
+
+revoke all on function private.apply_paddle_fields(text, timestamptz, text, jsonb) from public, anon, authenticated, service_role;
+
+-- Once the account of a subscription is known, its newest event that was waiting
+-- as unmatched is applied, and older waiting ones are superseded.
+create or replace function private.reconcile_unmatched_paddle(p_subscription_id text, p_account text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  waiting record;
+begin
+  select e.event_id, e.occurred_at, e.fields into waiting
+  from public.paddle_events e
+  where e.paddle_subscription_id = p_subscription_id and e.outcome = 'unmatched' and e.fields is not null
+  order by e.occurred_at desc
+  limit 1;
+  if found then
+    perform private.apply_paddle_fields(waiting.event_id, waiting.occurred_at, p_account, waiting.fields);
+    update public.paddle_events set outcome = 'stale', account_id = p_account
+    where paddle_subscription_id = p_subscription_id and outcome = 'unmatched';
+  end if;
+end $$;
+
+revoke all on function private.reconcile_unmatched_paddle(text, text) from public, anon, authenticated, service_role;
+
+-- p_account_id: the account the signed checkout reference names (verified by
+-- the webhook), or null when the event carries none; then the account is the
+-- one already linked to the subscription id, else the one a recorded
+-- transaction event for that subscription named.
+create or replace function public.apply_paddle_subscription(
+  p_event_id text,
+  p_event_type text,
+  p_occurred_at timestamptz,
+  p_payload jsonb,
+  p_account_id text,
+  p_fields jsonb
+)
+returns jsonb
+language plpgsql
+volatile
+-- Runs as its owner: the service role cannot write paddle_events directly.
+security definer
+set search_path = ''
+as $$
+declare
+  sub_id text := p_fields ->> 'paddle_subscription_id';
+  account text := nullif(p_account_id, '');
+  v_outcome text;
+begin
+  if sub_id is null or (p_fields ->> 'status') is null then
+    raise exception 'apply_paddle_subscription: subscription id and status are required' using errcode = '22023';
+  end if;
+
+  insert into public.paddle_events (event_id, event_type, occurred_at, payload, paddle_subscription_id, fields)
+  values (p_event_id, p_event_type, p_occurred_at, p_payload, sub_id, p_fields)
+  on conflict (event_id) do nothing;
+  if not found then
+    return jsonb_build_object('outcome', 'duplicate', 'account_id', null);
+  end if;
+
+  if account is null then
+    select s.account_id into account from public.subscriptions s where s.paddle_subscription_id = sub_id;
+  end if;
+  if account is null then
+    -- The transaction that created the subscription carried the signed reference.
+    select e.account_id into account
+    from public.paddle_events e
+    where e.event_type like 'transaction.%' and e.account_id is not null and e.paddle_subscription_id = sub_id
+    order by e.occurred_at desc
+    limit 1;
+  end if;
+  if account is null then
+    update public.paddle_events set outcome = 'unmatched' where event_id = p_event_id;
+    return jsonb_build_object('outcome', 'unmatched', 'account_id', null);
+  end if;
+
+  v_outcome := private.apply_paddle_fields(p_event_id, p_occurred_at, account, p_fields);
+  -- A newer event of this subscription may be waiting without an account (it arrived first).
+  perform private.reconcile_unmatched_paddle(sub_id, account);
   return jsonb_build_object('outcome', v_outcome, 'account_id', account);
 end $$;
 
 revoke all on function public.apply_paddle_subscription(text, text, timestamptz, jsonb, text, jsonb) from public, anon, authenticated;
 grant execute on function public.apply_paddle_subscription(text, text, timestamptz, jsonb, text, jsonb) to service_role;
 
--- Records an event that changes no subscription (transaction.completed, ...). Returns false for a duplicate.
+-- Records an event that changes no subscription by itself (transaction.completed, ...).
+-- A transaction that names an account (p_account_id, verified by the webhook) and a
+-- subscription applies that subscription's newest event still waiting as unmatched.
+-- Returns false for a duplicate.
+drop function if exists public.record_paddle_event(text, text, timestamptz, jsonb, text);
 create or replace function public.record_paddle_event(
   p_event_id text,
   p_event_type text,
@@ -225,19 +290,27 @@ create or replace function public.record_paddle_event(
   p_account_id text
 )
 returns boolean
-language sql
+language plpgsql
 volatile
 security definer
 set search_path = ''
 as $$
-  with added as (
-    insert into public.paddle_events (event_id, event_type, occurred_at, payload, account_id)
-    values (p_event_id, p_event_type, p_occurred_at, p_payload, nullif(p_account_id, ''))
-    on conflict (event_id) do nothing
-    returning 1
-  )
-  select exists (select 1 from added);
-$$;
+declare
+  account text := nullif(p_account_id, '');
+  sub_id text := case when p_event_type like 'transaction.%' then nullif(p_payload -> 'data' ->> 'subscription_id', '') end;
+begin
+  insert into public.paddle_events (event_id, event_type, occurred_at, payload, account_id, paddle_subscription_id)
+  values (p_event_id, p_event_type, p_occurred_at, p_payload, account, sub_id)
+  on conflict (event_id) do nothing;
+  if not found then
+    return false;
+  end if;
+
+  if account is not null and sub_id is not null then
+    perform private.reconcile_unmatched_paddle(sub_id, account);
+  end if;
+  return true;
+end $$;
 
 revoke all on function public.record_paddle_event(text, text, timestamptz, jsonb, text) from public, anon, authenticated;
 grant execute on function public.record_paddle_event(text, text, timestamptz, jsonb, text) to service_role;
