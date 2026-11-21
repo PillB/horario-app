@@ -1,76 +1,85 @@
-# Paddle checkout: what is needed
+# Paddle: switching on paid plans
 
-Status on 2026-11-11 (CHG-099): **not built.** Plans, prices, limits, the 14-day trial and tester access all work without Paddle. A business cannot pay yet: the plans screen shows no buy button until `EXPO_PUBLIC_CHECKOUT_ENABLED=1`, and the proxy answers the two payment actions with 501.
+Status on 2026-11-21 (CHG-104): **built, not switched on.** The checkout, plan changes, the billing portal, cancel, the signed webhook and the plan it gives are in the code and tested against fakes and a local Postgres. Nobody can pay until the steps below are done and `EXPO_PUBLIC_CHECKOUT_ENABLED=1` is set. Without the Paddle variables the plans screen keeps its "not available yet" note and the proxy answers 501.
 
-This page lists what Pablo has to provide, and what will be built once he has. Paddle is the merchant of record chosen in the product research (§4): it charges the customer, handles sales tax and IGV, and pays out. Paddle's own steps change; follow its current pages where they differ from this one.
+Paddle is the merchant of record (product research §4): it shows the checkout, charges the card, collects sales tax, VAT and Peru's IGV, sends the invoice and pays out. Horario never sees a card. Paddle's dashboard changes; where its pages differ from this one, follow Paddle.
 
-## 1. What Pablo provides
+## How it works
 
-Do these in order. Steps 1 to 3 need no code.
+```
+Plans screen ── createCheckoutSession ──▶ proxy ── POST /transactions ──▶ Paddle
+   (manager)                               │  items: plan price × number of locations
+                                           │  custom_data: account + HMAC (signed by the server)
+                                           ◀── checkout.url = https://<app>/pay?_ptxn=txn_…
+/pay page loads Paddle.js ──▶ Paddle overlay checkout (card, tax, receipt)
+Paddle ── signed webhook ──▶ /api/paddle-webhook ── apply_paddle_subscription() ──▶ subscriptions row
+                                                                                      │
+every gated request ── server/plans.ts reads the row ─────────────────────────────────┘
+```
 
-| # | What | Notes |
-|---|---|---|
-| 1 | A public website for the product | Paddle reviews it before it lets the account sell. It must show what the product is, the prices of each plan, Terms of Service, a Privacy Policy and a Refund Policy. The plan names and prices must match section 3 below. |
-| 2 | An email address at the product's own domain | For the Paddle account and for support. Paddle is known to turn down free-mail addresses. |
-| 3 | A Paddle account, verified | Sign up as an individual (no company needed). Verification asks for a government ID, proof of address and the payout bank account. Start in the **sandbox** (sandbox-vendors.paddle.com); it needs no verification and is enough to build and test everything. |
-| 4 | The website domain approved in Paddle | Paddle > Checkout > Website approval. Checkout only opens on approved domains. Add the production domain of the app too. |
-| 5 | The catalog (section 3) created in Paddle | Two products, four prices. Create it in the sandbox first, then again in live. |
-| 6 | The keys (section 2), stored as environment variables | Never paste them in chat, in the repository or in an `EXPO_PUBLIC_*` variable (except the client-side token, which is public by design). |
-| 7 | One decision | Refund policy wording: Paddle requires one. A common choice is "14 days, no questions". |
+- **The plan changes only when the signed webhook arrives.** The browser saying "paid" changes nothing.
+- **Per location:** the quantity is the number of locations (at least 1). Pro and Esencial both pay per location; the plan allows as many locations as it pays for.
+- **Switching plan** (Esencial ↔ Pro, monthly ↔ yearly) is a prorated change of the same subscription, from the plans screen.
+- **Manage billing** opens Paddle's customer portal: card, invoices, cancel.
+- **Cancel** ends at the close of the paid period. The account then drops to Gratis and keeps every record.
+- **A failed renewal** keeps the plan for 14 days (`PAST_DUE_GRACE_DAYS`) while Paddle retries the card, then Gratis.
+- **iOS** shows no buy button (App Store rule 3.1.1). A plan bought on the web works in the app.
 
-Before the first payout, the research (§4.5) lists questions for a contador about declaring the income in Peru. That does not block the build.
+## 1. What Pablo does (in this order)
 
-## 2. Keys and settings
+Steps 1 to 4 are the same for the sandbox and for live. Do everything in the **sandbox** first (sandbox-vendors.paddle.com): it needs no verification and test cards work.
 
-Two sets: one for the sandbox (preview and development deployments) and one for live (production).
+| # | Step | Where | Notes |
+|---|---|---|---|
+| 1 | Public pages: what the product is, plan prices, **Terms of Service, Privacy Policy, Refund Policy** | The website | Paddle reviews them before live payments. Prices must match section 3. A landing page at `/welcome` is being built in another thread; the three legal pages still need Pablo's details (legal name, address, contact). Suggested refund wording: "14 days, no questions asked". |
+| 2 | A support email at the product's own domain | Mail host | Paddle tends to refuse free-mail addresses for the seller account. |
+| 3 | A Paddle account | paddle.com | Individual seller is fine. Live needs ID, proof of address and the payout bank account. |
+| 4 | An API key | Paddle > Developer tools > Authentication > API keys | Permissions: transaction read/write, subscription read/write, customer read, customer portal session write, product, price and notification setting read/write (the last three only for step 5; you can make a second, narrower key for the server afterwards). Keys expire after 90 days by default; set a reminder. |
+| 5 | Run the setup script | A terminal with the repository | `PADDLE_API_KEY=pdl_sdbx_apikey_… node scripts/paddle/setup.js https://<app domain>` creates the two products, the four prices (USD, PEN for Peru, per location) and the webhook destination, and prints every variable to set. Running it twice changes nothing. |
+| 6 | Default payment link = `https://<app domain>/pay` | Paddle > Checkout > Checkout settings | Paddle refuses to create checkouts without it. In live the domain must be approved first (Paddle > Website approval). |
+| 7 | A client-side token | Paddle > Developer tools > Authentication > Client-side tokens | Public by design (`test_…` in the sandbox). |
+| 8 | The variables (section 2) in Vercel | Vercel > Project > Settings > Environment Variables | Sandbox values on Preview, live values on Production. Never in chat, the repository or any other `EXPO_PUBLIC_*` variable. |
+| 9 | Apply migration `20261122000107_paddle_billing.sql` | `migrate.yml` (dev on merge; prod is the manual run) | |
+| 10 | Test on the sandbox deployment | The app | Card `4242 4242 4242 4242`, any future date, any CVC. Check: the plan becomes Pro within a minute; "Switch to Esencial" changes it; Manage billing opens; cancel in the portal shows "ends on …"; a declined card leaves the plan as it was. Paddle > Notifications shows each delivery and lets you replay one. |
+| 11 | `EXPO_PUBLIC_CHECKOUT_ENABLED=1` | Vercel, Preview first | Then repeat 3 to 10 with the live account and set it on Production. |
+
+Before the first payout: a RUC and a contador (research §4.5). That does not block the sandbox.
+
+## 2. Variables
 
 | Variable | Where it comes from | Where it goes |
 |---|---|---|
-| `PADDLE_API_KEY` | Paddle > Developer tools > Authentication > API keys. Give it only: read and write on transactions, subscriptions and customers. | Server only (Vercel environment variable) |
-| `PADDLE_WEBHOOK_SECRET` | Paddle > Developer tools > Notifications > the destination created in step 4 below > secret key | Server only |
-| `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN` | Paddle > Developer tools > Authentication > Client-side tokens | Client (public by design) |
+| `PADDLE_API_KEY` | Step 4 | Server only |
+| `PADDLE_WEBHOOK_SECRET` | Printed by the setup script (or Paddle > Developer tools > Notifications > the destination) | Server only |
+| `PADDLE_PRICE_ESENCIAL_MONTH`, `PADDLE_PRICE_ESENCIAL_YEAR`, `PADDLE_PRICE_PRO_MONTH`, `PADDLE_PRICE_PRO_YEAR` | Printed by the setup script (`pri_…`) | Server only |
+| `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN` | Step 7 | Client (public) |
 | `EXPO_PUBLIC_PADDLE_ENV` | `sandbox` or `production` | Client |
-| `PADDLE_PRICE_ESENCIAL_MONTH`, `PADDLE_PRICE_ESENCIAL_YEAR`, `PADDLE_PRICE_PRO_MONTH`, `PADDLE_PRICE_PRO_YEAR` | The four price ids (`pri_…`) from the catalog | Server only |
-| `EXPO_PUBLIC_CHECKOUT_ENABLED` | `1` once everything below works | Client |
-| `HORARIO_PLATFORM_ADMIN_USER_IDS` | Clerk user ids (comma-separated) that may grant tester access on `/admin`. Not Paddle, but needed for the admin screen. | Server only |
+| `EXPO_PUBLIC_CHECKOUT_ENABLED` | `1` once step 10 passes | Client |
 
-Notification destination (the webhook): URL `https://<app domain>/api/paddle-webhook`, events `subscription.created`, `subscription.updated`, `subscription.canceled`, `subscription.past_due`, `transaction.completed`, `transaction.payment_failed`.
+The server picks the sandbox or the live API from the key itself (`pdl_sdbx_` or `pdl_live_`). The webhook answers 503 (and Paddle retries) while its secret or any price id is missing, so a half-set deployment never drops a payment.
 
-## 3. Catalog
+## 3. Catalog (created by the setup script)
 
-Prices are per location; the quantity on the subscription is the number of locations. Source: `constants/pricing.ts`.
+Source: `constants/pricing.ts`; `scripts/__tests__/paddleSetup.test.ts` fails if the script and the app drift apart.
 
-| Product | Price | USD | Peru (PEN, IGV included) |
+| Plan | Monthly | Yearly (two months free) | Peru monthly / yearly (IGV included) |
 |---|---|---|---|
-| Esencial | monthly | 19 | 59 |
-| Esencial | yearly (two months free) | 190 | 590 |
-| Pro | monthly | 39 | 119 |
-| Pro | yearly (two months free) | 390 | 1,190 |
+| Esencial | US$19 | US$190 | S/ 59 / S/ 590 |
+| Pro | US$39 | US$390 | S/ 119 / S/ 1,190 |
 
-On each price: base currency USD, a country-specific price override for Peru in PEN, tax mode "inclusive" for Peru and "exclusive" for the United States (the account default can be "location-based" if Paddle offers it), quantity from 1 to 1000. No trial on the Paddle price: the 14-day trial is given by the app without a card.
+Per location (quantity 1 to 1000), tax mode "location" (inclusive where that is the custom, added on top in the US), tax category SaaS, no Paddle trial (the app gives the 14-day trial without a card).
 
-## 4. What gets built once the keys exist
+## 4. What to watch after launch
 
-None of this exists yet. Estimated as one pull request.
+- **Paddle > Notifications**: failed deliveries. The webhook answers 5xx only when the database is down; Paddle retries for about two days and you can replay.
+- **`paddle_events` rows with outcome `unmatched` or `second_subscription`**: a payment with no account, or a business that paid twice (two tabs). Refund the second one in Paddle. The logs say `[paddle-webhook] unmatched` / `second_subscription`.
+- **API key expiry** (90 days by default): an expired key makes checkout answer "The payment service refused the request".
 
-1. **Database:** allow `paddle` in `subscriptions.payment_provider`; add `paddle_customer_id` and `paddle_subscription_id`; a `paddle_events` table keyed by event id so that a repeated webhook is applied once.
-2. **`createCheckoutSession` (proxy):** a manager asks for a plan and a billing period; the server looks up the price id and creates a Paddle transaction with `custom_data.account_id` taken from the session (never from the client) and quantity = the account's number of locations (at least 1); it returns the transaction id. The client opens Paddle's overlay checkout with it (Paddle.js on web; a browser page on a phone).
-3. **`/api/paddle-webhook`:** checks the `Paddle-Signature` header (HMAC-SHA256 of timestamp and raw body with `PADDLE_WEBHOOK_SECRET`, rejects old timestamps), then writes: an `account_entitlements` row with `source = paddle`, the plan, the paid period and `location_quota` = quantity; and the `subscriptions` row (status, period, cancel flag). The event id goes into `paddle_events` in the same database transaction as those writes (one SQL function), so a repeated event changes nothing and a crash between the two cannot happen. Paddle does not promise the order of events: each write compares the event's `occurred_at` with the one stored and ignores an older event. The route verifies the raw body before parsing it, compares the signature in constant time, and answers 200 within Paddle's five seconds (Paddle retries up to 60 times over about two days on a live account). A cancelled or unpaid subscription ends the entitlement at the end of the paid period. The account then drops to Gratis and keeps its data (`server/plans.ts` already does this).
-4. **`createBillingPortalSession` (proxy):** returns Paddle's customer portal link, where the customer changes card, downloads invoices or cancels.
-5. **Tests:** signature check (good, bad, replayed), each event against the local database, and one manual run in the sandbox with Paddle's test cards.
-6. **Switch on:** set `EXPO_PUBLIC_CHECKOUT_ENABLED=1` in the sandbox deployment, test, then repeat with the live keys.
+## 5. Known limits
 
-## 5. Already in place
-
-- Plans, prices and limits: `constants/pricing.ts`.
-- The plan in force is decided on the server on every gated request: `server/plans.ts`, table `account_entitlements` (migration `20261111000099_plans_entitlements.sql`).
-- 14-day Pro trial for every new account, without a card.
-- Tester and complimentary access: `/admin`, for the user ids in `HORARIO_PLATFORM_ADMIN_USER_IDS`.
-- The plans screen (`components/PricingModal.tsx`) and the plan card on Profile.
-
-## 6. Known gaps that Paddle does not fix
-
-- **Trials per account, not per person.** The tenant is the Clerk organization (or the user). Someone who creates a new organization gets a new trial. Fixing it means tying the trial to the verified email or to a payment method.
-- **No email before a plan ends.** The research asks for one 7 days before; there is no email sender yet.
-- **Invite codes for testers** are not built; access is granted by account id on `/admin`.
-- **Locations on Esencial.** Without Paddle there is no way to pay for a second location, so Esencial is limited to 1 (a platform admin can raise it through a grant's `location_quota`, which the admin screen does not expose yet).
+- Trials are per account (Clerk organization or user), not per person.
+- No email before a plan ends or when a renewal fails (Paddle sends its own payment-failure emails).
+- No invoice in SUNAT format (factura); Peruvian businesses get Paddle's invoice.
+- The plan shown after paying updates when the webhook arrives (usually seconds; the screen re-reads it after 4 s and on the next open).
+- Changing only the billing period of the current plan, or the number of paid locations, has no button yet; the proxy action `changeSubscription` supports both.
+- Paddle.js may need more hosts in the Content-Security-Policy than `vercel.json` allows today (`cdn.paddle.com`, `*.paddle.com`, `buy.paddle.com`, `sandbox-buy.paddle.com`). If the overlay stays blank in step 10, the browser console names the blocked host.

@@ -36,6 +36,12 @@ export type SubscriptionState = {
   usage: PlanUsage | null;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  /** The business pays through Paddle (active, past due or paused): change the plan, do not check out again. */
+  hasPaidSubscription: boolean;
+  /** A Paddle customer exists: "Manage billing" can open. */
+  hasBillingAccount: boolean;
+  /** Locations paid for, when paid. */
+  paidQuantity: number | null;
   isPlatformAdmin: boolean;
   loading: boolean;
   /** Set when the plan could not be loaded. */
@@ -52,8 +58,13 @@ type Loaded = {
   status: SubscriptionStatus;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  provider: string | null;
+  quantity: number | null;
+  hasBillingAccount: boolean;
   isPlatformAdmin: boolean;
 };
+
+const PAID_STATUSES: SubscriptionStatus[] = ['active', 'trialing', 'past_due', 'paused'];
 
 export const daysLeft = (endsAt: string | null, now: number): number | null => {
   if (!endsAt) return null;
@@ -80,6 +91,9 @@ export function useSubscription(): SubscriptionState {
         status: result.subscription.status,
         cancelAtPeriodEnd: result.subscription.cancelAtPeriodEnd,
         currentPeriodEnd: result.subscription.currentPeriodEnd,
+        provider: result.subscription.provider ?? null,
+        quantity: result.subscription.quantity ?? null,
+        hasBillingAccount: result.subscription.hasBillingAccount === true,
         isPlatformAdmin: result.isPlatformAdmin === true,
       });
       setError(null);
@@ -111,6 +125,9 @@ export function useSubscription(): SubscriptionState {
       usage: loaded?.usage ?? null,
       cancelAtPeriodEnd: loaded?.cancelAtPeriodEnd ?? false,
       currentPeriodEnd: loaded?.currentPeriodEnd ?? null,
+      hasPaidSubscription: loaded?.provider === 'paddle' && PAID_STATUSES.includes(loaded.status),
+      hasBillingAccount: loaded?.hasBillingAccount ?? false,
+      paidQuantity: loaded?.quantity ?? null,
       isPlatformAdmin: loaded?.isPlatformAdmin ?? false,
       loading,
       error,
