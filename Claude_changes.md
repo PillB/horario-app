@@ -6,6 +6,24 @@
 
 ---
 
+### CHG-102 — 2026-11-21 UTC
+**Type:** FIX (Pablo, before deploy: "red team your analyses […] each design decision or choice and consider 5 ways it could be wrong or limited or improved and test")
+
+**Red team of CHG-101** (each doubt run against a local Postgres 16 with every migration; table in the Claude Doc "Horario: simultaneous requests, review and fixes"). Three were real:
+- A template time edit could double-book: Early 06:00–14:00 and Late 14:00–22:00 for one person, then Late set to start at 12:00, was saved. Migration `20261121000106_template_time_guards.sql`: trigger `template_times_no_overlap` on `shift_templates` (update of start / end time) takes the account's roster lock and refuses (23P01) new times that overlap another shift of a person who has this template from yesterday on. The proxy answers 409 "With these times Ana would be on two shifts at once on 2026-12-01. Move or remove that shift first". Older shifts are not checked, so an overlap stored before the rule never blocks an edit.
+- The time columns accepted 24:00–29:59, which the overlap check cannot cast (every write touching such a template failed with 500). The proxy never sends one (`isHHMM`); new and changed rows must now be 00:00–23:59 (check constraint, NOT VALID).
+- `dbFailure` passed any 23P01 message to the client. It now passes only the two sentences our triggers write; any other is "Conflicting record".
+
+**Held:** a shift insert, a template edit and an auto-schedule save started together, 20 rounds: 0 deadlocks, 0 overlapping pairs; the same slot twice is still 23505; `apply_auto_assign` cannot be run by anon / authenticated.
+
+**Limits found, not fixed:** a modified client can leave out `countAutoAssign` and save the same shifts uncounted (the schedule is computed in the browser, so the server cannot tell; closing it means solving on the server). The plan is read just before the transaction, not in it.
+
+**Not done:** "the blind pair ratings" Pablo asked to analyse are not in this project's files, threads or repo; asked him where they are.
+
+**Tests:** pgTAP `template_time_guards` (9) checked locally with stand-ins for the pgTAP functions; `roster_atomic_rules` (18) still passes; a new integration test (template edit 409) runs first in CI.
+
+---
+
 ### CHG-101 — 2026-11-18 UTC
 **Type:** FIX (Pablo: "pr 60 merged"; the concurrency items CLAUDE.md §11 #17 still listed after CHG-098 and CHG-100)
 

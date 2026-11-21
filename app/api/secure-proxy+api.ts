@@ -129,8 +129,14 @@ const dbFailure = (context: string, error: { message?: string; code?: string } |
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
   if (error?.code === '23505') return fail(409, 'Conflicting record');
   if (error?.code === '23503') return fail(409, 'Record is still referenced');
-  // Raised by the roster_no_overlap trigger; its message names the clashing shift.
-  if (error?.code === '23P01') return fail(409, `${error.message ?? 'This person already has a shift at that time'}. Reload and try again`);
+  // 23P01 from our own triggers (roster_no_overlap, template_times_no_overlap) carries a sentence
+  // written for the manager. Any other 23P01 is an exclusion constraint whose text names schema objects.
+  if (error?.code === '23P01') {
+    const message = error.message ?? '';
+    if (message.startsWith('This person already has a shift')) return fail(409, `${message}. Reload and try again`);
+    if (message.startsWith('With these times')) return fail(409, message);
+    return fail(409, 'Conflicting record');
+  }
   return fail(500, 'Database request failed');
 };
 
@@ -1172,7 +1178,8 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
     }
     if (error.code === '23P01') {
       console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
-      return fail(409, `${error.message ?? 'One of these shifts overlaps another shift of the same person'}. Nothing was added. Reload and run auto-assign again`);
+      const clash = error.message?.startsWith('This person already has a shift') ? error.message : 'One of these shifts overlaps another shift of the same person';
+      return fail(409, `${clash}. Nothing was added. Reload and run auto-assign again`);
     }
     if (error.code === '23503') {
       console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
