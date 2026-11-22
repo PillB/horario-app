@@ -160,6 +160,19 @@ describe('gatedClient', () => {
   const WRITES = new Set(['upsertWorker', 'deleteWorker']);
   const expiredTrial = row({ starts_at: day(-30), ends_at: day(-16) });
 
+  // gatedClient reads the real clock (resolvePlan's default `now`), and the
+  // rows above are dated around NOW. Without pinning the clock, the trial
+  // row "ends in 13 days" stopped being active on 2026-11-24 and two tests
+  // turned red with no code change (found by `npm run test:drift`, CHG-103).
+  // Only Date is faked; promises and timers stay real.
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: NOW,
+      doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate', 'clearImmediate', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'hrtime', 'performance'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
+
   it('does not look at the plan for an action that is not gated', async () => {
     const log: string[] = [];
     const client = gatedClient(fakeClient({}, log), 'acct', { action: 'listWorkers' }, WRITES);
