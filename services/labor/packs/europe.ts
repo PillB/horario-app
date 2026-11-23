@@ -50,7 +50,7 @@ export const EUROPE: Record<string, RulePack> = {
     code: 'FR',
     currency: 'EUR',
     baselineOnly: undefined,
-    restBetweenShifts: { minHours: 11, cite: { source: 'Code du travail L3131-1', url: 'https://code.travail.gouv.fr/themes/repos-quotidien-et-hebdomadaire', confidence: 'medium' } },
+    restBetweenShifts: { minHours: 11, cite: { source: 'Code du travail L3131-1', url: 'https://code.travail.gouv.fr/code-du-travail/l3131-1', confidence: 'medium' } },
     dailyTotalMax: { hours: 10, cite: { source: 'Code du travail L3121-18 (12 h by agreement)', url: 'https://code.travail.gouv.fr/code-du-travail/l3121-18', confidence: 'high' } },
     weeklyOrdinaryMax: { hours: 35, cite: { source: 'Code du travail L3121-27 (hours above 35 are heures supplémentaires)', confidence: 'high' } },
     weeklyMax: { hours: 48, cite: { source: 'Code du travail L3121-20', url: 'https://code.travail.gouv.fr/code-du-travail/l3121-20', confidence: 'high' } },

@@ -6,11 +6,13 @@
 
 ---
 
-### CHG-103 — 2026-11-21 UTC
+### CHG-105 — 2026-11-21 UTC
+**Id:** CHG-105 (CHG-103 went to the AGENTS.md change on main, CHG-103 / CHG-104 are taken by PRs #65 / #66; the migration moved to `20261123000108` because #66 uses `20261122000107`). The commits on this branch say CHG-103.
+
 **Type:** FEATURE (Pablo: "gamify the website"; coordinator: evidence-based gamification for SMB managers and staff, older users included, no dark patterns, red team each choice)
 
 **What changed:**
-- Migration `20261122000107_roster_published_at.sql`: `roster.published_at`, set by trigger `roster_published_at` when a shift becomes Published, kept on later edits, cleared on Draft; a client value is ignored. Backfill: Published rows get `updated_at` (at or after the real publish time, so old weeks can only look later), with `roster_updated_at` disabled so open edit forms still match. The proxy returns `publishedAt`.
+- Migration `20261123000108_roster_published_at.sql`: `roster.published_at`, set by trigger `roster_published_at` when a shift becomes Published, kept on later edits, cleared on Draft; a client value is ignored. Backfill: Published rows get `updated_at` (at or after the real publish time, so old weeks can only look later), with `roster_updated_at` disabled so open edit forms still match. The proxy returns `publishedAt`.
 - Home "Schedules posted ahead" (`components/StreakCounter.tsx`, `hooks/usePostingHabit.ts`, `utils/postingHabit.ts`) replaces the self-reported daily streak ("Log today's progress"). A week counts when 90% of its shifts were published by Monday minus N days (business time zone); N = 7, or the location's legal notice when longer; a fair-workweek notice whose coverage the app cannot tell is named, not imposed. Shows weeks in a row, "N of the last M weeks", labelled week cells (symbol + date, never colour alone), the next week to post with its deadline and a link to the roster.
 - `useEthicalReward`: tiers in weeks (1, 4, 8) with informational copy that names the benefit to the team; keys translated.
 - `ProfileAchievements` → milestones from stored data: setup, first week posted ahead, four in a row, next 7 days fully staffed. Done shows ✓ and "Done"; counted milestones a labelled progress bar; "x of y" is translated.
@@ -29,9 +31,46 @@
 
 **Review fixes (Codex on PR #64):** Home reloads the summary and the habit when it regains focus (tabs stay mounted, so a week published in the roster did not show on return; checked in Chromium: 2 more roster loads on return, none on first mount). "Next 7 days fully staffed" now needs demand inside the next 7 days (`windowTargets` from `useLiveRosterSummary`); before, old demand plus a draft shift awarded it with nothing checked.
 
+**Merge with main (AGENTS.md, CHG-103 on main):** the complexity gate failed on the merged tree: `computePostingHabit` 22, `StreakCounter` 18, `HomeScreen` 29 → 30. Split into tested helpers (`groupByWeek`, `countPostedBy`, `weekVerdict`, `currentRun`, `bestRunOf`; 3 new tests) and components (`HabitUnavailable`, `NextWeek`, `HomeHabits`); gate passes with the baseline unchanged. Mutation check: `>=` → `>` in `weekVerdict` made 2 tests fail. `npm run test:drift`: 5 / 5 scenarios, 1351 passed each.
+
+**Trade-offs, stated:** see the red team above; also the 90% share and the 7-day default are product choices, not law, and the backfill makes weeks published before this change look later than they were.
+
 **Limits:** the habit reads up to ~11 weeks of roster on each Home load (paged, 500 a page); no server aggregate yet. `useStreak` is now unreachable (kept, per the 2026-11-10 rule). The labor engine's `notice.advance` check can now be fed `published_at`, not done here. Other locales fall back to English for the new keys (Spanish is translated).
 
 **Tests:** jest 1,249 pass (new: `utils/__tests__/postingHabit.test.ts` 17, `hooks/__tests__/usePostingHabit.test.tsx` 2, rewritten `StreakCounter` 6 and `ProfileAchievements` 5 tests, tier keys); tsc and lint clean. pgTAP `roster_published_at` (6) run against a local Postgres 16 with every migration and stand-ins for the pgTAP functions; `roster_atomic_rules` (18) and `template_time_guards` (9) still pass with the new trigger. Browser (Chromium, proxy answers stubbed): Home at 1280 and 390 px, no horizontal scroll, screenshots in project files `gamification/`.
+
+---
+
+### CHG-103 — 2026-11-21 UTC
+**Type:** CHORE + FIX (Pablo: write the expert standard into AGENTS.md with a test for every task and round and no tautological tests; a chore(lint) cyclomatic complexity ceiling; CLAUDE.md points to AGENTS.md; retrospective over qa/, setup/ and the history with root causes, simulated source drift and fixes that fail verbosely). CHG-102 is taken by PR #62 (template time guards); nothing here touches its files except CLAUDE.md, in different sections.
+
+**Process:**
+- `AGENTS.md` (new, repository root): the expert standard in Pablo's words, rounds (pre-execution with alternatives, red team, introspection), a test for every task and every round, tautological tests defined and banned, verbose diagnostics, the complexity ceiling, the drift table, the retrospective's ten root-cause classes. `CLAUDE.md` links it at the top and in §7, §10, §12.
+- Complexity ceiling 15 (`npm run lint:complexity`, `scripts/complexity/gate.js`, CI job `checks`): ESLint's `complexity` rule run as a ratchet over `complexity-baseline.json` (62 functions above 15 on 2026-11-21, keyed by file and function name, not line). New over 15 fails; a baselined one that grows fails; one that shrank or went away fails until the baseline is tightened.
+
+**Found by the retrospective and fixed:**
+- Time bomb: `server/__tests__/plans.test.ts` built a trial "ending in 13 days" from 2026-11-11 but `gatedClient` reads the real clock, so two tests would have failed from 2026-11-24 with no code change. Found by running the suite with the clock moved ahead; the describe block now pins the clock to its fixtures' date.
+- Two dead law links (404): NYC Fair Workweek (`US-NY-NYC`, 3 cites) and France L3131-1 (`FR`). Replaced by the current pages; each checked to state the value it backs (NYC 14 days / clopening premium, 72 h retail; FR "onze heures consécutives").
+- `CLAUDE.md` named `app/api/secure-proxy/route.ts` (the file is `secure-proxy+api.ts`, the service-role rule pointed at a file that does not exist) and `app/(tabs)/schedulerMetrics.ts` (it is `utils/schedulerMetrics.ts`).
+- A location whose zone is newer than the device's tz data (America/Coyhaique 2025b, America/Ciudad_Juarez 2022g) silently used the device zone. `getBusinessTimeZone` now uses a same-clock older zone first (`NEW_ZONE_FALLBACKS`).
+
+**Drift guards (new):**
+- `npm run test:drift` (CI job `drift`): the suite in Lima, Kiritimati (UTC+14), with the clock +30 and +400 days, and on a US fall-back night (`HORARIO_TEST_NOW`, `scripts/testing/fakeNow.js` fakes only Date).
+- Labor sources: `services/labor/sourceReview.ts` (review date and record per pack, phase confirmations), `services/labor/sourceDrift.ts` (pure checks), `services/labor/__tests__/packIntegrity.test.ts` (dated values real and in order with one shape, cites usable, no new unlinked high-confidence cite, every jurisdiction evaluates for an adult and a 15-year-old on every phase date and in 2035 with no NaN / undefined in findings, suggested zones pass the validator), `sourceDrift.test.ts` (each check catches the drift it is for). Weekly workflow `labor-drift.yml` / `npm run labor:drift`: packs older than 90 days, phases starting within 60 days, dead links (only 404 / 410 count; 401 / 403 / 429 / 5xx from government sites are "refused automated clients").
+- `utils/__tests__/zoneData.test.ts`: every zone a location may store is known to the runtime and accepted for its country only; fallbacks keep the same clock.
+- `scripts/__tests__/dependencyDrift.test.ts`: lockfile root equals package.json; React packages one exact version; expo and jest-expo one SDK and CLAUDE.md names it; `highs` exact, CJS + WASM entry points; Playwright packages equal; CI Node satisfies engines.
+- `scripts/__tests__/agentDocs.test.ts`: every `npm run` and repository path named in AGENTS.md and CLAUDE.md exists.
+
+**Trade-offs, stated:**
+- 15, not McCabe's 10: 129 functions would be baselined at 10. Cyclomatic complexity counts paths, not difficulty (a flat dispatch `switch` scores 50 and reads easily). The rule is not in `eslint.config.js` because lint-staged's `--max-warnings=0` would block every commit to a baselined file, so editors do not underline it.
+- The gate keys anonymous functions by what holds them plus an occurrence index; reordering two anonymous callbacks of one kind in a file can swap their keys (the gate then reports one as grown and one as shrunk).
+- Review dates in `sourceReview.ts` are the dates of the QA records that checked each pack, not a per-value check date.
+- The labor monitor cannot read the law. Its weekly run is red now on purpose: Brazil's 42 h week and 2 rest days (2026-12-16) and Mexico's 46 h week (2027-01-01) start within 60 days and nobody has confirmed them yet; the links of 32 high-confidence cites are missing, so those cannot be checked.
+- The drift job looks ahead from the day it runs, so it is not reproducible across days by design (that is how it found the 2026-11-24 failure); a failure prints the variables to reproduce it.
+
+**Tests:** tsc clean; lint 0 errors; complexity gate passed (62 baselined); jest 1315 passed, 50 skipped (new: gate 8, packIntegrity 47, sourceDrift 21, zoneData 7, dependencyDrift 6, agentDocs 5); `npm run test:drift` 5 / 5 scenarios passed; `npm run labor:drift` with links run once (60 links: 46 ok, 11 refused automated clients, 1 timed out, 2 dead, both fixed). Before the fix, the +30-day and +400-day scenarios failed the 2 plans tests. Mutation checks: an out-of-order phase, a NaN value and removing the zone fallback each made the new tests fail.
+
+**Merge with main after #62 (same CHG):** the gate failed on the merged tree: #62 added a branch to `addRosterShifts` (24 → 25). Its database refusals moved into a lookup (`ADD_ROSTER_SHIFTS_CONFLICTS`, `addRosterShiftsFailure`), same sentences, pinned by `server/__tests__/addRosterShiftsFailure.test.ts` (5); the function is now 17 and the baseline was tightened.
 
 ---
 

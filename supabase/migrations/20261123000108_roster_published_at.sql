@@ -1,5 +1,5 @@
 -- =============================================================================
--- When a shift was published (CHG-103)
+-- When a shift was published (CHG-105)
 --
 -- roster.published_at is the moment the shift's status last became Published,
 -- set by the database (never by a client), and cleared when it goes back to

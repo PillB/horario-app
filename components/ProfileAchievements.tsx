@@ -7,7 +7,7 @@ import { ThemedView } from './ThemedView';
 import { useT } from '@/contexts/LocaleContext';
 
 /**
- * A milestone built from stored data (CHG-103). `done` decides it; progress
+ * A milestone built from stored data (CHG-105). `done` decides it; progress
  * and goal, when given, show how far a counted milestone is ("2 of 4 weeks").
  * Milestones are a path to competence (setup, then habits), not points:
  * nothing is ranked against other people.

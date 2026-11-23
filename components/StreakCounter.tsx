@@ -1,5 +1,5 @@
 /**
- * StreakCounter — the weekly "posted ahead" habit on Home (CHG-103).
+ * StreakCounter — the weekly "posted ahead" habit on Home (CHG-105).
  *
  * Shows the last weeks as labelled cells (symbol + date, so colour is never
  * the only signal, WCAG 1.4.1), the run of weeks in a row, and the steadier
@@ -32,6 +32,58 @@ const SYMBOL: Record<HabitWeek['verdict'], string> = { ahead: '✓', late: '–'
 /** "11/03" from "2026-11-03": short, locale-free and identical on server and client. */
 const shortDate = (key: string) => `${key.slice(5, 7)}/${key.slice(8, 10)}`;
 
+type Styles = ReturnType<typeof makeStyles>;
+
+/** Loading, or a load error with a retry: never an empty habit that reads as zero weeks. */
+function HabitUnavailable({ loading, onRetry, styles }: { loading: boolean; onRetry?: () => void; styles: Styles }) {
+  const { t } = useT();
+  if (loading) return <ThemedText style={styles.helperText}>{t('home.habit.loading')}</ThemedText>;
+  return (
+    <>
+      <View accessibilityRole="alert">
+        <ThemedText style={styles.helperText}>{t('home.habit.loadError')}</ThemedText>
+      </View>
+      {onRetry ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.tryAgain')}
+          accessibilityHint={t('errors.retryHint')}
+          onPress={onRetry}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+          <ThemedText style={styles.secondaryButtonText}>{t('common.tryAgain')}</ThemedText>
+        </Pressable>
+      ) : null}
+    </>
+  );
+}
+
+/** The next week to post, its deadline, and the way to the roster. */
+function NextWeek({ week, onOpenRoster, styles }: { week: HabitWeek; onOpenRoster?: () => void; styles: Styles }) {
+  const { t } = useT();
+  return (
+    <View style={styles.nextBox}>
+      <ThemedText type="defaultSemiBold">
+        {t('home.habit.next', { week: week.weekStart, deadline: week.deadline })}
+      </ThemedText>
+      {week.shifts > 0 ? (
+        <ThemedText style={styles.helperText}>
+          {t('home.habit.nextProgress', { n: String(week.postedByDeadline), m: String(week.shifts) })}
+        </ThemedText>
+      ) : null}
+      {onOpenRoster ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.habit.openRosterA11y')}
+          accessibilityHint={t('home.habit.openRosterHint')}
+          onPress={onOpenRoster}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+          <ThemedText style={styles.secondaryButtonText}>{t('home.habit.openRoster')}</ThemedText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export function StreakCounter({ habit, goal, loading = false, error = null, onRetry, onOpenRoster }: StreakCounterProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
@@ -47,26 +99,11 @@ export function StreakCounter({ habit, goal, loading = false, error = null, onRe
     </>
   );
 
-  if (loading && !habit) {
-    return <ThemedView style={styles.container}>{header}<ThemedText style={styles.helperText}>{t('home.habit.loading')}</ThemedText></ThemedView>;
-  }
-  if (error || !habit) {
+  if (!habit || error) {
     return (
       <ThemedView style={styles.container}>
         {header}
-        <View accessibilityRole="alert">
-          <ThemedText style={styles.helperText}>{t('home.habit.loadError')}</ThemedText>
-        </View>
-        {onRetry ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('common.tryAgain')}
-            accessibilityHint={t('errors.retryHint')}
-            onPress={onRetry}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-            <ThemedText style={styles.secondaryButtonText}>{t('common.tryAgain')}</ThemedText>
-          </Pressable>
-        ) : null}
+        <HabitUnavailable loading={loading && !error} onRetry={onRetry} styles={styles} />
       </ThemedView>
     );
   }
@@ -111,28 +148,7 @@ export function StreakCounter({ habit, goal, loading = false, error = null, onRe
         </ThemedView>
       ) : null}
 
-      {next ? (
-        <View style={styles.nextBox}>
-          <ThemedText type="defaultSemiBold">
-            {t('home.habit.next', { week: next.weekStart, deadline: next.deadline })}
-          </ThemedText>
-          {next.shifts > 0 ? (
-            <ThemedText style={styles.helperText}>
-              {t('home.habit.nextProgress', { n: String(next.postedByDeadline), m: String(next.shifts) })}
-            </ThemedText>
-          ) : null}
-          {onOpenRoster ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('home.habit.openRosterA11y')}
-              accessibilityHint={t('home.habit.openRosterHint')}
-              onPress={onOpenRoster}
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-              <ThemedText style={styles.secondaryButtonText}>{t('home.habit.openRoster')}</ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+      {next ? <NextWeek week={next} onOpenRoster={onOpenRoster} styles={styles} /> : null}
 
       {goal.lawDays !== null && goal.lawDays >= goal.days ? (
         <ThemedText style={styles.helperText}>{t('home.habit.lawNotice', { n: String(goal.lawDays) })}</ThemedText>

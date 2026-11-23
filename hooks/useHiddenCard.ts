@@ -1,5 +1,5 @@
 /**
- * A card the person chose to hide on this device (CHG-103). Gamification at
+ * A card the person chose to hide on this device (CHG-105). Gamification at
  * work helps when people opt in and backfires when imposed (Mollick &
  * Rothbard), so the habit and milestone cards can be put away. It is a
  * per-device convenience: if storage fails, the card simply shows.

@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocationSetupCard } from '@/components/locations/LocationSetupCard';
 import { PersonalizedFeed } from '@/components/PersonalizedFeed';
-import { ProfileAchievements } from '@/components/ProfileAchievements';
+import { ProfileAchievements, type Achievement } from '@/components/ProfileAchievements';
 import { StreakCounter } from '@/components/StreakCounter';
 import { TeamInviteModal } from '@/components/TeamInviteModal';
 import { Checklist } from '@/components/scheduler/Checklist';
@@ -44,7 +44,7 @@ export default function HomeScreen() {
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
-  // The weekly "posted ahead" habit, from when shifts were published (CHG-103).
+  // The weekly "posted ahead" habit, from when shifts were published (CHG-105).
   const postingHabit = usePostingHabit(ACCOUNT_ID, locations);
   const habitsCard = useHiddenCard('home-habits');
 
@@ -141,7 +141,7 @@ export default function HomeScreen() {
   );
   const setupDone = setupSteps.filter((step) => step.completed).length;
 
-  // Milestones from stored data only (CHG-103): setup, then the posting habit,
+  // Milestones from stored data only (CHG-105): setup, then the posting habit,
   // then coverage. Nothing compares people or counts hours worked.
   const habit = postingHabit.habit;
   const milestones = useMemo(() => {
@@ -330,34 +330,14 @@ export default function HomeScreen() {
       ) : null}
 
       {habitsCard.hidden ? null : (
-      <>
-      <TourStep target="streak-counter">
-      <ThemedView style={styles.card}>
-        <StreakCounter
-          habit={postingHabit.habit}
-          goal={postingHabit.goal}
-          loading={postingHabit.loading}
-          error={postingHabit.error}
-          onRetry={postingHabit.refresh}
+        <HomeHabits
+          postingHabit={postingHabit}
+          milestones={milestones}
+          showMilestones={!rosterLoading && !rosterError}
           onOpenRoster={() => router.push(schedulerHref('shifts'))}
+          onHide={() => habitsCard.setHidden(true)}
+          styles={styles}
         />
-      </ThemedView>
-      </TourStep>
-
-      {!rosterLoading && !rosterError ? (
-      <ThemedView style={styles.card}>
-        <ProfileAchievements items={milestones} />
-      </ThemedView>
-      ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('home.achievements.hideA11y')}
-        accessibilityHint={t('home.achievements.hideHint')}
-        onPress={() => habitsCard.setHidden(true)}
-        style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-        <ThemedText style={styles.inviteButtonText}>{t('home.achievements.hide')}</ThemedText>
-      </Pressable>
-      </>
       )}
 
       <ThemedView style={styles.card}>
@@ -386,6 +366,49 @@ export default function HomeScreen() {
       ) : null}
     </ScrollView>
     <TeamInviteModal visible={inviteModalVisible} mode={inviteMode} onClose={closeInvite} />
+    </>
+  );
+}
+
+type HomeStyles = ReturnType<typeof makeStyles>;
+
+/** The posting habit and milestones, with the button that hides them (CHG-105). */
+function HomeHabits({ postingHabit, milestones, showMilestones, onOpenRoster, onHide, styles }: {
+  postingHabit: ReturnType<typeof usePostingHabit>;
+  milestones: Achievement[];
+  showMilestones: boolean;
+  onOpenRoster: () => void;
+  onHide: () => void;
+  styles: HomeStyles;
+}) {
+  const { t } = useT();
+  return (
+    <>
+      <TourStep target="streak-counter">
+        <ThemedView style={styles.card}>
+          <StreakCounter
+            habit={postingHabit.habit}
+            goal={postingHabit.goal}
+            loading={postingHabit.loading}
+            error={postingHabit.error}
+            onRetry={postingHabit.refresh}
+            onOpenRoster={onOpenRoster}
+          />
+        </ThemedView>
+      </TourStep>
+      {showMilestones ? (
+        <ThemedView style={styles.card}>
+          <ProfileAchievements items={milestones} />
+        </ThemedView>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('home.achievements.hideA11y')}
+        accessibilityHint={t('home.achievements.hideHint')}
+        onPress={onHide}
+        style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+        <ThemedText style={styles.inviteButtonText}>{t('home.achievements.hide')}</ThemedText>
+      </Pressable>
     </>
   );
 }

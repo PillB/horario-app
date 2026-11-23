@@ -1,5 +1,5 @@
 /**
- * Posting habit (CHG-103): how many recent weeks had their schedule out ahead.
+ * Posting habit (CHG-105): how many recent weeks had their schedule out ahead.
  *
  * The habit is the one research ties to worker well-being and to sales:
  * schedules known in advance (Schneider & Harknett, ASR 2019; the Gap stable
@@ -7,7 +7,7 @@
  * from stored data only (roster.published_at, set by the database), never from
  * a button the manager presses.
  *
- * Design choices (see Claude_changes.md CHG-103 for the red team):
+ * Design choices (see Claude_changes.md CHG-105 for the red team):
  * - One unit per week, not per day: a schedule is made weekly, so a daily
  *   streak would reward opening the app, not the habit.
  * - A week counts when at least POSTED_SHARE of its shifts were published by
@@ -83,13 +83,7 @@ const publishedOn = (iso: string, timeZone?: string): string | null => {
   return Number.isFinite(d.getTime()) ? toDateKey(d, timeZone) : null;
 };
 
-export function computePostingHabit(
-  shifts: readonly HabitShift[],
-  opts: { today: string; noticeDays?: number; weeks?: number; timeZone?: string },
-): PostingHabit {
-  const noticeDays = Math.max(0, Math.round(opts.noticeDays ?? DEFAULT_NOTICE_DAYS));
-  const { fromDate, toDate } = habitWindow(opts.today, noticeDays, opts.weeks ?? HABIT_WEEKS);
-
+const groupByWeek = (shifts: readonly HabitShift[], fromDate: string, toDate: string) => {
   const byWeek = new Map<string, HabitShift[]>();
   for (const s of shifts) {
     if (s.date < fromDate || s.date > toDate) continue;
@@ -97,45 +91,75 @@ export function computePostingHabit(
     const list = byWeek.get(key);
     if (list) list.push(s); else byWeek.set(key, [s]);
   }
+  return byWeek;
+};
 
-  const weeks: HabitWeek[] = [];
-  for (let monday = fromDate; monday <= toDate; monday = addDaysToKey(monday, 7)) {
-    const deadline = addDaysToKey(monday, -noticeDays);
-    const list = byWeek.get(monday) ?? [];
-    const posted = list.filter((s) => {
-      if (s.status !== 'Published' || !s.publishedAt) return false;
-      const day = publishedOn(s.publishedAt, opts.timeZone);
-      return day !== null && day <= deadline;
-    }).length;
-    const decided = daysBetweenKeys(deadline, opts.today) > 0;
-    let verdict: WeekVerdict;
-    if (list.length > 0 && posted / list.length >= POSTED_SHARE) verdict = 'ahead';
-    else if (!decided) verdict = 'open';
-    else verdict = list.length === 0 ? 'empty' : 'late';
-    // Only one open week is shown: the next one to post.
-    if (verdict === 'open' && weeks.some((w) => w.verdict === 'open')) break;
-    weeks.push({ weekStart: monday, deadline, shifts: list.length, postedByDeadline: posted, verdict });
-  }
+/** Shifts published (status and time) on or before the deadline day, in the business zone. */
+export const countPostedBy = (list: readonly HabitShift[], deadline: string, timeZone?: string): number =>
+  list.filter((s) => {
+    if (s.status !== 'Published' || !s.publishedAt) return false;
+    const day = publishedOn(s.publishedAt, timeZone);
+    return day !== null && day <= deadline;
+  }).length;
 
+/** The verdict of one week; `decided` = its deadline has passed. */
+export const weekVerdict = (shifts: number, posted: number, decided: boolean): WeekVerdict => {
+  if (shifts > 0 && posted / shifts >= POSTED_SHARE) return 'ahead';
+  if (!decided) return 'open';
+  return shifts === 0 ? 'empty' : 'late';
+};
+
+/** Consecutive ahead weeks from the newest decided week back; open and empty weeks are skipped. */
+export const currentRun = (weeks: readonly HabitWeek[]): number => {
   let run = 0;
   for (let i = weeks.length - 1; i >= 0; i--) {
     const v = weeks[i].verdict;
-    if (v === 'open' || v === 'empty') continue;
     if (v === 'late') break;
-    run++;
+    if (v === 'ahead') run++;
   }
-  let bestRun = 0;
+  return run;
+};
+
+/** Longest run of ahead weeks; empty and open weeks do not break it. */
+export const bestRunOf = (weeks: readonly HabitWeek[]): number => {
+  let best = 0;
   let current = 0;
   for (const w of weeks) {
-    if (w.verdict === 'ahead') bestRun = Math.max(bestRun, ++current);
+    if (w.verdict === 'ahead') best = Math.max(best, ++current);
     else if (w.verdict === 'late') current = 0;
   }
+  return best;
+};
+
+export function computePostingHabit(
+  shifts: readonly HabitShift[],
+  opts: { today: string; noticeDays?: number; weeks?: number; timeZone?: string },
+): PostingHabit {
+  const noticeDays = Math.max(0, Math.round(opts.noticeDays ?? DEFAULT_NOTICE_DAYS));
+  const { fromDate, toDate } = habitWindow(opts.today, noticeDays, opts.weeks ?? HABIT_WEEKS);
+  const byWeek = groupByWeek(shifts, fromDate, toDate);
+
+  const weeks: HabitWeek[] = [];
+  let openShown = false;
+  for (let monday = fromDate; monday <= toDate; monday = addDaysToKey(monday, 7)) {
+    const deadline = addDaysToKey(monday, -noticeDays);
+    const list = byWeek.get(monday) ?? [];
+    const posted = countPostedBy(list, deadline, opts.timeZone);
+    const verdict = weekVerdict(list.length, posted, daysBetweenKeys(deadline, opts.today) > 0);
+    // Only one open week is shown: the next one to post.
+    if (verdict === 'open') {
+      if (openShown) break;
+      openShown = true;
+    }
+    weeks.push({ weekStart: monday, deadline, shifts: list.length, postedByDeadline: posted, verdict });
+  }
+
   const counted = weeks.filter((w) => w.verdict === 'ahead' || w.verdict === 'late');
   return {
     noticeDays,
     weeks,
-    run,
-    bestRun,
+    run: currentRun(weeks),
+    bestRun: bestRunOf(weeks),
     aheadWeeks: counted.filter((w) => w.verdict === 'ahead').length,
     decidedWeeks: counted.length,
   };

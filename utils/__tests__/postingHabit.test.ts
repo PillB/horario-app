@@ -1,5 +1,9 @@
 import {
+  bestRunOf,
   computePostingHabit,
+  countPostedBy,
+  currentRun,
+  weekVerdict,
   habitWindow,
   mondayOf,
   noticeGoalFor,
@@ -159,5 +163,34 @@ describe('noticeGoalFor', () => {
 
   it('ignores an unknown jurisdiction', () => {
     expect(noticeGoalFor([{ jurisdictionCode: 'XX-NOPE', industry: 'retail' }]).days).toBe(7);
+  });
+});
+
+describe('postingHabit helpers', () => {
+  const week = (verdict: 'ahead' | 'late' | 'open' | 'empty') =>
+    ({ weekStart: '2026-11-02', deadline: '2026-10-26', shifts: 1, postedByDeadline: 0, verdict });
+
+  it('weekVerdict: 9 of 10 is ahead, 8 of 10 is late once decided and open before', () => {
+    expect(weekVerdict(10, 9, true)).toBe('ahead');
+    expect(weekVerdict(10, 8, true)).toBe('late');
+    expect(weekVerdict(10, 8, false)).toBe('open');
+    expect(weekVerdict(0, 0, true)).toBe('empty');
+    expect(weekVerdict(0, 0, false)).toBe('open');
+  });
+
+  it('countPostedBy: drafts, missing times and later days do not count', () => {
+    expect(countPostedBy([
+      { date: '2026-11-16', status: 'Published', publishedAt: '2026-11-09T12:00:00Z' },
+      { date: '2026-11-16', status: 'Published', publishedAt: '2026-11-10T12:00:00Z' },
+      { date: '2026-11-16', status: 'Published', publishedAt: null },
+      { date: '2026-11-16', status: 'Draft', publishedAt: '2026-11-01T12:00:00Z' },
+    ], '2026-11-09', 'UTC')).toBe(1);
+  });
+
+  it('currentRun stops at the newest late week; bestRunOf keeps the longest', () => {
+    const weeks = ['ahead', 'ahead', 'ahead', 'late', 'empty', 'ahead', 'open'].map((v) => week(v as never));
+    expect(currentRun(weeks)).toBe(1);
+    expect(bestRunOf(weeks)).toBe(3);
+    expect(currentRun([])).toBe(0);
   });
 });

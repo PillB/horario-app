@@ -1,5 +1,5 @@
--- CHG-103: roster.published_at is set by the database when a shift is published
--- (20261122000107_roster_published_at.sql).
+-- CHG-105: roster.published_at is set by the database when a shift is published
+-- (20261123000108_roster_published_at.sql).
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;

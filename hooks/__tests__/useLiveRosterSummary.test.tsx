@@ -190,7 +190,7 @@ describe('useLiveRosterSummary', () => {
 
     expect(capturedHook!.setup.targets).toBe(1);
     expect(capturedHook!.staffingGaps).toEqual([]);
-    // No demand inside the window: "no gaps" must not read as "fully staffed" (CHG-103).
+    // No demand inside the window: "no gaps" must not read as "fully staffed" (CHG-105).
     expect(capturedHook!.windowTargets).toBe(0);
   });
 

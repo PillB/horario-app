@@ -1,5 +1,5 @@
 /**
- * usePostingHabit — the Home "posted ahead" habit (CHG-103).
+ * usePostingHabit — the Home "posted ahead" habit (CHG-105).
  *
  * Loads the roster for the habit window and computes, from roster.published_at
  * (set by the database), how many recent weeks were posted ahead. Nothing here
