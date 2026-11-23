@@ -2,6 +2,8 @@
 
 > **READ THIS FIRST at the start of every session.**
 > Also read `Claude_changes.md` in parallel for all prior decisions and considerations.
+>
+> **Also read [`AGENTS.md`](AGENTS.md)** (path: `AGENTS.md` at the repository root). It is the working standard for every agent and person here: the expert standard (research what the best expert would do, reject a choice they could name a reason to reject, state every trade-off), rounds with a test for every task and every round, no tautological tests, verbose diagnostics, the cyclomatic complexity ceiling (`npm run lint:complexity`) and the drift guards. Where this file and AGENTS.md disagree on how to work, AGENTS.md wins.
 
 ---
 
@@ -45,12 +47,13 @@ horario-app/
 │   │   ├── _layout.tsx         Tab bar layout (Home, Scheduler, Explore)
 │   │   ├── index.tsx           Home: this week's numbers, setup checklist, upcoming shifts, staffing gaps
 │   │   ├── scheduler.tsx       Scheduling UI, one step at a time (team, templates, demand, roster)
-│   │   ├── schedulerMetrics.ts Uncovered-loss computation (pure function)
-│   │   └── explore.tsx         Analytics screen (coverage, hours per worker, fairness)
+│   │   ├── explore.tsx         Analytics screen (coverage, hours per worker, fairness)
+│   │   └── profile.tsx         Plan, locations, account
 │   ├── welcome.tsx             Public landing page (signed-out visitors land here)
 │   └── api/
-│       └── secure-proxy/
-│           └── route.ts        Server-side Expo Router API route (service-role Supabase proxy)
+│       ├── secure-proxy+api.ts Server-side Expo Router API route (service-role Supabase proxy)
+│       └── geo-hint+api.ts     Country hint from the host's IP headers
+├── utils/schedulerMetrics.ts   Uncovered-loss computation (pure function)
 ├── components/                 Shared UI components
 ├── constants/Colors.ts         Theme color tokens
 ├── hooks/                      Custom React hooks (forecast, roster, analytics, wellness, etc.)
@@ -113,7 +116,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 | Real-time updates | Missing | No Supabase realtime subscriptions |
 | Shift optimization algorithm | Working (web) / Partial (native) | Web: exact ILP (`services/optimizer/`, HiGHS 1.15 WASM, single-threaded) in a Web Worker, lexicographic coverage → fairness → continuity, 2 s budget, compared with the greedy and never worse; falls back to the greedy on no Worker / WASM failure / timeout (CHG-085). Native: greedy + 2-opt only (`services/shiftAssigner.ts`, no WebAssembly in Hermes). Both overnight-aware, IANA time zone, elapsed-time hours and rest, every shortfall reported with a reason — added 2026-10-20 (CHG-085). Not run in a real browser yet |
 | Analytics screen | Working | `explore.tsx` + `hooks/useAnalytics.ts`: coverage per date and role against demand ("—" when no demand exists), draft / published counts, hours per worker (overnight shifts counted), fairness (needs two workers), uncovered revenue. Period filter: this week / last 4 weeks / all dates (CHG-098) |
-| Public landing page | Working | `app/welcome.tsx` (`landing.*`, en + es): signed-out visitors land here; plans read `constants/pricing.ts`; states what is not built yet. Copy rules and evidence: `/mnt/project-files/marketing/` (no unbacked claims; `app/__tests__/welcome.test.tsx` bans "cancel anytime", "most popular" and similar). Sign-in / sign-up text comes from the translations — added 2026-11-21 (CHG-103) |
+| Public landing page | Working | `app/welcome.tsx` (`landing.*`, en + es): signed-out visitors land here; plans read `constants/pricing.ts`; states what is not built yet. Copy rules and evidence: `/mnt/project-files/marketing/` (no unbacked claims; `app/__tests__/welcome.test.tsx` bans "cancel anytime", "most popular" and similar). Sign-in / sign-up text comes from the translations — added 2026-11-21 (CHG-105) |
 | Guided tour | Working | Three guides (overview, scheduler, analytics) chosen in a picker (`contexts/WelcomeTourContext.tsx`, `components/TourSpotlight.tsx`, `components/TourStep.tsx`): a non-blocking card docked at the bottom, a ring measured from the live target, navigation to each step's route and scheduler step; no step blocks on an action — rebuilt 2026-11-10 (CHG-095) |
 | Labor-law constraint engine | Partial | Rule engine + jurisdiction packs (`services/labor/`). Scheduler shows findings for the visible roster week, grouped by verdict with citations and per-shift markers (`hooks/useCompliance.ts`, `components/scheduler/CompliancePanel.tsx`); a shift uses its roster entry's location, else the account's only location, else a set-up prompt. Auto-assign merges the location's legal hard limits with business limits and uses its IANA zone (`utils/autoAssignSettings.ts`) — re-verified 2026-10-20. Location overrides (`services/labor/overrides.ts`: rest minimum, daily / weekly maximum, break minutes) must be stricter than the pack on save (400 otherwise) and are applied stricter-wins in `evaluateShifts` (`EvaluationContext.overrides`) and `legalConstraintsFor`; a shift inside a spring-forward gap moves after the gap with its wall-clock length, as in the assigner (`zonedShiftSpan`) — added 2026-10-21 (CHG-089). No consent, publish time, breaks or school days fed to the engine yet. CHG-099: Mexico weekly overtime (`weeklyOvertimeMax`, dated caps from the 2026 reform), Poland night window, Washington and Illinois state packs, BC split-shift span, Alberta pack (`CA-AB`); a stored location whose place now resolves to another pack shows a re-confirm notice on Profile (`locationNeedsReconfirm`), its jurisdiction is never changed for the user |
 | Business locations / jurisdiction | Working | `locations` table + `listLocations` / `upsertLocation` / `deleteLocation` (admin) proxy actions; country detected from IP (`/api/geo-hint`) and device, always confirmed by the user; setup card on Home until a location exists, management on Profile — added 2026-10-20 (CHG-076). Change history: `location_history`, written by a trigger on every insert / update / delete (who, when, old / new jurisdiction, zone, industry, headcount, overrides); deletes go through `delete_location()` to record the actor; `listLocationHistory` proxy action; read-only list in the Profile LocationsManager — added 2026-10-21 (CHG-089) |
@@ -167,7 +170,7 @@ Location setup (components/locations/LocationSetupCard.tsx)
 - Every route screen renders `<PageTitle title=… />` (document `<title>`).
 
 ### Security
-- **Service-role key NEVER leaves the server** (`app/api/secure-proxy/route.ts`).
+- **Service-role key NEVER leaves the server** (`app/api/secure-proxy+api.ts`).
 - All write operations to Supabase must go through the secure proxy.
 - A new proxy write action that changes scheduling data goes in `SCHEDULING_WRITE_ACTIONS` (manager-only, and plan-gated: refused over the plan's people limit unless its name starts with `delete`). A Pro-only action goes in `PRO_ACTIONS` (`server/plans.ts`). The client never decides a plan; `server/__tests__/memberPermissions.test.ts` fails until every dispatch case is classified.
 - Validate all user inputs on both client and server.
@@ -209,7 +212,8 @@ Location setup (components/locations/LocationSetupCard.tsx)
 - **Integration tests**: Key hook interactions mocking the secure proxy fetch.
 - **Browser tests**: Playwright specs in `e2e/` (CHG-098), run by the `e2e` CI job against a dev server with the local auth bypass and a local Supabase. Locally: `npx playwright test --trace off` with the dev server and Supabase running. Each run names its rows uniquely; no retries.
 - **Run tests**: `npm test`
-- **Lint**: `npm run lint`
+- **Lint**: `npm run lint`, then `npm run lint:complexity` (ceiling 15, ratchet over `complexity-baseline.json`; AGENTS.md §4)
+- **Drift** (CHG-103): `npm run test:drift` runs the suite in other time zones and with the clock moved ahead (`HORARIO_TEST_NOW`, `scripts/testing/fakeNow.js`; CI job `drift`). `npm run labor:drift` (weekly workflow `labor-drift.yml`, `HORARIO_DRIFT_LINKS=1` checks links) lists packs due for review, reform phases starting within 60 days and dead source links (`services/labor/sourceDrift.ts`, review dates in `services/labor/sourceReview.ts`).
 
 ### Test File Location Convention
 - `app/(tabs)/__tests__/` for screen tests
@@ -266,8 +270,8 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `components/scheduler/SectionNav.tsx` | The scheduler's step bar (tablist, check marks, counts) |
 | `contexts/WelcomeTourContext.tsx` | Guided-tour state: modes, steps (route + scheduler step), reducer |
 | `components/TourSpotlight.tsx` | Guide picker and the tour's overlay card and ring |
-| `app/(tabs)/schedulerMetrics.ts` | Pure uncovered-loss metric functions |
-| `app/api/secure-proxy/route.ts` | Server-side Supabase proxy (service role) |
+| `utils/schedulerMetrics.ts` | Pure uncovered-loss metric functions |
+| `app/api/secure-proxy+api.ts` | Server-side Supabase proxy (service role) |
 | `services/demandForecast.ts` | Client-facing forecast service |
 | `services/forecasting/` | Forecast models (`models.ts`), backtest selection and intervals (`selection.ts`), per-role pipeline (`statisticalForecast.ts`) |
 | `utils/locationValidation.ts` | Location validation shared by client and proxy (jurisdiction must match the place) |
@@ -289,6 +293,10 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 | `components/scheduler/SyncNotice.tsx` | Loading / load-error / truncated notice for the scheduler's stored data |
 | `hooks/useDemandForecast.ts` | Forecast state management hook |
 | `hooks/useSessionWellness.ts` | Break-prompt wellness hook |
+| `AGENTS.md` | Working standard for agents and people (expert standard, tests, complexity ceiling, drift guards) |
+| `scripts/complexity/gate.js` | Cyclomatic complexity ratchet (`npm run lint:complexity`) |
+| `services/labor/sourceReview.ts` | When each rule pack was last checked against its sources; confirmed reform phases |
+| `services/labor/sourceDrift.ts` | Pack integrity and drift checks (dated values, cites, review age, upcoming phases, link status) |
 
 ---
 
@@ -309,18 +317,20 @@ Manual assignment with client-side validation, plus auto-assign (suggestions the
 14. ~~`e2e/` Playwright specs are stale~~ — rewritten and in CI (CHG-098).
 9. ~~Sample shift dates hardcoded to December 2024~~ — no sample data in production code; the tour seeds sample rows only after workers loaded empty without error (CHG-088). Tests still use 2024 dates.
 10. ~~No rate limiting on the secure proxy~~ — per-user limit in `server/rateLimit.ts` (CHG-098), counted per server instance; a global quota needs a shared store or the host's firewall.
-11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else the device zone (CHG-082). With several locations the roster step's `LocationPicker` chooses one (CHG-098). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
+11. ~~`businessTimezoneOffsetMinutes`~~ removed (CHG-077). The assigner takes an IANA `timeZone`; callers pass `getBusinessTimeZone(location)` (`utils/businessTimeZone.ts`), which returns the location's `time_zone` when valid, else a same-clock older zone for a zone newer than the runtime's tz data (`NEW_ZONE_FALLBACKS`, CHG-103), else the device zone (CHG-082). With several locations the roster step's `LocationPicker` chooses one (CHG-098). `timezoneOffsetMinutes` on `AssignmentInput` is a deprecated fixed-offset fallback (no DST).
+18. Complexity (CHG-103): 62 functions are above the ceiling of 15 and baselined in `complexity-baseline.json` (worst: proxy `dispatch` 50, `checkMinors` 49, `LocationSetupCard` 48, `checkWeekly` 44). They may only shrink.
+19. Labor sources (CHG-103): 32 high-confidence cites have no link, so the drift monitor cannot check them (list in `services/labor/__tests__/packIntegrity.test.ts`). Reform phases due soon and unconfirmed on 2026-11-21: Brazil 42 h week and 2 weekly rest days from 2026-12-16, Mexico 46 h week from 2027-01-01.
 12. ~~The roster never reached the forecast history~~ — the forecast reads `forecast_shift_history`, which includes Published roster shifts (CHG-098).
 
 ---
 
 ## 12. Phase Execution Rules
 
-- Always read `CLAUDE.md` + `Claude_changes.md` in parallel at the start of every session.
+- Always read `CLAUDE.md` + `Claude_changes.md` + `AGENTS.md` in parallel at the start of every session.
 - Never write code without reading the relevant files first.
 - Append a new `CHG-###` entry to `Claude_changes.md` before every commit.
 - Tests must pass (`npm test`) before committing any code change.
-- Lint must pass (`npm run lint`) before committing.
+- Lint must pass (`npm run lint` and `npm run lint:complexity`) before committing.
 - All changes must be committed with the CHG-### ID in the commit message.
 
 ---

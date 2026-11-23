@@ -6,10 +6,10 @@
 
 ---
 
-### CHG-103 — 2026-11-21 UTC
+### CHG-105 — 2026-11-21 UTC
 **Type:** FEATURE + FIX (Pablo: "psychology and market and customer research based marketing pass and product packaging and blurbs, focusing on older people and young adults, build personas, user test", following arXiv 2510.08338)
 
-**Research (not code):** `/mnt/project-files/marketing/customer-research-and-marketing-2026-11-21.md` (personas, positioning, packaging notes, red team) with four desk reports and a synthetic consumer test (8 LLM personas, 5 blind copy pairs, semantic-similarity rating after Maier et al. 2025). Simulated, not real users; real interviews are listed there as next steps.
+**Research (not code):** `/mnt/project-files/marketing/customer-research-and-marketing-2026-11-21.md` (personas, positioning, packaging notes, red team) with four desk reports and a synthetic consumer test after Maier et al. 2025 (arXiv 2510.08338). A first run (8 rich personas, 5 blind copy pairs side by side) was redone the paper's way after reading the full paper: 12 demographic-only participants, one concept per session, generic anchors, two embedding models. Only "no AI in the headline" held up (11/12, p = 0.002); the hero and sign-up terms tied when shown alone (kept because clearer and true); the calm limit banner lowers stated intent to pay, and a value-first rewrite did not help (3 free auto-schedules a month is enough for weekly schedulers: a packaging question). Simulated, not real users; real tests are listed there as next steps.
 
 **Changes:**
 - `app/(auth)/sign-in.tsx`, `sign-up.tsx`: every visible string, label and hint comes from `t()` (Spanish visitors saw English). Buttons and links gained `accessibilityHint`.
@@ -21,6 +21,41 @@
 **Checked:** `npm test` 1241 passed / 51 skipped; `tsc` 0 errors; lint clean; `/welcome` in Chromium at 1280 px (en-US) and 390 px (es-PE): no console errors, no horizontal scroll, S/ prices in Peru. Sign-in / sign-up not seen in a browser (they need a Clerk key; the dev bypass redirects them).
 
 **Watch out:** the "What it does not do yet" box (`landing.notYet.body`) and FAQ a1 must change when push, WhatsApp sending, swaps or the time clock ship. `landing.plans.soon` hides itself once `EXPO_PUBLIC_CHECKOUT_ENABLED=1`. "By signing up you agree to our Terms…" points at pages that do not exist yet (subscriptions thread owns them). The landing page is English and Spanish only.
+
+**Renumbered on merge:** main took CHG-103 (AGENTS.md, drift guards, PR #63), and the open subscriptions PR #66 uses CHG-104, so this work is CHG-105; its first commits say CHG-103.
+
+---
+
+### CHG-103 — 2026-11-21 UTC
+**Type:** CHORE + FIX (Pablo: write the expert standard into AGENTS.md with a test for every task and round and no tautological tests; a chore(lint) cyclomatic complexity ceiling; CLAUDE.md points to AGENTS.md; retrospective over qa/, setup/ and the history with root causes, simulated source drift and fixes that fail verbosely). CHG-102 is taken by PR #62 (template time guards); nothing here touches its files except CLAUDE.md, in different sections.
+
+**Process:**
+- `AGENTS.md` (new, repository root): the expert standard in Pablo's words, rounds (pre-execution with alternatives, red team, introspection), a test for every task and every round, tautological tests defined and banned, verbose diagnostics, the complexity ceiling, the drift table, the retrospective's ten root-cause classes. `CLAUDE.md` links it at the top and in §7, §10, §12.
+- Complexity ceiling 15 (`npm run lint:complexity`, `scripts/complexity/gate.js`, CI job `checks`): ESLint's `complexity` rule run as a ratchet over `complexity-baseline.json` (62 functions above 15 on 2026-11-21, keyed by file and function name, not line). New over 15 fails; a baselined one that grows fails; one that shrank or went away fails until the baseline is tightened.
+
+**Found by the retrospective and fixed:**
+- Time bomb: `server/__tests__/plans.test.ts` built a trial "ending in 13 days" from 2026-11-11 but `gatedClient` reads the real clock, so two tests would have failed from 2026-11-24 with no code change. Found by running the suite with the clock moved ahead; the describe block now pins the clock to its fixtures' date.
+- Two dead law links (404): NYC Fair Workweek (`US-NY-NYC`, 3 cites) and France L3131-1 (`FR`). Replaced by the current pages; each checked to state the value it backs (NYC 14 days / clopening premium, 72 h retail; FR "onze heures consécutives").
+- `CLAUDE.md` named `app/api/secure-proxy/route.ts` (the file is `secure-proxy+api.ts`, the service-role rule pointed at a file that does not exist) and `app/(tabs)/schedulerMetrics.ts` (it is `utils/schedulerMetrics.ts`).
+- A location whose zone is newer than the device's tz data (America/Coyhaique 2025b, America/Ciudad_Juarez 2022g) silently used the device zone. `getBusinessTimeZone` now uses a same-clock older zone first (`NEW_ZONE_FALLBACKS`).
+
+**Drift guards (new):**
+- `npm run test:drift` (CI job `drift`): the suite in Lima, Kiritimati (UTC+14), with the clock +30 and +400 days, and on a US fall-back night (`HORARIO_TEST_NOW`, `scripts/testing/fakeNow.js` fakes only Date).
+- Labor sources: `services/labor/sourceReview.ts` (review date and record per pack, phase confirmations), `services/labor/sourceDrift.ts` (pure checks), `services/labor/__tests__/packIntegrity.test.ts` (dated values real and in order with one shape, cites usable, no new unlinked high-confidence cite, every jurisdiction evaluates for an adult and a 15-year-old on every phase date and in 2035 with no NaN / undefined in findings, suggested zones pass the validator), `sourceDrift.test.ts` (each check catches the drift it is for). Weekly workflow `labor-drift.yml` / `npm run labor:drift`: packs older than 90 days, phases starting within 60 days, dead links (only 404 / 410 count; 401 / 403 / 429 / 5xx from government sites are "refused automated clients").
+- `utils/__tests__/zoneData.test.ts`: every zone a location may store is known to the runtime and accepted for its country only; fallbacks keep the same clock.
+- `scripts/__tests__/dependencyDrift.test.ts`: lockfile root equals package.json; React packages one exact version; expo and jest-expo one SDK and CLAUDE.md names it; `highs` exact, CJS + WASM entry points; Playwright packages equal; CI Node satisfies engines.
+- `scripts/__tests__/agentDocs.test.ts`: every `npm run` and repository path named in AGENTS.md and CLAUDE.md exists.
+
+**Trade-offs, stated:**
+- 15, not McCabe's 10: 129 functions would be baselined at 10. Cyclomatic complexity counts paths, not difficulty (a flat dispatch `switch` scores 50 and reads easily). The rule is not in `eslint.config.js` because lint-staged's `--max-warnings=0` would block every commit to a baselined file, so editors do not underline it.
+- The gate keys anonymous functions by what holds them plus an occurrence index; reordering two anonymous callbacks of one kind in a file can swap their keys (the gate then reports one as grown and one as shrunk).
+- Review dates in `sourceReview.ts` are the dates of the QA records that checked each pack, not a per-value check date.
+- The labor monitor cannot read the law. Its weekly run is red now on purpose: Brazil's 42 h week and 2 rest days (2026-12-16) and Mexico's 46 h week (2027-01-01) start within 60 days and nobody has confirmed them yet; the links of 32 high-confidence cites are missing, so those cannot be checked.
+- The drift job looks ahead from the day it runs, so it is not reproducible across days by design (that is how it found the 2026-11-24 failure); a failure prints the variables to reproduce it.
+
+**Tests:** tsc clean; lint 0 errors; complexity gate passed (62 baselined); jest 1315 passed, 50 skipped (new: gate 8, packIntegrity 47, sourceDrift 21, zoneData 7, dependencyDrift 6, agentDocs 5); `npm run test:drift` 5 / 5 scenarios passed; `npm run labor:drift` with links run once (60 links: 46 ok, 11 refused automated clients, 1 timed out, 2 dead, both fixed). Before the fix, the +30-day and +400-day scenarios failed the 2 plans tests. Mutation checks: an out-of-order phase, a NaN value and removing the zone fallback each made the new tests fail.
+
+**Merge with main after #62 (same CHG):** the gate failed on the merged tree: #62 added a branch to `addRosterShifts` (24 → 25). Its database refusals moved into a lookup (`ADD_ROSTER_SHIFTS_CONFLICTS`, `addRosterShiftsFailure`), same sentences, pinned by `server/__tests__/addRosterShiftsFailure.test.ts` (5); the function is now 17 and the baseline was tightened.
 
 ---
 

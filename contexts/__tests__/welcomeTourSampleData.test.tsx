@@ -133,7 +133,7 @@ describe('WelcomeTour guides (CHG-095)', () => {
   });
 });
 
-describe('WelcomeTour first launch (CHG-103)', () => {
+describe('WelcomeTour first launch (CHG-105)', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const AsyncStorage = require('@react-native-async-storage/async-storage') as { setItem: jest.Mock };
 

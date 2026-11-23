@@ -21,8 +21,29 @@ export const getDeviceTimeZone = (): string => {
 };
 
 /**
- * The IANA zone used to place shifts on the timeline: the location's zone when
- * it is valid, else the device zone.
+ * Zones added to tzdata recently, with an older zone that keeps the same
+ * clock from the date shown on (CHG-103). A location can store one of these
+ * (the validator accepts it), but a browser or phone with older time-zone
+ * data does not know it. Without this map the scheduler would fall back to
+ * the device zone, which is wrong whenever the manager is somewhere else.
+ * - America/Coyhaique (tzdata 2025b): Aysén has kept UTC-3 all year since
+ *   2025-03-20, as Punta Arenas has since 2016.
+ * - America/Ciudad_Juarez (tzdata 2022g): Mountain time with US daylight
+ *   saving since 2022-11-30, as Denver.
  */
-export const getBusinessTimeZone = (location?: { timeZone?: string | null } | null): string =>
-  location?.timeZone && isValidTimeZone(location.timeZone) ? location.timeZone : getDeviceTimeZone();
+export const NEW_ZONE_FALLBACKS: Readonly<Record<string, string>> = {
+  'America/Coyhaique': 'America/Punta_Arenas',
+  'America/Ciudad_Juarez': 'America/Denver',
+};
+
+/**
+ * The IANA zone used to place shifts on the timeline: the location's zone when
+ * the runtime knows it, else a same-clock older zone for a zone newer than
+ * the runtime's data, else the device zone.
+ */
+export const getBusinessTimeZone = (location?: { timeZone?: string | null } | null): string => {
+  const zone = location?.timeZone;
+  if (zone && isValidTimeZone(zone)) return zone;
+  const older = zone ? NEW_ZONE_FALLBACKS[zone] : undefined;
+  return older && isValidTimeZone(older) ? older : getDeviceTimeZone();
+};
