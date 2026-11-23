@@ -1,5 +1,5 @@
 /**
- * StreakCounter — the weekly "posted ahead" habit on Home (CHG-105).
+ * StreakCounter — the weekly "posted ahead" habit on Home (CHG-106).
  *
  * Shows the last weeks as labelled cells (symbol + date, so colour is never
  * the only signal, WCAG 1.4.1), the run of weeks in a row, and the steadier

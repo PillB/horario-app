@@ -1023,7 +1023,7 @@ const rowToRosterShift = (row: RosterRow) => ({
   location: row.location ?? '',
   status: row.status as 'Draft' | 'Published',
   notified: row.notified,
-  // Set by the database when the status becomes Published (CHG-105).
+  // Set by the database when the status becomes Published (CHG-106).
   publishedAt: row.published_at ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,

@@ -44,7 +44,7 @@ export default function HomeScreen() {
   // First-run: ask where the business is until it has a confirmed location.
   const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
 
-  // The weekly "posted ahead" habit, from when shifts were published (CHG-105).
+  // The weekly "posted ahead" habit, from when shifts were published (CHG-106).
   const postingHabit = usePostingHabit(ACCOUNT_ID, locations);
   const habitsCard = useHiddenCard('home-habits');
 
@@ -141,7 +141,7 @@ export default function HomeScreen() {
   );
   const setupDone = setupSteps.filter((step) => step.completed).length;
 
-  // Milestones from stored data only (CHG-105): setup, then the posting habit,
+  // Milestones from stored data only (CHG-106): setup, then the posting habit,
   // then coverage. Nothing compares people or counts hours worked.
   const habit = postingHabit.habit;
   const milestones = useMemo(() => {
@@ -372,7 +372,7 @@ export default function HomeScreen() {
 
 type HomeStyles = ReturnType<typeof makeStyles>;
 
-/** The posting habit and milestones, with the button that hides them (CHG-105). */
+/** The posting habit and milestones, with the button that hides them (CHG-106). */
 function HomeHabits({ postingHabit, milestones, showMilestones, onOpenRoster, onHide, styles }: {
   postingHabit: ReturnType<typeof usePostingHabit>;
   milestones: Achievement[];

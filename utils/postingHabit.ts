@@ -1,5 +1,5 @@
 /**
- * Posting habit (CHG-105): how many recent weeks had their schedule out ahead.
+ * Posting habit (CHG-106): how many recent weeks had their schedule out ahead.
  *
  * The habit is the one research ties to worker well-being and to sales:
  * schedules known in advance (Schneider & Harknett, ASR 2019; the Gap stable
@@ -7,7 +7,7 @@
  * from stored data only (roster.published_at, set by the database), never from
  * a button the manager presses.
  *
- * Design choices (see Claude_changes.md CHG-105 for the red team):
+ * Design choices (see Claude_changes.md CHG-106 for the red team):
  * - One unit per week, not per day: a schedule is made weekly, so a daily
  *   streak would reward opening the app, not the habit.
  * - A week counts when at least POSTED_SHARE of its shifts were published by

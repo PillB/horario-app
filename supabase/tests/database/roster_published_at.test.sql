@@ -1,4 +1,4 @@
--- CHG-105: roster.published_at is set by the database when a shift is published
+-- CHG-106: roster.published_at is set by the database when a shift is published
 -- (20261123000108_roster_published_at.sql).
 -- Run with: supabase test db
 begin;

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 /**
- * Recognition for the weekly posting habit (CHG-105): informational, not
+ * Recognition for the weekly posting habit (CHG-106): informational, not
  * controlling (self-determination theory: feedback that tells a person what
  * they did well supports competence; a reward framed as pressure lowers
  * intrinsic motivation, Deci, Koestner & Ryan 1999). Each message names the

@@ -6,8 +6,8 @@
 
 ---
 
-### CHG-105 — 2026-11-21 UTC
-**Id:** CHG-105 (CHG-103 went to the AGENTS.md change on main, CHG-103 / CHG-104 are taken by PRs #65 / #66; the migration moved to `20261123000108` because #66 uses `20261122000107`). The commits on this branch say CHG-103.
+### CHG-106 — 2026-11-21 UTC
+**Id:** CHG-106 (CHG-103 is the AGENTS.md change on main; CHG-104 is PR #66 and CHG-105 is PR #65; the migration moved to `20261123000108` because #66 uses `20261122000107`). Earlier commits on this branch say CHG-103 or CHG-105.
 
 **Type:** FEATURE (Pablo: "gamify the website"; coordinator: evidence-based gamification for SMB managers and staff, older users included, no dark patterns, red team each choice)
 
