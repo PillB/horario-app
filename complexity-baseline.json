@@ -1,0 +1,138 @@
+{
+  "ceiling": 15,
+  "note": "Functions above the ceiling when the gate was added (CHG-103). Entries may only go down or disappear; see scripts/complexity/gate.js.",
+  "functions": {
+    "app/(auth)/sign-up.tsx": {
+      "SignUpScreen": 17
+    },
+    "app/(tabs)/index.tsx": {
+      "HomeScreen": 29
+    },
+    "app/(tabs)/profile.tsx": {
+      "ProfileScreen": 21
+    },
+    "app/(tabs)/scheduler.tsx": {
+      "SchedulerScreen": 24
+    },
+    "app/api/secure-proxy+api.ts": {
+      "POST": 17,
+      "adminGrantEntitlement": 20,
+      "dispatch": 48,
+      "forecastHistory": 17,
+      "listForecastSignals": 16,
+      "updateOrInsert": 16,
+      "uploadPosSales": 18,
+      "upsertRosterShift": 17
+    },
+    "components/SyncStatusBar.tsx": {
+      "SyncStatusBar": 31
+    },
+    "components/TeamInviteModal.tsx": {
+      "TeamInviteModal": 19
+    },
+    "components/locations/LocationSetupCard.tsx": {
+      "LocationSetupCard": 48
+    },
+    "components/locations/LocationsManager.tsx": {
+      "LocationsManager": 17
+    },
+    "components/scheduler/DemandSection.tsx": {
+      "DemandSection": 35,
+      "parsePosPreview (useCallback)": 16
+    },
+    "components/scheduler/PosUploadSection.tsx": {
+      "parseCsv": 23
+    },
+    "components/scheduler/RosterSection.tsx": {
+      "RosterSection": 18,
+      "map callback": 21
+    },
+    "components/scheduler/ShiftTemplateSection.tsx": {
+      "ShiftTemplateSection": 28
+    },
+    "components/scheduler/WorkerSection.tsx": {
+      "WorkerSection": 20
+    },
+    "contexts/WelcomeTourContext.tsx": {
+      "tourReducer": 19
+    },
+    "hooks/useAnalytics.ts": {
+      "load (useCallback)": 16
+    },
+    "hooks/useCompliance.ts": {
+      "evaluateCompliance": 29
+    },
+    "hooks/useSchedulerHandlers.ts": {
+      "handleAddTemplate (useCallback)": 17,
+      "handleAddWorker (useCallback)": 17,
+      "handleFallbackSubmit (useCallback)": 17,
+      "handleShiftSubmit (useCallback)": 35
+    },
+    "hooks/useSubscription.ts": {
+      "useMemo callback": 25
+    },
+    "hooks/useTeamSetup.ts": {
+      "bulkImportWorkers (useCallback)": 21
+    },
+    "server/plans.ts": {
+      "insertWithinLimit": 16,
+      "planGate": 24
+    },
+    "server/proxyAuth.ts": {
+      "authenticate": 16,
+      "verifyClerkToken": 20
+    },
+    "services/__tests__/shiftAssigner.fuzz.test.ts": {
+      "checkInvariants": 20,
+      "it callback": 17
+    },
+    "services/analyticsTransport.ts": {
+      "_flush": 24
+    },
+    "services/demandForecast.ts": {
+      "generateStatisticalForecast": 23
+    },
+    "services/forecastEngine.ts": {
+      "map callback": 31
+    },
+    "services/forecasting/statisticalForecast.ts": {
+      "buildRoleSeries": 24
+    },
+    "services/labor/engine.ts": {
+      "checkBreaks": 21,
+      "checkDaily": 26,
+      "checkMinors": 49,
+      "checkNight": 26,
+      "checkRest": 33,
+      "checkWeekly": 44
+    },
+    "services/labor/overrides.ts": {
+      "applyOverrides": 22,
+      "packLimitFor": 19,
+      "parseOverride": 23
+    },
+    "services/optimizer/assignmentModel.ts": {
+      "buildAssignmentModel": 24
+    },
+    "services/optimizer/shiftOptimizer.ts": {
+      "optimizeAssignments": 23
+    },
+    "services/shiftAssigner.ts": {
+      "assignShifts": 25
+    },
+    "services/syncQueue.ts": {
+      "_flush": 21
+    },
+    "utils/locationValidation.ts": {
+      "validateLocationInput": 34
+    },
+    "utils/schedulerValidators.ts": {
+      "validateAvailabilitySubmission": 32,
+      "validateShiftReadiness": 22
+    },
+    "utils/schedulingValidation.ts": {
+      "validateDemandTargetInput": 21,
+      "validateRosterShiftInput": 20
+    }
+  }
+}

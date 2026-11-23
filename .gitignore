@@ -50,3 +50,6 @@ test-results/
 # Ad-hoc screenshots and Playwright MCP session output
 /*.png
 .playwright-mcp/
+
+# Complexity gate test fixtures (left behind only if a test run is killed)
+scripts/complexity/tmp-fixture-*/

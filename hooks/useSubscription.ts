@@ -52,7 +52,7 @@ export type SubscriptionState = {
 
 const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 };
 
-type Loaded = {
+export type Loaded = {
   plan: AccountPlan;
   usage: PlanUsage;
   status: SubscriptionStatus;
@@ -125,9 +125,7 @@ export function useSubscription(): SubscriptionState {
       usage: loaded?.usage ?? null,
       cancelAtPeriodEnd: loaded?.cancelAtPeriodEnd ?? false,
       currentPeriodEnd: loaded?.currentPeriodEnd ?? null,
-      hasPaidSubscription: loaded?.provider === 'paddle' && PAID_STATUSES.includes(loaded.status),
-      hasBillingAccount: loaded?.hasBillingAccount ?? false,
-      paidQuantity: loaded?.quantity ?? null,
+      ...billingOf(loaded),
       isPlatformAdmin: loaded?.isPlatformAdmin ?? false,
       loading,
       error,
@@ -135,6 +133,16 @@ export function useSubscription(): SubscriptionState {
       refresh: () => void load(),
     };
   }, [loaded, loading, error, load]);
+}
+
+/** The Paddle side of the loaded subscription: whether it pays, has a billing account, and for how many locations. */
+export function billingOf(loaded: Loaded | null): { hasPaidSubscription: boolean; hasBillingAccount: boolean; paidQuantity: number | null } {
+  if (!loaded) return { hasPaidSubscription: false, hasBillingAccount: false, paidQuantity: null };
+  return {
+    hasPaidSubscription: loaded.provider === 'paddle' && PAID_STATUSES.includes(loaded.status),
+    hasBillingAccount: loaded.hasBillingAccount,
+    paidQuantity: loaded.quantity,
+  };
 }
 
 export function useTierCheck(required: SubscriptionTier): { allowed: boolean; loading: boolean } {

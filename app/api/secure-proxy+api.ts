@@ -1137,6 +1137,22 @@ const ADD_ROSTER_SHIFTS_MAX = 200;
  * on the roster (same id, or same date, worker and template) refuses the whole
  * request with 409 and nothing is added.
  */
+/** Sentences for the batch insert's database refusals; nothing was saved in any of them. */
+const ADD_ROSTER_SHIFTS_CONFLICTS: Record<string, (message?: string) => string> = {
+  '23505': () => 'One of these shifts is already on the roster. Nothing was added. Reload and try again',
+  // Only our own trigger's sentence is passed on (it names the clash); any other 23P01 text names schema objects.
+  '23P01': (message) =>
+    `${message?.startsWith('This person already has a shift') ? message : 'One of these shifts overlaps another shift of the same person'}. Nothing was added. Reload and run auto-assign again`,
+  '23503': () => 'Something these shifts refer to was just deleted. Nothing was added. Reload and try again',
+};
+
+export function addRosterShiftsFailure(error: { code?: string; message?: string }): Result {
+  const conflict = error.code ? ADD_ROSTER_SHIFTS_CONFLICTS[error.code] : undefined;
+  if (!conflict) return dbFailure('add roster shifts', error);
+  console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
+  return fail(409, conflict(error.message));
+}
+
 async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts: unknown, countAutoAssign?: unknown): Promise<Result> {
   if (!Array.isArray(shifts) || shifts.length === 0 || shifts.length > ADD_ROSTER_SHIFTS_MAX) {
     return badRequest(`shifts must be a list of 1 to ${ADD_ROSTER_SHIFTS_MAX} shifts`);
@@ -1162,29 +1178,20 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
   if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
   if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
 
-  // A batch is how an auto-schedule is applied (the solver runs in the browser). On a plan with a
-  // monthly auto-schedule limit every batch is counted, whatever the client says, so leaving out
-  // `countAutoAssign` does not skip the count (CHG-104). Single shifts (upsertRosterShift) are manual.
+  return saveRosterBatch(client, ctx, rows, countAutoAssign);
+}
+
+/**
+ * Inserts checked roster rows in one statement. A batch is how an auto-schedule is applied (the
+ * solver runs in the browser). On a plan with a monthly auto-schedule limit every batch is counted,
+ * whatever the client says, so leaving out `countAutoAssign` does not skip the count (CHG-104).
+ * Single shifts (upsertRosterShift) are manual.
+ */
+async function saveRosterBatch(client: SupabaseClient, ctx: AuthContext, rows: Record<string, unknown>[], countAutoAssign: unknown): Promise<Result> {
   const count = countAutoAssign === true || (await planLimitsAutoSchedules(client, ctx));
   if (typeof count === 'object') return count;
   const { data, error } = count ? await applyAutoAssignRun(client, ctx, rows) : await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
-  if (error) {
-    if ('refusal' in error) return error.refusal;
-    if (error.code === '23505') {
-      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
-      return fail(409, 'One of these shifts is already on the roster. Nothing was added. Reload and try again');
-    }
-    if (error.code === '23P01') {
-      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
-      const clash = error.message?.startsWith('This person already has a shift') ? error.message : 'One of these shifts overlaps another shift of the same person';
-      return fail(409, `${clash}. Nothing was added. Reload and run auto-assign again`);
-    }
-    if (error.code === '23503') {
-      console.error('[secure-proxy] add roster shifts:', error.code, error.message ?? '');
-      return fail(409, 'Something these shifts refer to was just deleted. Nothing was added. Reload and try again');
-    }
-    return dbFailure('add roster shifts', error);
-  }
+  if (error) return 'refusal' in error ? error.refusal : addRosterShiftsFailure(error);
   return ok({ success: true, shifts: ((data ?? []) as unknown as RosterRow[]).map(rowToRosterShift) });
 }
 
@@ -1669,6 +1676,32 @@ async function adminRevokeEntitlement(client: SupabaseClient, ctx: AuthContext, 
   return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
+/** What the forecast can draw on for these filters (the `status` action). */
+async function forecastStatus(client: SupabaseClient, ctx: AuthContext, rawFilters: unknown): Promise<Result> {
+  const dateError = filtersDateError(rawFilters);
+  if (dateError) return badRequest(dateError);
+  // History is checked for the role only: a forecast for a date is made
+  // from earlier days, so the date filter does not apply to history.
+  const filters = cleanFilters(rawFilters);
+  const roleOnly = filters?.role ? { role: filters.role } : undefined;
+  const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
+    hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
+    hasRows(client, 'external_signals', ctx, filters),
+    hasRows(client, 'demand_targets', ctx, filters),
+  ]);
+  const status: ForecastGenerationMetadata = {
+    hasHistorical,
+    hasExternalSignals,
+    hasExistingTargets,
+    apiAvailable: Boolean(FORECAST_API_URL),
+    usedApi: false,
+    usedFallback: false,
+    apiCallFailed: false,
+    fallbackReason: undefined,
+  };
+  return ok(status);
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
@@ -1678,30 +1711,8 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       if (dateError) return badRequest(dateError);
       return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
     }
-    case 'status': {
-      const dateError = filtersDateError(p.filters);
-      if (dateError) return badRequest(dateError);
-      // History is checked for the role only: a forecast for a date is made
-      // from earlier days, so the date filter does not apply to history.
-      const filters = cleanFilters(p.filters);
-      const roleOnly = filters?.role ? { role: filters.role } : undefined;
-      const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
-        hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
-        hasRows(client, 'external_signals', ctx, filters),
-        hasRows(client, 'demand_targets', ctx, filters),
-      ]);
-      const status: ForecastGenerationMetadata = {
-        hasHistorical,
-        hasExternalSignals,
-        hasExistingTargets,
-        apiAvailable: Boolean(FORECAST_API_URL),
-        usedApi: false,
-        usedFallback: false,
-        apiCallFailed: false,
-        fallbackReason: undefined,
-      };
-      return ok(status);
-    }
+    case 'status':
+      return forecastStatus(client, ctx, p.filters);
     case 'forecastHistory':
       return forecastHistory(client, ctx, p);
     case 'listForecastSignals':

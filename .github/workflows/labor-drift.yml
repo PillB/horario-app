@@ -1,0 +1,32 @@
+name: Labor-source drift
+
+# Weekly check that the labor rule packs have not drifted from the law
+# (CHG-103, services/labor/sourceDrift.ts). It fails, with one line per item,
+# when a pack has not been re-checked in 90 days, when a phased value (a
+# reform) takes effect within 60 days and nobody confirmed it, or when a
+# source link answers 404 or 410. A red run is a to-do for a person: read the
+# named sources, then update services/labor/sourceReview.ts.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1' # Mondays 07:00 UTC (02:00 in Lima)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  labor-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Review dates, upcoming phases and source links
+        env:
+          HORARIO_DRIFT_LINKS: '1'
+        run: npm run labor:drift

@@ -87,17 +87,23 @@ function webhookBody(origin) {
   };
 }
 
-async function main() {
-  const apiKey = process.env.PADDLE_API_KEY || '';
-  const origin = process.argv[2] || '';
-  const fail = (message) => {
-    console.error(message);
-    process.exit(1);
-  };
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+/** The API key and app origin, checked; exits with a message when either is wrong. */
+function readArgs(env, argv) {
+  const apiKey = env.PADDLE_API_KEY || '';
+  const origin = argv[2] || '';
   if (!/^pdl_(sdbx|live)_apikey_/.test(apiKey)) fail('Set PADDLE_API_KEY to a Paddle API key (pdl_sdbx_apikey_… for the sandbox).');
   if (!/^https:\/\/[^/]+/.test(origin)) fail('Pass the app origin, for example: node scripts/paddle/setup.js https://horario.app');
   const base = apiKey.startsWith('pdl_sdbx_') ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+  return { apiKey, origin, base };
+}
 
+/** A Paddle API client: `api` for one call (exits on a refusal), `listAll` follows pagination. */
+function paddleClient(apiKey, base) {
   const api = async (method, path, body) => {
     const res = await fetch(base + path, {
       method,
@@ -119,8 +125,13 @@ async function main() {
     }
     return rows;
   };
-  const tagged = (rows, tag) => rows.find((row) => row.custom_data && row.custom_data.horario === tag);
+  return { api, listAll };
+}
 
+const tagged = (rows, tag) => rows.find((row) => row.custom_data && row.custom_data.horario === tag);
+
+/** Creates the products and prices that are not there yet (found by their tag); returns the price env variables. */
+async function ensureCatalog({ api, listAll }) {
   const catalog = buildCatalog();
   const products = await listAll('/products?status=active');
   const prices = await listAll('/prices?status=active');
@@ -137,12 +148,24 @@ async function main() {
     console.error(`${found ? 'kept' : 'created'} price ${body.description}: ${id}`);
     env[PRICE_ENV[key]] = id;
   }
+  return env;
+}
 
+/** Creates the webhook destination for this origin unless it exists. */
+async function ensureWebhook({ api, listAll }, origin) {
   const hook = webhookBody(origin);
   const destinations = await listAll('/notification-settings');
   const existing = destinations.find((d) => d.destination === hook.destination);
   const destination = existing ?? (await api('POST', '/notification-settings', hook)).data;
   console.error(`${existing ? 'kept' : 'created'} webhook destination ${hook.destination}: ${destination.id}`);
+  return destination;
+}
+
+async function main() {
+  const { apiKey, origin, base } = readArgs(process.env, process.argv);
+  const client = paddleClient(apiKey, base);
+  const env = await ensureCatalog(client);
+  const destination = await ensureWebhook(client, origin);
 
   console.log('\n# Server-only environment variables (Vercel > Settings > Environment Variables):');
   for (const [name, value] of Object.entries(env)) console.log(`${name}=${value}`);
