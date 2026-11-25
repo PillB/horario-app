@@ -1,68 +1,162 @@
+/**
+ * StreakCounter — the weekly "posted ahead" habit on Home (CHG-106).
+ *
+ * Shows the last weeks as labelled cells (symbol + date, so colour is never
+ * the only signal, WCAG 1.4.1), the run of weeks in a row, and the steadier
+ * "N of the last M weeks" count. A late week is shown in neutral grey, never
+ * red, and is not called out: highlighting a broken streak lowers persistence
+ * (Silverman & Barasch, J. Consumer Research 2022). There is no button to
+ * "log" progress: the weeks come from when shifts were published.
+ */
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
-import { Colors, brand, ThemeColors } from '@/constants/Colors';
+import { Colors, brand, type ThemeColors } from '@/constants/Colors';
+import { useT } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useEthicalReward } from '@/hooks/useEthicalReward';
+import type { HabitWeek, NoticeGoal, PostingHabit } from '@/utils/postingHabit';
 
 type StreakCounterProps = {
-  label: string;
-  streakCount: number;
-  longestStreak: number;
-  progress: number;
-  isFresh?: boolean;
-  rewardTitle?: string;
-  rewardMessage?: string;
-  onRecordToday?: () => void;
+  habit: PostingHabit | null;
+  goal: NoticeGoal;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  onOpenRoster?: () => void;
 };
 
-export function StreakCounter({
-  label,
-  streakCount,
-  longestStreak,
-  progress,
-  isFresh = false,
-  rewardTitle,
-  rewardMessage,
-  onRecordToday,
-}: StreakCounterProps) {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const styles = makeStyles(colors, colorScheme ?? 'light');
+const SYMBOL: Record<HabitWeek['verdict'], string> = { ahead: '✓', late: '–', open: '○', empty: '·' };
 
-  const normalizedProgress = Math.min(Math.max(progress, 0), 1);
-  const progressPercentage = Math.round(normalizedProgress * 100);
+/** "11/03" from "2026-11-03": short, locale-free and identical on server and client. */
+const shortDate = (key: string) => `${key.slice(5, 7)}/${key.slice(8, 10)}`;
+
+type Styles = ReturnType<typeof makeStyles>;
+
+/** Loading, or a load error with a retry: never an empty habit that reads as zero weeks. */
+function HabitUnavailable({ loading, onRetry, styles }: { loading: boolean; onRetry?: () => void; styles: Styles }) {
+  const { t } = useT();
+  if (loading) return <ThemedText style={styles.helperText}>{t('home.habit.loading')}</ThemedText>;
+  return (
+    <>
+      <View accessibilityRole="alert">
+        <ThemedText style={styles.helperText}>{t('home.habit.loadError')}</ThemedText>
+      </View>
+      {onRetry ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.tryAgain')}
+          accessibilityHint={t('errors.retryHint')}
+          onPress={onRetry}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+          <ThemedText style={styles.secondaryButtonText}>{t('common.tryAgain')}</ThemedText>
+        </Pressable>
+      ) : null}
+    </>
+  );
+}
+
+/** The next week to post, its deadline, and the way to the roster. */
+function NextWeek({ week, onOpenRoster, styles }: { week: HabitWeek; onOpenRoster?: () => void; styles: Styles }) {
+  const { t } = useT();
+  return (
+    <View style={styles.nextBox}>
+      <ThemedText type="defaultSemiBold">
+        {t('home.habit.next', { week: week.weekStart, deadline: week.deadline })}
+      </ThemedText>
+      {week.shifts > 0 ? (
+        <ThemedText style={styles.helperText}>
+          {t('home.habit.nextProgress', { n: String(week.postedByDeadline), m: String(week.shifts) })}
+        </ThemedText>
+      ) : null}
+      {onOpenRoster ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.habit.openRosterA11y')}
+          accessibilityHint={t('home.habit.openRosterHint')}
+          onPress={onOpenRoster}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+          <ThemedText style={styles.secondaryButtonText}>{t('home.habit.openRoster')}</ThemedText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export function StreakCounter({ habit, goal, loading = false, error = null, onRetry, onOpenRoster }: StreakCounterProps) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+  const styles = makeStyles(colors, colorScheme);
+  const { t } = useT();
+  const { tier } = useEthicalReward(habit?.run ?? 0);
+  const days = String(goal.days);
+
+  const header = (
+    <>
+      <ThemedText type="subtitle" accessibilityRole="header">{t('home.habit.title')}</ThemedText>
+      <ThemedText style={styles.helperText}>{t('home.habit.goal', { n: days })}</ThemedText>
+    </>
+  );
+
+  if (!habit || error) {
+    return (
+      <ThemedView style={styles.container}>
+        {header}
+        <HabitUnavailable loading={loading && !error} onRetry={onRetry} styles={styles} />
+      </ThemedView>
+    );
+  }
+
+  const next = habit.weeks.find((w) => w.verdict === 'open');
+  const verdictLabel = (w: HabitWeek) => t(`home.habit.verdict.${w.verdict}`);
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.headerRow}>
-        <ThemedText type="subtitle">{label}</ThemedText>
-        <ThemedView style={styles.badge}>
-          <ThemedText style={styles.badgeText}>{streakCount} day streak</ThemedText>
-        </ThemedView>
+      {header}
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCell}>
+          <ThemedText type="title" style={styles.bigNumber}>{String(habit.run)}</ThemedText>
+          <ThemedText style={styles.helperText}>{t('home.habit.inARow')}</ThemedText>
+        </View>
+        <View style={styles.summaryCell}>
+          <ThemedText type="title" style={styles.bigNumber}>
+            {t('home.habit.ofWeeks', { n: String(habit.aheadWeeks), m: String(habit.decidedWeeks) })}
+          </ThemedText>
+          <ThemedText style={styles.helperText}>{t('home.habit.recentWeeks')}</ThemedText>
+        </View>
       </View>
-      <ThemedText style={styles.helperText}>
-        Longest streak: {longestStreak} days. {isFresh ? 'Today is already counted.' : 'Log an action to extend it.'}
-      </ThemedText>
-      <View
-        style={styles.progressTrack}
-        accessibilityRole="progressbar"
-        accessibilityLabel={`${label} streak progress`}
-        accessibilityValue={{ now: progressPercentage, min: 0, max: 100 }}
-      >
-        <View style={[styles.progressFill, { width: `${Math.max(progressPercentage, 6)}%` }]} />
+
+      <View style={styles.weeks} accessibilityRole="list" accessibilityLabel={t('home.habit.weeksA11y')}>
+        {habit.weeks.map((w) => (
+          <View
+            key={w.weekStart}
+            accessibilityRole="text"
+            accessibilityLabel={t('home.habit.weekA11y', { date: w.weekStart, verdict: verdictLabel(w) })}
+            style={[styles.week, styles[`week_${w.verdict}`]]}>
+            <ThemedText style={[styles.weekSymbol, w.verdict === 'ahead' && styles.weekSymbolAhead]}>{SYMBOL[w.verdict]}</ThemedText>
+            <ThemedText style={[styles.weekDate, w.verdict === 'ahead' && styles.weekSymbolAhead]}>{shortDate(w.weekStart)}</ThemedText>
+          </View>
+        ))}
       </View>
-      {rewardTitle && rewardMessage ? (
+      <ThemedText style={styles.legend}>{t('home.habit.legend')}</ThemedText>
+
+      {tier ? (
         <ThemedView style={styles.rewardCard}>
-          <ThemedText type="defaultSemiBold">{rewardTitle}</ThemedText>
-          <ThemedText style={styles.helperText}>{rewardMessage}</ThemedText>
+          <ThemedText type="defaultSemiBold">{t(tier.titleKey)}</ThemedText>
+          <ThemedText style={styles.helperText}>{t(tier.messageKey)}</ThemedText>
         </ThemedView>
       ) : null}
-      {onRecordToday ? (
-        <Pressable style={[styles.logButton, isFresh && styles.logButtonDisabled]} onPress={onRecordToday} disabled={isFresh}>
-          <ThemedText style={styles.logButtonText}>{isFresh ? 'Logged for today' : 'Log today\u2019s progress'}</ThemedText>
-        </Pressable>
+
+      {next ? <NextWeek week={next} onOpenRoster={onOpenRoster} styles={styles} /> : null}
+
+      {goal.lawDays !== null && goal.lawDays >= goal.days ? (
+        <ThemedText style={styles.helperText}>{t('home.habit.lawNotice', { n: String(goal.lawDays) })}</ThemedText>
       ) : null}
+      {goal.ifCoveredDays !== null ? (
+        <ThemedText style={styles.helperText}>{t('home.habit.fairWorkweek', { n: String(goal.ifCoveredDays) })}</ThemedText>
+      ) : null}
+      <ThemedText style={styles.why}>{t('home.habit.why')}</ThemedText>
     </ThemedView>
   );
 }
@@ -73,72 +167,110 @@ const makeStyles = (colors: ThemeColors, scheme: 'light' | 'dark') =>
       gap: 10,
       padding: 16,
       borderRadius: 12,
-      // Opaque surface token eliminates unverifiable semi-transparent composite (fix #1, #11)
       backgroundColor: scheme === 'light' ? brand.primarySurface : colors.surface,
     },
-    headerRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      gap: 10,
-    },
     helperText: {
-      // Theme-aware token: #475569 light (6.86:1) / #94A3B8 dark (5.27:1) — fixes #2, #3, #15
       color: colors.textSecondary,
-      lineHeight: 22, // ≈1.57× 14px — WCAG 1.4.12 line-height fix (#15)
+      lineHeight: 22,
     },
-    progressTrack: {
-      height: 14, // Increased from 10px for better visual weight (#13)
-      borderRadius: 999,
-      // Theme-aware border token replaces hardcoded #E5E7EB — fixes #12
-      backgroundColor: colors.border,
-      overflow: 'hidden',
+    why: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 21,
     },
-    progressFill: {
-      height: '100%',
-      borderRadius: 999,
-      // On-brand teal replaces hardcoded #2563EB — fixes #6
-      backgroundColor: brand.primary,
+    summaryRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 16,
     },
-    badge: {
-      // Theme-aware badge background — fixes #4, #5
-      backgroundColor: scheme === 'light' ? brand.primarySurface : brand.primaryDeep,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
+    summaryCell: {
+      flexGrow: 1,
+      flexBasis: 140,
     },
-    badgeText: {
+    bigNumber: {
+      fontSize: 28,
+      lineHeight: 36,
       fontWeight: '700',
-      // Explicit badge text colour for deterministic contrast — fixes #4, #5
-      // light: brand.primaryDeep (#115E59) 5.87:1 on #F0FDFA ✓ AA
-      // dark: brand.primaryLight (#99F6E4) on brand.primaryDeep (#115E59) ✓ AA
-      color: scheme === 'light' ? brand.primaryDeep : brand.primaryLight,
+    },
+    weeks: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    week: {
+      minWidth: 52,
+      minHeight: 52,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 4,
+      paddingHorizontal: 6,
+    },
+    week_ahead: {
+      // White on #0F766E is 5.47:1.
+      backgroundColor: brand.primaryDark,
+      borderColor: brand.primaryDark,
+    },
+    week_late: {
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    week_open: {
+      borderColor: colors.tint,
+      borderStyle: 'dashed',
+      backgroundColor: colors.surface,
+    },
+    week_empty: {
+      borderColor: colors.border,
+      backgroundColor: 'transparent',
+    },
+    weekSymbol: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    weekSymbolAhead: {
+      color: '#FFFFFF',
+    },
+    weekDate: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    legend: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textSecondary,
     },
     rewardCard: {
       gap: 4,
       padding: 10,
       borderRadius: 10,
-      // Theme-aware tokens replace hardcoded #E5E7EB / #f8fafc — fixes #7
       borderColor: colors.border,
       borderWidth: 1,
       backgroundColor: colors.surface,
     },
-    logButton: {
-      // On-brand teal CTA replaces hardcoded near-black #111827 — fixes #9, #10
-      backgroundColor: colors.tint,
+    nextBox: {
+      gap: 6,
+    },
+    secondaryButton: {
+      borderWidth: 1.5,
+      borderColor: brand.primary,
       borderRadius: 10,
-      paddingVertical: 12,
-      alignItems: 'center',
-      minHeight: 44, // WCAG 2.5.5 / Apple HIG minimum touch target — fixes #14
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      minHeight: 44,
+      justifyContent: 'center',
+      alignSelf: 'flex-start',
     },
-    logButtonDisabled: {
-      // Clear disabled visual: muted background + reduced opacity — fixes #8
-      backgroundColor: colors.border,
-      opacity: 0.5,
+    secondaryButtonText: {
+      color: colors.tintText,
+      fontWeight: '600',
     },
-    logButtonText: {
-      color: '#ffffff',
-      fontWeight: '700',
+    pressed: {
+      opacity: 0.75,
     },
   });
 

@@ -173,6 +173,7 @@ describe('useLiveRosterSummary', () => {
     expect(capturedHook!.staffingGaps).toEqual([expect.objectContaining({ role: 'Support', required: 3, scheduled: 1, gap: 2 })]);
     expect(capturedHook!.shiftCount).toBe(2);
     expect(capturedHook!.publishedCount).toBe(1);
+    expect(capturedHook!.windowTargets).toBe(1);
   });
 
   it('counts a target outside the roster window as set up, without listing it as a gap', async () => {
@@ -189,6 +190,8 @@ describe('useLiveRosterSummary', () => {
 
     expect(capturedHook!.setup.targets).toBe(1);
     expect(capturedHook!.staffingGaps).toEqual([]);
+    // No demand inside the window: "no gaps" must not read as "fully staffed" (CHG-106).
+    expect(capturedHook!.windowTargets).toBe(0);
   });
 
   it('reports the error when the fetches fail, instead of an empty account', async () => {
