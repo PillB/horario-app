@@ -6,6 +6,28 @@
 
 ---
 
+### CHG-105 — 2026-11-21 UTC
+**Type:** FEATURE + FIX (Pablo: "psychology and market and customer research based marketing pass and product packaging and blurbs, focusing on older people and young adults, build personas, user test", following arXiv 2510.08338)
+
+**Research (not code):** `/mnt/project-files/marketing/customer-research-and-marketing-2026-11-21.md` (personas, positioning, packaging notes, red team) with four desk reports and a synthetic consumer test after Maier et al. 2025 (arXiv 2510.08338). A first run (8 rich personas, 5 blind copy pairs side by side) was redone the paper's way after reading the full paper: 12 demographic-only participants, one concept per session, generic anchors, two embedding models. Only "no AI in the headline" held up (11/12, p = 0.002); the hero and sign-up terms tied when shown alone (kept because clearer and true); the calm limit banner lowers stated intent to pay, and a value-first rewrite did not help (3 free auto-schedules a month is enough for weekly schedulers: a packaging question). Simulated, not real users; real tests are listed there as next steps.
+
+**Changes:**
+- `app/(auth)/sign-in.tsx`, `sign-up.tsx`: every visible string, label and hint comes from `t()` (Spanish visitors saw English). Buttons and links gained `accessibilityHint`.
+- Copy (en, es; changed lines translated in de, fr, it, zh, sw, tl, hi, to be checked by native speakers): tagline "Fair schedules, checked against labor law."; the sign-up offer states the real terms (free 1 location / 10 people, 14-day Pro trial, no card); "Cancel anytime" removed (nothing to cancel yet), replaced by "If you stop paying, you keep your data and move to the free plan"; "Work email" → "Email"; the upgrade banner at the free limit no longer blames ("You've used this month's free auto-schedules. You can keep building shifts by hand…"), its hint says it opens the plans. Unused `upgrade.free.cta` removed; `pricingCopy.test.ts` now checks the trial in `auth.signUp.promo`.
+- New public page `app/welcome.tsx` (`landing.*`, en + es): what it does and for whom, how it works, plans read from `constants/pricing.ts` (S/ for a device in Peru, after mount), "what it does not do yet", FAQ (staff need no account, which laws, free terms, data if you stop paying, AI). Signed-out visitors are redirected there instead of to sign-in (`app/(tabs)/_layout.tsx`). Body text ≥ 16 px, targets ≥ 48 px. Link asChild needs a flat style object on web (an array crashes, a function is dropped).
+- `components/TourSpotlight.tsx`, `contexts/WelcomeTourContext.tsx`: the guide stays closed on `/welcome`, `/sign-in`, `/sign-up` (`isPublicRoute`); it opened over the sign-in form and used up its one showing there. The first-launch picker is now pending (`firstLaunchPending`) until the visitor reaches an app route, and only then marked seen (`claimFirstLaunch`; Codex review on PR #65).
+- Tests: `app/__tests__/welcome.test.tsx` (content, soles for Peru, labels and hints, a banned-claims list for en/es landing, auth and upgrade copy, Spanish has every landing key), `components/__tests__/tourPublicRoutes.test.ts`.
+
+**Checked:** `npm test` 1241 passed / 51 skipped; `tsc` 0 errors; lint clean; `/welcome` in Chromium at 1280 px (en-US) and 390 px (es-PE): no console errors, no horizontal scroll, S/ prices in Peru. Sign-in / sign-up not seen in a browser (they need a Clerk key; the dev bypass redirects them).
+
+**Watch out:** the "What it does not do yet" box (`landing.notYet.body`) and FAQ a1 must change when push, WhatsApp sending, swaps or the time clock ship. `landing.plans.soon` hides itself once `EXPO_PUBLIC_CHECKOUT_ENABLED=1`. "By signing up you agree to our Terms…" points at pages that do not exist yet (subscriptions thread owns them). The landing page is English and Spanish only.
+
+**Renumbered on merge:** main took CHG-103 (AGENTS.md, drift guards, PR #63), and the open subscriptions PR #66 uses CHG-104, so this work is CHG-105; its first commits say CHG-103.
+
+**Merge with main after #66 (same CHG):** `locales/en.ts` and `es.ts` conflicted only because `landing` and the new `billing` block were both added at the end; both kept. tsc, lint, complexity gate and jest (1411 passed, 51 skipped) pass on the merged tree.
+
+---
+
 ### CHG-104 — 2026-11-21 UTC
 **Type:** FEATURE (Pablo: "plan and implement the easiest way to start taking subs to access the website worldwide like shopify"; coordinator: build on Paddle, enforce entitlements server-side)
 

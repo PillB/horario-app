@@ -530,7 +530,7 @@ export const fr = {
   // ─── Auth screens ──────────────────────────────────────────────────────────
   auth: {
     appName: 'Horario',
-    tagline: 'Planification intelligente, simplifiée.',
+    tagline: 'Des plannings équitables, vérifiés selon le droit du travail.',
     signIn: {
       title: 'Bon retour',
       subtitle: 'Connectez-vous pour continuer',
@@ -545,16 +545,16 @@ export const fr = {
       noAccount: "Vous n'avez pas de compte ?",
       createLink: 'Créer un compte gratuitement',
       createLinkA11y: 'Créer un compte',
-      trustText: 'Gratuit pour commencer · Aucune carte de crédit · Annulez à tout moment',
+      trustText: 'Gratuit jusqu\'à 10 personnes · Sans carte',
       errDefault: "La connexion n'a pas pu être effectuée. Veuillez réessayer.",
       errToken: 'Jeton de connexion invalide ou expiré.',
       errCredentials: 'Échec de la connexion. Vérifiez vos identifiants.',
     },
     signUp: {
-      promo: '✦ Votre premier planning optimisé est gratuit — aucune carte requise',
+      promo: 'Gratuit pour 1 établissement et jusqu\'à 10 personnes, sans limite de durée. Les nouvelles entreprises ont aussi toutes les fonctions Pro gratuites pendant 14 jours. Sans carte.',
       title: 'Créez votre compte',
       subtitle: 'Créez des plannings équitables qui respectent le droit du travail local.',
-      emailLabel: 'E-mail professionnel',
+      emailLabel: 'E-mail',
       emailPlaceholder: 'vous@entreprise.com',
       emailA11y: 'Adresse e-mail',
       passwordLabel: 'Mot de passe',
@@ -567,7 +567,7 @@ export const fr = {
       hasAccount: 'Vous avez déjà un compte ?',
       signInLink: 'Se connecter',
       signInLinkA11y: 'Se connecter',
-      trustText: 'Gratuit pour commencer · Aucune carte de crédit · Annulez à tout moment',
+      trustText: 'Sans carte · Si vous arrêtez de payer, vous gardez vos données et passez au plan gratuit',
       verify: {
         title: 'Vérifiez votre e-mail',
         emoji: '📬',
@@ -604,15 +604,14 @@ export const fr = {
     },
     free: {
       badge: 'GRATUIT',
-      limitReached: 'Arrêtez de créer des plannings manuellement — vous avez atteint la limite gratuite.',
+      limitReached: 'Vous avez utilisé les plannings automatiques gratuits de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez d\'autres le mois prochain.',
       autoAssignsLeft: '{n} affectation{plural} automatique{plural} gratuite{plural} restante{plural}',
-      cta: 'Affectez toute votre équipe en un seul appui. Essayez Pro gratuitement pendant 14 jours →',
-      ctaUnlimited: 'Débloquez des affectations automatiques illimitées — sans frais par employé →',
-      pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé · annulez à tout moment',
+      ctaUnlimited: 'Esencial : plannings automatiques illimités jusqu\'à 40 personnes, sans frais par personne. Voir les offres',
+      pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé',
     },
     buttonA11y: 'Passer au plan Pro',
-    buttonHint: 'Ouvre la page de facturation pour démarrer votre essai Pro gratuit',
-    limitReachedBanner: 'Limite gratuite atteinte. Passez à Pro pour une affectation automatique illimitée.',
+    buttonHint: 'Ouvre les offres et les prix',
+    limitReachedBanner: 'Les plannings automatiques gratuits de ce mois sont épuisés. Vous pouvez continuer à la main ou voir les offres pour des plannings automatiques illimités.',
   },
 
   // ─── Language selector ─────────────────────────────────────────────────────

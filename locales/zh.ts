@@ -461,7 +461,7 @@ export const zh = {
 
   auth: {
     appName: 'Horario',
-    tagline: '智能排班，简单高效。',
+    tagline: '公平的排班，按劳动法检查。',
     signIn: {
       title: '欢迎回来',
       subtitle: '登录以继续',
@@ -476,16 +476,16 @@ export const zh = {
       noAccount: '没有账户？',
       createLink: '免费创建',
       createLinkA11y: '创建账户',
-      trustText: '免费开始 · 无需信用卡 · 随时取消',
+      trustText: '最多 10 人免费 · 无需银行卡',
       errDefault: '登录未能完成，请重试。',
       errToken: '登录令牌无效或已过期。',
       errCredentials: '登录失败，请检查您的凭据。',
     },
     signUp: {
-      promo: '✦ 您的第一个优化排班免费——无需信用卡',
+      promo: '1 个门店、最多 10 人永久免费。新商家还可免费使用全部 Pro 功能 14 天。无需银行卡。',
       title: '创建您的账户',
       subtitle: '制定符合当地劳动法规的公平排班。',
-      emailLabel: '工作邮箱',
+      emailLabel: '电子邮件',
       emailPlaceholder: 'you@company.com',
       emailA11y: '电子邮件地址',
       passwordLabel: '密码',
@@ -498,7 +498,7 @@ export const zh = {
       hasAccount: '已有账户？',
       signInLink: '登录',
       signInLinkA11y: '登录',
-      trustText: '免费开始 · 无需信用卡 · 随时取消',
+      trustText: '无需银行卡 · 停止付费后，您的数据会保留，并转为免费方案',
       verify: {
         title: '查看您的邮箱',
         emoji: '📬',
@@ -533,15 +533,14 @@ export const zh = {
     },
     free: {
       badge: '免费版',
-      limitReached: '停止手动创建排班——您已达到免费限制。',
+      limitReached: '本月的免费自动排班次数已用完。您仍可手动排班，下个月会有新的次数。',
       autoAssignsLeft: '剩余 {n} 次免费自动分配{plural}',
-      cta: '一键自动分配整个团队，免费试用专业版 14 天 →',
-      ctaUnlimited: '解锁无限自动分配——无员工数量费 →',
-      pricing: '每个门店每月 19 美元起 · 不按员工收费 · 随时取消',
+      ctaUnlimited: 'Esencial：最多 40 人无限次自动排班，不按人数收费。查看方案',
+      pricing: '每个门店每月 19 美元起 · 不按员工收费',
     },
     buttonA11y: '升级到专业版',
-    buttonHint: '打开账单页面开始免费专业版试用',
-    limitReachedBanner: '已达免费限制，升级专业版解锁无限自动分配。',
+    buttonHint: '打开方案和价格',
+    limitReachedBanner: '本月的免费自动排班次数已用完。您可以继续手动排班，或查看方案以获得无限次自动排班。',
   },
 
   language: {
