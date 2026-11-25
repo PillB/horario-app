@@ -47,7 +47,8 @@ const mockData: {
   roster: { id: string; date: string; workerId: string; templateId: string; location: string; status: 'Draft' | 'Published'; notified: boolean }[];
   targets: { date: string; role: string; required: number; source?: 'model' | 'override' }[];
   locations: { id: string; time_zone?: string }[];
-} = { workers: [], templates: [], roster: [], targets: [], locations: [] };
+  forecastRan: boolean;
+} = { workers: [], templates: [], roster: [], targets: [], locations: [], forecastRan: false };
 
 const mockUpdateWorker = jest.fn();
 const mockUpdateTemplate = jest.fn();
@@ -81,7 +82,7 @@ jest.mock('@/hooks/useDemandForecast', () => ({
     loading: false, error: null, forecasting: false,
     dataStatus: { hasHistorical: false, hasExternalSignals: false, hasExistingTargets: false, apiAvailable: false },
     seedBaselineTargets: jest.fn(), forecastModels: [], forecastNotices: { historyEndsDaysAgo: null, signalsTruncated: false },
-    targetsError: null, refresh: jest.fn(),
+    targetsError: null, refresh: jest.fn(), forecastRan: mockData.forecastRan,
   }),
 }));
 jest.mock('@/hooks/useLocations', () => ({
@@ -167,6 +168,7 @@ beforeEach(() => {
   mockData.roster = [];
   mockData.targets = [];
   mockData.locations = [];
+  mockData.forecastRan = false;
   mockAddShifts.mockResolvedValue({ success: true });
   mockUpdateWorker.mockResolvedValue({ success: true, worker: W1 });
   mockUpdateTemplate.mockResolvedValue({ success: true, template: T1 });
@@ -276,6 +278,63 @@ describe('auto-assign suggestions (D7)', () => {
     screen.unmount();
   });
 
+  // A run still computing when the location changes was for the old one:
+  // no suggestions, no shortfalls and no "found N" banner when it finishes.
+  it('drop a run that finishes after another location was picked', async () => {
+    mockData.workers = [W1];
+    mockData.templates = [T1];
+    mockData.locations = twoLocations;
+    let finish!: (r: unknown) => void;
+    mockRunAutoAssign.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const screen = await render();
+    act(() => screen.h.selectLocation('loc-cusco'));
+    act(() => screen.h.updateShiftField('date')('2099-12-01'));
+    let running!: Promise<void>;
+    await act(async () => {
+      running = screen.h.handleAutoAssign();
+    });
+    await settle();
+    expect(mockRunAutoAssign).toHaveBeenCalledTimes(1);
+    const signal = (mockRunAutoAssign.mock.calls[0][1] as { signal: AbortSignal }).signal;
+    act(() => screen.h.selectLocation('loc-lima'));
+    await settle();
+    expect(signal.aborted).toBe(true);
+    await act(async () => {
+      finish({ assignments: [SUGGESTION], unassigned: [{ templateId: 't1', date: '2099-12-02', missing: 1, reason: 'no one' }] });
+      await running;
+    });
+    // Back on the run's location: still nothing from it.
+    act(() => screen.h.selectLocation('loc-cusco'));
+    await settle();
+    expect(screen.h.autoAssignSuggestions).toBeNull();
+    expect(screen.h.autoAssignShortfalls).toBeNull();
+    expect(screen.h.actionBanner).toBeNull();
+    screen.unmount();
+  });
+
+  it('stay dismissed when Dismiss is pressed while a run is computing', async () => {
+    mockData.workers = [W1];
+    mockData.templates = [T1];
+    const screen = await render();
+    await runFor(screen);
+    let finish!: (r: unknown) => void;
+    mockRunAutoAssign.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let running!: Promise<void>;
+    await act(async () => {
+      running = screen.h.handleAutoAssign();
+    });
+    await settle();
+    const banner = screen.h.actionBanner;
+    act(() => screen.h.dismissAutoAssign());
+    await act(async () => {
+      finish({ assignments: [SUGGESTION], unassigned: [] });
+      await running;
+    });
+    expect(screen.h.autoAssignSuggestions).toBeNull();
+    expect(screen.h.actionBanner).toEqual(banner);
+    screen.unmount();
+  });
+
   it('can be dismissed without saving', async () => {
     mockData.workers = [W1];
     mockData.templates = [T1];
@@ -380,6 +439,67 @@ describe('edit forms keep the updatedAt they read (D8)', () => {
   });
 });
 
+describe('an edit refused because the row changed elsewhere (409)', () => {
+  it('keeps the form, says so, and the next save replaces the stored version', async () => {
+    mockData.workers = [W1];
+    mockUpdateWorker.mockResolvedValueOnce({
+      success: false,
+      error: 'This worker was changed by someone else. Reload and try again',
+      conflictUpdatedAt: '2026-11-21T08:00:00.123456+00:00',
+    });
+    const screen = await render();
+    act(() => screen.h.handleEditWorker('w1'));
+    act(() => screen.h.updateWorkerField('name')('Ana Lucía'));
+    await act(async () => {
+      await screen.h.handleAddWorker();
+    });
+    expect(screen.h.workerError).toBe('scheduler.edit.conflict');
+    expect(screen.h.workerForm.name).toBe('Ana Lucía');
+    expect(screen.h.editingWorkerId).toBe('w1');
+    await act(async () => {
+      await screen.h.handleAddWorker();
+    });
+    expect(mockUpdateWorker).toHaveBeenCalledTimes(2);
+    expect(mockUpdateWorker.mock.calls[1][1]).toMatchObject({ name: 'Ana Lucía' });
+    // The version now stored, as the reload gave it: this save may replace it.
+    expect(mockUpdateWorker.mock.calls[1][2]).toBe('2026-11-21T08:00:00.123456+00:00');
+    expect(screen.h.editingWorkerId).toBeNull();
+    screen.unmount();
+  });
+
+  it('a template conflict does the same', async () => {
+    mockData.templates = [T1];
+    mockUpdateTemplate.mockResolvedValueOnce({ success: false, error: 'changed', conflictUpdatedAt: '2026-11-22T00:00:00+00:00' });
+    const screen = await render();
+    act(() => screen.h.handleEditTemplate('t1'));
+    await act(async () => {
+      await screen.h.handleAddTemplate();
+    });
+    expect(screen.h.templateError).toBe('scheduler.edit.conflict');
+    await act(async () => {
+      await screen.h.handleAddTemplate();
+    });
+    expect(mockUpdateTemplate.mock.calls[1][2]).toBe('2026-11-22T00:00:00+00:00');
+    screen.unmount();
+  });
+
+  it('another refusal shows the server message and keeps the updatedAt the form read', async () => {
+    mockData.workers = [W1];
+    mockUpdateWorker.mockResolvedValueOnce({ success: false, error: 'Only an admin can change the schedule' });
+    const screen = await render();
+    act(() => screen.h.handleEditWorker('w1'));
+    await act(async () => {
+      await screen.h.handleAddWorker();
+    });
+    expect(screen.h.workerError).toBe('Only an admin can change the schedule');
+    await act(async () => {
+      await screen.h.handleAddWorker();
+    });
+    expect(mockUpdateWorker.mock.calls[1][2]).toBe('2026-11-20T10:00:00.000001+00:00');
+    screen.unmount();
+  });
+});
+
 // ─── D9 ───────────────────────────────────────────────────────────────────────
 
 describe('onboarding flags come from server-confirmed rows (D9)', () => {
@@ -404,6 +524,19 @@ describe('onboarding flags come from server-confirmed rows (D9)', () => {
     mockData.targets = [{ date: '2026-12-02', role: 'Barista', required: 4, source: 'override' }];
     const screen = await render();
     expect(upsertOnboardingProgress).toHaveBeenCalledWith('org_a', { workers: true, templates: true, forecast: true }, 'u1');
+    screen.unmount();
+  });
+
+  // "Run forecast" asks for a run, not for an override: a run that produced
+  // forecasts for this tenant marks it done (useDemandForecast.forecastRan).
+  it('a forecast run that produced forecasts marks "Run forecast" done', async () => {
+    mockData.targets = [{ date: '2026-12-02', role: 'Barista', required: 4, source: 'model' }];
+    const screen = await render();
+    expect(upsertOnboardingProgress).not.toHaveBeenCalled();
+    mockData.forecastRan = true;
+    await screen.rerender();
+    expect(upsertOnboardingProgress).toHaveBeenCalledWith('org_a', { workers: false, templates: false, forecast: true }, 'u1');
+    expect(screen.h.onboardingSteps.map((s) => s.completed)).toEqual([false, false, true]);
     screen.unmount();
   });
 });

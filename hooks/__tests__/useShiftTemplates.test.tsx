@@ -63,7 +63,7 @@ describe('useShiftTemplates', () => {
     await act(async () => {
       result = await hook.result.addShiftTemplate('Night', 'Support', '22:00', '06:00', 1);
     });
-    expect(result).toEqual({ success: false, error: 'Conflicting record' });
+    expect(result).toEqual({ success: false, error: 'Conflicting record' , status: 409 });
     expect(hook.result.shiftTemplates.map((t) => t.name)).toEqual(['Morning']);
   });
 
@@ -110,7 +110,7 @@ describe('useShiftTemplates', () => {
       result = await hook.result.removeShiftTemplate(T1);
     });
     await flush();
-    expect(result).toEqual({ success: false, error: 'Record is still referenced' });
+    expect(result).toEqual({ success: false, error: 'Record is still referenced' , status: 409 });
     expect(hook.result.shiftTemplates.map((t) => t.id)).toEqual([T1]);
   });
 });

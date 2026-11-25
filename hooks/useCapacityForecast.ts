@@ -10,6 +10,7 @@ import {
 import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoDate, parseTimeToMinutes } from '@/utils/schedulerUtils';
 import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -341,7 +342,8 @@ const LOOKBACK_DAYS = 28;
 const LOOKBACK_WEEKS = 4;
 const FORECAST_DAYS = 14;
 
-export function useCapacityForecast(accountId: string): UseCapacityForecastReturn {
+/** `reloadSignal`: each change after mount reloads (see useReloadOnSignal). */
+export function useCapacityForecast(accountId: string, reloadSignal?: number): UseCapacityForecastReturn {
   const [rawGaps, setRawGaps] = useState<CapacityGap[]>([]);
   const [rawBurnout, setRawBurnout] = useState<BurnoutRisk[]>([]);
   const [rawTrends, setRawTrends] = useState<CapacityTrend[]>([]);
@@ -437,6 +439,7 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
   useEffect(() => {
     load();
   }, [load]);
+  useReloadOnSignal(reloadSignal, load);
 
   // Memoize the return object so consumers get stable references
   const gaps = useMemo(() => rawGaps, [rawGaps]);

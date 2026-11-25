@@ -50,6 +50,11 @@ export type AnalyticsSummary = {
   fairnessScore: number;        // std dev of worker hours (lower = fairer)
   uncoveredRevenue: number;     // $ from computeUncoveredLoss
   loading: boolean;
+  /**
+   * The numbers above are from a load that succeeded for this tenant and
+   * period. A reload keeps them (and this true) until its own answer.
+   */
+  loaded: boolean;
   /** A list failed to load: the numbers above are not known (never shown as 0 %). */
   error: string | null;
   /** A list had more rows than the client loads: the numbers leave the oldest out. */
@@ -143,6 +148,9 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
+  // The tenant and period of the last load that succeeded.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const key = `${accountId}|${from ?? ''}|${to ?? ''}`;
   const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -235,6 +243,7 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
       setWorkerHours(workerHoursEntries);
       setFairnessScore(Math.round(fairness * 10) / 10);
       setUncoveredRevenue(loss);
+      setLoadedKey(key);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load analytics.');
@@ -245,7 +254,7 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
   // accountId is not sent (the server takes the tenant from the session), but
   // a tenant switch must reload.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, from, to]);
+  }, [accountId, from, to, key]);
 
   useEffect(() => {
     load();
@@ -260,6 +269,7 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
     fairnessScore,
     uncoveredRevenue,
     loading,
+    loaded: loadedKey === key,
     error,
     truncated,
     refresh: load,

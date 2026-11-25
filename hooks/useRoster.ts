@@ -39,6 +39,14 @@ export type RosterShiftChanges = Partial<Omit<Shift, 'id'>>;
 /** `alreadyStored`: the request failed, but after a reload every shift was on the roster (a lost answer). */
 export type AddShiftsResult = { success: true; alreadyStored?: boolean; error?: never } | { success: false; error: string };
 
+/**
+ * A refusal after which the batch may still be stored: a conflict (409, the
+ * slots are taken) or no clear answer (no status: the request or its answer
+ * was lost; 5xx: a gateway or the server failed after the database may have
+ * committed). Any other refusal (400, 402, 403) saved nothing.
+ */
+const mayBeStored = (status: number | undefined) => status === undefined || status === 409 || status >= 500;
+
 const sameSlot = (a: Pick<Shift, 'date' | 'workerId' | 'templateId'>, b: Pick<Shift, 'date' | 'workerId' | 'templateId'>) =>
   a.date === b.date && a.workerId === b.workerId && a.templateId === b.templateId;
 
@@ -99,17 +107,20 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
         commit: () => addRosterShifts(inputs.map(({ id, date, workerId, templateId, location, status }) => ({ id, date, workerId, templateId, location, status })), options),
         rollback: (prev) => prev.filter((s) => !ids.has(s.id)),
         reconcile: (prev, r) => (r.success ? r.shifts.reduce((list, s) => upsertById(list, dbToShift(s)), prev) : prev),
+        // Reloaded below, once, and awaited: the check needs the server's rows.
+        reloadOnFailure: false,
       });
       if (result.success) {
         log.info('ROSTER', 'Shifts added', { count: inputs.length });
         return { success: true };
       }
-      // A retry after a lost answer is refused as "already on the roster" (the
-      // first request saved them under other ids). After a reload, when every
-      // shift is stored, the batch is saved: say so instead of failing (QA, CHG-109).
-      await refresh();
-      const stored = getItems();
-      if (inputs.every((input) => stored.some((s) => sameSlot(s, input)))) {
+      // A retry after a lost answer can be refused as "already on the roster".
+      // Only a reload that succeeded says what is stored (the rolled-back
+      // optimistic rows are gone by then); when every shift is there, the batch
+      // is saved: say so instead of failing (QA, CHG-109).
+      const reloaded = await refresh();
+      const stored = reloaded && mayBeStored(result.status) ? getItems() : [];
+      if (stored.length > 0 && inputs.every((input) => stored.some((s) => sameSlot(s, input)))) {
         log.info('ROSTER', 'Shifts already on the roster', { count: inputs.length });
         return { success: true, alreadyStored: true };
       }

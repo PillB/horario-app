@@ -570,4 +570,85 @@ describe('useDemandForecast across a tenant switch (D3, CHG-109)', () => {
     expect(state.current?.forecasting).toBe(false);
     spy.mockRestore();
   });
+  // Onboarding's "Run forecast" step (CHG-109): done by a run that produced
+  // forecasts for this tenant; a refused or empty run, or one that finished
+  // after a switch, does not count.
+  it('says a forecast ran only after a run that produced forecasts for this tenant', async () => {
+    tenant = 'org_a';
+    install();
+    const meta = { ...status, usedApi: false, usedFallback: false, apiCallFailed: false };
+    const replies: Awaited<ReturnType<typeof demandForecast.generateDemandForecast>>[] = [
+      // Refused by the plan: no forecasts.
+      { forecasts: [], metadata: { ...meta, usedFallback: true, fallbackReason: 'The forecast is part of Pro' } },
+      { forecasts: [{ date: '2026-11-04', role: 'Support', required: 9, source: 'model' }], metadata: meta },
+    ];
+    const spy = jest.spyOn(demandForecast, 'generateDemandForecast').mockImplementation(async () => replies.shift()!);
+    const state: { current: ReturnType<typeof useDemandForecast> | null } = { current: null };
+    const Probe = ({ accountId }: { accountId: string }) => {
+      state.current = useDemandForecast(accountId);
+      return null;
+    };
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<Probe accountId="org_a" />);
+    });
+    await settle();
+    expect(state.current?.forecastRan).toBe(false);
+    await act(async () => {
+      await state.current!.triggerForecast();
+    });
+    await settle();
+    expect(state.current?.forecastRan).toBe(false);
+    await act(async () => {
+      await state.current!.triggerForecast();
+    });
+    await settle();
+    expect(state.current?.forecastRan).toBe(true);
+    // Another organization has not run one.
+    tenant = 'org_b';
+    await act(async () => {
+      root.update(<Probe accountId="org_b" />);
+    });
+    await settle();
+    expect(state.current?.forecastRan).toBe(false);
+    spy.mockRestore();
+  });
+
+  it('does not say a forecast ran for the new tenant when the old one finishes after the switch', async () => {
+    tenant = 'org_a';
+    install();
+    let finish!: (value: Awaited<ReturnType<typeof demandForecast.generateDemandForecast>>) => void;
+    const spy = jest.spyOn(demandForecast, 'generateDemandForecast').mockImplementation(
+      () => new Promise((resolve) => { finish = resolve; }),
+    );
+    const state: { current: ReturnType<typeof useDemandForecast> | null } = { current: null };
+    const Probe = ({ accountId }: { accountId: string }) => {
+      state.current = useDemandForecast(accountId);
+      return null;
+    };
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<Probe accountId="org_a" />);
+    });
+    await settle();
+    let run!: Promise<void>;
+    act(() => {
+      run = state.current!.triggerForecast();
+    });
+    tenant = 'org_b';
+    await act(async () => {
+      root.update(<Probe accountId="org_b" />);
+    });
+    await settle();
+    await act(async () => {
+      finish({
+        forecasts: [{ date: '2026-11-04', role: 'Support', required: 9, source: 'model' }],
+        metadata: { ...status, usedApi: false, usedFallback: false, apiCallFailed: false },
+      });
+      await run;
+    });
+    await settle();
+    expect(state.current?.forecastRan).toBe(false);
+    spy.mockRestore();
+  });
 });

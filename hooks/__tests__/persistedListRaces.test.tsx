@@ -292,7 +292,7 @@ describe("a member's refused write (G1)", () => {
     await act(async () => {
       result = await hook.result.setShiftStatus(S1, 'Published');
     });
-    expect(result).toEqual({ success: false, error: MEMBER_ERROR });
+    expect(result).toEqual({ success: false, error: MEMBER_ERROR, status: 403 });
     expect(hook.result.roster[0].status).toBe('Draft');
   });
 });

@@ -68,6 +68,8 @@ export const useDemandForecast = (accountId: string, filters?: ForecastFilters, 
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [lastGenerationMetadata, setLastGenerationMetadata] = useState<ForecastGenerationMetadata | null>(null);
   const [dataStatus, setDataStatus] = useState<ForecastDataStatus>(initialDataStatus);
+  // The tenant whose last forecast run produced forecasts (onboarding's "Run forecast").
+  const [forecastRanFor, setForecastRanFor] = useState<string | null>(null);
 
   const hydrateRequestIdRef = useRef(0);
   const forecastRequestIdRef = useRef(0);
@@ -142,6 +144,7 @@ export const useDemandForecast = (accountId: string, filters?: ForecastFilters, 
         );
         if (!current()) return;
         setLastGenerationMetadata(metadata);
+        if (forecasts.length > 0) setForecastRanFor(tenant);
         // A manual override always beats a model forecast for the same date and role.
         setDemandTargets((prev) => {
           const overrides = prev.filter((item) => item.source === 'override');
@@ -289,6 +292,8 @@ export const useDemandForecast = (accountId: string, filters?: ForecastFilters, 
     forecasting,
     dataStatus,
     lastGenerationMetadata,
+    /** True once a forecast run produced forecasts for this tenant (a refused or empty run does not count). */
+    forecastRan: forecastRanFor === accountId,
     /** Statistical forecasts: model chosen per role and its backtest MASE (empty otherwise). */
     forecastModels,
     /** Statistical forecasts: history gap and signal truncation, for a note in the UI. */

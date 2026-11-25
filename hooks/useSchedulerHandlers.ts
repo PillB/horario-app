@@ -107,6 +107,46 @@ export const suggestionsFor = (
 ): AssignedShift[] | null =>
   run && run.accountId === accountId && run.locationId === locationId ? run.suggestions : null;
 
+/** Says the plan's auto-schedule limit is reached: a banner on web, an alert on native. */
+const showAutoAssignLimitReached = (
+  showActionBanner: (message: string, kind: 'error') => void,
+  t: (key: string) => string,
+): void => {
+  if (Platform.OS === 'web') {
+    showActionBanner(t('upgrade.limitReachedBanner'), 'error');
+  } else {
+    Alert.alert('Free limit reached', t('upgrade.limitReachedBanner'), [{ text: 'OK' }]);
+  }
+};
+
+/** The banner after an auto-assign run that found at least one suggestion. */
+const autoAssignFoundBanner = (
+  assigned: number,
+  unassigned: { missing: number }[],
+  t: (key: string, params?: Record<string, string>) => string,
+): string =>
+  unassigned.length > 0
+    ? t('scheduler.shifts.partialCoverageBanner', {
+        n: String(assigned),
+        missing: String(unassigned.reduce((sum, s) => sum + s.missing, 0)),
+      })
+    : `Auto-assign found ${assigned} suggestion(s). Review and click "Apply".`;
+
+/**
+ * What a refused edit leaves in the form: the message, and the `updatedAt` the
+ * next save sends. After a 409 that is the version now stored, so saving again
+ * replaces it with the form's values (on purpose, after the message said so);
+ * before, every later save was refused again with the old `updatedAt`.
+ */
+export const refusedEditState = (
+  result: { error: string; conflictUpdatedAt?: string },
+  name: string,
+  t: (key: string, params?: Record<string, string>) => string,
+): { message: string; updatedAt?: string } =>
+  result.conflictUpdatedAt !== undefined
+    ? { message: t('scheduler.edit.conflict', { name }), updatedAt: result.conflictUpdatedAt }
+    : { message: result.error };
+
 const idOf = (target: { id: string } | null | undefined): string | null => target?.id ?? null;
 
 /** Runs `fn` unless a previous call of it is still running. */
@@ -159,6 +199,7 @@ export function useSchedulerHandlers() {
     forecastNotices,
     targetsError,
     refresh: refreshDemandTargets,
+    forecastRan,
   } = useDemandForecast(accountId, undefined, { timeZone: forecastTimeZone });
 
   const {
@@ -318,6 +359,9 @@ export function useSchedulerHandlers() {
   // another location's rules (D7).
   const autoAssignSuggestions = suggestionsFor(autoAssignRun, accountId, autoAssignLocationId);
   useEffect(() => {
+    // A run still computing was for the old tenant or location: its result is dropped.
+    autoAssignRunRef.current?.abort();
+    autoAssignRunRef.current = null;
     setAutoAssignRun((run) =>
       run && (run.accountId !== accountId || run.locationId !== autoAssignLocationId) ? null : run,
     );
@@ -504,15 +548,16 @@ export function useSchedulerHandlers() {
   ]);
 
   // The server keeps a step done forever, so only rows the server confirmed
-  // count: an optimistic row may still be refused, and a model forecast that
-  // is only in memory is not saved (D9).
+  // count: an optimistic row may still be refused. "Run forecast" is done by
+  // a run that produced forecasts for this tenant (not a refused or empty
+  // one), or by a stored override.
   const derivedOnboardingFlags = useMemo(
     () => ({
       workers: workers.some(isServerConfirmed),
       templates: shiftTemplates.some(isServerConfirmed),
-      forecast: demandTargets.some((target) => target.source === 'override'),
+      forecast: forecastRan || demandTargets.some((target) => target.source === 'override'),
     }),
-    [demandTargets, shiftTemplates, workers]
+    [demandTargets, forecastRan, shiftTemplates, workers]
   );
 
   const effectiveOnboardingFlags = useMemo(() => {
@@ -815,7 +860,9 @@ export function useSchedulerHandlers() {
         setEditingWorker(null);
         showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
       } else {
-        setWorkerError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+        const refused = refusedEditState(updated, trimmedName, t);
+        if (refused.updatedAt) setEditingWorker({ id: editingWorker.id, updatedAt: refused.updatedAt });
+        setWorkerError(refused.message);
       }
       return;
     }
@@ -866,7 +913,9 @@ export function useSchedulerHandlers() {
         setEditingTemplate(null);
         showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
       } else {
-        setTemplateError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+        const refused = refusedEditState(updated, trimmedName, t);
+        if (refused.updatedAt) setEditingTemplate({ id: editingTemplate.id, updatedAt: refused.updatedAt });
+        setTemplateError(refused.message);
       }
       return;
     }
@@ -1358,15 +1407,7 @@ export function useSchedulerHandlers() {
     // While Apply is saving, a new run would replace what is being saved.
     if (autoAssignApplying) return;
     if (!canAutoAssign) {
-      if (Platform.OS === 'web') {
-        showActionBanner(t('upgrade.limitReachedBanner'), 'error');
-      } else {
-        Alert.alert(
-          'Free limit reached',
-          t('upgrade.limitReachedBanner'),
-          [{ text: 'OK' }]
-        );
-      }
+      showAutoAssignLimitReached(showActionBanner, t);
       return;
     }
     const date = shiftForm.date.trim();
@@ -1378,16 +1419,19 @@ export function useSchedulerHandlers() {
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
     // One run fills the date's Monday-to-Sunday week, from today on (CHG-108).
     const week = autoAssignWeekDates(date, todayKey(settings.timeZone));
+    // A newer run, Dismiss, a tenant or location change or unmount aborts this
+    // one: from then on its outcome is dropped, whatever the engine returns.
+    autoAssignRunRef.current?.abort();
+    const run = new AbortController();
+    autoAssignRunRef.current = run;
     // A person with a day off (team step) is not suggested on that day.
     // Unknown days off stop the run: a guess could suggest someone who is away.
     const off = await fetchDaysOffOn(week);
+    if (run.signal.aborted) return;
     if (!off.ok) {
       showActionBanner(t('teamTools.daysOffLoadError', { error: off.error }), 'error');
       return;
     }
-    autoAssignRunRef.current?.abort();
-    const run = new AbortController();
-    autoAssignRunRef.current = run;
     let result;
     try {
       result = await runAutoAssign(
@@ -1410,6 +1454,7 @@ export function useSchedulerHandlers() {
     } finally {
       if (autoAssignRunRef.current === run) autoAssignRunRef.current = null;
     }
+    if (run.signal.aborted) return;
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {
@@ -1428,15 +1473,7 @@ export function useSchedulerHandlers() {
       suggestions: result.assignments,
       ids: result.assignments.map(() => newUuid()),
     });
-    showActionBanner(
-      result.unassigned.length > 0
-        ? t('scheduler.shifts.partialCoverageBanner', {
-            n: String(result.assignments.length),
-            missing: String(result.unassigned.reduce((sum, s) => sum + s.missing, 0)),
-          })
-        : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
-      'info'
-    );
+    showActionBanner(autoAssignFoundBanner(result.assignments.length, result.unassigned, t), 'info');
   }, [accountId, autoAssignApplying, autoAssignLocation, autoAssignLocationId, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
 
   /**
@@ -1480,6 +1517,9 @@ export function useSchedulerHandlers() {
 
   /** Drops the suggestions without saving any. */
   const dismissAutoAssign = useCallback(() => {
+    // A run still computing would bring the suggestions back when it finishes.
+    autoAssignRunRef.current?.abort();
+    autoAssignRunRef.current = null;
     setAutoAssignRun(null);
     setAutoAssignShortfalls(null);
   }, []);

@@ -9,6 +9,7 @@ import { useIdentity } from '@/contexts/IdentityContext';
 
 import { useRoster } from '@/hooks/useRoster';
 import { useShiftTemplates } from '@/hooks/useShiftTemplates';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
 
 // ---------------------------------------------------------------------------
@@ -222,7 +223,8 @@ function buildExplanationFactors(
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisReturn {
+/** `reloadSignal`: each change after mount reloads the targets, roster and templates. */
+export function useDemandAnalysis(filters?: ForecastFilters, reloadSignal?: number): UseDemandAnalysisReturn {
   const [currentWeekTargets, setCurrentWeekTargets] = useState<DemandForecast[]>([]);
   const [priorWeekTargets, setPriorWeekTargets] = useState<DemandForecast[]>([]);
   const [loading, setLoading] = useState(false);
@@ -233,7 +235,7 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
   // The signed-in tenant: an organization switch reloads (was the build-time env id).
   const { accountId } = useIdentity();
   const roster = useRoster(accountId);
-  const { shiftTemplates: templates } = useShiftTemplates(accountId);
+  const { shiftTemplates: templates, refresh: refreshTemplates } = useShiftTemplates(accountId);
 
   const today = useMemo(() => isoToday(), []);
 
@@ -285,6 +287,11 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
       requestIdRef.current += 1;
     };
   }, [load]);
+  useReloadOnSignal(reloadSignal, () => {
+    void load();
+    void roster.refresh();
+    void refreshTemplates();
+  });
 
   // -------------------------------------------------------------------------
   // demandVsPrior

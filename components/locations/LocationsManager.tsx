@@ -3,7 +3,7 @@
  * add, edit and delete (delete is admin-only on the server), plus a read-only
  * change history (CHG-089).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { LocationHistoryList } from '@/components/locations/LocationHistoryList';
@@ -14,6 +14,7 @@ import { locationNeedsReconfirm } from '@/utils/locationValidation';
 import { useT } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useLocations } from '@/hooks/useLocations';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 import { getJurisdiction } from '@/services/labor/jurisdictions';
 import type { BusinessLocation } from '@/services/locationService';
 
@@ -21,7 +22,7 @@ type Editing = { mode: 'add' } | { mode: 'edit'; location: BusinessLocation } | 
 
 type Props = {
   accountId: string;
-  /** Bumped by the screen when it regains focus: the list reloads (0 = the mount, which loads anyway). */
+  /** Bumped by the screen when it regains focus: each change after mount reloads the list (the mount loads it anyway). */
   reloadSignal?: number;
 };
 
@@ -37,9 +38,7 @@ export function LocationsManager({ accountId, reloadSignal }: Props) {
   // Bumped after a delete so an open history reloads (an edit remounts it).
   const [historyVersion, setHistoryVersion] = useState(0);
 
-  useEffect(() => {
-    if (reloadSignal) void refresh();
-  }, [refresh, reloadSignal]);
+  useReloadOnSignal(reloadSignal, () => void refresh());
 
   const handleDelete = useCallback(
     async (location: BusinessLocation) => {

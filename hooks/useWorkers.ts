@@ -24,7 +24,7 @@ import {
 } from '@/services/rosterService';
 import { newUuid, validateAvailabilityInput, validateWorkerInput } from '@/utils/schedulingValidation';
 import type { WorkerLaborAttributes } from '@/utils/workerLaborValidation';
-import { removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
+import { judgeRefusedEdit, removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
 
 export type WorkerAvailabilitySlot = {
   /** The stored slot's id (absent only on slots built outside this hook). */
@@ -51,6 +51,16 @@ export type WorkerWithAvailability = {
 };
 
 export type WorkerChanges = { name: string; role: string; skills: string[] } & Partial<WorkerLaborAttributes>;
+
+/**
+ * An edit's outcome. `alreadySaved`: refused, but the reloaded row already
+ * holds these values. `conflictUpdatedAt`: refused with 409 because the row
+ * changed elsewhere; the `updatedAt` of the version now stored, which a save
+ * sends to replace it.
+ */
+export type UpdateWorkerResult =
+  | { success: true; alreadySaved?: boolean; error?: never }
+  | { success: false; error: string; conflictUpdatedAt?: string };
 
 type StoredWorker = Omit<WorkerWithAvailability, 'displayId'>;
 
@@ -89,7 +99,7 @@ const withSlots = (items: StoredWorker[], workerId: string, change: (slots: Work
 /** `accountId` only names the tenant (a new one reloads); the proxy takes it from the session. */
 export const useWorkers = (accountId: string) => {
   const list = usePersistedList<StoredWorker>(accountId, loadWorkers);
-  const { items, write } = list;
+  const { items, write, refresh, getItems } = list;
 
   const workers = useMemo<WorkerWithAvailability[]>(
     () => items.map((w, i) => ({ ...w, displayId: `W-${i + 1}` })),
@@ -122,7 +132,7 @@ export const useWorkers = (accountId: string) => {
    * pressed); without it, the one in the list now. The server refuses (409) a row changed since.
    */
   const updateWorker = useCallback(
-    async (id: string, changes: WorkerChanges, ifUpdatedAt?: string): Promise<UpsertWorkerResult> => {
+    async (id: string, changes: WorkerChanges, ifUpdatedAt?: string): Promise<UpdateWorkerResult> => {
       const previous = items.find((w) => w.id === id);
       if (!previous) return { success: false, error: 'Worker not found' };
       const checked = validateWorkerInput({ ...changes, id });
@@ -135,11 +145,17 @@ export const useWorkers = (accountId: string) => {
         commit: () => upsertWorker(input, ifUpdatedAt ?? previous.updatedAt),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
         reconcile: (prev, r) => (r.success ? prev.map((w) => (w.id === id ? toStoredWorker(r.worker, w.availability) : w)) : prev),
+        reloadOnFailure: false,
       });
-      if (!result.success) log.warn('WORKER', 'Worker update rolled back', { workerId: id, reason: result.error });
-      return result;
+      if (result.success) return { success: true };
+      log.warn('WORKER', 'Worker update rolled back', { workerId: id, reason: result.error });
+      const { id: _id, ...wanted } = checked.value;
+      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status);
+      if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
+      if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };
+      return { success: false, error: result.error };
     },
-    [accountId, items, write],
+    [accountId, getItems, items, refresh, write],
   );
 
   /** Deleting a worker deletes their availability; the proxy refuses (409) while shifts reference them. */

@@ -5,12 +5,13 @@
  * - Trial:     shows trial days remaining with a green badge
  * - Pro:       renders nothing (hide to avoid clutter)
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { PricingModal } from '@/components/PricingModal';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, ThemeColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
@@ -18,17 +19,13 @@ import { useT } from '@/contexts/LocaleContext';
 type Props = {
   /** Number of free auto-assigns remaining (from useUsageLimit) */
   autoAssignUsesLeft: number;
-  /** Bumped by the screen when it regains focus: the plan reloads (0 = the mount, which loads anyway). */
+  /** Bumped by the screen when it regains focus: each change after mount reloads the plan (the mount loads it anyway). */
   reloadSignal?: number;
 };
 
 export function UpgradeBanner({ autoAssignUsesLeft, reloadSignal }: Props) {
   const { tier, isTrialing, isSubscribed, refresh } = useSubscription();
-  const refreshRef = useRef(refresh);
-  refreshRef.current = refresh;
-  useEffect(() => {
-    if (reloadSignal) refreshRef.current();
-  }, [reloadSignal]);
+  useReloadOnSignal(reloadSignal, refresh);
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);

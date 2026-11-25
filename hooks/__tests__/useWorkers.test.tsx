@@ -100,7 +100,7 @@ describe('useWorkers', () => {
     await act(async () => {
       result = await hook.result.addWorker('Carla', 'Support', []);
     });
-    expect(result).toEqual({ success: false, error: 'Conflicting record' });
+    expect(result).toEqual({ success: false, error: 'Conflicting record' , status: 409 });
     expect(hook.result.workers.map((w) => w.name)).toEqual(['Alice', 'Bruno']);
   });
 
@@ -172,7 +172,7 @@ describe('useWorkers', () => {
     await act(async () => {
       result = await hook.result.removeWorker(W1);
     });
-    expect(result).toEqual({ success: false, error: 'Record is still referenced' });
+    expect(result).toEqual({ success: false, error: 'Record is still referenced' , status: 409 });
     expect(hook.result.workers.map((w) => w.id)).toEqual([W1, W2]);
   });
 
@@ -195,7 +195,7 @@ describe('useWorkers', () => {
     await act(async () => {
       added = await hook.result.addAvailability(W2, 'Tue', '22:00', '06:00');
     });
-    expect(added).toEqual({ success: false, error: 'Not found' });
+    expect(added).toEqual({ success: false, error: 'Not found' , status: 404 });
     expect(hook.result.workers[1].availability).toEqual([]);
 
     const fetchMock = proxy();

@@ -7,7 +7,7 @@
  * and `useDemandAnalysis` (this week's demand targets against last week's and
  * against the published roster). A section with nothing to say is not shown.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -22,20 +22,32 @@ import { useLeaderInsights } from '@/hooks/useLeaderInsights';
 
 const MAX_ROWS = 5;
 
-type Props = { accountId: string };
+/**
+ * `reloadSignal`: each change after mount reloads every source in place; what
+ * is shown stays until the new answers (the skeleton is for the first load
+ * only). The parent keys the panel by tenant, so a new tenant starts over.
+ */
+type Props = { accountId: string; reloadSignal?: number };
 
-export function InsightsPanel({ accountId }: Props) {
+export function InsightsPanel({ accountId, reloadSignal }: Props) {
   const { t } = useT();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
 
-  const { tactical, strategic, loading: insightsLoading, error: insightsError } = useLeaderInsights();
-  const { gaps, burnoutRisks, loading: capacityLoading, error: capacityError } = useCapacityForecast(accountId);
-  const { weeklyDemandSummary, demandVsPrior, forecastAccuracy, loading: demandLoading, error: demandError } = useDemandAnalysis();
+  const { tactical, strategic, loading: insightsLoading, error: insightsError } = useLeaderInsights(reloadSignal);
+  const { gaps, burnoutRisks, loading: capacityLoading, error: capacityError } = useCapacityForecast(accountId, reloadSignal);
+  const { weeklyDemandSummary, demandVsPrior, forecastAccuracy, loading: demandLoading, error: demandError } =
+    useDemandAnalysis(undefined, reloadSignal);
   const loadError = insightsError ?? capacityError ?? demandError;
+  const anyLoading = insightsLoading || capacityLoading || demandLoading;
+  // Set once every source has answered: from then on a reload keeps the panel.
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  useEffect(() => {
+    if (!anyLoading) setFirstLoadDone(true);
+  }, [anyLoading]);
 
-  if (insightsLoading || capacityLoading || demandLoading) {
+  if (anyLoading && !firstLoadDone) {
     return (
       <ThemedView style={styles.card} testID="insights-loading">
         <SkeletonCard rows={3} />

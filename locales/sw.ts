@@ -184,6 +184,7 @@ export const sw = {
   },
 
   scheduler: {
+    edit: { conflict: '{name} kilibadilishwa mahali pengine baada ya wewe kukifungua. Mabadiliko yako bado yako kwenye fomu: hifadhi tena ili kubadilisha toleo hilo kwa lako, au ghairi ili kulibakiza.' },
     title: 'Ratiba',
     subtitle: 'Ratibu ufunikaji kwa wafanyakazi, violezo vya zamu, na mipango ya wafanyakazi kila siku.',
     tooltip: 'Kituo chako cha ratiba. Ongeza wafanyakazi, weka upatikanaji wao, unda violezo vya zamu, kisha gawa au jaza ratiba kwa kubonyeza moja. Anza na hatua ya 1 — kuongeza mfanyakazi.',

@@ -309,6 +309,7 @@ export const en = {
       saveHint: 'Saves your changes to this entry.',
       cancelHint: 'Leaves the entry as it was and clears the form.',
       saved: '{name} updated.',
+      conflict: '{name} was changed somewhere else after you opened it. Your changes are still in the form: save again to replace that version with yours, or cancel to keep it.',
     },
     title: 'Scheduler',
     subtitle: 'Coordinate coverage across workers, shift templates, and day-by-day staffing plans.',
