@@ -220,14 +220,21 @@ describe('gatedClient', () => {
   const fakeClient = (answers: Record<string, Reply>, log: string[]) => {
     const builder = (table: string): Record<string, unknown> => {
       const b: Record<string, unknown> = {};
+      let key = table;
       for (const m of ['select', 'eq', 'is', 'order', 'limit', 'update', 'delete', 'maybeSingle', 'single']) b[m] = () => b;
       b.insert = () => {
         log.push(`insert:${table}`);
         return b;
       };
+      // A paged read answers from `${table}:range` and logs the rows it asked for.
+      b.range = (from: number, to: number) => {
+        log.push(`range:${table}:${from}-${to}`);
+        key = `${table}:range`;
+        return b;
+      };
       b.then = (resolve: (r: Reply) => unknown, reject: (e: unknown) => unknown) => {
         log.push(table);
-        return Promise.resolve(answers[table] ?? { data: null, error: null }).then(resolve, reject);
+        return Promise.resolve(answers[key] ?? { data: null, error: null }).then(resolve, reject);
       };
       return b;
     };
@@ -315,20 +322,60 @@ describe('gatedClient', () => {
   });
 
   describe('locations over the plan (CHG-109)', () => {
-    // A trial ended (or a grant, or a paid plan was reduced) with 3 locations stored; Gratis covers 1.
+    // A trial ended (or a grant, or a paid plan was reduced) with 3 locations stored; Gratis covers 1:
+    // the oldest (HQ) is covered, B and C are the extras the database returns for rows 1 to 2.
+    const EXTRA_B = { id: 'loc-b', name: 'Branch B' };
+    const EXTRA_C = { id: 'loc-c', name: 'Branch C' };
     const overQuota = {
       account_entitlements: { data: [expiredTrial], error: null },
       workers: { data: null, error: null, count: 2 },
       locations: { data: null, error: null, count: 3 },
+      'locations:range': { data: [EXTRA_B, EXTRA_C], error: null },
     };
+    const B_LOCKED = 'Branch B is not covered by your Gratis plan, which covers 1 location. Shifts there are read-only until you add it to your plan or remove a location';
+    const gate = (payload: Record<string, unknown>, answers: Record<string, Reply> = overQuota, log: string[] = []) =>
+      planGate(fakeClient(answers, log), 'acct', payload, WRITES);
+    const WRITES_WITH_ROSTER = new Set([...WRITES, 'upsertRosterShift', 'addRosterShifts', 'updateShiftStatus', 'markShiftNotified', 'upsertTimeOff']);
+    const rosterGate = (payload: Record<string, unknown>, answers: Record<string, Reply> = overQuota, log: string[] = []) =>
+      planGate(fakeClient(answers, log), 'acct', payload, WRITES_WITH_ROSTER);
 
-    it('makes the schedule read-only, editing a location included, and says how to get back', async () => {
-      const write = gatedClient(fakeClient(overQuota, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
-      await expect(write.from('shift_templates').insert({})).rejects.toMatchObject({
-        refusal: { status: 402, error: 'Your business has 3 locations and the Gratis plan covers 1. The schedule is read-only until you remove a location or upgrade' },
+    it('locks only the extra locations: their edit and their shifts', async () => {
+      const log: string[] = [];
+      expect(await gate({ action: 'upsertLocation', location: { id: 'loc-b', name: 'B2' } }, overQuota, log)).toEqual({ status: 402, error: B_LOCKED });
+      // The extras are rows from offset max (1) to count - 1 (2), in created_at, id order.
+      expect(log).toContain('range:locations:1-2');
+      // HQ is stored (the row read finds it) and covered: its edit goes through.
+      const hqStored = { ...overQuota, locations: { data: { id: 'loc-hq' }, error: null, count: 3 } };
+      expect(await gate({ action: 'upsertLocation', location: { id: 'loc-hq', name: 'HQ' } }, hqStored)).toBeNull();
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: ' loc-b ' } })).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'addRosterShifts', countAutoAssign: true, shifts: [{ location: 'loc-hq' }, { location: 'loc-c' }] })).toMatchObject({
+        status: 402, error: expect.stringMatching(/^Branch C is not covered/),
       });
-      const edit = gatedClient(fakeClient({ ...overQuota, locations: { data: { id: 'l1' }, error: null, count: 3 } }, []), 'acct', { action: 'upsertLocation', location: { id: 'l1' } }, WRITES);
-      await expect(edit.from('locations').update({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/3 locations.*covers 1/) } });
+    });
+
+    it('uses the stored row for a status change or a notify, and for an edit that moves a shift away', async () => {
+      const storedAtB = { ...overQuota, roster: { data: { location: 'loc-b' }, error: null } };
+      expect(await rosterGate({ action: 'updateShiftStatus', id: 's1', status: 'Published' }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'markShiftNotified', id: 's1' }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { id: 's1', location: 'loc-hq' } }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      const storedAtHq = { ...overQuota, roster: { data: { location: 'loc-hq' }, error: null } };
+      expect(await rosterGate({ action: 'updateShiftStatus', id: 's1', status: 'Published' }, storedAtHq)).toBeNull();
+    });
+
+    it('keeps covered locations, shifts with no location or old free text, and the rest of the schedule writable', async () => {
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-hq' } })).toBeNull();
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: '' } })).toBeNull();
+      expect(await rosterGate({ action: 'addRosterShifts', shifts: [{ location: 'Main Floor' }, {}] })).toBeNull();
+      expect(await rosterGate({ action: 'upsertShiftTemplate', template: {} })).toBeNull();
+      expect(await rosterGate({ action: 'upsertTimeOff', timeOff: {} })).toBeNull();
+      expect(await gate({ action: 'upsertWorker', worker: { id: 'w1' } })).toBeNull();
+    });
+
+    it('fails closed when the extras or the stored shift cannot be read', async () => {
+      const broken = { ...overQuota, 'locations:range': { data: null, error: { message: 'down' } as never } };
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-hq' } }, broken)).toEqual({ status: 500, error: 'Database request failed' });
+      const rosterDown = { ...overQuota, roster: { data: null, error: { message: 'down' } as never } };
+      expect(await rosterGate({ action: 'markShiftNotified', id: 's1' }, rosterDown)).toEqual({ status: 500, error: 'Database request failed' });
     });
 
     it('keeps deletes open so the account can get under the quota', async () => {
@@ -341,15 +388,17 @@ describe('gatedClient', () => {
       expect(log).toEqual(['rpc:delete_location']);
     });
 
-    it('allows writes at the quota, and the quota of the winning grant counts (3 paid locations)', async () => {
-      const atOne = gatedClient(fakeClient({ ...overQuota, locations: { data: null, error: null, count: 1 } }, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
-      await expect(atOne.from('shift_templates').insert({})).resolves.toBeDefined();
+    it('reads no extras at or under the quota; the quota of the winning grant counts (3 paid locations)', async () => {
+      const log: string[] = [];
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-b' } }, { ...overQuota, locations: { data: null, error: null, count: 1 } }, log)).toBeNull();
+      expect(log.filter((l) => l.startsWith('range:'))).toEqual([]);
       const paid = { ...overQuota, account_entitlements: { data: [row({ plan: 'esencial', source: 'paddle', ends_at: null, location_quota: 3 })], error: null } };
-      const write = gatedClient(fakeClient(paid, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
-      await expect(write.from('shift_templates').insert({})).resolves.toBeDefined();
-      // At 3 of 3, a fourth location is refused with the add-a-location sentence, not the read-only one.
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-c' } }, paid)).toBeNull();
+      // At 3 of 3, a fourth location is refused with the add-a-location sentence.
       const fourth = gatedClient(fakeClient(paid, []), 'acct', { action: 'upsertLocation', location: { name: 'D' } }, WRITES);
       await expect(fourth.from('locations').insert({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/covers 3 locations\. Add a location/) } });
+      // Over the quota, a new location is refused the same way.
+      expect(await gate({ action: 'upsertLocation', location: { name: 'E' } })).toMatchObject({ status: 402, error: expect.stringMatching(/covers 1 location\. Add a location/) });
     });
   });
 

@@ -249,44 +249,65 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect((await planOf(OWNER)).plan).toBe('gratis');
   });
 
-  it('keeps the schedule read-only with more locations than the plan covers, deletes open (CHG-109)', async () => {
+  it('locks only the locations beyond the plan, oldest first; deletes open (CHG-109)', async () => {
     const LOC = `user_plan_loc_${run}`;
     const asLoc = (body: Record<string, unknown>) => call(LOC, body);
     await planOf(LOC);
     const place = (name: string) => ({ name, countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' });
     const ids: string[] = [];
+    // Created one after another: A is the oldest, so on Gratis (1 location) A is covered, B and C are extra.
     for (const name of ['A', 'B', 'C']) {
       const res = await asLoc({ action: 'upsertLocation', location: place(name) });
       expect(res.status).toBe(200);
       ids.push((res.body.location as { id: string }).id);
     }
+    const [atA, atB, atC] = ids;
+    const worker = ((await asLoc({ action: 'upsertWorker', worker: { name: 'Loc', role: 'Cook' } })).body.worker as { id: string; name: string });
+    const templateId = ((await asLoc({ action: 'upsertShiftTemplate', template: { name: 'Day', role: 'Cook', startTime: '09:00', endTime: '17:00', coverage: 1 } })).body.template as { id: string }).id;
+    const shift = (date: string, location: string) => ({ id: randomUUID(), date, workerId: worker.id, templateId, location });
+    const storedAtC = shift('2026-12-01', atC);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: storedAtC })).status).toBe(200);
     await endTrial(LOC);
-    const template = { name: 'Day', role: 'Cook', startTime: '09:00', endTime: '17:00', coverage: 1 };
+    const used = async () => ((await asLoc({ action: 'getUsageLimit' })).body as { count: number }).count;
 
-    const refused = await asLoc({ action: 'upsertShiftTemplate', template });
-    expect({ status: refused.status, error: refused.body.error }).toEqual({
+    // Shifts: the covered location and no location are writable, an extra location is not.
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-02', atA) })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-03', '') })).status).toBe(200);
+    const atExtra = await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-04', atB) });
+    expect({ status: atExtra.status, error: atExtra.body.error }).toEqual({
       status: 402,
-      error: 'Your business has 3 locations and the Gratis plan covers 1. The schedule is read-only until you remove a location or upgrade',
+      error: 'B is not covered by your Gratis plan, which covers 1 location. Shifts there are read-only until you add it to your plan or remove a location',
     });
-    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: ids[0] } })).status).toBe(402);
+    const counted = await asLoc({ action: 'addRosterShifts', countAutoAssign: true, shifts: [shift('2026-12-08', atA), shift('2026-12-09', atC)] });
+    expect(counted.status).toBe(402);
+    expect(String(counted.body.error)).toMatch(/^C is not covered/);
+    expect(await used()).toBe(0);
+    // A status change is judged by the stored shift's location.
+    expect((await asLoc({ action: 'updateShiftStatus', id: storedAtC.id, status: 'Published' })).status).toBe(402);
+
+    // Locations: the covered one can be edited, an extra one cannot.
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: atA } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('B2'), id: atB } })).status).toBe(402);
+    // The rest of the schedule is not tied to a location.
+    expect((await asLoc({ action: 'upsertWorker', worker: { id: worker.id, name: 'Loc 2', role: 'Cook' } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template: { name: 'Late', role: 'Cook', startTime: '17:00', endTime: '22:00', coverage: 1 } })).status).toBe(200);
     expect((await asLoc({ action: 'listLocations' })).status).toBe(200);
 
-    // A grant that covers 3 locations (as a Paddle quantity of 3 does) opens the schedule again.
+    // A grant that covers 3 locations (as a Paddle quantity of 3 does) opens them all.
     const granted = await call(PLATFORM_ADMIN, {
       action: 'adminGrantEntitlement', accountId: LOC, plan: 'esencial', source: 'comp', days: 30, reason: 'three branches', locationQuota: 3,
     });
     expect(granted.status).toBe(200);
-    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(200);
-    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: ids[0] } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-05', atB) })).status).toBe(200);
     expect((await asLoc({ action: 'upsertLocation', location: place('D') })).status).toBe(402);
-
-    // Grant revoked: read-only again; removing locations is always allowed and brings the schedule back.
     expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: (granted.body.entitlement as { id: string }).id })).status).toBe(200);
-    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(402);
-    expect((await asLoc({ action: 'deleteLocation', id: ids[2] })).status).toBe(200);
-    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(402);
-    expect((await asLoc({ action: 'deleteLocation', id: ids[1] })).status).toBe(200);
-    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-06', atB) })).status).toBe(402);
+
+    // Removing an extra location is always allowed.
+    expect((await asLoc({ action: 'deleteLocation', id: atC })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-07', atB) })).status).toBe(402);
+    expect((await asLoc({ action: 'deleteLocation', id: atB })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A3'), id: atA } })).status).toBe(200);
   });
 
   it('lets a platform admin look an account up without starting its trial (CHG-109)', async () => {

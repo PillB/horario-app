@@ -260,9 +260,9 @@ const proOnlyRefusal = (plan: SubscriptionTier): GateRefusal => ({
   error: `The demand forecast and sales upload are part of the Pro plan. You are on ${label(plan)}. Manual demand targets still work`,
 });
 
-const overLocationQuota =(plan: SubscriptionTier, count: number, max: number): GateRefusal => ({
+const uncoveredLocation = (name: string, plan: SubscriptionTier, max: number): GateRefusal => ({
   status: 402,
-  error: `Your business has ${count} locations and the ${label(plan)} plan covers ${max}. The schedule is read-only until you remove a location or upgrade`,
+  error: `${name} is not covered by your ${label(plan)} plan, which covers ${max} location${max === 1 ? '' : 's'}. Shifts there are read-only until you add it to your plan or remove a location`,
 });
 
 async function countRows(client: SupabaseClient, table: string, accountId: string): Promise<number | null> {
@@ -279,20 +279,89 @@ async function isNewRow(client: SupabaseClient, table: string, accountId: string
 
 type GateArgs = { client: SupabaseClient; accountId: string; payload: Record<string, unknown>; plan: SubscriptionTier; limits: EffectivePlan['limits'] };
 
+type LocationRef = { id: string; name: string };
+
 /**
- * Locations: a new one needs room under the quota. With more locations than
- * the plan covers (a trial, grant or paid plan ended, or a downgrade) editing a
- * location is refused like every other scheduling write, so the account
- * cannot keep using locations it no longer pays for. deleteLocation is not
- * gated, so the account can always get back under the quota.
+ * The locations beyond the plan: the plan covers the oldest `max` (created_at, then id), the
+ * rest are extra. Reads only the extras (offset `max`). Null when the database cannot be read.
  */
-async function locationRefusal({ client, accountId, payload, plan, limits }: GateArgs): Promise<GateRefusal | null> {
+async function extraLocations(client: SupabaseClient, accountId: string, max: number): Promise<{ count: number; extras: LocationRef[] } | null> {
+  const count = await countRows(client, 'locations', accountId);
+  if (count === null) return null;
+  if (count <= max) return { count, extras: [] };
+  const { data, error } = await client
+    .from('locations')
+    .select('id, name')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(max, count - 1);
+  if (error) return null;
+  return { count, extras: (data ?? []) as LocationRef[] };
+}
+
+/** Roster writes, which belong to one location each: refused at a location beyond the plan. */
+const ROSTER_LOCATION_ACTIONS = new Set(['upsertRosterShift', 'addRosterShifts', 'updateShiftStatus', 'markShiftNotified']);
+
+const idOf = (value: unknown): string | null => {
+  const id = typeof value === 'object' && value !== null ? (value as { id?: unknown }).id : value;
+  return typeof id === 'string' && id ? id : null;
+};
+
+const locationOf = (value: unknown): string => {
+  const location = typeof value === 'object' && value !== null ? (value as { location?: unknown }).location : undefined;
+  return typeof location === 'string' ? location.trim() : '';
+};
+
+/** The stored location of the caller's roster row `id` ('' when none or not found); null on a database error. */
+async function storedShiftLocation(client: SupabaseClient, accountId: string, id: string | null): Promise<string | null> {
+  if (!id) return '';
+  const { data, error } = await client.from('roster').select('location').eq('account_id', accountId).eq('id', id).maybeSingle();
+  if (error) return null;
+  return locationOf(data);
+}
+
+/**
+ * The location values a roster write touches: the new shifts' locations, and for an edit, a status
+ * change or a notify the stored row's location too (moving a shift away from a locked location is
+ * still a change there). Null on a database error.
+ */
+async function rosterWriteLocations(client: SupabaseClient, accountId: string, payload: Record<string, unknown>): Promise<string[] | null> {
+  if (payload.action === 'addRosterShifts') return Array.isArray(payload.shifts) ? payload.shifts.map(locationOf) : [];
+  const shift = payload.action === 'upsertRosterShift' ? payload.shift : undefined;
+  const stored = await storedShiftLocation(client, accountId, idOf(shift ?? payload.id));
+  if (stored === null) return null;
+  return shift === undefined ? [stored] : [locationOf(shift), stored];
+}
+
+/** The location id a write would touch that is beyond the plan, if any. */
+async function lockedTarget(args: GateArgs, extras: LocationRef[]): Promise<LocationRef | 'error' | null> {
+  const { client, accountId, payload } = args;
+  if (payload.action === 'upsertLocation') return extras.find((l) => l.id === idOf(payload.location)) ?? null;
+  if (!ROSTER_LOCATION_ACTIONS.has(String(payload.action))) return null;
+  const touched = await rosterWriteLocations(client, accountId, payload);
+  if (touched === null) return 'error';
+  // '' (no location) and values that are not a location id (old free text) are not locked.
+  return extras.find((l) => touched.includes(l.id)) ?? null;
+}
+
+/**
+ * Locations: a new one needs room under the quota. With more locations than the plan covers (a
+ * trial, grant or paid plan ended, or a downgrade), only the locations beyond the plan are locked:
+ * editing one, and writing shifts there, is refused (CHG-109). The covered locations, shifts with
+ * no location, and the team, templates, availability, time off and demand stay writable.
+ * deleteLocation and every delete are not gated, so the account can always get back under the quota.
+ */
+async function locationRefusal(args: GateArgs): Promise<GateRefusal | null> {
+  const { client, accountId, payload, plan, limits } = args;
   const max = limits.maxLocations;
   if (max === null) return null;
-  const count = await countRows(client, 'locations', accountId);
-  if (count === null) return DB_FAILED;
-  if (count > max) return overLocationQuota(plan, count, max);
-  if (payload.action === 'upsertLocation' && count >= max && (await isNewRow(client, 'locations', accountId, payload.location))) {
+  const stored = await extraLocations(client, accountId, max);
+  if (stored === null) return DB_FAILED;
+  const locked = await lockedTarget(args, stored.extras);
+  if (locked === 'error') return DB_FAILED;
+  if (locked) return uncoveredLocation(locked.name, plan, max);
+  if (payload.action === 'upsertLocation' && stored.count >= max && (await isNewRow(client, 'locations', accountId, payload.location))) {
     return locationLimitRefusal(plan, max);
   }
   return null;
@@ -333,9 +402,10 @@ export const needsPlan = (action: string, writeActions: ReadonlySet<string>): bo
 
 /**
  * Refuses what the account's plan does not include. `writeActions` are the
- * scheduling writes: with more people or locations than the plan covers
- * (after a trial or a paid plan ends) they are refused, deletes excepted, so
- * nothing is lost and the account can be brought back under the limit. A plan
+ * scheduling writes: with more people than the plan covers (after a trial or
+ * a paid plan ends) they are refused, deletes excepted, so nothing is lost and
+ * the account can be brought back under the limit; with more locations, only
+ * the locations beyond the plan are locked (locationRefusal). A plan
  * that cannot be read refuses every gated action except deletes with 503 (fail closed).
  */
 export async function planGate(
