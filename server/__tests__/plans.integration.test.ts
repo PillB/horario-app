@@ -91,7 +91,7 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     await endTrial(OWNER);
     const plan = await planOf(OWNER);
     expect(plan).toMatchObject({ plan: 'gratis', source: 'default', isTrial: false });
-    expect(plan.limits).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 });
+    expect(plan.limits).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 });
 
     // No second trial.
     const { data: trials } = await db().from('account_entitlements').select('id').eq('account_id', OWNER).eq('source', 'trial');
