@@ -6,6 +6,24 @@
 
 ---
 
+### CHG-107 — 2026-11-25 UTC
+**Type:** FIX (Pablo flagged a payment-webhook race found in another project: two near-simultaneous subscription webhooks, an older state written over a newer one. Coordinator: check the Paddle handler for concurrent deliveries, fix with a test that simulates the race.)
+
+**Checked:** `apply_paddle_subscription()` already serialised changes per account (advisory lock) and re-checked event order after taking it, so two deliveries that both name the account end on the newest event in either order. New test proves it with two real connections.
+
+**Found and fixed:** a newer event that carries no account reference, delivered while an older event that names the account was being applied, did not wait: it looked the account up before the older one committed, was stored as `unmatched`, and the older one's reconcile ran before that row committed. Result: the subscription stayed on the older state (active after a cancel) until another event arrived, which after a cancel may be never. The same gap existed between a waiting subscription event and the `transaction.*` event that names its account. Migration `20261125000109_paddle_subscription_lock.sql`: both functions take a per-subscription advisory lock before any read; lock order is always subscription, then account.
+
+**Red team (5):**
+- Optimistic locking (version column, `WHERE version = :read`, retry), as suggested for the other project: correct for "only if unchanged", but the order rule needs the subscription's other events, not only its stored row, and a retry loop would live in the webhook. The lock gives the same guarantee with no retry. Trade-off: deliveries for one subscription wait on each other (milliseconds; Paddle allows 5 s).
+- READ COMMITTED is assumed (each statement sees what committed before it). PostgREST runs functions in it; a caller in REPEATABLE READ would not see the earlier delivery. Stated in the migration.
+- Deadlock: only if some path took the account lock before the subscription lock. None does (`apply_paddle_fields` is only reached after the subscription lock).
+- A delivery with no subscription id never reaches the lock (the function refuses it first, 22023).
+- The test leaves committed rows (unique ids per run) in the local test database; CI runs pgTAP before it, and the pgTAP Paddle test counts `unmatched` rows globally, so it must not run after it on the same database.
+
+**Tests:** `server/__tests__/paddleRace.integration.test.ts` (4 cases, two connections, connection 1 holds its transaction open; `pg` added as a dev dependency). On the old functions 2 of 4 fail (the cancel stored as `unmatched`, the transaction not waiting); with the fix 4 of 4 pass. pgTAP `paddle_billing.test.sql` 27/27 on a fresh database with the new migration. CI passes `DB_URL` from `supabase status` as `SUPABASE_TEST_DB_URL`.
+
+---
+
 ### CHG-106 — 2026-11-21 UTC
 **Id:** CHG-106 (CHG-103 is the AGENTS.md change on main; CHG-104 is PR #66 and CHG-105 is PR #65; the migration moved to `20261123000108` because #66 uses `20261122000107`). Earlier commits on this branch say CHG-103 or CHG-105.
 
