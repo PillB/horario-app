@@ -6,6 +6,16 @@
 
 ---
 
+### CHG-109 — 2026-11-25 UTC (in progress)
+**Type:** AUDIT + FIX (Pablo: find every implicit state machine, diagnose bad, colliding or contradictory states, fix them, simulate first setup and daily / weekly / monthly use across tabs, document the stack.)
+
+**So far:**
+- Server state guards (merged from the server worker's branch): over the location quota the schedule is read-only like the people limit; the plan gate fails closed (503) when the plan can't be read; an admin lookup no longer starts a trial; `incrementAutoAssign` is manager-only; `apply_auto_assign` replays a saved run on retry instead of counting it again (migration `20261125000111_state_guards.sql`); a moved Published shift gets a new `published_at`; CHECK `roster_notified_needs_published`.
+- `docs/architecture/STACK.md`: where the code, hosting, database, auth, payments, workers and docs live, with what is not set up yet (no Vercel deployment, dev Supabase secrets missing so migrations are skipped).
+- Client sync fixes and the browser flow simulation are still running; this entry is completed before the PR is updated.
+
+---
+
 ### CHG-108 — 2026-11-25 UTC
 **Type:** FEATURE + PLAN CHANGE (Pablo picked "One run fills a week, 1 a month" on the decision card, after the evidence doc "Free plan auto-schedule limit: evidence and recommendation". Blind pair ratings showed personas reading "3 auto-schedules" as about three weeks, while one run filled one day.)
 
