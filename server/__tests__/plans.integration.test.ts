@@ -186,17 +186,20 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect(refused.status).toBe(409);
     expect(String(refused.body.error)).toMatch(/already has a shift.*Nothing was added/);
     expect(await used()).toBe(1);
-    // Adding shifts by hand is not a run.
+    // A batch sent without countAutoAssign is still counted on Gratis (CHG-104: the client cannot skip the count).
     expect((await asAuto({ action: 'addRosterShifts', shifts: [{ id: randomUUID(), date: '2026-12-02', workerId: worker, templateId: early }] })).status).toBe(200);
-    expect(await used()).toBe(1);
+    expect(await used()).toBe(2);
+    // One shift added by hand is not a run.
+    expect((await asAuto({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-12-06', workerId: worker, templateId: early } })).status).toBe(200);
+    expect(await used()).toBe(2);
 
-    // Three runs at once with two left: two are saved, the third saves nothing.
+    // Three runs at once with one left: one is saved, the other two save nothing.
     const three = await Promise.all(['2026-12-03', '2026-12-04', '2026-12-05'].map((date) => apply(date, early)));
-    expect(three.map((r) => r.status).sort()).toEqual([200, 200, 402]);
+    expect(three.map((r) => r.status).sort()).toEqual([200, 402, 402]);
     expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/3 auto-schedules a month.*Nothing was added/);
     expect(await used()).toBe(3);
     const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-03', toDate: '2026-12-05' })).body.shifts as unknown[];
-    expect(stored).toHaveLength(2);
+    expect(stored).toHaveLength(1);
   });
 
   it('lets only a platform admin grant and revoke, and the grant lifts the limits', async () => {

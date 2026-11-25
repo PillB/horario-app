@@ -6,6 +6,38 @@
 
 ---
 
+### CHG-104 — 2026-11-21 UTC
+**Type:** FEATURE (Pablo: "plan and implement the easiest way to start taking subs to access the website worldwide like shopify"; coordinator: build on Paddle, enforce entitlements server-side)
+
+**Built:** paid plans through Paddle (merchant of record: it charges, collects sales tax / VAT / IGV, invoices, pays out).
+- `server/paddle.ts`: config (sandbox or live chosen by the key prefix), `Paddle-Signature` check (HMAC-SHA256 of `ts:raw body`, any of several h1, 60 s window), signed account reference in `custom_data`, mapping of the subscription entity, API client (`Paddle-Version: 1`). Facts read from developer.paddle.com on 2026-11-21.
+- `server/billing.ts` + proxy: `createCheckoutSession` (plan price × number of locations, at least 1; 409 while a subscription is live), `changeSubscription` (prorated now; 409 when past due or paused, or fewer locations than in use), `createBillingPortalSession`, `cancelSubscription` (now calls Paddle; before it only set a local flag). The account always comes from the session.
+- `app/api/paddle-webhook+api.ts`: 401 unsigned, 503 while a setting is missing (Paddle retries instead of the event being dropped), 500 when the database fails.
+- Migration `20261122000107_paddle_billing.sql`: Paddle columns on `subscriptions`; `paddle_events`; `apply_paddle_subscription()` applies an event once (event id), in `occurred_at` order, behind the account's lock, finds the account by signed reference, linked subscription id or recorded transaction, and holds a second live subscription for review (`second_subscription`) instead of replacing the first.
+- `server/plans.ts`: a Paddle subscription pays for `quantity` locations (Pro included); `past_due` keeps the plan 14 days from the first failure.
+- `/pay` (Paddle's default payment link page, loads Paddle.js), plans screen: checkout, "Switch to …", Manage billing, failed-renewal notice, "charged N times" note with several locations, no buy button on iOS (App Store 3.1.1). CSP allows Paddle's hosts.
+- `scripts/paddle/setup.js`: creates the catalog (USD, PEN override for Peru, per location, tax mode location) and the webhook destination, prints the variables; re-running changes nothing.
+- Server-side auto-schedule count: on a plan with a monthly limit every `addRosterShifts` batch is counted, with or without `countAutoAssign`.
+
+**Red team (5 ways each choice could be wrong), what changed because of it:**
+- Paddle as the provider: may refuse the account (fallback Creem is in the research; Paddle code is two files); 5% + 50¢ is about 8% on a S/ 59 plan (yearly plans halve the fixed part); no Yape and no SUNAT factura (stated); lock-in (the app keeps its own mirror and event log). Not re-checked today: the alternatives' terms (research of 2026-10).
+- Trusting `custom_data`: anyone with the public client token can open a checkout with any custom data → the account must carry an HMAC only the server can make (tested: moved, forged, other-secret references are refused).
+- Webhook ordering and retries: Paddle does not guarantee order and retries → event id primary key and the `occurred_at` guard (mutation-checked: flipping the comparison fails the SQL test).
+- A deployment missing a price id: the event would be "not ours" and acknowledged → 503 until configured.
+- The subscription copy of `custom_data` may be absent → fallback through the recorded transaction event.
+- Two tabs, two payments → `second_subscription` outcome, logged, refund by hand.
+- Signature window: Paddle's SDK uses 5 s; a cold start can exceed it and the sandbox retries only 3 times → 60 s; replays inside it are harmless (applied once).
+- First SQL draft referenced a variable by the function's name, which Postgres rejects; the local SQL run found it.
+- Codex review of the PR (both real, both fixed): (1) a subscription event that arrived before its transaction stayed `unmatched` forever → recording the transaction (or any later event with the account) now applies the newest waiting event (`private.reconcile_unmatched_paddle`); (2) ordering was only checked against the account's current subscription, so a replacement subscription's older activation arriving after its own cancel granted the plan → ordering is per subscription, from the event log (`paddle_events.paddle_subscription_id`). The new SQL test fails on the first version (`got applied expected stale`).
+
+**Tests:** jest 1284 passed, 51 skipped (102 suites). New: `server/__tests__/paddle.test.ts` (signature vector computed with openssl, boundaries at 60 / 61 s), `billing.test.ts`, `app/api/__tests__/paddleWebhook.test.ts`, `components/__tests__/PricingModal.test.tsx`, `scripts/__tests__/paddleSetup.test.ts` (catalog = `constants/pricing.ts`), `utils/__tests__/paddleCheckout.test.ts`, plans grace / quantity boundaries. pgTAP `paddle_billing` (27) run on a local Postgres 16 with every migration and stand-ins for the pgTAP functions. `plans.integration.test.ts` updated for the batch count; not run here (needs the local Supabase stack, CI job `database`). tsc and lint clean.
+
+**Not done / limits:** no run against the Paddle sandbox (needs Pablo's account); Terms, Privacy and Refund pages; no button to change only the billing period or the paid locations; the plan updates when the webhook arrives (re-read after 4 s); a modified client can still save an auto-schedule as single shifts; "the blind pair ratings" are still not in this project's files or repo.
+
+**Merge with main after #63 (same CHG):** conflicts in this log and in `addRosterShifts` (kept #63's `addRosterShiftsFailure` lookup and this change's plan-limit count). The complexity gate failed on the merged tree; fixed by extraction, not by raising the baseline: the batch insert moved to `saveRosterBatch`, the `status` action to `forecastStatus` (dispatch 50 → 48), the Paddle fields of `useSubscription` to `billingOf` (new test `hooks/__tests__/subscriptionBilling.test.ts`), and `scripts/paddle/setup.js` `main` into `readArgs`, `paddleClient`, `ensureCatalog`, `ensureWebhook`. Baseline now 60 functions. jest 1390 passed, 51 skipped; tsc, lint and the gate clean.
+
+---
+
 ### CHG-103 — 2026-11-21 UTC
 **Type:** CHORE + FIX (Pablo: write the expert standard into AGENTS.md with a test for every task and round and no tautological tests; a chore(lint) cyclomatic complexity ceiling; CLAUDE.md points to AGENTS.md; retrospective over qa/, setup/ and the history with root causes, simulated source drift and fixes that fail verbosely). CHG-102 is taken by PR #62 (template time guards); nothing here touches its files except CLAUDE.md, in different sections.
 

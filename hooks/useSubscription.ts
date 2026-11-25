@@ -36,6 +36,12 @@ export type SubscriptionState = {
   usage: PlanUsage | null;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  /** The business pays through Paddle (active, past due or paused): change the plan, do not check out again. */
+  hasPaidSubscription: boolean;
+  /** A Paddle customer exists: "Manage billing" can open. */
+  hasBillingAccount: boolean;
+  /** Locations paid for, when paid. */
+  paidQuantity: number | null;
   isPlatformAdmin: boolean;
   loading: boolean;
   /** Set when the plan could not be loaded. */
@@ -46,14 +52,19 @@ export type SubscriptionState = {
 
 const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 };
 
-type Loaded = {
+export type Loaded = {
   plan: AccountPlan;
   usage: PlanUsage;
   status: SubscriptionStatus;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  provider: string | null;
+  quantity: number | null;
+  hasBillingAccount: boolean;
   isPlatformAdmin: boolean;
 };
+
+const PAID_STATUSES: SubscriptionStatus[] = ['active', 'trialing', 'past_due', 'paused'];
 
 export const daysLeft = (endsAt: string | null, now: number): number | null => {
   if (!endsAt) return null;
@@ -80,6 +91,9 @@ export function useSubscription(): SubscriptionState {
         status: result.subscription.status,
         cancelAtPeriodEnd: result.subscription.cancelAtPeriodEnd,
         currentPeriodEnd: result.subscription.currentPeriodEnd,
+        provider: result.subscription.provider ?? null,
+        quantity: result.subscription.quantity ?? null,
+        hasBillingAccount: result.subscription.hasBillingAccount === true,
         isPlatformAdmin: result.isPlatformAdmin === true,
       });
       setError(null);
@@ -111,6 +125,7 @@ export function useSubscription(): SubscriptionState {
       usage: loaded?.usage ?? null,
       cancelAtPeriodEnd: loaded?.cancelAtPeriodEnd ?? false,
       currentPeriodEnd: loaded?.currentPeriodEnd ?? null,
+      ...billingOf(loaded),
       isPlatformAdmin: loaded?.isPlatformAdmin ?? false,
       loading,
       error,
@@ -118,6 +133,16 @@ export function useSubscription(): SubscriptionState {
       refresh: () => void load(),
     };
   }, [loaded, loading, error, load]);
+}
+
+/** The Paddle side of the loaded subscription: whether it pays, has a billing account, and for how many locations. */
+export function billingOf(loaded: Loaded | null): { hasPaidSubscription: boolean; hasBillingAccount: boolean; paidQuantity: number | null } {
+  if (!loaded) return { hasPaidSubscription: false, hasBillingAccount: false, paidQuantity: null };
+  return {
+    hasPaidSubscription: loaded.provider === 'paddle' && PAID_STATUSES.includes(loaded.status),
+    hasBillingAccount: loaded.hasBillingAccount,
+    paidQuantity: loaded.quantity,
+  };
 }
 
 export function useTierCheck(required: SubscriptionTier): { allowed: boolean; loading: boolean } {

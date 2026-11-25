@@ -4,7 +4,10 @@
  * Sources, highest plan wins:
  *   - `account_entitlements` rows that are active now (trial, tester, comp,
  *     paddle): not revoked, started, not ended;
- *   - the `subscriptions` row while its status is active or trialing.
+ *   - the `subscriptions` row (the Paddle mirror, server/paddle.ts) while its
+ *     status is active or trialing, or past_due for PAST_DUE_GRACE_DAYS after
+ *     the first failed renewal; a Paddle subscription pays for `quantity`
+ *     locations.
  * Nothing active = Gratis. The first time an account is seen it gets its one
  * Pro trial (TRIAL_DAYS, no card).
  *
@@ -48,7 +51,44 @@ export type EntitlementRow = {
 export const ENTITLEMENT_COLUMNS =
   'id, account_id, plan, source, starts_at, ends_at, location_quota, granted_by, reason, revoked_at, revoked_by, created_at';
 
-export type SubscriptionRow = { tier?: unknown; status?: unknown; current_period_end?: unknown } | null;
+export type SubscriptionRow = {
+  tier?: unknown;
+  status?: unknown;
+  current_period_end?: unknown;
+  quantity?: unknown;
+  past_due_since?: unknown;
+  payment_provider?: unknown;
+} | null;
+
+export const SUBSCRIPTION_PLAN_COLUMNS = 'tier, status, current_period_end, quantity, past_due_since, payment_provider';
+
+/**
+ * Days a past_due subscription keeps its plan while Paddle retries the card.
+ * Paddle keeps retrying for longer; cutting the team off at the first failed
+ * renewal punishes an expired card, keeping the plan for the whole dunning run
+ * gives a month away. Two weeks is the middle, and the data is never deleted.
+ */
+export const PAST_DUE_GRACE_DAYS = 14;
+
+/** The subscription as a plan candidate, or null when it gives no plan at `now`. */
+function subscriptionCandidate(subscription: SubscriptionRow, now: Date): Candidate | null {
+  if (!subscription) return null;
+  const plan = tierFromLegacy(subscription.tier);
+  if (plan === 'gratis') return null;
+  const periodEnd = typeof subscription.current_period_end === 'string' ? subscription.current_period_end : null;
+  const quantity = Number(subscription.quantity);
+  const locationQuota = subscription.payment_provider === 'paddle' && Number.isInteger(quantity) && quantity >= 1 ? quantity : null;
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    return { plan, source: 'subscription', endsAt: periodEnd, locationQuota };
+  }
+  if (subscription.status === 'past_due' && typeof subscription.past_due_since === 'string') {
+    const graceEnds = Date.parse(subscription.past_due_since) + PAST_DUE_GRACE_DAYS * 86_400_000;
+    if (Number.isFinite(graceEnds) && graceEnds > now.getTime()) {
+      return { plan, source: 'subscription', endsAt: new Date(graceEnds).toISOString(), locationQuota };
+    }
+  }
+  return null;
+}
 
 export type EffectivePlan = {
   plan: SubscriptionTier;
@@ -86,17 +126,8 @@ export function effectivePlanFrom(rows: EntitlementRow[], subscription: Subscrip
       locationQuota: row.location_quota,
     }));
 
-  if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) {
-    const plan = tierFromLegacy(subscription.tier);
-    if (plan !== 'gratis') {
-      candidates.push({
-        plan,
-        source: 'subscription',
-        endsAt: typeof subscription.current_period_end === 'string' ? subscription.current_period_end : null,
-        locationQuota: null,
-      });
-    }
-  }
+  const paid = subscriptionCandidate(subscription, now);
+  if (paid) candidates.push(paid);
 
   // Highest plan; then a paid or granted source before the trial; then the one that lasts longest.
   candidates.sort(
@@ -176,7 +207,7 @@ export async function resolvePlan(client: SupabaseClient, accountId: string, now
 
   const { data: subscription, error: subError } = await client
     .from('subscriptions')
-    .select('tier, status, current_period_end')
+    .select(SUBSCRIPTION_PLAN_COLUMNS)
     .eq('account_id', accountId)
     .maybeSingle();
   if (subError) return { ok: false, error: subError };
@@ -200,7 +231,8 @@ const workerLimitRefusal = (plan: SubscriptionTier, max: number): GateRefusal =>
 
 const locationLimitRefusal = (plan: SubscriptionTier, max: number): GateRefusal => ({
   status: 402,
-  error: `Your ${label(plan)} plan covers ${max} location${max === 1 ? '' : 's'}. Upgrade to add another`,
+  // Paid plans are per location: on Pro, or on Esencial with a quota, another location is one more on the subscription.
+  error: `Your ${label(plan)} plan covers ${max} location${max === 1 ? '' : 's'}. Add a location to your plan in Plans to open another`,
 });
 
 async function countRows(client: SupabaseClient, table: string, accountId: string): Promise<number | null> {
