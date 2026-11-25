@@ -40,6 +40,8 @@ const MANAGER_ONLY: Record<string, Record<string, unknown>> = {
   uploadPosSales: { rows: [{ date: '2026-11-02', revenue: 100 }] },
   upsertLocation: { location: { name: 'HQ' } },
   deleteLocation: { id: W1 },
+  // Spends the business's monthly auto-schedule allowance without saving anything (CHG-109).
+  incrementAutoAssign: {},
   cancelSubscription: {},
   createCheckoutSession: { tier: 'pro', billingInterval: 'month' },
   changeSubscription: { tier: 'pro', billingInterval: 'month' },
@@ -64,7 +66,6 @@ const MEMBER_OPEN = [
   'listLocations',
   'listLocationHistory',
   'getUsageLimit',
-  'incrementAutoAssign',
   'listPosSales',
   'getSubscription',
 ];

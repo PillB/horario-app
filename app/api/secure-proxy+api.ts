@@ -110,14 +110,17 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
 /**
  * Actions that need `canManage` (a personal account, or an admin of the
  * organization). Open to members: reads, a forecast (which stores model rows
- * only for a manager), and the member's own per-user data (onboarding, usage
- * count; referrals live in their own route).
+ * only for a manager), and the member's own per-user data (onboarding;
+ * referrals live in their own route).
  */
 const MANAGER_ACTIONS = new Set([
   ...SCHEDULING_WRITE_ACTIONS,
   // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
   'upsertLocation',
   'deleteLocation',
+  // Uses up the account's monthly auto-schedule allowance without saving anything; a member
+  // could spend it for the whole business (CHG-109). Applying a run is addRosterShifts.
+  'incrementAutoAssign',
   'cancelSubscription',
   'createCheckoutSession',
   'changeSubscription',
@@ -125,22 +128,31 @@ const MANAGER_ACTIONS = new Set([
 ]);
 
 /** Writes open to members (their own data); they share the write rate limit. */
-const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'incrementAutoAssign', 'forecast']);
+const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'forecast']);
+
+// 23P01 from our own triggers (roster_no_overlap, template_times_no_overlap) carries a sentence
+// written for the manager. Any other 23P01 is an exclusion constraint whose text names schema objects.
+const exclusionFailure = (message: string): Result => {
+  if (message.startsWith('This person already has a shift')) return fail(409, `${message}. Reload and try again`);
+  if (message.startsWith('With these times')) return fail(409, message);
+  return fail(409, 'Conflicting record');
+};
+
+/** Database refusals the manager can act on, by SQLSTATE; null = not one of ours (a 500). */
+const DB_REFUSALS: Record<string, (message: string) => Result | null> = {
+  '23505': () => fail(409, 'Conflicting record'),
+  '23503': () => fail(409, 'Record is still referenced'),
+  '23P01': exclusionFailure,
+  // CHECK roster_notified_needs_published (CHG-109): only a published shift can be marked as told.
+  '23514': (message) =>
+    message.includes('roster_notified_needs_published') ? fail(409, 'Only a published shift can be marked as told. Publish it first') : null,
+};
 
 /** Logs the database error and returns a generic message. */
-const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
+export const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
-  if (error?.code === '23505') return fail(409, 'Conflicting record');
-  if (error?.code === '23503') return fail(409, 'Record is still referenced');
-  // 23P01 from our own triggers (roster_no_overlap, template_times_no_overlap) carries a sentence
-  // written for the manager. Any other 23P01 is an exclusion constraint whose text names schema objects.
-  if (error?.code === '23P01') {
-    const message = error.message ?? '';
-    if (message.startsWith('This person already has a shift')) return fail(409, `${message}. Reload and try again`);
-    if (message.startsWith('With these times')) return fail(409, message);
-    return fail(409, 'Conflicting record');
-  }
-  return fail(500, 'Database request failed');
+  const known = error?.code ? DB_REFUSALS[error.code]?.(error.message ?? '') : null;
+  return known ?? fail(500, 'Database request failed');
 };
 
 // ─── Validators ───────────────────────────────────────────────────────────────
@@ -1112,7 +1124,9 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   };
   if (error?.code === 'PGRST202' || error?.code === '42883') return countThenInsert(client, ctx, rows, limit, usedUp);
   if (error) return { data: null, error };
-  const answer = data as { rows?: unknown[]; limited?: boolean } | null;
+  // `replayed`: every shift of this run is already on the roster (a retry after a lost answer,
+  // CHG-109). The run was counted when it was saved; the stored rows are the answer.
+  const answer = data as { rows?: unknown[]; limited?: boolean; replayed?: boolean } | null;
   if (answer?.limited) return usedUp;
   return { data: answer?.rows ?? [], error: null };
 }
@@ -1645,9 +1659,9 @@ async function adminListEntitlements(client: SupabaseClient, accountId: unknown)
     .limit(200);
   if (error) return dbFailure('list entitlements', error);
   const now = new Date();
-  const resolved = await resolvePlan(client, accountId, now);
+  // Looking an account up must not start its one trial (CHG-109): only the account's own requests do.
+  const resolved = await resolvePlan(client, accountId, now, { startTrial: false });
   if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
-  // Re-read is not needed for the list: a trial started by resolvePlan shows on the next load.
   return ok({
     entitlements: ((data ?? []) as unknown as EntitlementRow[]).map((row) => rowToEntitlement(row, now)),
     plan: resolved.plan,

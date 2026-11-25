@@ -194,12 +194,25 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
 
     // Three runs at once with one left: one fills its week, the other two save nothing.
     const week = (monday: number) => [0, 1, 2, 3, 4, 5, 6].map((d) => shift(`2026-12-${String(monday + d).padStart(2, '0')}`, early));
-    const three = await Promise.all([apply(...week(7)), apply(...week(14)), apply(...week(21))]);
+    const weeks = [week(7), week(14), week(21)];
+    const three = await Promise.all(weeks.map((w) => apply(...w)));
     expect(three.map((r) => r.status).sort()).toEqual([200, 402, 402]);
     expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/1 auto-filled week a month.*Nothing was added/);
     expect(await used()).toBe(1);
     const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-07', toDate: '2026-12-27' })).body.shifts as unknown[];
     expect(stored).toHaveLength(7);
+
+    // The answer of the saved run was lost and the browser sends it again (CHG-109): the same
+    // shifts come back as saved, the run is not counted twice. Before, this was a 402 "already used".
+    const saved = weeks[three.findIndex((r) => r.status === 200)];
+    const retried = await apply(...saved);
+    expect({ status: retried.status, error: retried.body.error }).toEqual({ status: 200, error: undefined });
+    expect((retried.body.shifts as { id: string }[]).map((x) => x.id).sort()).toEqual(saved.map((x) => x.id).sort());
+    expect(await used()).toBe(1);
+    // The same run with one shift more is a new run: refused as before, nothing saved.
+    const grown = await apply(...saved.slice(0, 6), shift(saved[6].date, mid));
+    expect(grown.status).toBe(402);
+    expect(await used()).toBe(1);
     // A batch sent without countAutoAssign is still counted on Gratis (CHG-104: the client cannot skip the count).
     const uncounted = await asAuto({ action: 'addRosterShifts', shifts: [shift('2026-12-28', early)] });
     expect(uncounted.status).toBe(402);
@@ -234,6 +247,58 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: entitlement.id })).status).toBe(200);
     expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: entitlement.id })).status).toBe(404);
     expect((await planOf(OWNER)).plan).toBe('gratis');
+  });
+
+  it('keeps the schedule read-only with more locations than the plan covers, deletes open (CHG-109)', async () => {
+    const LOC = `user_plan_loc_${run}`;
+    const asLoc = (body: Record<string, unknown>) => call(LOC, body);
+    await planOf(LOC);
+    const place = (name: string) => ({ name, countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' });
+    const ids: string[] = [];
+    for (const name of ['A', 'B', 'C']) {
+      const res = await asLoc({ action: 'upsertLocation', location: place(name) });
+      expect(res.status).toBe(200);
+      ids.push((res.body.location as { id: string }).id);
+    }
+    await endTrial(LOC);
+    const template = { name: 'Day', role: 'Cook', startTime: '09:00', endTime: '17:00', coverage: 1 };
+
+    const refused = await asLoc({ action: 'upsertShiftTemplate', template });
+    expect({ status: refused.status, error: refused.body.error }).toEqual({
+      status: 402,
+      error: 'Your business has 3 locations and the Gratis plan covers 1. The schedule is read-only until you remove a location or upgrade',
+    });
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: ids[0] } })).status).toBe(402);
+    expect((await asLoc({ action: 'listLocations' })).status).toBe(200);
+
+    // A grant that covers 3 locations (as a Paddle quantity of 3 does) opens the schedule again.
+    const granted = await call(PLATFORM_ADMIN, {
+      action: 'adminGrantEntitlement', accountId: LOC, plan: 'esencial', source: 'comp', days: 30, reason: 'three branches', locationQuota: 3,
+    });
+    expect(granted.status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: ids[0] } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: place('D') })).status).toBe(402);
+
+    // Grant revoked: read-only again; removing locations is always allowed and brings the schedule back.
+    expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: (granted.body.entitlement as { id: string }).id })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(402);
+    expect((await asLoc({ action: 'deleteLocation', id: ids[2] })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(402);
+    expect((await asLoc({ action: 'deleteLocation', id: ids[1] })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template })).status).toBe(200);
+  });
+
+  it('lets a platform admin look an account up without starting its trial (CHG-109)', async () => {
+    const UNSEEN = `user_plan_unseen_${run}`;
+    const list = await call(PLATFORM_ADMIN, { action: 'adminListEntitlements', accountId: UNSEEN });
+    expect(list.status).toBe(200);
+    expect(list.body.entitlements).toEqual([]);
+    expect(list.body.plan).toMatchObject({ plan: 'gratis', source: 'default', trialEndsAt: null });
+    const { data } = await db().from('account_entitlements').select('id').eq('account_id', UNSEEN);
+    expect(data).toEqual([]);
+    // The account's own first request still starts it.
+    expect(await planOf(UNSEEN)).toMatchObject({ plan: 'pro', source: 'trial' });
   });
 
   it('keeps a grant as written: no edits, no deletes, one revoke', async () => {

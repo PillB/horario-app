@@ -21,7 +21,7 @@ import {
 } from '@/constants/pricing';
 import { en } from '@/locales/en';
 import { es } from '@/locales/es';
-import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, type EntitlementRow } from '@/server/plans';
+import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, resolvePlan, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
@@ -210,7 +210,11 @@ describe('gatedClient', () => {
   const fakeClient = (answers: Record<string, Reply>, log: string[]) => {
     const builder = (table: string): Record<string, unknown> => {
       const b: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'is', 'order', 'limit', 'insert', 'update', 'delete', 'maybeSingle', 'single']) b[m] = () => b;
+      for (const m of ['select', 'eq', 'is', 'order', 'limit', 'update', 'delete', 'maybeSingle', 'single']) b[m] = () => b;
+      b.insert = () => {
+        log.push(`insert:${table}`);
+        return b;
+      };
       b.then = (resolve: (r: Reply) => unknown, reject: (e: unknown) => unknown) => {
         log.push(table);
         return Promise.resolve(answers[table] ?? { data: null, error: null }).then(resolve, reject);
@@ -219,7 +223,7 @@ describe('gatedClient', () => {
     };
     return { from: builder, rpc: (name: string) => builder(`rpc:${name}`) } as never;
   };
-  const WRITES = new Set(['upsertWorker', 'deleteWorker']);
+  const WRITES = new Set(['upsertWorker', 'deleteWorker', 'upsertShiftTemplate']);
   const expiredTrial = row({ starts_at: day(-30), ends_at: day(-16) });
 
   // gatedClient reads the real clock (resolvePlan's default `now`), and the
@@ -262,6 +266,7 @@ describe('gatedClient', () => {
     const answers = {
       account_entitlements: { data: [expiredTrial], error: null },
       workers: { data: null, error: null, count: 12 },
+      locations: { data: null, error: null, count: 1 },
     };
     const write = gatedClient(fakeClient(answers, []), 'acct', { action: 'upsertWorker', worker: { name: 'x' } }, WRITES);
     await expect(write.from('workers').insert({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/12 people.*covers 10/) } });
@@ -269,16 +274,85 @@ describe('gatedClient', () => {
     await expect(del.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
   });
 
-  it('lets the action run when the plan cannot be read', async () => {
+  // CHG-109: before, a plan read that failed let the action run with no limit at all (fail open).
+  it.each([
+    ['a scheduling write', { action: 'upsertShiftTemplate', template: {} }, 'shift_templates'],
+    ['a new location', { action: 'upsertLocation', location: { name: 'x' } }, 'locations'],
+    ['a Pro read', { action: 'forecastHistory' }, 'shifts'],
+  ])('refuses %s with 503 when the plan cannot be read', async (_label, payload, table) => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, []);
-    const client = gatedClient(broken, 'acct', { action: 'forecastHistory' }, WRITES);
-    await expect(client.from('shifts').select('date')).resolves.toBeDefined();
+    const log: string[] = [];
+    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, log);
+    const client = gatedClient(broken, 'acct', payload, WRITES);
+    await expect(client.from(table).select('id')).rejects.toMatchObject({ refusal: { status: 503, error: 'Could not check your plan; try again' } });
+    expect(log).not.toContain(table);
     errorSpy.mockRestore();
   });
 
+  it('still lets an action that is not gated run when the plan cannot be read', async () => {
+    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, []);
+    const client = gatedClient(broken, 'acct', { action: 'deleteWorker', id: 'w' }, new Set(['upsertWorker']));
+    await expect(client.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
+  });
+
+  describe('locations over the plan (CHG-109)', () => {
+    // A trial ended (or a grant, or a paid plan was reduced) with 3 locations stored; Gratis covers 1.
+    const overQuota = {
+      account_entitlements: { data: [expiredTrial], error: null },
+      workers: { data: null, error: null, count: 2 },
+      locations: { data: null, error: null, count: 3 },
+    };
+
+    it('makes the schedule read-only, editing a location included, and says how to get back', async () => {
+      const write = gatedClient(fakeClient(overQuota, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
+      await expect(write.from('shift_templates').insert({})).rejects.toMatchObject({
+        refusal: { status: 402, error: 'Your business has 3 locations and the Gratis plan covers 1. The schedule is read-only until you remove a location or upgrade' },
+      });
+      const edit = gatedClient(fakeClient({ ...overQuota, locations: { data: { id: 'l1' }, error: null, count: 3 } }, []), 'acct', { action: 'upsertLocation', location: { id: 'l1' } }, WRITES);
+      await expect(edit.from('locations').update({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/3 locations.*covers 1/) } });
+    });
+
+    it('keeps deletes open so the account can get under the quota', async () => {
+      const del = gatedClient(fakeClient(overQuota, []), 'acct', { action: 'deleteWorker', id: 'w' }, WRITES);
+      await expect(del.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
+      // deleteLocation is not a scheduling write and not upsertLocation: never gated.
+      const log: string[] = [];
+      const delLocation = gatedClient(fakeClient(overQuota, log), 'acct', { action: 'deleteLocation', id: 'l1' }, WRITES);
+      await expect(delLocation.rpc('delete_location')).resolves.toBeDefined();
+      expect(log).toEqual(['rpc:delete_location']);
+    });
+
+    it('allows writes at the quota, and the quota of the winning grant counts (3 paid locations)', async () => {
+      const atOne = gatedClient(fakeClient({ ...overQuota, locations: { data: null, error: null, count: 1 } }, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
+      await expect(atOne.from('shift_templates').insert({})).resolves.toBeDefined();
+      const paid = { ...overQuota, account_entitlements: { data: [row({ plan: 'esencial', source: 'paddle', ends_at: null, location_quota: 3 })], error: null } };
+      const write = gatedClient(fakeClient(paid, []), 'acct', { action: 'upsertShiftTemplate', template: {} }, WRITES);
+      await expect(write.from('shift_templates').insert({})).resolves.toBeDefined();
+      // At 3 of 3, a fourth location is refused with the add-a-location sentence, not the read-only one.
+      const fourth = gatedClient(fakeClient(paid, []), 'acct', { action: 'upsertLocation', location: { name: 'D' } }, WRITES);
+      await expect(fourth.from('locations').insert({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/covers 3 locations\. Add a location/) } });
+    });
+  });
+
+  describe('resolvePlan', () => {
+    it('starts the trial on first sight, and not when asked not to (admin lookup, CHG-109)', async () => {
+      const log: string[] = [];
+      const plan = await resolvePlan(fakeClient({ account_entitlements: { data: [], error: null } }, log), 'acct_new', NOW, { startTrial: false });
+      expect(plan).toEqual({ ok: true, plan: expect.objectContaining({ plan: 'gratis', source: 'default', trialEndsAt: null }) });
+      expect(log).not.toContain('insert:account_entitlements');
+
+      const started: string[] = [];
+      await resolvePlan(fakeClient({ account_entitlements: { data: [], error: null } }, started), 'acct_new', NOW);
+      expect(started).toContain('insert:account_entitlements');
+    });
+  });
+
   describe('insertWithinLimit', () => {
-    const gratis = { account_entitlements: { data: [expiredTrial], error: null }, workers: { data: null, error: null, count: 9 } };
+    const gratis = {
+      account_entitlements: { data: [expiredTrial], error: null },
+      workers: { data: null, error: null, count: 9 },
+      locations: { data: null, error: null, count: 1 },
+    };
     const gated = (answers: Record<string, unknown>, log: string[] = []) =>
       gatedClient(fakeClient(answers as Record<string, Reply>, log), 'acct', { action: 'upsertWorker', worker: { name: 'x' } }, WRITES);
 
@@ -306,6 +380,15 @@ describe('gatedClient', () => {
       const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const old = gated({ ...gratis, 'rpc:insert_within_limit': { data: null, error: { code: 'PGRST202', message: 'no function' } } });
       await expect(insertWithinLimit(old, 'workers', 'acct', {})).resolves.toBeNull();
+      errorSpy.mockRestore();
+    });
+
+    it('refuses with 503 instead of inserting without the limit when the plan cannot be read (CHG-109)', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const log: string[] = [];
+      const client = gated({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } } }, log);
+      await expect(insertWithinLimit(client, 'workers', 'acct', { name: 'x' })).rejects.toMatchObject({ refusal: { status: 503 } });
+      expect(log).not.toContain('rpc:insert_within_limit');
       errorSpy.mockRestore();
     });
 

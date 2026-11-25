@@ -74,10 +74,6 @@
     "hooks/useTeamSetup.ts": {
       "bulkImportWorkers (useCallback)": 21
     },
-    "server/plans.ts": {
-      "insertWithinLimit": 16,
-      "planGate": 24
-    },
     "server/proxyAuth.ts": {
       "authenticate": 16,
       "verifyClerkToken": 20

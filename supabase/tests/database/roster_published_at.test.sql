@@ -1,9 +1,10 @@
 -- CHG-106: roster.published_at is set by the database when a shift is published
--- (20261123000108_roster_published_at.sql).
+-- (20261123000108_roster_published_at.sql). CHG-109 (20261125000111_state_guards.sql):
+-- a moved Published shift is posted again; only a Published shift can be notified.
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(13);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000002a1', 'acct_p', 'Ana', 'Cook');
@@ -30,12 +31,52 @@ update public.roster set published_at = '2000-01-01', notified = true where id =
 select is((select published_at from public.roster where id = '00000000-0000-0000-0000-0000000002c1'), now(),
   'a client cannot move the publish time of a published shift');
 
-update public.roster set status = 'Draft' where id = '00000000-0000-0000-0000-0000000002c1';
+-- Unpublishing clears notified in the same write (the proxy does; CHECK roster_notified_needs_published, CHG-109).
+update public.roster set status = 'Draft', notified = false where id = '00000000-0000-0000-0000-0000000002c1';
 select is((select published_at from public.roster where id = '00000000-0000-0000-0000-0000000002c1'), null,
   'unpublishing clears it');
 
 select is((select count(*)::int from public.roster where status = 'Published' and published_at is null), 0,
   'no published shift is left without a time');
+
+-- ── CHG-109: a moved Published shift is a new posting ───────────────────────
+-- Stand in for "published long ago" (set with the trigger off, which needs the table owner).
+reset role;
+alter table public.roster disable trigger roster_published_at;
+update public.roster set published_at = '2000-01-01' where id = '00000000-0000-0000-0000-0000000002c2';
+alter table public.roster enable trigger roster_published_at;
+set local role service_role;
+
+update public.roster set location = 'Bar' where id = '00000000-0000-0000-0000-0000000002c2';
+select is((select published_at from public.roster where id = '00000000-0000-0000-0000-0000000002c2'), '2000-01-01'::timestamptz,
+  'an edit that keeps date, worker and template keeps the publish time');
+update public.roster set date = current_date + 11 where id = '00000000-0000-0000-0000-0000000002c2';
+select is((select published_at from public.roster where id = '00000000-0000-0000-0000-0000000002c2'), now(),
+  'moving it to another date posts it again');
+
+reset role;
+alter table public.roster disable trigger roster_published_at;
+update public.roster set published_at = '2000-01-01' where id = '00000000-0000-0000-0000-0000000002c2';
+alter table public.roster enable trigger roster_published_at;
+set local role service_role;
+update public.roster set template_id = '00000000-0000-0000-0000-0000000002b1' where id = '00000000-0000-0000-0000-0000000002c2';
+select is((select published_at from public.roster where id = '00000000-0000-0000-0000-0000000002c2'), now(),
+  'moving it to another template posts it again');
+
+-- ── CHG-109: only a Published shift can be marked as told ───────────────────
+select throws_ok(
+  $$update public.roster set notified = true where id = '00000000-0000-0000-0000-0000000002c1'$$,
+  '23514', null, 'a draft cannot be marked as told');
+select throws_ok(
+  $$insert into public.roster (account_id, date, worker_id, template_id, status, notified) values
+      ('acct_p', current_date + 20, '00000000-0000-0000-0000-0000000002a1', '00000000-0000-0000-0000-0000000002b1', 'Draft', true)$$,
+  '23514', null, 'nor stored as told');
+select lives_ok(
+  $$update public.roster set notified = true where id = '00000000-0000-0000-0000-0000000002c2'$$,
+  'a published shift can be marked as told');
+select throws_ok(
+  $$update public.roster set status = 'Draft' where id = '00000000-0000-0000-0000-0000000002c2'$$,
+  '23514', null, 'unpublishing a told shift must clear the flag in the same write');
 
 select * from finish();
 rollback;
