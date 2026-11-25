@@ -21,7 +21,7 @@ import {
 } from '@/constants/pricing';
 import { en } from '@/locales/en';
 import { es } from '@/locales/es';
-import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, resolvePlan, type EntitlementRow } from '@/server/plans';
+import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PLAN_UNREADABLE, PlanRefusal, planGate, resolvePlan, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
@@ -301,8 +301,17 @@ describe('gatedClient', () => {
 
   it('still lets an action that is not gated run when the plan cannot be read', async () => {
     const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, []);
-    const client = gatedClient(broken, 'acct', { action: 'deleteWorker', id: 'w' }, new Set(['upsertWorker']));
-    await expect(client.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
+    const client = gatedClient(broken, 'acct', { action: 'listWorkers' }, new Set(['upsertWorker']));
+    await expect(client.from('workers').select('id')).resolves.toBeDefined();
+  });
+
+  it('keeps a scheduling delete open when the plan cannot be read, without reading it', async () => {
+    const readPlan = jest.fn(async () => ({ ok: false as const, error: { message: 'down' } }));
+    const gate = await planGate(fakeClient({}, []), 'acct', { action: 'deleteWorker', id: 'w' }, new Set(['deleteWorker', 'upsertWorker']), readPlan);
+    expect(gate).toBeNull();
+    expect(readPlan).not.toHaveBeenCalled();
+    // The write next to it is refused: fail closed for everything but deletes.
+    expect(await planGate(fakeClient({}, []), 'acct', { action: 'upsertWorker', worker: {} }, new Set(['deleteWorker', 'upsertWorker']), readPlan)).toEqual(PLAN_UNREADABLE);
   });
 
   describe('locations over the plan (CHG-109)', () => {

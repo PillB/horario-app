@@ -321,11 +321,22 @@ const underCountLimits = (action: string, writeActions: ReadonlySet<string>): bo
   action === 'upsertLocation' || (writeActions.has(action) && !action.startsWith('delete'));
 
 /**
+ * Whether the gate must read the plan for this action. A delete is never refused by the plan, so it
+ * needs no plan read: it stays open even when the plan cannot be read, and the account can always
+ * get back under a limit.
+ */
+export const needsPlan = (action: string, writeActions: ReadonlySet<string>): boolean => {
+  if (PRO_ACTIONS.has(action)) return true;
+  if (action.startsWith('delete')) return false;
+  return writeActions.has(action) || action === 'upsertLocation';
+};
+
+/**
  * Refuses what the account's plan does not include. `writeActions` are the
  * scheduling writes: with more people or locations than the plan covers
  * (after a trial or a paid plan ends) they are refused, deletes excepted, so
  * nothing is lost and the account can be brought back under the limit. A plan
- * that cannot be read refuses every gated action with 503 (fail closed).
+ * that cannot be read refuses every gated action except deletes with 503 (fail closed).
  */
 export async function planGate(
   client: SupabaseClient,
@@ -335,8 +346,7 @@ export async function planGate(
   readPlan: () => Promise<PlanResult> = () => resolvePlan(client, accountId),
 ): Promise<GateRefusal | null> {
   const action = typeof payload.action === 'string' ? payload.action : '';
-  const gated = PRO_ACTIONS.has(action) || writeActions.has(action) || action === 'upsertLocation';
-  if (!gated) return null;
+  if (!needsPlan(action, writeActions)) return null;
 
   const resolved = await readPlan();
   if (!resolved.ok) {
