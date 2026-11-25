@@ -181,14 +181,17 @@ stateDiagram-v2
   Grace --> Paid: paid
   Grace --> Gratis: 14 days pass
   Paid --> Gratis: paused or cancelled
-  state "Over the limit (read-only)" as Over
-  Gratis --> Over: more people or locations than the plan covers
+  state "Over the people limit (read-only)" as Over
+  Gratis --> Over: more people than the plan covers
   Over --> Gratis: delete until under the limit, or upgrade
+  state "Extra locations locked" as ExtraLoc
+  Gratis --> ExtraLoc: more locations than the plan covers
+  ExtraLoc --> Gratis: delete a location, or add it to the plan
 ```
 
-Fixed (CHG-109): more locations than the plan covers (after a trial, a grant or a downgrade) was never enforced, so per-location pricing could be bypassed for good; it is now read-only like the people limit (deletes and billing stay open). A plan that cannot be read now refuses gated actions with 503 instead of letting them through without limits; deletes need no plan read and stay open. An admin looking up an account id no longer starts that account's one trial.
+Fixed (CHG-109): more locations than the plan covers (after a trial, a grant or a downgrade) was never enforced, so per-location pricing could be bypassed for good; now only the locations beyond the plan are locked. The oldest locations up to the plan's count (by `created_at`, then `id`) stay fully usable; an extra location cannot be edited and its shifts cannot be added, edited, moved, published or marked as told (402, "{name} is not covered by your {plan} plan…"). Workers, templates, time off, demand and every delete stay open. A roster edit is judged by both the new and the stored location, so a shift cannot be moved out of a locked location either. A plan that cannot be read now refuses gated actions with 503 instead of letting them through without limits; deletes need no plan read and stay open. An admin looking up an account id no longer starts that account's one trial.
 
-Open: an active subscription whose period ended long ago still counts if Paddle's cancel webhook was lost for good (needs a daily reconcile job, which Paddle recommends); a new Clerk organisation gets a new trial.
+Open: the location lock is checked in the proxy only (a read, then the write), and `roster.location` is not checked to be one of the account's locations, so a modified client could write shifts under an unknown string and pass the lock; the fix is to validate the location id on write. The owner cannot choose which locations stay covered. An active subscription whose period ended long ago still counts if Paddle's cancel webhook was lost for good (needs a daily reconcile job, which Paddle recommends); a new Clerk organisation gets a new trial.
 
 ## 11. Paddle events
 
