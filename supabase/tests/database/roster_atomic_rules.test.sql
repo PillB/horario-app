@@ -3,7 +3,7 @@
 -- an auto-schedule run is counted and saved together or not at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(31);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000000d1', 'acct_o', 'Ana', 'Cook'),
@@ -79,6 +79,11 @@ select is((select count(*)::integer from public.roster where id = '00000000-0000
 select throws_ok(
   $$select public.apply_auto_assign('user_w', 'acct_w', null, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]')$$,
   '23505', null, 'shifts stored by another account are not a replay for this one');
+select throws_ok(
+  $$select public.apply_auto_assign('user_o', 'acct_o', null, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e3"}]')$$,
+  '23505', null, 'a stored id with another template is not a replay (CHG-109 review)');
+select is((select template_id from public.roster where id = '00000000-0000-0000-0000-0000000000f5'), '00000000-0000-0000-0000-0000000000e1'::uuid,
+  'and the stored shift is unchanged');
 
 -- ── A counted run fills one week (CHG-108) ───────────────────────────────────
 select throws_ok(

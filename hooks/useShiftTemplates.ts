@@ -83,7 +83,9 @@ export const useShiftTemplates = (accountId: string) => {
       if (!items.some((t) => t.id === id)) return { success: false, error: 'Template not found' };
       const result = await saveTemplate(id, changes, false, ifUpdatedAt);
       if (result.success) return { success: true };
-      const { id: _id, ...wanted } = dbToTemplate({ ...changes, id });
+      // Compare what the server stores (the validated, normalised values), not the raw form input.
+      const checked = validateShiftTemplateInput({ ...changes, id });
+      const { id: _id, ...wanted } = dbToTemplate(checked.ok ? { ...checked.value, id } : { ...changes, id });
       const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status);
       if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
       if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };

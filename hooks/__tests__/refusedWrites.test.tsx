@@ -204,6 +204,17 @@ describe('useShiftTemplates.updateShiftTemplate refused', () => {
     expect(result).toEqual({ success: true, alreadySaved: true });
     expect(hook.result.shiftTemplates[0]).toMatchObject({ end: '15:00', updatedAt: SAVED_AT });
   });
+
+  it('a lost answer counts as saved when the form had spaces the server trimmed', async () => {
+    templateServer({ id: T1, ...changes, endTime: '14:00', updatedAt: READ_AT }, true);
+    const hook = await renderHook(({ accountId }: { accountId: string }) => useShiftTemplates(accountId), { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<ReturnType<typeof useShiftTemplates>['updateShiftTemplate']>>;
+    await act(async () => {
+      // The client sends the validated (trimmed) values; the comparison must use them too.
+      result = await hook.result.updateShiftTemplate(T1, { ...changes, name: '  Morning  ', role: ' Cook ' }, READ_AT);
+    });
+    expect(result).toEqual({ success: true, alreadySaved: true });
+  });
 });
 
 // ─── Roster batch ────────────────────────────────────────────────────────────

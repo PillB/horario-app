@@ -163,7 +163,7 @@ stateDiagram-v2
 
 Guards: one row per (account, date, worker, template) (409); no overlapping shifts for one worker, per-account lock (409); worker and template must exist.
 
-Fixed (CHG-109): a published shift moved to another day kept its first publish time, so a late change looked posted early; it now gets a new one. A CHECK constraint makes "told" impossible on a draft for every writer, not only the proxy.
+Fixed (CHG-109): a published shift moved to another day kept its first publish time, so a late change looked posted early; it now gets a new one, and the trigger clears "told" for every writer, since the person was told about the old shift. A CHECK constraint makes "told" impossible on a draft for every writer, not only the proxy.
 
 Open: the overlap check uses wall-clock times (no time zone or daylight saving); rest and hour limits are checked only in the browser; a shift on a stored day off is allowed when added by hand.
 
@@ -186,7 +186,7 @@ stateDiagram-v2
   Over --> Gratis: delete until under the limit, or upgrade
 ```
 
-Fixed (CHG-109): more locations than the plan covers (after a trial, a grant or a downgrade) was never enforced, so per-location pricing could be bypassed for good; it is now read-only like the people limit (deletes and billing stay open). A plan that cannot be read now refuses gated actions with 503 instead of letting them through without limits. An admin looking up an account id no longer starts that account's one trial.
+Fixed (CHG-109): more locations than the plan covers (after a trial, a grant or a downgrade) was never enforced, so per-location pricing could be bypassed for good; it is now read-only like the people limit (deletes and billing stay open). A plan that cannot be read now refuses gated actions with 503 instead of letting them through without limits; deletes need no plan read and stay open. An admin looking up an account id no longer starts that account's one trial.
 
 Open: an active subscription whose period ended long ago still counts if Paddle's cancel webhook was lost for good (needs a daily reconcile job, which Paddle recommends); a new Clerk organisation gets a new trial.
 
@@ -223,7 +223,7 @@ stateDiagram-v2
   UsedUp --> Under: UTC month changes
 ```
 
-Fixed (CHG-109): a retry after a lost answer was counted again or refused with "already used, nothing was added" although the first attempt had saved the week. A member could use up the manager's monthly run through `incrementAutoAssign`; it is manager-only now.
+Fixed (CHG-109): a retry after a lost answer was counted again or refused with "already used, nothing was added" although the first attempt had saved the week. A batch is a replay only when every row is already stored with the same id, date, worker and template; reused ids for other shifts fail with 409 (ids are fresh per run, so this only guards against a future change). A member could use up the manager's monthly run through `incrementAutoAssign`; it is manager-only now.
 
 Open: the month boundary is UTC, not the business's time zone.
 

@@ -151,7 +151,7 @@ const DB_REFUSALS: Record<string, (message: string) => Result | null> = {
 /** Logs the database error and returns a generic message. */
 export const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
-  const known = error?.code ? DB_REFUSALS[error.code]?.(error.message ?? '') : null;
+  const known = error?.code ? (Object.hasOwn(DB_REFUSALS, error.code) ? DB_REFUSALS[error.code](error.message ?? '') : null) : null;
   return known ?? fail(500, 'Database request failed');
 };
 

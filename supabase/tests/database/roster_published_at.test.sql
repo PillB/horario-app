@@ -4,7 +4,7 @@
 -- Run with: supabase test db
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000002a1', 'acct_p', 'Ana', 'Cook');
@@ -77,6 +77,11 @@ select lives_ok(
 select throws_ok(
   $$update public.roster set status = 'Draft' where id = '00000000-0000-0000-0000-0000000002c2'$$,
   '23514', null, 'unpublishing a told shift must clear the flag in the same write');
+select lives_ok(
+  $$update public.roster set date = date + 30 where id = '00000000-0000-0000-0000-0000000002c2'$$,
+  'a told shift can be moved by any writer');
+select is((select notified from public.roster where id = '00000000-0000-0000-0000-0000000002c2'), false,
+  'and is no longer marked as told: the person was told about the old shift (CHG-109 review)');
 
 select * from finish();
 rollback;
