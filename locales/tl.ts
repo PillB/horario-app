@@ -303,7 +303,7 @@ export const tl = {
       saveButton: 'I-save bilang draft',
       saveButtonA11y: 'I-save bilang draft',
       autoAssignButton: 'Auto-assign',
-      autoAssignA11y: 'Awtomatikong mag-assign ng mga manggagawa sa lahat ng template para sa petsang ito',
+      autoAssignA11y: 'Awtomatikong mag-assign ng mga manggagawa sa lahat ng template para sa linggo ng petsang ito, Lunes hanggang Linggo',
       autoAssignHint: 'Nagpapatakbo ng algorithm ng pag-assign na batay sa pagkakapantay-pantay',
       applyButton: 'Ilapat ang mga mungkahi',
       applyingButton: 'Inilalapat…',
@@ -590,7 +590,7 @@ export const tl = {
     free: {
       badge: 'LIBRE',
       limitReached: 'Nagamit mo na ang mga libreng awtomatikong iskedyul ngayong buwan. Puwede ka pa ring gumawa ng shift nang mano-mano, at may bago ka sa susunod na buwan.',
-      autoAssignsLeft: '{n} libreng auto-assign{plural} ang natitira',
+      autoAssignsLeft: 'Natitirang libreng linggong awtomatikong napunan ngayong buwan: {n}',
       ctaUnlimited: 'Esencial: walang limitasyong awtomatikong iskedyul hanggang 40 tao, walang bayad kada tao. Tingnan ang mga plan',
       pricing: 'Mula US$19 bawat lokasyon kada buwan · walang bayad bawat empleyado',
     },

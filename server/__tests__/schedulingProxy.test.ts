@@ -67,8 +67,8 @@ describe('secure proxy scheduling validation (no database)', () => {
     ['a 201-char shift location', { action: 'upsertRosterShift', shift: { date: '2026-11-02', workerId: W1, templateId: T1, location: 'x'.repeat(201) } }, /location/],
     ['a worker edit with a made-up ifUpdatedAt', { action: 'upsertWorker', worker: { id: W1, name: 'Ana', role: 'Cook' }, ifUpdatedAt: 'yesterday' }, /ifUpdatedAt/],
     ['a template edit with a made-up ifUpdatedAt', { action: 'upsertShiftTemplate', template: { id: T1, name: 'A', role: 'B', startTime: '09:00', endTime: '17:00', coverage: 1 }, ifUpdatedAt: 12 }, /ifUpdatedAt/],
-    ['an empty batch of shifts', { action: 'addRosterShifts', shifts: [] }, /1 to 200/],
-    ['a batch of 201 shifts', { action: 'addRosterShifts', shifts: Array(201).fill({ id: W1, date: '2026-11-02', workerId: W1, templateId: T1 }) }, /1 to 200/],
+    ['an empty batch of shifts', { action: 'addRosterShifts', shifts: [] }, /1 to 1000/],
+    ['a batch of 1001 shifts', { action: 'addRosterShifts', shifts: Array(1001).fill({ id: W1, date: '2026-11-02', workerId: W1, templateId: T1 }) }, /1 to 1000/],
     ['a batch shift without an id', { action: 'addRosterShifts', shifts: [{ date: '2026-11-02', workerId: W1, templateId: T1 }] }, /Shift 1: id must be a UUID/],
     ['a batch with an impossible date in row 2', { action: 'addRosterShifts', shifts: [{ id: W1, date: '2026-11-02', workerId: W1, templateId: T1 }, { id: T1, date: '2026-02-30', workerId: W1, templateId: T1 }] }, /Shift 2: .*real YYYY-MM-DD/],
     ['a batch that repeats an id', { action: 'addRosterShifts', shifts: [{ id: W1, date: '2026-11-02', workerId: W1, templateId: T1 }, { id: W1, date: '2026-11-03', workerId: W1, templateId: T1 }] }, /different id/],
@@ -143,5 +143,24 @@ describe('scheduling validators (shared by client and proxy)', () => {
     for (let i = 0; i < 20; i += 1) {
       expect(newUuid()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     }
+  });
+});
+
+describe('autoScheduleWeekRefusal (CHG-108: a counted run fills one week)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- the route module reads env lazily
+  const { autoScheduleWeekRefusal } = require('../../app/api/secure-proxy+api') as {
+    autoScheduleWeekRefusal: (rows: Record<string, unknown>[]) => { status: number; body: { error: string } } | null;
+  };
+  const rows = (...dates: string[]) => dates.map((date) => ({ date }));
+
+  it('lets a full Monday-to-Sunday week through', () => {
+    expect(autoScheduleWeekRefusal(rows('2026-12-07', '2026-12-09', '2026-12-13'))).toBeNull();
+  });
+
+  it('refuses a batch from Sunday into the next Monday with 400 and says how to apply it', () => {
+    expect(autoScheduleWeekRefusal(rows('2026-12-13', '2026-12-14'))).toEqual({
+      status: 400,
+      body: { error: 'An auto-schedule on this plan fills one week, Monday to Sunday. Apply one week at a time' },
+    });
   });
 });

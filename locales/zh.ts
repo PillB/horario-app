@@ -295,7 +295,7 @@ export const zh = {
       saveButton: '保存为草稿',
       saveButtonA11y: '保存为草稿',
       autoAssignButton: '自动分配',
-      autoAssignA11y: '自动将员工分配到该日期的所有模板',
+      autoAssignA11y: '自动将员工分配到该日期所在一周（周一至周日）的所有模板',
       autoAssignHint: '运行基于公平性的分配算法',
       applyButton: '应用建议',
       applyingButton: '应用中…',
@@ -534,7 +534,7 @@ export const zh = {
     free: {
       badge: '免费版',
       limitReached: '本月的免费自动排班次数已用完。您仍可手动排班，下个月会有新的次数。',
-      autoAssignsLeft: '剩余 {n} 次免费自动分配{plural}',
+      autoAssignsLeft: '本月剩余免费自动排班周数：{n}',
       ctaUnlimited: 'Esencial：最多 40 人无限次自动排班，不按人数收费。查看方案',
       pricing: '每个门店每月 19 美元起 · 不按员工收费',
     },

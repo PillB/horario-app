@@ -7,7 +7,7 @@ import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { deleteTimeOff, fetchTimeOff, upsertTimeOff } from '@/services/rosterService';
-import { fetchWorkersOffOn, useTimeOff } from '../useTimeOff';
+import { fetchDaysOffOn, useTimeOff } from '../useTimeOff';
 
 jest.mock('@/services/logger', () => ({ log: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
 jest.mock('@/services/rosterService', () => ({
@@ -104,16 +104,28 @@ describe('useTimeOff', () => {
   });
 });
 
-describe('fetchWorkersOffOn', () => {
-  it('returns the workers off on the date', async () => {
-    (fetchTimeOff as jest.Mock).mockResolvedValue({ ok: true, data: [row('a', W1, '2026-12-24')], truncated: false });
-    const result = await fetchWorkersOffOn('2026-12-24');
-    expect(fetchTimeOff).toHaveBeenCalledWith('2026-12-24');
-    expect(result.ok && [...result.workerIds]).toEqual([W1]);
+describe('fetchDaysOffOn (CHG-108: the week of an auto-assign run)', () => {
+  it('returns each worker off on each date asked, reading only those dates', async () => {
+    (fetchTimeOff as jest.Mock).mockImplementation(async (date: string) => ({
+      ok: true,
+      data: date === '2026-12-24' ? [row('a', W1, '2026-12-24'), row('b', W2, '2026-12-24')] : date === '2026-12-26' ? [row('c', W1, '2026-12-26')] : [],
+      truncated: false,
+    }));
+    const result = await fetchDaysOffOn(['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-24']);
+    expect((fetchTimeOff as jest.Mock).mock.calls.map(([d]) => d).sort()).toEqual(['2026-12-24', '2026-12-25', '2026-12-26']);
+    expect(result).toEqual({
+      ok: true,
+      daysOff: [
+        { workerId: W1, date: '2026-12-24' },
+        { workerId: W2, date: '2026-12-24' },
+        { workerId: W1, date: '2026-12-26' },
+      ],
+    });
   });
 
-  it('reports a failed read instead of "nobody is off"', async () => {
-    (fetchTimeOff as jest.Mock).mockResolvedValue({ ok: false, error: 'Server error (500)' });
-    expect(await fetchWorkersOffOn('2026-12-24')).toEqual({ ok: false, error: 'Server error (500)' });
+  it('reports a failed read of any date instead of "nobody is off"', async () => {
+    (fetchTimeOff as jest.Mock).mockImplementation(async (date: string) =>
+      date === '2026-12-25' ? { ok: false, error: 'Server error (500)' } : { ok: true, data: [], truncated: false });
+    expect(await fetchDaysOffOn(['2026-12-24', '2026-12-25'])).toEqual({ ok: false, error: 'Server error (500)' });
   });
 });

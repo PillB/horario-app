@@ -6,6 +6,28 @@
 
 ---
 
+### CHG-108 — 2026-11-25 UTC
+**Type:** FEATURE + PLAN CHANGE (Pablo picked "One run fills a week, 1 a month" on the decision card, after the evidence doc "Free plan auto-schedule limit: evidence and recommendation". Blind pair ratings showed personas reading "3 auto-schedules" as about three weeks, while one run filled one day.)
+
+**What changed:**
+- Auto-assign in the scheduler fills the chosen date's Monday–Sunday week, from today on (`autoAssignWeekDates`, `isoWeekDates`, `inOneIsoWeek` in `utils/dateKeys.ts`; `handleAutoAssign` passes `dates` to `runAutoAssign`, which both engines already supported).
+- Days off are a hard rule of both engines per date (`AssignmentInput.daysOff`, `CheckContext.off`, checked in `checkEligibility` after the role, so the ILP model, its repair and the greedy all see it). Before, the handler removed workers off on the one run date from the list, which cannot work for a week. `fetchDaysOffOn(dates)` reads each date with the existing filter; any failed read stops the run. `fetchWorkersOffOn` removed (no caller left).
+- Gratis: `maxAutoSchedulesPerMonth` 3 → 1 (`constants/pricing.ts`, `hooks/useSubscription.ts`). Copy in en / es says "1 auto-filled week a month" (pricing, profile, landing plan card and FAQ, upgrade banner); the other seven locales say weeks in `autoAssignsLeft` and the button label.
+- Server: on a limited plan a counted batch whose dates span two ISO weeks is refused with 400 before anything is counted (`autoScheduleWeekRefusal` in the proxy; migration `20261125000110_auto_schedule_week.sql` does the same in `apply_auto_assign`, 22023). A batch takes up to 1000 shifts (was 200: one week of a 40-person team with several templates). The 402 texts name the weeks ("includes 1 auto-filled week a month, already used this month").
+- Suggestion list keys include the date (a worker on the same template on several days repeated a key).
+- `applyAutoAssignRun` was 16 over the ceiling; the pre-migration fallback moved to `countThenInsert`.
+
+**Red team (5):**
+- One run a month could still fill a month if a modified client sent 30 days in one batch: refused by the proxy and again by the database, with the limit. Unlimited plans may still send any batch (`p_limit` null), as before.
+- A run from Wednesday would have written Monday and Tuesday, days already past: the run starts today. A past date the manager typed on purpose is kept, from that date to Sunday. Trade-off: a week started mid-week uses the month's one run for fewer days; the alternative (count only full weeks) gives an easy way round the limit.
+- The ISO week is Monday first. Some countries plan Sunday to Saturday (US, Mexico, Brazil restaurants often do). A per-location week start would need a column and would change the server rule; not done, named here. The labor engine's weekly hours also use ISO weeks, so the two stay consistent.
+- Shortfall reasons: on a day someone is off, the shortfall says the reason of the nearest worker (often "overlap"), not "day off". Existing behaviour of `shortfallReason`; a dedicated `day_off` code would need translations in nine locales.
+- The copy says "1" in words. A guard test (`server/__tests__/plans.test.ts`) fails if the limit changes and the en / es copy does not. The seven other locales are not guarded.
+
+**Tests:** new `services/__tests__/autoAssignWeek.test.ts` (day off in `checkEligibility`, greedy one day plus a regression without days off, the whole week through greedy and through the real HiGHS ILP); `utils/__tests__/dateKeys.test.ts` (week bounds, Sunday, year end, DST week, `inOneIsoWeek`, `autoAssignWeekDates`); `hooks/__tests__/useTimeOff.test.tsx` (`fetchDaysOffOn`, failed read); `server/__tests__/schedulingProxy.test.ts` (`autoScheduleWeekRefusal`, 1001-shift batch); `server/__tests__/plans.test.ts` (limit 1, copy guard); `server/__tests__/plans.integration.test.ts` rewritten for 1 run (week refusal before counting, three concurrent week runs with one left → one week stored); pgTAP `roster_atomic_rules.test.sql` 22 (two-week batch refused and not counted, unlimited batch saved); e2e `scheduler.spec.ts` asserts per date. Full Jest 1469 passed (55 skipped: database), tsc, lint and the complexity gate pass; pgTAP run locally on Postgres 16 with a shim (integration and e2e run in CI).
+
+---
+
 ### CHG-107 — 2026-11-25 UTC
 **Type:** FIX (Pablo flagged a payment-webhook race found in another project: two near-simultaneous subscription webhooks, an older state written over a newer one. Coordinator: check the Paddle handler for concurrent deliveries, fix with a test that simulates the race.)
 

@@ -46,7 +46,7 @@ import { resolvePack } from '@/services/labor/engine';
 import { READ_LIMIT, WRITE_LIMIT, rateLimiter } from '@/server/rateLimit';
 import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
-import { isDateKey, todayKey } from '@/utils/dateKeys';
+import { inOneIsoWeek, isDateKey, todayKey } from '@/utils/dateKeys';
 import {
   type BusinessLocation,
   type LocationHistoryEntry,
@@ -1096,6 +1096,8 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   const resolved = await resolvePlan(client, ctx.accountId);
   if (!resolved.ok) return { data: null, error: { refusal: dbFailure('resolve plan', resolved.error) } };
   const limit = resolved.plan.limits.maxAutoSchedulesPerMonth;
+  const outsideWeek = limit === null ? null : autoScheduleWeekRefusal(rows);
+  if (outsideWeek) return { data: null, error: { refusal: outsideWeek } };
   const { data, error } = await client.rpc('apply_auto_assign', {
     p_user_id: ctx.userId,
     p_account_id: ctx.accountId,
@@ -1105,21 +1107,40 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   const usedUp: RosterWrite = {
     data: null,
     error: {
-      refusal: fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Nothing was added. Upgrade for unlimited auto-schedule`),
+      refusal: fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${autoWeeks(limit)} a month, already used this month. Nothing was added. Upgrade to auto-fill every week`),
     },
   };
-  if (error?.code === 'PGRST202' || error?.code === '42883') {
-    // The function is not there yet (migration pending): count, then save, as before it existed.
-    console.error('[secure-proxy] apply_auto_assign is missing; apply migration 20261118000105. Counting and saving in two steps.');
-    const counted = await client.rpc('consume_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId, p_limit: limit });
-    if (counted.error) return { data: null, error: counted.error };
-    if (Number(counted.data ?? 0) < 0) return usedUp;
-    return client.from('roster').insert(rows).select(ROSTER_COLUMNS);
-  }
+  if (error?.code === 'PGRST202' || error?.code === '42883') return countThenInsert(client, ctx, rows, limit, usedUp);
   if (error) return { data: null, error };
   const answer = data as { rows?: unknown[]; limited?: boolean } | null;
   if (answer?.limited) return usedUp;
   return { data: answer?.rows ?? [], error: null };
+}
+
+/** apply_auto_assign is not there yet (migration pending): count, then save, as before it existed. */
+async function countThenInsert(
+  client: SupabaseClient,
+  ctx: AuthContext,
+  rows: Record<string, unknown>[],
+  limit: number | null,
+  usedUp: RosterWrite,
+): Promise<RosterWrite> {
+  console.error('[secure-proxy] apply_auto_assign is missing; apply migration 20261118000105. Counting and saving in two steps.');
+  const counted = await client.rpc('consume_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId, p_limit: limit });
+  if (counted.error) return { data: null, error: counted.error };
+  if (Number(counted.data ?? 0) < 0) return usedUp;
+  return client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+}
+
+/** "1 auto-filled week" / "2 auto-filled weeks": what one counted run buys on a limited plan. */
+const autoWeeks = (limit: number | null): string => `${limit} auto-filled week${limit === 1 ? '' : 's'}`;
+
+/**
+ * On a plan with a monthly limit one counted run fills one week (Monday to Sunday, CHG-108):
+ * a batch that spans two weeks is refused, so one run cannot fill the month.
+ */
+export function autoScheduleWeekRefusal(rows: readonly Record<string, unknown>[]): Result | null {
+  return inOneIsoWeek(rows.map((r) => String(r.date))) ? null : badRequest('An auto-schedule on this plan fills one week, Monday to Sunday. Apply one week at a time');
 }
 
 /** True when the account's plan limits auto-schedules a month (Gratis); a Result when the plan cannot be read. */
@@ -1130,7 +1151,7 @@ async function planLimitsAutoSchedules(client: SupabaseClient, ctx: AuthContext)
 }
 
 /** Shifts one request may add. */
-const ADD_ROSTER_SHIFTS_MAX = 200;
+const ADD_ROSTER_SHIFTS_MAX = 1000;
 
 /**
  * Adds several new shifts in one step (applying an auto-assign result): every
@@ -1454,7 +1475,7 @@ async function listLocationHistory(client: SupabaseClient, ctx: AuthContext, p: 
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
 // Auto-schedule runs are counted per account and calendar month (UTC). The
-// plan decides the limit (Gratis: 3 a month; paid plans: none).
+// plan decides the limit (Gratis: 1 a month, one week each; paid plans: none).
 
 async function getUsageLimit(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const resolved = await resolvePlan(client, ctx.accountId);
@@ -1478,7 +1499,7 @@ async function incrementAutoAssign(client: SupabaseClient, ctx: AuthContext): Pr
   if (error) return dbFailure('consume_auto_assign', error);
   const count = Number(data ?? 0);
   if (count < 0) {
-    return fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Upgrade for unlimited auto-schedule`);
+    return fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${autoWeeks(limit)} a month, already used this month. Upgrade to auto-fill every week`);
   }
   return ok({ success: true, count, limit, canAutoAssign: limit === null || count < limit });
 }

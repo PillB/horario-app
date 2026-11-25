@@ -125,3 +125,27 @@ export const weekdayOfKey = (key: string): number => new Date(keyToUtcMs(key)).g
 /** Whole calendar days from `fromKey` to `toKey` (positive when `toKey` is later). */
 export const daysBetweenKeys = (fromKey: string, toKey: string): number =>
   Math.round((keyToUtcMs(toKey) - keyToUtcMs(fromKey)) / MS_PER_DAY);
+
+/** The seven date keys, Monday to Sunday, of the ISO week that contains `key`. */
+export const isoWeekDates = (key: string): string[] => {
+  const weekday = weekdayOfKey(key);
+  const monday = addDaysToKey(key, weekday === 0 ? -6 : 1 - weekday);
+  return Array.from({ length: 7 }, (_, i) => addDaysToKey(monday, i));
+};
+
+/** True when every key lies in one ISO week (Monday to Sunday). An empty list is not a week. */
+export const inOneIsoWeek = (keys: readonly string[]): boolean => {
+  if (keys.length === 0) return false;
+  const week = new Set(isoWeekDates(keys[0]));
+  return keys.every((k) => week.has(k));
+};
+
+/**
+ * The dates one auto-assign run fills (CHG-108): the ISO week of `key`, without the days
+ * before today. A date the manager picked in the past is kept (filling a past week on
+ * purpose), so the run starts at the earlier of `key` and `today`.
+ */
+export const autoAssignWeekDates = (key: string, today: string): string[] => {
+  const start = key < today ? key : today;
+  return isoWeekDates(key).filter((d) => d >= start);
+};

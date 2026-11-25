@@ -23,10 +23,10 @@ import {
   isoDate,
   windowsOverlap,
 } from '@/utils/schedulerUtils';
-import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
+import { addDaysToKey, autoAssignWeekDates, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
-import { fetchWorkersOffOn } from '@/hooks/useTimeOff';
+import { fetchDaysOffOn } from '@/hooks/useTimeOff';
 import { validateDisplayString } from '@/utils/sanitize';
 import type { AssignedShift, CoverageShortfall, LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
@@ -1299,8 +1299,9 @@ export function useSchedulerHandlers() {
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
 
-  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for shiftForm.date
-   *  and stores suggestions. The user must call applyAutoAssign to commit them. */
+  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for the whole week
+   *  (Monday to Sunday) that contains shiftForm.date, and stores suggestions. One run is one
+   *  auto-schedule of the plan (CHG-108). The user must call applyAutoAssign to commit them. */
   const handleAutoAssign = useCallback(async () => {
     if (!canAutoAssign) {
       if (Platform.OS === 'web') {
@@ -1321,14 +1322,15 @@ export function useSchedulerHandlers() {
     }
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
-    // A person with a day off on this date (team step) is not suggested.
+    // One run fills the date's Monday-to-Sunday week, from today on (CHG-108).
+    const week = autoAssignWeekDates(date, todayKey(settings.timeZone));
+    // A person with a day off (team step) is not suggested on that day.
     // Unknown days off stop the run: a guess could suggest someone who is away.
-    const off = await fetchWorkersOffOn(date);
+    const off = await fetchDaysOffOn(week);
     if (!off.ok) {
       showActionBanner(t('teamTools.daysOffLoadError', { error: off.error }), 'error');
       return;
     }
-    const eligibleWorkers = off.workerIds.size > 0 ? workers.filter((w) => !off.workerIds.has(w.id)) : workers;
     autoAssignRunRef.current?.abort();
     const run = new AbortController();
     autoAssignRunRef.current = run;
@@ -1336,9 +1338,11 @@ export function useSchedulerHandlers() {
     try {
       result = await runAutoAssign(
         {
-          date,
+          date: week[0],
+          dates: week,
           templates: shiftTemplates,
-          workers: eligibleWorkers,
+          workers,
+          daysOff: off.daysOff,
           existingRoster: roster,
           constraints: settings.constraints,
           timeZone: settings.timeZone,

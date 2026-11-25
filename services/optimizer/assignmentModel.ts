@@ -141,7 +141,7 @@ export function buildAssignmentModel(input: OptimizeInput): AssignmentModel {
   const catalog = buildCatalog(input);
   const existing = resolveRoster(input.existingRoster, catalog, at);
   const constraints = input.constraints;
-  const contexts = new Map(dates.map((d) => [d, buildCheckContext(d, constraints, at)]));
+  const contexts = new Map(dates.map((d) => [d, buildCheckContext(d, constraints, at, input.daysOff)]));
 
   const templates: ShiftTemplate[] = [];
   const seen = new Set<string>();

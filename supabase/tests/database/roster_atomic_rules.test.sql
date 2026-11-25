@@ -3,7 +3,7 @@
 -- an auto-schedule run is counted and saved together or not at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(22);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000000d1', 'acct_o', 'Ana', 'Cook'),
@@ -63,6 +63,20 @@ select is(
 select is(
   public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f6","date":"2026-12-13","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]'),
   '{"limited": true}'::jsonb, 'at the limit nothing is saved');
+
+-- ── A counted run fills one week (CHG-108) ───────────────────────────────────
+select throws_ok(
+  $$select public.apply_auto_assign('user_w', 'acct_w', 1, '[{"id":"00000000-0000-0000-0000-0000000000a1","date":"2026-12-13","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"},{"id":"00000000-0000-0000-0000-0000000000a2","date":"2026-12-14","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"}]')$$,
+  '22023', 'apply_auto_assign: a counted run fills one week, Monday to Sunday',
+  'on a limited plan, a run from Sunday into the next Monday is refused');
+select is(public.auto_assign_month_count('acct_w'), 0, 'and is not counted');
+select is(
+  (select count(*)::integer from public.roster r
+    where r.id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')),
+  0, 'and saves nothing');
+select is(
+  (public.apply_auto_assign('user_o', 'acct_o', null, '[{"id":"00000000-0000-0000-0000-0000000000a3","date":"2026-12-27","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"},{"id":"00000000-0000-0000-0000-0000000000a4","date":"2026-12-28","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"}]') -> 'count')::integer,
+  3, 'without a limit, a batch across two weeks is saved and counted');
 
 -- The proxy writes as service_role, which has no access to schema private.
 set local role service_role;

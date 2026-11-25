@@ -112,6 +112,8 @@ export type AssignmentInput = {
   timezoneOffsetMinutes?: number;
   /** Optional labor-law constraints. Omitting this field disables all constraint checks (backward-compatible). */
   constraints?: LaborConstraints;
+  /** Stored days off (team step): a worker is never suggested on a date they have off. */
+  daysOff?: { workerId: string; date: string }[];
 };
 
 export type AssignedShift = {
@@ -284,6 +286,8 @@ export type CheckContext = {
   constraints?: LaborConstraints;
   /** Business-local wall time → absolute elapsed minutes. */
   at: Timeline;
+  /** Workers with a day off on `date`. */
+  off?: ReadonlySet<string>;
 };
 
 /** Returns true when the worker's availability covers `interval` (a shift starting on ctx.date). */
@@ -323,6 +327,8 @@ export const checkEligibility = (
   ctx: CheckContext
 ): ShortfallReasonCode | null => {
   if (worker.role !== template.role) return 'no_role_match';
+  // A stored day off is unavailability, whatever the weekly availability says.
+  if (ctx.off?.has(worker.id)) return 'no_availability';
 
   const interval = shiftInterval(template, ctx.date, ctx.at);
   if (!workerCoversInterval(worker, interval, ctx)) return 'no_availability';
@@ -361,8 +367,14 @@ export const checkEligibility = (
 };
 
 /** Check context for shifts starting on `date`: the previous, same and next local day. */
-export const buildCheckContext = (date: string, constraints: LaborConstraints | undefined, at: Timeline): CheckContext => ({
+export const buildCheckContext = (
+  date: string,
+  constraints: LaborConstraints | undefined,
+  at: Timeline,
+  daysOff?: AssignmentInput['daysOff'],
+): CheckContext => ({
   date,
+  off: new Set((daysOff ?? []).filter((d) => d.date === date).map((d) => d.workerId)),
   // Weekday labels are a property of the business-local date key.
   days: [-1, 0, 1].map((offset) => {
     const day = offsetDate(date, offset);
@@ -408,7 +420,7 @@ const fairnessScore = (workerId: string, accumulatedHours: Map<string, number>):
 export function assignShifts(input: AssignmentInput): AssignmentResult {
   const { date, templates, workers, existingRoster, constraints } = input;
   const at = timelineFor(input);
-  const ctx = buildCheckContext(date, constraints, at);
+  const ctx = buildCheckContext(date, constraints, at, input.daysOff);
 
   // Template lookup: full catalog plus today's templates (A6 — existing shifts whose
   // template is not in today's list must still be visible to every check).

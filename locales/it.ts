@@ -314,7 +314,7 @@ export const it = {
       saveButton: 'Salva come bozza',
       saveButtonA11y: 'Salva come bozza',
       autoAssignButton: 'Assegnazione automatica',
-      autoAssignA11y: 'Assegna automaticamente lavoratori a tutti i modelli per questa data',
+      autoAssignA11y: 'Assegna automaticamente lavoratori a tutti i modelli della settimana di questa data, da lunedì a domenica',
       autoAssignHint: 'Esegue l\'algoritmo di assegnazione basato sull\'equità',
       applyButton: 'Applica suggerimenti',
       applyingButton: 'Applicazione…',
@@ -605,7 +605,7 @@ export const it = {
     free: {
       badge: 'GRATIS',
       limitReached: 'Hai usato i turni automatici gratuiti di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai altri.',
-      autoAssignsLeft: '{n} assegnazione{plural} automatica{plural} gratuita{plural} rimasta{plural}',
+      autoAssignsLeft: 'Settimane compilate automaticamente gratis questo mese: {n}',
       ctaUnlimited: 'Esencial: turni automatici illimitati fino a 40 persone, senza costi per persona. Vedi i piani',
       pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente',
     },

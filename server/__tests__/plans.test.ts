@@ -4,7 +4,7 @@
  * The plan in force (server/plans.ts) and the price list (constants/pricing.ts),
  * checked against the product research: Gratis / Esencial / Pro, per location,
  * US$19 / S/ 59 and US$39 / S/ 119 a month, a year for the price of ten months,
- * 10 / 40 / unlimited people, 3 auto-schedules a month on Gratis, 14-day Pro trial.
+ * 10 / 40 / unlimited people, 1 auto-filled week a month on Gratis (one run fills Monday to Sunday, CHG-108), 14-day Pro trial.
  */
 import {
   ANNUAL_MONTHS_FREE,
@@ -19,6 +19,8 @@ import {
   tierCanAccessFeature,
   tierFromLegacy,
 } from '@/constants/pricing';
+import { en } from '@/locales/en';
+import { es } from '@/locales/es';
 import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
@@ -64,7 +66,7 @@ describe('price list', () => {
   });
 
   it('has the researched limits and gates', () => {
-    expect(TIER_LIMITS.gratis).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 });
+    expect(TIER_LIMITS.gratis).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 });
     expect(TIER_LIMITS.esencial).toMatchObject({ maxWorkers: 40, maxAutoSchedulesPerMonth: Infinity });
     expect(TIER_LIMITS.pro).toMatchObject({ maxWorkers: Infinity, maxLocations: Infinity });
     expect(tierCanAccessFeature('gratis', 'labor_law.warnings')).toBe(true);
@@ -83,6 +85,23 @@ describe('price list', () => {
   });
 });
 
+describe('the free plan copy (CHG-108)', () => {
+  // The copy says "1 auto-filled week" in words; a change of the limit must change the copy too.
+  const n = TIER_LIMITS.gratis.maxAutoSchedulesPerMonth;
+  it.each([
+    ['en pricing', en.pricing.feature.autoScheduleLimited, `${n} auto-filled week a month`],
+    ['en profile', en.profile.subscription.gratisDesc, `${n} auto-filled week a month`],
+    ['en landing plan', en.landing.plans.autoLimited, `${n} auto-filled week a month`],
+    ['en landing FAQ', en.landing.faq.a3, `${n} auto-filled week a month`],
+    ['es pricing', es.pricing.feature.autoScheduleLimited, `${n} semana llenada automáticamente al mes`],
+    ['es profile', es.profile.subscription.gratisDesc, `${n} semana llenada automáticamente al mes`],
+    ['es landing plan', es.landing.plans.autoLimited, `${n} semana llenada automáticamente al mes`],
+    ['es landing FAQ', es.landing.faq.a3, `${n} semana llenada automáticamente al mes`],
+  ])('%s states the limit the server enforces', (_where, text, expected) => {
+    expect(text).toContain(expected);
+  });
+});
+
 describe('effectivePlanFrom', () => {
   it('is Gratis with nothing active', () => {
     expect(effectivePlanFrom([], null, NOW)).toEqual({
@@ -91,7 +110,7 @@ describe('effectivePlanFrom', () => {
       endsAt: null,
       isTrial: false,
       trialEndsAt: null,
-      limits: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 },
+      limits: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 },
     });
   });
 

@@ -303,7 +303,7 @@ export const sw = {
       saveButton: 'Hifadhi kama rasimu',
       saveButtonA11y: 'Hifadhi kama rasimu',
       autoAssignButton: 'Gawa otomatiki',
-      autoAssignA11y: 'Gawa wafanyakazi otomatiki kwenye violezo vyote kwa tarehe hii',
+      autoAssignA11y: 'Gawa wafanyakazi otomatiki kwenye violezo vyote vya wiki ya tarehe hii, Jumatatu hadi Jumapili',
       autoAssignHint: 'Endesha algoriti ya ugawaji inayozingatia usawa',
       applyButton: 'Tekeleza mapendekezo',
       applyingButton: 'Inatekeleza…',
@@ -590,7 +590,7 @@ export const sw = {
     free: {
       badge: 'BURE',
       limitReached: 'Umetumia ratiba za kiotomatiki za bure za mwezi huu. Unaweza kuendelea kupanga zamu kwa mkono, na mwezi ujao utapata nyingine.',
-      autoAssignsLeft: 'Ugawaji otomatiki {n} bure{plural} umebaki',
+      autoAssignsLeft: 'Wiki za bure zinazojazwa otomatiki mwezi huu: {n}',
       ctaUnlimited: 'Esencial: ratiba za kiotomatiki bila kikomo hadi watu 40, bila ada kwa kila mtu. Tazama mipango',
       pricing: 'Kuanzia US$19 kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi',
     },

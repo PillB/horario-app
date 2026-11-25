@@ -148,25 +148,23 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect((await asOwner({ action: 'upsertLocation', location: { ...lima, id, name: 'Lima centro' } })).status).toBe(200);
   });
 
-  it('counts 3 auto-schedules a month on Gratis, for the whole account', async () => {
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 3, canAutoAssign: true });
-    for (const expected of [1, 2, 3]) {
-      const res = await asOwner({ action: 'incrementAutoAssign' });
-      expect(res.body).toMatchObject({ success: true, count: expected, canAutoAssign: expected < 3 });
-    }
-    const fourth = await asOwner({ action: 'incrementAutoAssign' });
-    expect(fourth.status).toBe(402);
-    expect(String(fourth.body.error)).toMatch(/3 auto-schedules a month/);
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 3, limit: 3, canAutoAssign: false });
+  it('counts 1 auto-filled week a month on Gratis, for the whole account (CHG-108)', async () => {
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 1, canAutoAssign: true });
+    const first = await asOwner({ action: 'incrementAutoAssign' });
+    expect(first.body).toMatchObject({ success: true, count: 1, canAutoAssign: false });
+    const second = await asOwner({ action: 'incrementAutoAssign' });
+    expect(second.status).toBe(402);
+    expect(String(second.body.error)).toMatch(/includes 1 auto-filled week a month, already used this month/);
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 1, limit: 1, canAutoAssign: false });
 
-    // Last month's runs do not count.
+    // Last month's run does not count.
     const { error } = await db().from('usage_limits').update({ auto_assign_month: '2020-01' }).eq('account_id', OWNER);
     expect(error).toBeNull();
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 3, canAutoAssign: true });
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 1, canAutoAssign: true });
     expect((await asOwner({ action: 'incrementAutoAssign' })).body).toMatchObject({ count: 1 });
   });
 
-  it('counts an auto-schedule only when its shifts are saved, and saves nothing over the limit (CHG-101)', async () => {
+  it('counts an auto-schedule only when its shifts are saved, one week per run, nothing over the limit (CHG-101, CHG-108)', async () => {
     await planOf(AUTO);
     await endTrial(AUTO);
     const asAuto = (body: Record<string, unknown>) => call(AUTO, body);
@@ -175,31 +173,37 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
       ((await asAuto({ action: 'upsertShiftTemplate', template: { name, role: 'Cook', startTime, endTime, coverage: 1 } })).body.template as { id: string }).id;
     const early = await template('Early', '06:00', '14:00');
     const mid = await template('Mid', '10:00', '18:00');
-    const apply = (date: string, templateId: string) =>
-      asAuto({ action: 'addRosterShifts', countAutoAssign: true, shifts: [{ id: randomUUID(), date, workerId: worker, templateId }] });
+    const shift = (date: string, templateId: string) => ({ id: randomUUID(), date, workerId: worker, templateId });
+    const apply = (...shifts: ReturnType<typeof shift>[]) => asAuto({ action: 'addRosterShifts', countAutoAssign: true, shifts });
     const used = async () => ((await asAuto({ action: 'getUsageLimit' })).body as { count: number }).count;
 
-    expect((await apply('2026-12-01', early)).status).toBe(200);
-    expect(await used()).toBe(1);
+    // One shift added by hand is not a run.
+    expect((await asAuto({ action: 'upsertRosterShift', shift: shift('2026-12-06', early) })).status).toBe(200);
+    expect(await used()).toBe(0);
     // A run the roster refuses costs nothing.
-    const refused = await apply('2026-12-01', mid);
+    const refused = await apply(shift('2026-12-06', mid));
     expect(refused.status).toBe(409);
     expect(String(refused.body.error)).toMatch(/already has a shift.*Nothing was added/);
-    expect(await used()).toBe(1);
-    // A batch sent without countAutoAssign is still counted on Gratis (CHG-104: the client cannot skip the count).
-    expect((await asAuto({ action: 'addRosterShifts', shifts: [{ id: randomUUID(), date: '2026-12-02', workerId: worker, templateId: early }] })).status).toBe(200);
-    expect(await used()).toBe(2);
-    // One shift added by hand is not a run.
-    expect((await asAuto({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-12-06', workerId: worker, templateId: early } })).status).toBe(200);
-    expect(await used()).toBe(2);
+    expect(await used()).toBe(0);
+    // A run from Sunday into Monday spans two weeks: refused before it is counted.
+    const twoWeeks = await apply(shift('2026-12-13', early), shift('2026-12-14', early));
+    expect(twoWeeks.status).toBe(400);
+    expect(String(twoWeeks.body.error)).toMatch(/fills one week, Monday to Sunday/);
+    expect(await used()).toBe(0);
+    expect((await asAuto({ action: 'listRoster', fromDate: '2026-12-13', toDate: '2026-12-14' })).body.shifts).toEqual([]);
 
-    // Three runs at once with one left: one is saved, the other two save nothing.
-    const three = await Promise.all(['2026-12-03', '2026-12-04', '2026-12-05'].map((date) => apply(date, early)));
+    // Three runs at once with one left: one fills its week, the other two save nothing.
+    const week = (monday: number) => [0, 1, 2, 3, 4, 5, 6].map((d) => shift(`2026-12-${String(monday + d).padStart(2, '0')}`, early));
+    const three = await Promise.all([apply(...week(7)), apply(...week(14)), apply(...week(21))]);
     expect(three.map((r) => r.status).sort()).toEqual([200, 402, 402]);
-    expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/3 auto-schedules a month.*Nothing was added/);
-    expect(await used()).toBe(3);
-    const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-03', toDate: '2026-12-05' })).body.shifts as unknown[];
-    expect(stored).toHaveLength(1);
+    expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/1 auto-filled week a month.*Nothing was added/);
+    expect(await used()).toBe(1);
+    const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-07', toDate: '2026-12-27' })).body.shifts as unknown[];
+    expect(stored).toHaveLength(7);
+    // A batch sent without countAutoAssign is still counted on Gratis (CHG-104: the client cannot skip the count).
+    const uncounted = await asAuto({ action: 'addRosterShifts', shifts: [shift('2026-12-28', early)] });
+    expect(uncounted.status).toBe(402);
+    expect(await used()).toBe(1);
   });
 
   it('lets only a platform admin grant and revoke, and the grant lifts the limits', async () => {

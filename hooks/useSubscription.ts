@@ -50,7 +50,7 @@ export type SubscriptionState = {
   refresh: () => void;
 };
 
-const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 };
+const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 };
 
 export type Loaded = {
   plan: AccountPlan;

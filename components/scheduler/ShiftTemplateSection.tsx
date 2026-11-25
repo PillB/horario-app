@@ -443,7 +443,7 @@ export const ShiftTemplateSection = ({
                 const workerName = workers.find((w) => w.id === s.workerId)?.name ?? s.workerId;
                 const templateName = shiftTemplates.find((tpl) => tpl.id === s.templateId)?.name ?? s.templateId;
                 return (
-                  <ThemedText key={`${s.templateId}-${s.workerId}`} style={local.bannerMutedText}>
+                  <ThemedText key={`${s.date}-${s.templateId}-${s.workerId}`} style={local.bannerMutedText}>
                     {t('scheduler.shifts.suggestionItem', { worker: workerName, template: templateName, date: s.date })}
                   </ThemedText>
                 );

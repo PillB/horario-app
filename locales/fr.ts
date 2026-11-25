@@ -314,7 +314,7 @@ export const fr = {
       saveButton: 'Enregistrer comme brouillon',
       saveButtonA11y: 'Enregistrer comme brouillon',
       autoAssignButton: 'Affectation automatique',
-      autoAssignA11y: 'Affecter automatiquement les employés à tous les modèles pour cette date',
+      autoAssignA11y: 'Affecter automatiquement les employés à tous les modèles de la semaine de cette date, du lundi au dimanche',
       autoAssignHint: "Exécute l'algorithme d'affectation basé sur l'équité",
       applyButton: 'Appliquer les suggestions',
       applyingButton: 'Application…',
@@ -605,7 +605,7 @@ export const fr = {
     free: {
       badge: 'GRATUIT',
       limitReached: 'Vous avez utilisé les plannings automatiques gratuits de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez d\'autres le mois prochain.',
-      autoAssignsLeft: '{n} affectation{plural} automatique{plural} gratuite{plural} restante{plural}',
+      autoAssignsLeft: 'Semaines remplies automatiquement gratuites ce mois-ci : {n}',
       ctaUnlimited: 'Esencial : plannings automatiques illimités jusqu\'à 40 personnes, sans frais par personne. Voir les offres',
       pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé',
     },
