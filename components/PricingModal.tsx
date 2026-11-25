@@ -4,12 +4,18 @@
  * Prices, limits and plan names come from constants/pricing.ts; the current
  * plan comes from the server (useSubscription). Prices are per location.
  *
- * Checkout is not built (docs/manual-setup/SETUP_PADDLE.md). Until
- * EXPO_PUBLIC_CHECKOUT_ENABLED is "1" the paid plans show no buy button, only
- * a note; with it, the button asks the proxy for a checkout page.
+ * Payments: Paddle (server/billing.ts, docs/manual-setup/SETUP_PADDLE.md).
+ * Until EXPO_PUBLIC_CHECKOUT_ENABLED is "1" the paid plans show no buy button,
+ * only a note. With it: a business on no paid plan gets a checkout (the
+ * /pay page, Paddle's overlay); a business that already pays switches plan
+ * in place (prorated) and has "Manage billing" (Paddle's portal: card,
+ * invoices, cancel). The plan shown changes when Paddle's webhook arrives.
+ * iOS shows no purchase button: App Store rule 3.1.1 asks for in-app purchase
+ * for digital subscriptions bought inside the app; the plan bought on the web
+ * still applies there.
  */
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -30,9 +36,20 @@ import { useIdentity } from '@/contexts/IdentityContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useLocations } from '@/hooks/useLocations';
 import { useSubscription } from '@/hooks/useSubscription';
-import { createCheckoutSession } from '@/services/subscriptionService';
+import { changeSubscription, createBillingPortalSession, createCheckoutSession } from '@/services/subscriptionService';
 
-const CHECKOUT_ENABLED = process.env.EXPO_PUBLIC_CHECKOUT_ENABLED === '1';
+// Read at render (Expo inlines the value at build time either way).
+const checkoutEnabled = () => process.env.EXPO_PUBLIC_CHECKOUT_ENABLED === '1';
+const canBuyHere = () => checkoutEnabled() && Platform.OS !== 'ios';
+
+/** The checkout page replaces the app on the web (it comes back through /pay); elsewhere it opens the browser. */
+const openPaymentPage = async (url: string, sameTab: boolean): Promise<void> => {
+  if (Platform.OS === 'web' && sameTab && typeof window !== 'undefined') {
+    window.location.assign(url);
+    return;
+  }
+  await Linking.openURL(url);
+};
 
 type Interval = 'month' | 'year';
 
@@ -51,7 +68,9 @@ export function PricingModal({ visible, highlightTier = 'esencial', onClose, cou
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const styles = makeStyles(colors);
-  const { tier: currentTier, isTrialing, trialDaysLeft } = useSubscription();
+  const { tier: currentTier, isTrialing, trialDaysLeft, hasPaidSubscription, hasBillingAccount, status, refresh } = useSubscription();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [portalBusy, setPortalBusy] = useState(false);
   const [interval, setBillingInterval] = useState<Interval>('month');
   const [busyTier, setBusyTier] = useState<SubscriptionTier | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -65,16 +84,44 @@ export function PricingModal({ visible, highlightTier = 'esencial', onClose, cou
     async (tier: Exclude<SubscriptionTier, 'gratis'>) => {
       setBusyTier(tier);
       setCheckoutError(null);
-      const result = await createCheckoutSession({ tier, billingInterval: interval, countryCode: country ?? undefined });
+      setNotice(null);
+      if (hasPaidSubscription) {
+        const changed = await changeSubscription({ tier, billingInterval: interval });
+        setBusyTier(null);
+        if (!changed.success) {
+          setCheckoutError(changed.error);
+          return;
+        }
+        setNotice(t('billing.changePending'));
+        // Paddle confirms by webhook within seconds; read the plan again then.
+        setTimeout(refresh, 4000);
+        return;
+      }
+      const result = await createCheckoutSession({ tier, billingInterval: interval });
       setBusyTier(null);
       if (!result.success) {
         setCheckoutError(result.error);
         return;
       }
-      Linking.openURL(result.checkoutUrl).catch(() => setCheckoutError(t('pricing.checkoutOpenFailed')));
+      openPaymentPage(result.checkoutUrl, true).catch(() => setCheckoutError(t('pricing.checkoutOpenFailed')));
     },
-    [country, interval, t],
+    [hasPaidSubscription, interval, refresh, t],
   );
+
+  // Buy (or switch to) a paid plan: not the one already paid for; the trial's own plan can be bought.
+  const offersButton = (isCurrent: boolean) => canBuyHere() && (!isCurrent || isTrialing || !hasPaidSubscription);
+
+  const handleManageBilling = useCallback(async () => {
+    setPortalBusy(true);
+    setCheckoutError(null);
+    const result = await createBillingPortalSession();
+    setPortalBusy(false);
+    if (!result.success) {
+      setCheckoutError(result.error);
+      return;
+    }
+    openPaymentPage(result.portalUrl, false).catch(() => setCheckoutError(t('pricing.checkoutOpenFailed')));
+  }, [t]);
 
   const featureLines = (tier: SubscriptionTier): string[] => {
     const limits = TIER_LIMITS[tier];
@@ -117,6 +164,14 @@ export function PricingModal({ visible, highlightTier = 'esencial', onClose, cou
 
         <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}>
           <ThemedText style={styles.muted}>{t('pricing.perLocation')}</ThemedText>
+          {checkoutEnabled() && locations.length > 1 ? (
+            <ThemedText style={styles.muted}>{t('billing.quantityNote', { n: String(locations.length) })}</ThemedText>
+          ) : null}
+          {status === 'past_due' ? (
+            <ThemedText style={styles.notice} accessibilityRole="alert">
+              {t('billing.pastDue')}
+            </ThemedText>
+          ) : null}
           {isTrialing && trialDaysLeft !== null ? (
             <ThemedText style={styles.trialNote}>{t('pricing.trialRunning', { n: String(trialDaysLeft) })}</ThemedText>
           ) : null}
@@ -184,37 +239,106 @@ export function PricingModal({ visible, highlightTier = 'esencial', onClose, cou
                   ))}
                 </View>
 
-                {CHECKOUT_ENABLED && tier !== 'gratis' && (!isCurrent || isTrialing) ? (
-                  <Pressable
-                    onPress={() => handleChoose(tier)}
+                {tier !== 'gratis' && offersButton(isCurrent) ? (
+                  <ChooseButton
+                    planLabel={meta.label}
+                    switching={hasPaidSubscription}
+                    busy={busyTier === tier}
                     disabled={busyTier !== null}
-                    style={({ pressed }) => [styles.chooseBtn, isPro && styles.chooseBtnPro, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('pricing.choose', { plan: meta.label })}
-                    accessibilityHint={t('pricing.chooseHint')}
-                    accessibilityState={{ disabled: busyTier !== null }}>
-                    {busyTier === tier ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <ThemedText style={styles.chooseText}>{t('pricing.choose', { plan: meta.label })}</ThemedText>
-                    )}
-                  </Pressable>
+                    isPro={isPro}
+                    onPress={() => handleChoose(tier)}
+                    styles={styles}
+                  />
                 ) : null}
               </View>
             );
           })}
 
+          {checkoutEnabled() ? (
+            <BillingExtras
+              showManage={hasBillingAccount}
+              portalBusy={portalBusy}
+              onManage={handleManageBilling}
+              notice={notice}
+              spinnerColor={colors.tintText}
+              styles={styles}
+            />
+          ) : null}
           {checkoutError ? (
             <ThemedText style={styles.error} accessibilityRole="alert">
               {checkoutError}
             </ThemedText>
           ) : null}
-          {!CHECKOUT_ENABLED ? <ThemedText style={styles.notice}>{t('pricing.checkoutSoon')}</ThemedText> : null}
+          {!checkoutEnabled() ? <ThemedText style={styles.notice}>{t('pricing.checkoutSoon')}</ThemedText> : null}
           <ThemedText style={styles.muted}>{t('pricing.trialTerms', { n: String(TRIAL_DAYS) })}</ThemedText>
           <ThemedText style={styles.muted}>{t('pricing.planned')}</ThemedText>
         </ScrollView>
       </ThemedView>
     </Modal>
+  );
+}
+
+type ModalStyles = ReturnType<typeof makeStyles>;
+
+function ChooseButton({ planLabel, switching, busy, disabled, isPro, onPress, styles }: {
+  planLabel: string;
+  /** The business already pays: the button switches plan instead of opening a checkout. */
+  switching: boolean;
+  busy: boolean;
+  disabled: boolean;
+  isPro: boolean;
+  onPress: () => void;
+  styles: ModalStyles;
+}) {
+  const { t } = useT();
+  const label = switching ? t('billing.switchTo', { plan: planLabel }) : t('pricing.choose', { plan: planLabel });
+  const hint = switching ? t('billing.switchHint') : t('pricing.chooseHint');
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.chooseBtn, isPro && styles.chooseBtnPro, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ disabled }}>
+      {busy ? <ActivityIndicator color="#FFFFFF" /> : <ThemedText style={styles.chooseText}>{label}</ThemedText>}
+    </Pressable>
+  );
+}
+
+/** Manage billing, the change notice, the iOS note and who sells (shown once checkout is on). */
+function BillingExtras({ showManage, portalBusy, onManage, notice, spinnerColor, styles }: {
+  showManage: boolean;
+  portalBusy: boolean;
+  onManage: () => void;
+  notice: string | null;
+  spinnerColor: string;
+  styles: ModalStyles;
+}) {
+  const { t } = useT();
+  return (
+    <>
+      {showManage ? (
+        <Pressable
+          onPress={onManage}
+          disabled={portalBusy}
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t('billing.manage')}
+          accessibilityHint={t('billing.manageHint')}
+          accessibilityState={{ disabled: portalBusy }}>
+          {portalBusy ? <ActivityIndicator color={spinnerColor} /> : <ThemedText style={styles.secondaryText}>{t('billing.manage')}</ThemedText>}
+        </Pressable>
+      ) : null}
+      {notice ? (
+        <ThemedText style={styles.notice} accessibilityRole="alert">
+          {notice}
+        </ThemedText>
+      ) : null}
+      {Platform.OS === 'ios' ? <ThemedText style={styles.notice}>{t('billing.iosNote')}</ThemedText> : null}
+      <ThemedText style={styles.muted}>{t('billing.merchantOfRecord')}</ThemedText>
+    </>
   );
 }
 
@@ -279,6 +403,16 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 12,
     },
     chooseBtnPro: { backgroundColor: brand.proDark },
+    secondaryBtn: {
+      minHeight: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: brand.primaryDark,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    secondaryText: { color: colors.tintText, fontWeight: '600', fontSize: 15 },
     chooseText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
     pressed: { opacity: 0.85 },
     notice: {

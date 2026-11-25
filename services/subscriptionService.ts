@@ -2,15 +2,16 @@
  * Client calls for the account's plan. The server decides the plan
  * (server/plans.ts); nothing here can change it.
  *
- * Checkout is not built yet (docs/manual-setup/SETUP_PADDLE.md): the two
- * payment calls return the server's "not set up" message.
+ * Payments go through Paddle (server/billing.ts). These calls ask the server
+ * for a checkout or portal link, or for a change; the plan itself changes
+ * only when Paddle's signed webhook reaches the server, a few seconds later.
  */
 import { getSessionToken } from '@/services/authToken';
 import { isSubscriptionTier, type SubscriptionTier } from '@/constants/pricing';
 
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
-export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid';
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'paused' | 'cancelled' | 'unpaid';
 export type PlanSource = 'paddle' | 'comp' | 'tester' | 'trial' | 'subscription' | 'default';
 
 export type DbSubscription = {
@@ -23,6 +24,13 @@ export type DbSubscription = {
   cancelAtPeriodEnd: boolean;
   billingInterval: 'month' | 'year';
   countryCode: string | null;
+  /** 'paddle' once the business has paid; null on a plan nobody paid for. */
+  provider: string | null;
+  /** Locations paid for. */
+  quantity: number | null;
+  pastDueSince: string | null;
+  /** True once a Paddle customer exists (the billing portal can open). */
+  hasBillingAccount: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,7 +71,7 @@ export type Entitlement = {
 
 export type ServiceResult<T> = ({ success: true } & T) | { success: false; error: string };
 
-export type CreateCheckoutSessionResult = ServiceResult<{ checkoutUrl: string }>;
+export type CreateCheckoutSessionResult = ServiceResult<{ checkoutUrl: string; transactionId: string; quantity: number }>;
 export type CreatePortalSessionResult = ServiceResult<{ portalUrl: string }>;
 
 async function proxyPost<T>(body: Record<string, unknown>): Promise<T> {
@@ -104,14 +112,21 @@ export const getAccountPlan = (): Promise<ServiceResult<AccountPlanResponse>> =>
     return data as AccountPlanResponse;
   });
 
-// ─── Payments (not set up) ────────────────────────────────────────────────────
+// ─── Payments ─────────────────────────────────────────────────────────────────
 
 export const createCheckoutSession = (params: {
   tier: Exclude<SubscriptionTier, 'gratis'>;
   billingInterval: 'month' | 'year';
-  countryCode?: string;
 }): Promise<CreateCheckoutSessionResult> =>
-  attempt(() => proxyPost<{ checkoutUrl: string }>({ action: 'createCheckoutSession', ...params }));
+  attempt(() => proxyPost<{ checkoutUrl: string; transactionId: string; quantity: number }>({ action: 'createCheckoutSession', ...params }));
+
+/** Another plan, period or number of locations for a business that already pays. Prorated now. */
+export const changeSubscription = (params: {
+  tier: Exclude<SubscriptionTier, 'gratis'>;
+  billingInterval: 'month' | 'year';
+  quantity?: number;
+}): Promise<ServiceResult<{ pending: boolean; quantity: number }>> =>
+  attempt(() => proxyPost<{ pending: boolean; quantity: number }>({ action: 'changeSubscription', ...params }));
 
 export const createBillingPortalSession = (): Promise<CreatePortalSessionResult> =>
   attempt(() => proxyPost<{ portalUrl: string }>({ action: 'createBillingPortalSession' }));

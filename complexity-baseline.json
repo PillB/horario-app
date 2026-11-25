@@ -16,17 +16,13 @@
     },
     "app/api/secure-proxy+api.ts": {
       "POST": 17,
-      "addRosterShifts": 17,
       "adminGrantEntitlement": 20,
-      "dispatch": 50,
+      "dispatch": 48,
       "forecastHistory": 17,
       "listForecastSignals": 16,
       "updateOrInsert": 16,
       "uploadPosSales": 18,
       "upsertRosterShift": 17
-    },
-    "components/PricingModal.tsx": {
-      "map callback": 17
     },
     "components/SyncStatusBar.tsx": {
       "SyncStatusBar": 31

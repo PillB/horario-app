@@ -18,7 +18,7 @@
  *     tenant's row fails instead of overwriting it.
  * Database error details are logged, not returned to the client.
  */
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 import { TIER_META, isSubscriptionTier, tierFromLegacy } from '@/constants/pricing';
 import {
@@ -33,6 +33,8 @@ import {
   type EntitlementSource,
 } from '@/server/plans';
 import { authenticate, type AuthContext } from '@/server/proxyAuth';
+import * as billing from '@/server/billing';
+import { getServiceClient } from '@/server/serviceClient';
 import { jsonResponse, optionsResponse } from '@/server/http';
 import {
   DemandForecast,
@@ -118,6 +120,7 @@ const MANAGER_ACTIONS = new Set([
   'deleteLocation',
   'cancelSubscription',
   'createCheckoutSession',
+  'changeSubscription',
   'createBillingPortalSession',
 ]);
 
@@ -138,23 +141,6 @@ const dbFailure = (context: string, error: { message?: string; code?: string } |
     return fail(409, 'Conflicting record');
   }
   return fail(500, 'Database request failed');
-};
-
-/** Longest one database request may take. PostgREST gives up waiting for a pooled connection after 10 s. */
-const DB_REQUEST_TIMEOUT_MS = 15_000;
-
-const getServiceClient = (): SupabaseClient | null => {
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      headers: { 'x-application-name': 'horario-secure-proxy' },
-      // A database that stops answering must not hold the request (and the user's spinner) open.
-      fetch: (input, init) => fetch(input, { ...init, signal: init?.signal ?? AbortSignal.timeout(DB_REQUEST_TIMEOUT_MS) }),
-    },
-  });
 };
 
 // ─── Validators ───────────────────────────────────────────────────────────────
@@ -1136,6 +1122,13 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   return { data: answer?.rows ?? [], error: null };
 }
 
+/** True when the account's plan limits auto-schedules a month (Gratis); a Result when the plan cannot be read. */
+async function planLimitsAutoSchedules(client: SupabaseClient, ctx: AuthContext): Promise<boolean | Result> {
+  const resolved = await resolvePlan(client, ctx.accountId);
+  if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
+  return resolved.plan.limits.maxAutoSchedulesPerMonth !== null;
+}
+
 /** Shifts one request may add. */
 const ADD_ROSTER_SHIFTS_MAX = 200;
 
@@ -1187,7 +1180,19 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
   if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
   if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
 
-  const { data, error } = countAutoAssign === true ? await applyAutoAssignRun(client, ctx, rows) : await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+  return saveRosterBatch(client, ctx, rows, countAutoAssign);
+}
+
+/**
+ * Inserts checked roster rows in one statement. A batch is how an auto-schedule is applied (the
+ * solver runs in the browser). On a plan with a monthly auto-schedule limit every batch is counted,
+ * whatever the client says, so leaving out `countAutoAssign` does not skip the count (CHG-104).
+ * Single shifts (upsertRosterShift) are manual.
+ */
+async function saveRosterBatch(client: SupabaseClient, ctx: AuthContext, rows: Record<string, unknown>[], countAutoAssign: unknown): Promise<Result> {
+  const count = countAutoAssign === true || (await planLimitsAutoSchedules(client, ctx));
+  if (typeof count === 'object') return count;
+  const { data, error } = count ? await applyAutoAssignRun(client, ctx, rows) : await client.from('roster').insert(rows).select(ROSTER_COLUMNS);
   if (error) return 'refusal' in error ? error.refusal : addRosterShiftsFailure(error);
   return ok({ success: true, shifts: ((data ?? []) as unknown as RosterRow[]).map(rowToRosterShift) });
 }
@@ -1520,8 +1525,9 @@ async function listPosSales(client: SupabaseClient, ctx: AuthContext, limit: unk
 
 // ─── Plans and subscriptions ──────────────────────────────────────────────────
 // The plan in force comes from server/plans.ts. No client-callable action can
-// change a plan: paid plans will be written by signature-verified payment
-// webhooks (not built, see docs/manual-setup/SETUP_PADDLE.md); trial, tester
+// change a plan: paid plans are written only by the signature-verified Paddle
+// webhook (app/api/paddle-webhook+api.ts; the actions in server/billing.ts ask
+// Paddle and wait for it); trial, tester
 // and comp access are rows in account_entitlements, granted by a platform
 // admin below.
 
@@ -1536,6 +1542,11 @@ function rowToSubscription(row: Record<string, unknown>) {
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
     billingInterval: row.billing_interval ?? 'month',
     countryCode: row.country_code ?? null,
+    // Paid through Paddle: the plans screen offers "Change plan" and "Manage billing" instead of checkout.
+    provider: row.payment_provider ?? null,
+    quantity: typeof row.quantity === 'number' ? row.quantity : null,
+    pastDueSince: row.past_due_since ?? null,
+    hasBillingAccount: typeof row.paddle_customer_id === 'string',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1578,15 +1589,6 @@ async function getSubscription(client: SupabaseClient, ctx: AuthContext): Promis
     isPlatformAdmin: isPlatformAdmin(ctx),
   });
 }
-
-async function cancelSubscription(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
-  const { error } = await client.from('subscriptions').update({ cancel_at_period_end: true }).eq('account_id', ctx.accountId);
-  if (error) return dbFailure('cancel subscription', error);
-  return ok({ success: true });
-}
-
-const paymentsNotConfigured = () =>
-  fail(501, 'Online payment is not set up yet. Write to support to change your plan');
 
 // ─── Platform admin: grant and revoke access ──────────────────────────────────
 // These act on any account, so the only check that matters is isPlatformAdmin.
@@ -1676,6 +1678,32 @@ async function adminRevokeEntitlement(client: SupabaseClient, ctx: AuthContext, 
   return (data ?? []).length ? ok({ success: true }) : notFound();
 }
 
+/** What the forecast can draw on for these filters (the `status` action). */
+async function forecastStatus(client: SupabaseClient, ctx: AuthContext, rawFilters: unknown): Promise<Result> {
+  const dateError = filtersDateError(rawFilters);
+  if (dateError) return badRequest(dateError);
+  // History is checked for the role only: a forecast for a date is made
+  // from earlier days, so the date filter does not apply to history.
+  const filters = cleanFilters(rawFilters);
+  const roleOnly = filters?.role ? { role: filters.role } : undefined;
+  const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
+    hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
+    hasRows(client, 'external_signals', ctx, filters),
+    hasRows(client, 'demand_targets', ctx, filters),
+  ]);
+  const status: ForecastGenerationMetadata = {
+    hasHistorical,
+    hasExternalSignals,
+    hasExistingTargets,
+    apiAvailable: Boolean(FORECAST_API_URL),
+    usedApi: false,
+    usedFallback: false,
+    apiCallFailed: false,
+    fallbackReason: undefined,
+  };
+  return ok(status);
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
@@ -1685,30 +1713,8 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
       if (dateError) return badRequest(dateError);
       return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
     }
-    case 'status': {
-      const dateError = filtersDateError(p.filters);
-      if (dateError) return badRequest(dateError);
-      // History is checked for the role only: a forecast for a date is made
-      // from earlier days, so the date filter does not apply to history.
-      const filters = cleanFilters(p.filters);
-      const roleOnly = filters?.role ? { role: filters.role } : undefined;
-      const [hasHistorical, hasExternalSignals, hasExistingTargets] = await Promise.all([
-        hasRows(client, FORECAST_HISTORY_SOURCE, ctx, roleOnly),
-        hasRows(client, 'external_signals', ctx, filters),
-        hasRows(client, 'demand_targets', ctx, filters),
-      ]);
-      const status: ForecastGenerationMetadata = {
-        hasHistorical,
-        hasExternalSignals,
-        hasExistingTargets,
-        apiAvailable: Boolean(FORECAST_API_URL),
-        usedApi: false,
-        usedFallback: false,
-        apiCallFailed: false,
-        fallbackReason: undefined,
-      };
-      return ok(status);
-    }
+    case 'status':
+      return forecastStatus(client, ctx, p.filters);
     case 'forecastHistory':
       return forecastHistory(client, ctx, p);
     case 'listForecastSignals':
@@ -1784,10 +1790,13 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'getSubscription':
       return getSubscription(client, ctx);
     case 'cancelSubscription':
-      return cancelSubscription(client, ctx);
+      return billing.cancelSubscription(client, ctx);
     case 'createCheckoutSession':
+      return billing.createCheckoutSession(client, ctx, p);
+    case 'changeSubscription':
+      return billing.changeSubscription(client, ctx, p);
     case 'createBillingPortalSession':
-      return paymentsNotConfigured();
+      return billing.createBillingPortalSession(client, ctx);
     case 'adminListEntitlements':
       return adminListEntitlements(client, p.accountId);
     case 'adminGrantEntitlement':
