@@ -10,7 +10,7 @@
  * `reload` is read when the screen gains focus, so passing a new function each
  * render does not re-run the effect.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 export function useRefreshOnFocus(reload: () => void): void {
@@ -26,4 +26,20 @@ export function useRefreshOnFocus(reload: () => void): void {
       reloadRef.current();
     }, []),
   );
+}
+
+/**
+ * Runs `reload` each time `signal` changes after the mount (a screen's focus
+ * counter, passed to a child that owns its data). The mount itself never
+ * reloads, whatever the signal's value then: the child's hooks load on mount.
+ */
+export function useReloadOnSignal(signal: number | undefined, reload: () => void): void {
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  const seen = useRef(signal);
+  useEffect(() => {
+    if (seen.current === signal) return;
+    seen.current = signal;
+    reloadRef.current();
+  }, [signal]);
 }

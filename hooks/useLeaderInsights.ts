@@ -290,7 +290,8 @@ export function generateStrategicRecommendations(
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-export function useLeaderInsights(): UseLeaderInsightsReturn {
+/** `reloadSignal`: each change after mount reloads both sources (see useReloadOnSignal). */
+export function useLeaderInsights(reloadSignal?: number): UseLeaderInsightsReturn {
   // The signed-in tenant, so an organization switch reloads (was the build-time env id).
   const { accountId } = useIdentity();
 
@@ -300,9 +301,9 @@ export function useLeaderInsights(): UseLeaderInsightsReturn {
     trends,
     loading: capacityLoading,
     error: capacityError,
-  } = useCapacityForecast(accountId);
+  } = useCapacityForecast(accountId, reloadSignal);
 
-  const { insights, loading: insightsLoading, error: insightsError } = useSchedulerInsights(accountId);
+  const { insights, loading: insightsLoading, error: insightsError } = useSchedulerInsights(accountId, reloadSignal);
   const error = capacityError ?? insightsError;
 
   const lastEventRef = useRef<string | null>(null);

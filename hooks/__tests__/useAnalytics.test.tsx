@@ -275,4 +275,34 @@ describe('useAnalytics', () => {
     expect(getResult().publishedShifts).toBe(3);
     unmount();
   });
+
+  // A return to Analytics reloads: the screen keeps the figures it has (no
+  // skeleton) while the same tenant and period reload; a new period or tenant
+  // has no figures yet (CHG-109).
+  it('stays loaded while the same tenant and period reload, not for a new period or tenant', async () => {
+    let result: ReturnType<typeof useAnalytics> | null = null;
+    function Consumer({ id, range }: { id: string; range?: AnalyticsRange }) {
+      result = useAnalytics(id, range);
+      return null;
+    }
+    let tree!: renderer.ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<Consumer id="acc" />);
+    });
+    expect(result!.loaded).toBe(false);
+    await act(async () => { await Promise.resolve(); });
+    expect(result!.loaded).toBe(true);
+
+    (listRoster as jest.Mock).mockReturnValue(new Promise(() => {})); // the reload never answers
+    act(() => { result!.refresh(); });
+    expect(result!.loading).toBe(true);
+    expect(result!.loaded).toBe(true);
+    expect(result!.publishedShifts).toBe(3);
+
+    act(() => tree.update(<Consumer id="acc" range={{ from: '2026-04-02', to: '2026-04-03' }} />));
+    expect(result!.loaded).toBe(false);
+    act(() => tree.update(<Consumer id="other" />));
+    expect(result!.loaded).toBe(false);
+    act(() => tree.unmount());
+  });
 });

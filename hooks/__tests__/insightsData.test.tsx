@@ -7,7 +7,7 @@ import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { useCapacityForecast } from '../useCapacityForecast';
-import { deferred, installFakeProxy, renderHook, type ProxyReply } from '../testUtils/fakeProxy';
+import { callsOf, deferred, installFakeProxy, renderHook, type ProxyReply } from '../testUtils/fakeProxy';
 
 const empty = (action: string): ProxyReply => {
   if (action === 'listShiftTemplates') return { body: { templates: [], hasMore: false } };
@@ -65,6 +65,14 @@ describe('useCapacityForecast', () => {
     expect(hook.result.loading).toBe(false);
     expect(hook.result.error).toBeNull();
   });
+
+  it('reloads when the signal changes after the mount, not on the mount', async () => {
+    const fetchMock = installFakeProxy((body) => empty(body.action));
+    const hook = await renderHook(({ signal }: { signal: number }) => useCapacityForecast('acc', signal), { signal: 2 });
+    expect(callsOf(fetchMock, 'listWorkers')).toHaveLength(1);
+    await hook.rerender({ signal: 3 });
+    expect(callsOf(fetchMock, 'listWorkers')).toHaveLength(2);
+  });
 });
 
 // ─── useLeaderInsights and InsightsPanel, with their sources replaced ─────────
@@ -82,10 +90,10 @@ describe('useLeaderInsights (D4)', () => {
     installFakeProxy((body) => empty(body.action));
     mockAccountId = 'org_a';
     const hook = await renderHook(() => useLeaderInsights(), {});
-    expect(capacity).toHaveBeenLastCalledWith('org_a');
+    expect(capacity).toHaveBeenLastCalledWith('org_a', undefined);
     mockAccountId = 'org_b';
     await hook.rerender({});
-    expect(capacity).toHaveBeenLastCalledWith('org_b');
+    expect(capacity).toHaveBeenLastCalledWith('org_b', undefined);
     expect(hook.result.error).toBeNull();
     capacity.mockRestore();
   });
@@ -113,6 +121,47 @@ describe('InsightsPanel (D2)', () => {
       .map((node) => node.children[0]);
     expect(texts.some((text) => String(text).startsWith('analytics.insights.loadError:'))).toBe(true);
     expect(texts).not.toContain('analytics.insights.actionsEmpty');
+    act(() => tree.unmount());
+  });
+
+  // A return to Analytics reloads in place: the panel stays on screen (no
+  // skeleton, no remount) while every source loads again.
+  it('keeps the panel while a reload runs, and sends the loads again', async () => {
+    jest.doMock('@/contexts/LocaleContext', () => ({
+      useT: () => ({ t: (key: string) => key }),
+    }));
+    jest.doMock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
+    let hold: ReturnType<typeof deferred<ProxyReply>> | null = null;
+    const fetchMock = installFakeProxy((body) => (hold ? hold.promise.then(() => empty(body.action)) : empty(body.action)));
+    const { InsightsPanel } = jest.requireActual('@/components/analytics/InsightsPanel') as typeof import('@/components/analytics/InsightsPanel');
+    const settle = async () => {
+      await act(async () => {
+        for (let i = 0; i < 20; i += 1) await Promise.resolve();
+      });
+    };
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<InsightsPanel accountId="org_a" reloadSignal={0} />);
+    });
+    await settle();
+    const byTestId = (id: string) => tree.root.findAll((node) => node.props.testID === id && typeof node.type === 'string');
+    expect(byTestId('insights-panel')).toHaveLength(1);
+    const targetsBefore = callsOf(fetchMock, 'loadTargets').length;
+    const shiftsBefore = callsOf(fetchMock, 'listRoster').length;
+
+    hold = deferred<ProxyReply>();
+    await act(async () => {
+      tree.update(<InsightsPanel accountId="org_a" reloadSignal={1} />);
+    });
+    // Reloading: what was shown stays.
+    expect(byTestId('insights-loading')).toHaveLength(0);
+    expect(byTestId('insights-panel')).toHaveLength(1);
+    expect(callsOf(fetchMock, 'loadTargets').length).toBeGreaterThan(targetsBefore);
+    expect(callsOf(fetchMock, 'listRoster').length).toBeGreaterThan(shiftsBefore);
+    hold.resolve({ body: {} });
+    hold = null;
+    await settle();
+    expect(byTestId('insights-panel')).toHaveLength(1);
     act(() => tree.unmount());
   });
 });

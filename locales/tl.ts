@@ -184,6 +184,7 @@ export const tl = {
   },
 
   scheduler: {
+    edit: { conflict: 'Binago ang {name} sa ibang lugar matapos mo itong buksan. Nasa form pa ang mga pagbabago mo: i-save ulit para palitan ang bersyong iyon ng sa iyo, o i-cancel para panatilihin ito.' },
     title: 'Tagaplanong',
     subtitle: 'I-coordinate ang saklaw sa mga manggagawa, template ng shift, at araw-araw na plano ng kawani.',
     tooltip: 'Ang iyong sentro ng scheduling. Magdagdag ng mga manggagawa, itakda ang kanilang availability, lumikha ng mga template ng shift, pagkatapos ay mag-assign o awtomatikong punan ang mga roster sa isang tap. Magsimula sa hakbang 1 — pagdaragdag ng manggagawa.',

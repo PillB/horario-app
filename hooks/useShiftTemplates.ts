@@ -16,7 +16,7 @@ import {
 } from '@/services/rosterService';
 import type { ShiftTemplate } from '@/utils/schedulerMetrics';
 import { newUuid, validateShiftTemplateInput } from '@/utils/schedulingValidation';
-import { removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
+import { judgeRefusedEdit, removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
 
 const dbToTemplate = (db: Pick<DbShiftTemplate, 'id' | 'name' | 'role' | 'startTime' | 'endTime' | 'coverage' | 'updatedAt'>): ShiftTemplate => ({
   id: db.id,
@@ -37,10 +37,15 @@ const loadTemplates = async (): Promise<LoadResult<ShiftTemplate>> => {
 
 export type ShiftTemplateChanges = { name: string; role: string; startTime: string; endTime: string; coverage: number };
 
+/** An edit's outcome; see UpdateWorkerResult in useWorkers. */
+export type UpdateTemplateResult =
+  | { success: true; alreadySaved?: boolean; error?: never }
+  | { success: false; error: string; conflictUpdatedAt?: string };
+
 /** `accountId` only names the tenant (a new one reloads); the proxy takes it from the session. */
 export const useShiftTemplates = (accountId: string) => {
   const list = usePersistedList<ShiftTemplate>(accountId, loadTemplates);
-  const { items, write } = list;
+  const { items, write, refresh, getItems } = list;
 
   const saveTemplate = useCallback(
     async (id: string, changes: ShiftTemplateChanges, isNew: boolean, ifUpdatedAt?: string): Promise<UpsertTemplateResult> => {
@@ -56,6 +61,8 @@ export const useShiftTemplates = (accountId: string) => {
         commit: () => upsertShiftTemplate(input, ifUpdatedAt ?? previous?.updatedAt),
         rollback: (prev) => (previous ? prev.map((t) => (t.id === id ? previous : t)) : removeById(prev, id)),
         reconcile: (prev, r) => (r.success ? upsertById(prev, dbToTemplate(r.template)) : prev),
+        // An edit reloads below, awaited, to judge the refusal; a new template reloads as usual.
+        reloadOnFailure: isNew,
       });
       if (result.success) log.info('TEMPLATE', isNew ? 'Template added' : 'Template updated', { templateId: id });
       else log.warn('TEMPLATE', 'Template save rolled back', { templateId: id, reason: result.error });
@@ -72,9 +79,17 @@ export const useShiftTemplates = (accountId: string) => {
 
   /** `ifUpdatedAt`: the row's `updatedAt` as the edit form read it (see useWorkers.updateWorker). */
   const updateShiftTemplate = useCallback(
-    (id: string, changes: ShiftTemplateChanges, ifUpdatedAt?: string): Promise<UpsertTemplateResult> =>
-      items.some((t) => t.id === id) ? saveTemplate(id, changes, false, ifUpdatedAt) : Promise.resolve({ success: false, error: 'Template not found' }),
-    [items, saveTemplate],
+    async (id: string, changes: ShiftTemplateChanges, ifUpdatedAt?: string): Promise<UpdateTemplateResult> => {
+      if (!items.some((t) => t.id === id)) return { success: false, error: 'Template not found' };
+      const result = await saveTemplate(id, changes, false, ifUpdatedAt);
+      if (result.success) return { success: true };
+      const { id: _id, ...wanted } = dbToTemplate({ ...changes, id });
+      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status);
+      if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
+      if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };
+      return { success: false, error: result.error };
+    },
+    [getItems, items, refresh, saveTemplate],
   );
 
   /** The proxy refuses (409) while roster shifts use the template. */

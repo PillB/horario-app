@@ -195,6 +195,7 @@ export const fr = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    edit: { conflict: '{name} a été modifié ailleurs après que vous l\'avez ouvert. Vos modifications sont toujours dans le formulaire : enregistrez à nouveau pour remplacer cette version par la vôtre, ou annulez pour la garder.' },
     title: 'Planificateur',
     subtitle: "Coordonnez la couverture entre les employés, les modèles d'équipes et les plans de dotation quotidiens.",
     tooltip: "Votre centre de planification. Ajoutez des employés, définissez leurs disponibilités, créez des modèles d'équipes, puis affectez ou remplissez automatiquement les plannings en un seul appui. Commencez par l'étape 1 — ajouter un employé.",

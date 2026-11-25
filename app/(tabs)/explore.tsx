@@ -165,13 +165,15 @@ export default function AnalyticsScreen() {
     workerHours,
     fairnessScore,
     uncoveredRevenue,
-    loading,
+    loaded,
     error,
     truncated,
     refresh,
   } = useAnalytics(ACCOUNT_ID, range);
   // Coming back from the Scheduler (a week published, a target changed) shows
-  // the new numbers; the insights below remount to reload with them.
+  // the new numbers. The figures on screen stay while they reload (the
+  // skeleton is only for a first load, a new period or a new tenant), and the
+  // insights below reload in place on the same signal.
   const [focusReloads, setFocusReloads] = useState(0);
   useRefreshOnFocus(() => {
     refresh();
@@ -179,7 +181,8 @@ export default function AnalyticsScreen() {
   });
 
   const router = useRouter();
-  const maxHours = workerHours.length > 0 ? workerHours[0].hours : 0;
+  // The longest bar's hours (0 with no workers).
+  const maxHours = Math.max(0, ...workerHours.map((entry) => entry.hours));
 
   return (
     <ErrorBoundary onRetry={refresh}>
@@ -219,7 +222,7 @@ export default function AnalyticsScreen() {
           </View>
         </ThemedView>
 
-        {loading ? (
+        {!loaded && !error ? (
           <ThemedView style={styles.loadingContainer}>
             <SkeletonCard rows={4} />
           </ThemedView>
@@ -344,7 +347,7 @@ export default function AnalyticsScreen() {
               </Pressable>
             </ThemedView>
             <ErrorBoundary>
-              <InsightsPanel key={focusReloads} accountId={ACCOUNT_ID} />
+              <InsightsPanel key={ACCOUNT_ID} accountId={ACCOUNT_ID} reloadSignal={focusReloads} />
             </ErrorBoundary>
           </>
         )}

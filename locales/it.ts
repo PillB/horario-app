@@ -195,6 +195,7 @@ export const it = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    edit: { conflict: '{name} è stato modificato altrove dopo che l\'hai aperto. Le tue modifiche sono ancora nel modulo: salva di nuovo per sostituire quella versione con la tua, oppure annulla per mantenerla.' },
     title: 'Pianificatore',
     subtitle: 'Coordina la copertura tra lavoratori, modelli di turno e piani di personale giornalieri.',
     tooltip: 'Il tuo centro di pianificazione. Aggiungi lavoratori, imposta le loro disponibilità, crea modelli di turno, quindi assegna o riempi automaticamente i piani con un solo tocco. Inizia con il passaggio 1 — aggiungere un lavoratore.',

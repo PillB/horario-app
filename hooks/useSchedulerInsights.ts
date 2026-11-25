@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 
 export type InsightSeverity = 'critical' | 'warning' | 'tip';
 
@@ -25,11 +26,13 @@ export type UseSchedulerInsightsReturn = {
   error: string | null;
 };
 
-export function useSchedulerInsights(accountId: string): UseSchedulerInsightsReturn {
+/** `reloadSignal`: each change after mount reloads; the insights stay until the new answer. */
+export function useSchedulerInsights(accountId: string, reloadSignal?: number): UseSchedulerInsightsReturn {
   const summary = useAnalytics(accountId);
+  useReloadOnSignal(reloadSignal, summary.refresh);
 
   const insights = useMemo<SchedulerInsight[]>(() => {
-    if (summary.loading || summary.error) {
+    if (!summary.loaded || summary.error) {
       return [];
     }
 

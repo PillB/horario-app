@@ -31,8 +31,23 @@ jest.mock('@/contexts/LocaleContext', () => {
   };
 });
 
-// The insights panel loads its own data; it has its own tests.
-jest.mock('@/components/analytics/InsightsPanel', () => ({ InsightsPanel: () => null }));
+// The insights panel loads its own data; it has its own tests. The stub
+// records each mount and the props it was given.
+const mockPanelMounts: number[] = [];
+const mockPanelProps: { reloadSignal?: number }[] = [];
+jest.mock('@/components/analytics/InsightsPanel', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useEffect } = require('react');
+  return {
+    InsightsPanel: (props: { reloadSignal?: number }) => {
+      mockPanelProps.push(props);
+      useEffect(() => {
+        mockPanelMounts.push(1);
+      }, []);
+      return null;
+    },
+  };
+});
 
 // Themed components need useColorScheme.
 jest.mock('@/hooks/useColorScheme', () => ({
@@ -102,6 +117,7 @@ const baseResult = {
   fairnessScore: 8.0,
   uncoveredRevenue: 1950,
   loading: false,
+  loaded: true,
   error: null,
   refresh: jest.fn(),
 };
@@ -169,7 +185,7 @@ describe('AnalyticsScreen', () => {
   });
 
   it('shows SkeletonCard and hides KPI cards when loading', () => {
-    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true });
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true, loaded: false });
 
     let tree: renderer.ReactTestRenderer | null = null;
     act(() => {
@@ -216,6 +232,29 @@ describe('AnalyticsScreen', () => {
     expect(refresh).not.toHaveBeenCalled();
     act(() => { mockFocus!(); }); // back from another tab
     expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => { tree!.unmount(); });
+  });
+
+  // A return to the screen reloads: the figures already shown stay until the
+  // answer, and the insights reload in place instead of remounting.
+  it('keeps the figures while a reload runs, and reloads the insights without a remount', () => {
+    mockPanelMounts.length = 0;
+    mockPanelProps.length = 0;
+    (useAnalytics as jest.Mock).mockReturnValue(baseResult);
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    const signalBefore = mockPanelProps.at(-1)!.reloadSignal;
+    act(() => { mockFocus!(); }); // the mount's focus
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true, loaded: true });
+    act(() => { mockFocus!(); }); // back from another tab
+    expect(findTextNodes(tree!, '75%').length).toBeGreaterThan(0);
+    expect(
+      tree!.root.findAll((node) => node.props.testID === 'skeleton-card' && typeof node.type === 'string'),
+    ).toHaveLength(0);
+    expect(mockPanelMounts).toHaveLength(1);
+    expect(mockPanelProps.at(-1)!.reloadSignal).not.toBe(signalBefore);
     act(() => { tree!.unmount(); });
   });
 
