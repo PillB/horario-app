@@ -19,7 +19,7 @@ import {
   tierCanAccessFeature,
   tierFromLegacy,
 } from '@/constants/pricing';
-import { effectivePlanFrom, gatedClient, insertWithinLimit, PlanRefusal, type EntitlementRow } from '@/server/plans';
+import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
@@ -140,6 +140,49 @@ describe('effectivePlanFrom', () => {
   it('uses the location quota of the winning grant', () => {
     const rows = [row({ plan: 'esencial', source: 'paddle', ends_at: null, location_quota: 3 })];
     expect(effectivePlanFrom(rows, null, NOW).limits).toEqual({ maxWorkers: 40, maxLocations: 3, maxAutoSchedulesPerMonth: null });
+  });
+});
+
+describe('effectivePlanFrom with a Paddle subscription (CHG-104)', () => {
+  const paddle = (over: Record<string, unknown>) => ({
+    tier: 'pro',
+    status: 'active',
+    current_period_end: day(30),
+    quantity: 3,
+    payment_provider: 'paddle',
+    past_due_since: null,
+    ...over,
+  });
+
+  it('pays for as many locations as the subscription quantity, Pro included', () => {
+    expect(effectivePlanFrom([], paddle({}), NOW)).toMatchObject({
+      plan: 'pro',
+      source: 'subscription',
+      endsAt: day(30),
+      limits: { maxWorkers: null, maxLocations: 3, maxAutoSchedulesPerMonth: null },
+    });
+    expect(effectivePlanFrom([], paddle({ tier: 'esencial', quantity: 2 }), NOW).limits.maxLocations).toBe(2);
+  });
+
+  it(`keeps the plan for ${PAST_DUE_GRACE_DAYS} days after the first failed renewal, then Gratis`, () => {
+    // Boundary on both sides: one minute before the grace ends, and at the end.
+    const failedAt = new Date(NOW.getTime() - PAST_DUE_GRACE_DAYS * 86_400_000 + 60_000).toISOString();
+    const stillOn = effectivePlanFrom([], paddle({ status: 'past_due', past_due_since: failedAt }), NOW);
+    expect(stillOn).toMatchObject({ plan: 'pro', endsAt: new Date(Date.parse(failedAt) + PAST_DUE_GRACE_DAYS * 86_400_000).toISOString() });
+    const atEnd = new Date(Date.parse(failedAt) + PAST_DUE_GRACE_DAYS * 86_400_000);
+    expect(effectivePlanFrom([], paddle({ status: 'past_due', past_due_since: failedAt }), atEnd).plan).toBe('gratis');
+  });
+
+  it('gives no plan once paused or cancelled; a tester grant still applies', () => {
+    for (const status of ['paused', 'cancelled']) {
+      expect(effectivePlanFrom([], paddle({ status }), NOW).plan).toBe('gratis');
+    }
+    const grant = row({ id: 'g', plan: 'esencial', source: 'tester', ends_at: day(30) });
+    expect(effectivePlanFrom([grant], paddle({ status: 'cancelled' }), NOW)).toMatchObject({ plan: 'esencial', source: 'tester' });
+  });
+
+  it('ignores a quantity on a row that is not from Paddle (old manual rows)', () => {
+    expect(effectivePlanFrom([], paddle({ payment_provider: null }), NOW).limits.maxLocations).toBeNull();
   });
 });
 

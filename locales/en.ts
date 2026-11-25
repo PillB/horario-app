@@ -1527,6 +1527,28 @@ export const en = {
     },
     footer: 'Prices are per location. In Peru they include IGV.',
   },
+  billing: {
+    switchTo: 'Switch to {plan}',
+    switchHint: 'Changes your paid plan now; the difference is charged or credited today',
+    changePending: 'Plan change sent. The payment service confirms it within a minute, then this screen shows the new plan.',
+    manage: 'Manage billing',
+    manageHint: 'Opens the payment page where you change your card, download invoices or cancel',
+    pastDue: 'The last payment did not go through. Update your card in Manage billing to keep your plan. Your data is safe either way.',
+    iosNote: 'Plans are bought on the website. A plan you buy there works here too.',
+    merchantOfRecord: 'Payments are handled by Paddle, our reseller, which charges any sales tax or VAT and sends your invoice. Cancel any time; the plan lasts to the end of the paid period.',
+    quantityNote: 'You have {n} locations, so a paid plan is charged {n} times the price shown.',
+    pay: {
+      title: 'Payment',
+      loading: 'Opening the secure payment form…',
+      open: 'Complete the payment in the form. Card details go to Paddle, never to us.',
+      paid: 'Payment received, thank you. Your plan updates within a minute; you will get the receipt by email.',
+      closed: 'The payment form is closed and nothing was charged. You can choose a plan again from Plans.',
+      failed: 'The payment form could not load. Nothing was charged. Check your connection and try again from Plans.',
+      unavailable: 'Payments open in a web browser. Go to Plans on the website to choose a plan.',
+      back: 'Back to Horario',
+      backHint: 'Returns to your profile and plan',
+    },
+  },
 } as const;
 
 export type Translations = typeof en;

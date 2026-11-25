@@ -41,7 +41,8 @@ const MANAGER_ONLY: Record<string, Record<string, unknown>> = {
   upsertLocation: { location: { name: 'HQ' } },
   deleteLocation: { id: W1 },
   cancelSubscription: {},
-  createCheckoutSession: {},
+  createCheckoutSession: { tier: 'pro', billingInterval: 'month' },
+  changeSubscription: { tier: 'pro', billingInterval: 'month' },
   createBillingPortalSession: {},
 };
 
