@@ -517,7 +517,7 @@ export const sw = {
 
   auth: {
     appName: 'Horario',
-    tagline: 'Ratiba ya akili, iliyorahisishwa.',
+    tagline: 'Ratiba za haki, zilizokaguliwa kwa sheria ya kazi.',
     signIn: {
       title: 'Karibu tena',
       subtitle: 'Ingia ili kuendelea',
@@ -532,16 +532,16 @@ export const sw = {
       noAccount: 'Je, huna akaunti?',
       createLink: 'Unda bila malipo',
       createLinkA11y: 'Unda akaunti',
-      trustText: 'Bure kuanza · Hakuna kadi ya mkopo · Ghairi wakati wowote',
+      trustText: 'Bure hadi watu 10 · Hakuna kadi',
       errDefault: 'Kuingia hakukuweza kukamilika. Tafadhali jaribu tena.',
       errToken: 'Tokeni ya kuingia si sahihi au imeisha muda wake.',
       errCredentials: 'Kuingia kumeshindwa. Angalia vitambulisho vyako.',
     },
     signUp: {
-      promo: '✦ Ratiba yako ya kwanza iliyoboreshwa ni bure — hauhitaji kadi',
+      promo: 'Bure kwa eneo 1 na hadi watu 10, bila kikomo cha muda. Biashara mpya pia zinapata vipengele vyote vya Pro bure kwa siku 14. Hakuna kadi.',
       title: 'Unda akaunti yako',
       subtitle: 'Tengeneza ratiba za haki zinazofuata sheria za kazi za eneo lako.',
-      emailLabel: 'Barua pepe ya kazi',
+      emailLabel: 'Barua pepe',
       emailPlaceholder: 'you@company.com',
       emailA11y: 'Anwani ya barua pepe',
       passwordLabel: 'Nenosiri',
@@ -554,7 +554,7 @@ export const sw = {
       hasAccount: 'Je, tayari una akaunti?',
       signInLink: 'Ingia',
       signInLinkA11y: 'Ingia',
-      trustText: 'Bure kuanza · Hakuna kadi ya mkopo · Ghairi wakati wowote',
+      trustText: 'Hakuna kadi · Ukiacha kulipa, data yako inabaki na unahamia mpango wa bure',
       verify: {
         title: 'Angalia barua pepe yako',
         emoji: '📬',
@@ -589,15 +589,14 @@ export const sw = {
     },
     free: {
       badge: 'BURE',
-      limitReached: 'Acha kujenga ratiba kwa mkono — umefika kikomo cha bure.',
+      limitReached: 'Umetumia ratiba za kiotomatiki za bure za mwezi huu. Unaweza kuendelea kupanga zamu kwa mkono, na mwezi ujao utapata nyingine.',
       autoAssignsLeft: 'Ugawaji otomatiki {n} bure{plural} umebaki',
-      cta: 'Gawa timu yako yote kwa kubonyeza moja. Jaribu Pro bila malipo kwa siku 14 →',
-      ctaUnlimited: 'Fungua ugawaji otomatiki usio na kikomo — hakuna ada ya kila mfanyakazi →',
-      pricing: 'Kuanzia US$19 kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi · ghairi wakati wowote',
+      ctaUnlimited: 'Esencial: ratiba za kiotomatiki bila kikomo hadi watu 40, bila ada kwa kila mtu. Tazama mipango',
+      pricing: 'Kuanzia US$19 kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi',
     },
     buttonA11y: 'Panda hadhi hadi mpango wa Pro',
-    buttonHint: 'Inafungua ukurasa wa bili ili kuanza jaribio lako la Pro la bure',
-    limitReachedBanner: 'Kikomo cha bure kimefikiwa. Panda hadhi hadi Pro kwa ugawaji otomatiki usio na kikomo.',
+    buttonHint: 'Inafungua mipango na bei',
+    limitReachedBanner: 'Ratiba za kiotomatiki za bure za mwezi huu zimekwisha. Unaweza kuendelea kwa mkono au kutazama mipango kwa ratiba za kiotomatiki bila kikomo.',
   },
 
   language: {

@@ -142,7 +142,8 @@ function AuthGuardedTabLayout() {
   const { useAuth } = require('@clerk/expo');
   const { isSignedIn, isLoaded } = useAuth();
   if (!isLoaded) return null;
-  if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+  // Signed-out visitors see what Horario is first; sign-in is one tap away there.
+  if (!isSignedIn) return <Redirect href="/welcome" />;
   return <TabNavigator extraHeaderRight={<SignOutButton />} />;
 }
 

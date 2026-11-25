@@ -517,7 +517,7 @@ export const tl = {
 
   auth: {
     appName: 'Horario',
-    tagline: 'Matalinong scheduling, pinasimple.',
+    tagline: 'Patas na iskedyul, sinusuri ayon sa batas paggawa.',
     signIn: {
       title: 'Maligayang pagbabalik',
       subtitle: 'Mag-sign in para magpatuloy',
@@ -532,16 +532,16 @@ export const tl = {
       noAccount: 'Wala kang account?',
       createLink: 'Lumikha nang libre',
       createLinkA11y: 'Lumikha ng account',
-      trustText: 'Libre magsimula · Walang credit card · Kanselahin anumang oras',
+      trustText: 'Libre hanggang 10 tao · Walang card',
       errDefault: 'Hindi nakumpleto ang pag-sign in. Pakisubukan muli.',
       errToken: 'Ang sign-in token ay hindi valid o nag-expire na.',
       errCredentials: 'Nabigo ang pag-sign in. Suriin ang iyong mga kredensyal.',
     },
     signUp: {
-      promo: '✦ Ang iyong unang na-optimize na schedule ay libre — hindi kailangan ng card',
+      promo: 'Libre para sa 1 lokasyon at hanggang 10 tao, walang limitasyon sa oras. Ang mga bagong negosyo ay may lahat ng Pro feature nang libre sa loob ng 14 na araw. Walang card.',
       title: 'Lumikha ng iyong account',
       subtitle: 'Gumawa ng patas na iskedyul na sumusunod sa lokal na batas paggawa.',
-      emailLabel: 'Work email',
+      emailLabel: 'Email',
       emailPlaceholder: 'you@company.com',
       emailA11y: 'Email address',
       passwordLabel: 'Password',
@@ -554,7 +554,7 @@ export const tl = {
       hasAccount: 'Mayroon ka nang account?',
       signInLink: 'Mag-sign in',
       signInLinkA11y: 'Mag-sign in',
-      trustText: 'Libre magsimula · Walang credit card · Kanselahin anumang oras',
+      trustText: 'Walang card · Kapag tumigil ka sa pagbabayad, mananatili ang iyong data at lilipat ka sa libreng plan',
       verify: {
         title: 'Suriin ang iyong email',
         emoji: '📬',
@@ -589,15 +589,14 @@ export const tl = {
     },
     free: {
       badge: 'LIBRE',
-      limitReached: 'Huwag nang buuin ang mga roster nang mano-mano — naabot mo na ang libreng limitasyon.',
+      limitReached: 'Nagamit mo na ang mga libreng awtomatikong iskedyul ngayong buwan. Puwede ka pa ring gumawa ng shift nang mano-mano, at may bago ka sa susunod na buwan.',
       autoAssignsLeft: '{n} libreng auto-assign{plural} ang natitira',
-      cta: 'Mag-auto-assign ng buong team mo sa isang tap. Subukan ang Pro nang libre ng 14 na araw →',
-      ctaUnlimited: 'I-unlock ang walang limitasyong auto-assign — walang bayad bawat empleyado →',
-      pricing: 'Mula US$19 bawat lokasyon kada buwan · walang bayad bawat empleyado · kanselahin anumang oras',
+      ctaUnlimited: 'Esencial: walang limitasyong awtomatikong iskedyul hanggang 40 tao, walang bayad kada tao. Tingnan ang mga plan',
+      pricing: 'Mula US$19 bawat lokasyon kada buwan · walang bayad bawat empleyado',
     },
     buttonA11y: 'Mag-upgrade sa Pro plan',
-    buttonHint: 'Nagbubukas ng pahina ng billing para simulan ang iyong libreng Pro trial',
-    limitReachedBanner: 'Naabot ang libreng limitasyon. Mag-upgrade sa Pro para sa walang limitasyong auto-assign.',
+    buttonHint: 'Binubuksan ang mga plan at presyo',
+    limitReachedBanner: 'Ubos na ang mga libreng awtomatikong iskedyul ngayong buwan. Puwede kang magpatuloy nang mano-mano o tingnan ang mga plan para sa walang limitasyong awtomatikong iskedyul.',
   },
 
   language: {
