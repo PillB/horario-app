@@ -307,6 +307,9 @@ export const sw = {
       autoAssignHint: 'Endesha algoriti ya ugawaji inayozingatia usawa',
       applyButton: 'Tekeleza mapendekezo',
       applyingButton: 'Inatekeleza…',
+      dismissSuggestions: 'Ondoa mapendekezo',
+      dismissSuggestionsHint: 'Huondoa mapendekezo haya bila kuhifadhi zamu yoyote',
+      autoAssignAlreadySaved: 'Zamu {n} zilizopendekezwa tayari zilikuwa kwenye ratiba: utekelezaji wa kwanza ulizihifadhi.',
       suggestions: 'Mapendekezo {n} ya ugawaji yako tayari',
       suggestionItem: '{worker} → {template} tarehe {date}',
       partialCoverageBanner: 'Ugawaji wa kiotomatiki umepata mapendekezo {n}, lakini nafasi {missing} hazikuweza kujazwa. Kagua mapengo hapa chini, kisha bofya "Tekeleza mapendekezo".',
@@ -589,7 +592,7 @@ export const sw = {
     },
     free: {
       badge: 'BURE',
-      limitReached: 'Umetumia ratiba za kiotomatiki za bure za mwezi huu. Unaweza kuendelea kupanga zamu kwa mkono, na mwezi ujao utapata nyingine.',
+      limitReached: 'Umetumia wiki ya bure iliyojazwa kiotomatiki ya mwezi huu. Unaweza kuendelea kupanga zamu kwa mkono, na mwezi ujao utapata nyingine.',
       autoAssignsLeft: 'Wiki za bure zinazojazwa otomatiki mwezi huu: {n}',
       ctaUnlimited: 'Esencial: ratiba za kiotomatiki bila kikomo hadi watu 40, bila ada kwa kila mtu. Tazama mipango',
       pricing: 'Kuanzia US$19 kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi',

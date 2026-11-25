@@ -48,16 +48,13 @@
       "map callback": 21
     },
     "components/scheduler/ShiftTemplateSection.tsx": {
-      "ShiftTemplateSection": 28
+      "ShiftTemplateSection": 25
     },
     "components/scheduler/WorkerSection.tsx": {
       "WorkerSection": 20
     },
     "contexts/WelcomeTourContext.tsx": {
       "tourReducer": 19
-    },
-    "hooks/useAnalytics.ts": {
-      "load (useCallback)": 16
     },
     "hooks/useCompliance.ts": {
       "evaluateCompliance": 29

@@ -326,3 +326,182 @@ describe('a write whose answer is lost (CHG-100)', () => {
     expect(hook.result.workers.map((w) => w.name)).toEqual(['Ana']);
   });
 });
+
+describe('the render in which the tenant changes (QA L2, CHG-109)', () => {
+  it("never shows the old tenant's rows as the new tenant's loaded list", async () => {
+    const orgB = deferred<ProxyReply>();
+    let tenant = 'acc-a';
+    installFakeProxy((body) => {
+      if (body.action === 'listRoster') {
+        return tenant === 'acc-a' ? { body: { shifts: [{ accountId: 'acc-a', ...row(S1) }], hasMore: false } } : orgB.promise;
+      }
+      return { body: { success: true } };
+    });
+    const seen: { accountId: string; ids: string[]; loaded: boolean }[] = [];
+    const hook = await renderHook(({ accountId }: { accountId: string }) => {
+      const r = useRoster(accountId);
+      seen.push({ accountId, ids: r.roster.map((s) => s.id), loaded: r.loaded });
+      return r;
+    }, { accountId: 'acc-a' });
+    expect(hook.result.roster.map((s) => s.id)).toEqual([S1]);
+
+    tenant = 'org-b';
+    seen.length = 0;
+    await hook.rerender({ accountId: 'org-b' });
+    // Every render for org-b, the first one included: no acc-a row, not loaded.
+    expect(seen.filter((r) => r.accountId === 'org-b' && (r.ids.length > 0 || r.loaded))).toEqual([]);
+
+    await act(async () => {
+      orgB.resolve({ body: { shifts: [{ accountId: 'org-b', ...row(SB) }], hasMore: false } });
+    });
+    await flush();
+    expect(hook.result.loaded).toBe(true);
+    expect(hook.result.roster.map((s) => s.id)).toEqual([SB]);
+  });
+});
+
+describe('an auto-assign batch whose answer was lost (CHG-109)', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  const batch = [
+    { date: '2026-12-01', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft' as const, notified: false },
+    { date: '2026-12-02', workerId: W2, templateId: T1, location: 'HQ', status: 'Draft' as const, notified: false },
+  ];
+
+  it('treats the retry as saved when every shift is on the roster after the reload', async () => {
+    const stored: Row[] = [];
+    let first = true;
+    installFakeProxy(async (body: ProxyBody): Promise<ProxyReply> => {
+      if (body.action === 'listRoster') return { body: { shifts: stored.map((r) => ({ accountId: 'acc-1', ...r })), hasMore: false } };
+      if (body.action === 'addRosterShifts') {
+        if (first) {
+          // Saved, but the answer never arrives.
+          first = false;
+          (body.shifts as Row[]).forEach((s) => stored.push({ ...s, notified: false }));
+          return { status: 502, body: { error: 'Bad gateway' } };
+        }
+        // The retry carries new ids; the slots are taken by the first request.
+        return { status: 409, body: { error: 'One of these shifts is already on the roster. Nothing was added. Reload and try again' } };
+      }
+      return { body: { success: true } };
+    });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let firstResult!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      firstResult = await hook.result.addShifts(batch, { countAutoAssign: true });
+    });
+    // The lost answer itself: the batch is stored, so it is reported as stored.
+    expect(firstResult).toEqual({ success: true, alreadyStored: true });
+
+    let retry!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      retry = await hook.result.addShifts(batch, { countAutoAssign: true });
+    });
+    await flush();
+    expect(retry).toEqual({ success: true, alreadyStored: true });
+    expect(hook.result.roster).toHaveLength(2);
+  });
+
+  it('still fails when the shifts are not on the roster after the reload', async () => {
+    installFakeProxy(async (body: ProxyBody): Promise<ProxyReply> => {
+      if (body.action === 'listRoster') return { body: { shifts: [], hasMore: false } };
+      if (body.action === 'addRosterShifts') return { status: 402, body: { error: 'This month\'s free auto-filled week is used' } };
+      return { body: { success: true } };
+    });
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    let result!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      result = await hook.result.addShifts(batch, { countAutoAssign: true });
+    });
+    expect(result.success).toBe(false);
+    expect(hook.result.roster).toEqual([]);
+  });
+});
+
+describe('an edit saved with the updatedAt the form read (D8, CHG-109)', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('sends the original updatedAt after a reload brought a newer row, and the server refuses it', async () => {
+    const READ_AT = '2026-11-20T10:00:00.000001+00:00';
+    const NEWER = '2026-11-21T08:00:00.123456+00:00';
+    let stored = { id: W1, name: 'Ana', role: 'Cook', skills: [] as string[], updatedAt: READ_AT };
+    const fetchMock = installFakeProxy(async (body: ProxyBody): Promise<ProxyReply> => {
+      if (body.action === 'listWorkers') return { body: { workers: [{ accountId: 'acc-1', ...stored }], hasMore: false } };
+      if (body.action === 'listWorkerAvailability') return { body: { availabilities: [], hasMore: false } };
+      if (body.action === 'upsertWorker') {
+        if (body.ifUpdatedAt !== stored.updatedAt) return { status: 409, body: { error: 'Someone else changed this worker. Reload and try again' } };
+        return { body: { success: true, worker: { accountId: 'acc-1', ...(body.worker as object), updatedAt: NEWER } } };
+      }
+      return { body: { success: true } };
+    });
+    const hook = await renderHook(({ accountId }: { accountId: string }) => useWorkers(accountId), { accountId: 'acc-1' });
+    const readAt = hook.result.workers[0].updatedAt; // what the form captured on Edit
+    // Another device renames the worker; this list reloads.
+    stored = { ...stored, name: 'Ana María', updatedAt: NEWER };
+    await act(async () => {
+      await hook.result.refresh();
+    });
+    expect(hook.result.workers[0].updatedAt).toBe(NEWER);
+
+    let result!: Awaited<ReturnType<ReturnType<typeof useWorkers>['updateWorker']>>;
+    await act(async () => {
+      result = await hook.result.updateWorker(W1, { name: 'Ana P.', role: 'Cook', skills: [] }, readAt);
+    });
+    expect(callsOf(fetchMock, 'upsertWorker').map((b) => b.ifUpdatedAt)).toEqual([READ_AT]);
+    expect(result.success).toBe(false);
+    await flush();
+    expect(hook.result.workers[0].name).toBe('Ana María');
+  });
+});
+
+describe('an auto-assign retry with the same client ids (CHG-109)', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('sends the ids it was given and lists each shift once after the replay', async () => {
+    const stored = new Map<string, Row>();
+    const sentIds: string[][] = [];
+    installFakeProxy(async (body: ProxyBody): Promise<ProxyReply> => {
+      if (body.action === 'listRoster') return { body: { shifts: [...stored.values()].map((r) => ({ accountId: 'acc-1', ...r })), hasMore: false } };
+      if (body.action === 'addRosterShifts') {
+        const shifts = body.shifts as Row[];
+        sentIds.push(shifts.map((s) => s.id));
+        const replay = shifts.every((s) => stored.has(s.id));
+        shifts.forEach((s) => stored.set(s.id, { ...s, notified: false }));
+        // The first answer is lost; the server replays the retry (same ids) without counting it.
+        return replay
+          ? { body: { success: true, shifts: shifts.map((s) => ({ accountId: 'acc-1', ...s, notified: false })), replayed: true } }
+          : { status: 502, body: { error: 'Bad gateway' } };
+      }
+      return { body: { success: true } };
+    });
+    const ids = ['88888888-8888-4888-8888-888888888888', '99999999-9999-4999-8999-999999999999'];
+    const batch = [
+      { id: ids[0], date: '2026-12-01', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft' as const, notified: false },
+      { id: ids[1], date: '2026-12-02', workerId: W2, templateId: T1, location: 'HQ', status: 'Draft' as const, notified: false },
+    ];
+    const hook = await renderHook(useRosterProps, { accountId: 'acc-1' });
+    await act(async () => {
+      await hook.result.addShifts(batch, { countAutoAssign: true });
+    });
+    let retry!: Awaited<ReturnType<Hook['addShifts']>>;
+    await act(async () => {
+      retry = await hook.result.addShifts(batch, { countAutoAssign: true });
+    });
+    await flush();
+    expect(sentIds).toEqual([ids, ids]);
+    expect(retry).toEqual({ success: true });
+    expect(hook.result.roster.map((s) => s.id).sort()).toEqual([...ids].sort());
+  });
+});

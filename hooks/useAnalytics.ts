@@ -17,17 +17,19 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  listRoster,
-  listShiftTemplates,
-  listWorkers,
+  fetchRoster,
+  fetchShiftTemplates,
+  fetchWorkers,
+  type DbRosterShift,
   type DbShiftTemplate,
   type DbWorker,
 } from '@/services/rosterService';
-import { loadDemandTargets } from '@/services/demandForecast';
+import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoWeekStart } from '@/utils/autoAssignSettings';
 import { addDaysToKey } from '@/utils/dateKeys';
 import { computeUncoveredLoss } from '@/utils/schedulerMetrics';
 import { parseTimeToMinutes } from '@/utils/schedulerUtils';
+import { coverageByTarget } from '@/utils/staffingGaps';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -48,7 +50,10 @@ export type AnalyticsSummary = {
   fairnessScore: number;        // std dev of worker hours (lower = fairer)
   uncoveredRevenue: number;     // $ from computeUncoveredLoss
   loading: boolean;
+  /** A list failed to load: the numbers above are not known (never shown as 0 %). */
   error: string | null;
+  /** A list had more rows than the client loads: the numbers leave the oldest out. */
+  truncated: boolean;
   refresh: () => void;
 };
 
@@ -93,6 +98,36 @@ export const stdDev = (values: number[]): number => {
   return Math.sqrt(variance);
 };
 
+/**
+ * Every stored roster shift, worker, template and override. A failed list
+ * throws: an empty list would read as 0 % coverage, as fact (CHG-109).
+ */
+export async function loadAnalyticsLists(): Promise<{
+  shifts: DbRosterShift[];
+  workers: DbWorker[];
+  templates: DbShiftTemplate[];
+  targets: DemandForecast[];
+  truncated: boolean;
+}> {
+  const [roster, workers, templates, targets] = await Promise.all([
+    fetchRoster(),
+    fetchWorkers(),
+    fetchShiftTemplates(),
+    fetchOverrideTargets(),
+  ]);
+  if (!roster.ok) throw new Error(roster.error);
+  if (!workers.ok) throw new Error(workers.error);
+  if (!templates.ok) throw new Error(templates.error);
+  if (!targets.ok) throw new Error(targets.error);
+  return {
+    shifts: roster.data,
+    workers: workers.data,
+    templates: templates.data,
+    targets: targets.targets,
+    truncated: roster.truncated || workers.truncated || templates.truncated || targets.truncated,
+  };
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAnalytics(accountId: string, range?: AnalyticsRange): AnalyticsSummary {
@@ -107,6 +142,7 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
   const [uncoveredRevenue, setUncoveredRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -117,14 +153,12 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
     try {
       // The range is applied here, not in the request: the targets filter of the
       // proxy matches one exact date only.
-      const [allShifts, workers, dbTemplates, allTargets] = await Promise.all([
-        listRoster(accountId),
-        listWorkers(accountId),
-        listShiftTemplates(accountId),
-        loadDemandTargets(),
-      ]);
+      const lists = await loadAnalyticsLists();
 
       if (requestId !== requestIdRef.current) return;
+
+      const { shifts: allShifts, workers, templates: dbTemplates, targets: allTargets } = lists;
+      setTruncated(lists.truncated);
 
       const shifts = allShifts.filter((s) => inRange(s.date, { from, to }));
       const targets = allTargets.filter((target) => inRange(target.date, { from, to }));
@@ -167,19 +201,10 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
       // ── Coverage rate ─────────────────────────────────────────────────────
       const totalRequired = targets.reduce((sum, t) => sum + t.required, 0);
 
-      // One published roster row is one person in one position (the template's
-      // `coverage` is how many it needs, not how many a row supplies). Counted
-      // per date and role, so extra people on one day do not hide a gap on another.
-      const scheduledByDateRole = new Map<string, number>();
-      for (const shift of shifts) {
-        if (shift.status !== 'Published') continue;
-        const template = templateMap.get(shift.templateId);
-        if (!template) continue;
-        const key = `${shift.date}::${template.role}`;
-        scheduledByDateRole.set(key, (scheduledByDateRole.get(key) ?? 0) + 1);
-      }
-      const totalFilled = targets.reduce(
-        (sum, t) => sum + Math.min(t.required, scheduledByDateRole.get(`${t.date}::${t.role}`) ?? 0),
+      // Published people per date and role against each target, capped at the
+      // target: the same rule as Home and the Scheduler (utils/staffingGaps.ts).
+      const totalFilled = coverageByTarget(targets, shifts, dbTemplates).reduce(
+        (sum, t) => sum + (t.required - t.gap),
         0,
       );
 
@@ -213,9 +238,13 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load analytics.');
+      setTruncated(false);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
+  // accountId is not sent (the server takes the tenant from the session), but
+  // a tenant switch must reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, from, to]);
 
   useEffect(() => {
@@ -232,6 +261,7 @@ export function useAnalytics(accountId: string, range?: AnalyticsRange): Analyti
     uncoveredRevenue,
     loading,
     error,
+    truncated,
     refresh: load,
   };
 }

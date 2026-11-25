@@ -5,7 +5,7 @@
  * - Trial:     shows trial days remaining with a green badge
  * - Pro:       renders nothing (hide to avoid clutter)
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { PricingModal } from '@/components/PricingModal';
 import { ThemedText } from '@/components/ThemedText';
@@ -18,10 +18,17 @@ import { useT } from '@/contexts/LocaleContext';
 type Props = {
   /** Number of free auto-assigns remaining (from useUsageLimit) */
   autoAssignUsesLeft: number;
+  /** Bumped by the screen when it regains focus: the plan reloads (0 = the mount, which loads anyway). */
+  reloadSignal?: number;
 };
 
-export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
-  const { tier, isTrialing, isSubscribed } = useSubscription();
+export function UpgradeBanner({ autoAssignUsesLeft, reloadSignal }: Props) {
+  const { tier, isTrialing, isSubscribed, refresh } = useSubscription();
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    if (reloadSignal) refreshRef.current();
+  }, [reloadSignal]);
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);

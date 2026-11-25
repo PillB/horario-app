@@ -161,6 +161,7 @@ export default function SchedulerScreen() {
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
+    dismissAutoAssign,
     handlePosTargetsGenerated,
 
     // Auto-assign state
@@ -170,6 +171,7 @@ export default function SchedulerScreen() {
 
     // Freemium
     usageCount,
+    focusReloads,
 
     // Tour
     seedTourData,
@@ -268,6 +270,7 @@ export default function SchedulerScreen() {
             shiftError={shiftError}
             handleAutoAssign={handleAutoAssign}
             applyAutoAssign={applyAutoAssign}
+            dismissAutoAssign={dismissAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
             autoAssignShortfalls={autoAssignShortfalls}
             autoAssignApplying={autoAssignApplying}
@@ -324,7 +327,7 @@ export default function SchedulerScreen() {
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         {/* The paid-plan prompt sits where auto-assign is used. */}
         {activeSection === 'shifts' ? (
-          <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
+          <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} reloadSignal={focusReloads} />
         ) : null}
 
         <SyncNotice
@@ -477,6 +480,7 @@ export default function SchedulerScreen() {
             shiftError={shiftError}
             handleAutoAssign={handleAutoAssign}
             applyAutoAssign={applyAutoAssign}
+            dismissAutoAssign={dismissAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
             autoAssignShortfalls={autoAssignShortfalls}
             autoAssignApplying={autoAssignApplying}

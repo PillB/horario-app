@@ -307,6 +307,9 @@ export const tl = {
       autoAssignHint: 'Nagpapatakbo ng algorithm ng pag-assign na batay sa pagkakapantay-pantay',
       applyButton: 'Ilapat ang mga mungkahi',
       applyingButton: 'Inilalapat…',
+      dismissSuggestions: 'Itapon ang mga mungkahi',
+      dismissSuggestionsHint: 'Inaalis ang mga mungkahing ito nang walang shift na sine-save',
+      autoAssignAlreadySaved: '{n} iminungkahing shift ang nasa roster na: na-save ang mga ito ng unang Ilapat.',
       suggestions: '{n} mungkahi sa pag-assign ang handa na',
       suggestionItem: '{worker} → {template} sa {date}',
       partialCoverageBanner: 'Nakahanap ang auto-assign ng {n} mungkahi, pero {missing} puwesto ang hindi mapunan. Suriin ang mga kakulangan sa ibaba, saka i-click ang "Ilapat ang mga mungkahi".',
@@ -589,7 +592,7 @@ export const tl = {
     },
     free: {
       badge: 'LIBRE',
-      limitReached: 'Nagamit mo na ang mga libreng awtomatikong iskedyul ngayong buwan. Puwede ka pa ring gumawa ng shift nang mano-mano, at may bago ka sa susunod na buwan.',
+      limitReached: 'Nagamit mo na ang libreng linggong awtomatikong napunan ngayong buwan. Puwede ka pa ring gumawa ng shift nang mano-mano, at may bago ka sa susunod na buwan.',
       autoAssignsLeft: 'Natitirang libreng linggong awtomatikong napunan ngayong buwan: {n}',
       ctaUnlimited: 'Esencial: walang limitasyong awtomatikong iskedyul hanggang 40 tao, walang bayad kada tao. Tingnan ang mga plan',
       pricing: 'Mula US$19 bawat lokasyon kada buwan · walang bayad bawat empleyado',

@@ -30,14 +30,27 @@ export function InsightsPanel({ accountId }: Props) {
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
 
-  const { tactical, strategic, loading: insightsLoading } = useLeaderInsights();
-  const { gaps, burnoutRisks, loading: capacityLoading } = useCapacityForecast(accountId);
-  const { weeklyDemandSummary, demandVsPrior, forecastAccuracy, loading: demandLoading } = useDemandAnalysis();
+  const { tactical, strategic, loading: insightsLoading, error: insightsError } = useLeaderInsights();
+  const { gaps, burnoutRisks, loading: capacityLoading, error: capacityError } = useCapacityForecast(accountId);
+  const { weeklyDemandSummary, demandVsPrior, forecastAccuracy, loading: demandLoading, error: demandError } = useDemandAnalysis();
+  const loadError = insightsError ?? capacityError ?? demandError;
 
   if (insightsLoading || capacityLoading || demandLoading) {
     return (
       <ThemedView style={styles.card} testID="insights-loading">
         <SkeletonCard rows={3} />
+      </ThemedView>
+    );
+  }
+
+  // A failed load is said, not shown as "nothing needs attention" (CHG-109).
+  if (loadError) {
+    return (
+      <ThemedView style={styles.card} testID="insights-error">
+        <ThemedText type="subtitle">{t('analytics.insights.actionsTitle')}</ThemedText>
+        <ThemedText style={styles.bad} accessibilityRole="alert">
+          {t('analytics.insights.loadError', { error: loadError })}
+        </ThemedText>
       </ThemedView>
     );
   }

@@ -56,7 +56,7 @@ describe('useDemandForecast failure handling', () => {
     let hookState: ReturnType<typeof useDemandForecast> | null = null;
 
     const TestComponent = () => {
-      const hook = useDemandForecast();
+      const hook = useDemandForecast('acc-1');
       useEffect(() => {
         hookState = hook;
       }, [hook]);
@@ -89,7 +89,7 @@ describe('useDemandForecast failure handling', () => {
     let hookState: ReturnType<typeof useDemandForecast> | null = null;
 
     const TestComponent = () => {
-      const hook = useDemandForecast();
+      const hook = useDemandForecast('acc-1');
       useEffect(() => {
         hookState = hook;
       }, [hook]);
@@ -134,7 +134,7 @@ describe('useDemandForecast failure handling', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const TestComponent = () => {
-      useDemandForecast();
+      useDemandForecast('acc-1');
       return null;
     };
 
@@ -195,7 +195,7 @@ describe('useDemandForecast failure handling', () => {
     let hookState: ReturnType<typeof useDemandForecast> | null = null;
 
     const TestComponent = () => {
-      const hook = useDemandForecast();
+      const hook = useDemandForecast('acc-1');
       useEffect(() => {
         hookState = hook;
       }, [hook]);
@@ -258,7 +258,7 @@ describe('useDemandForecast failure handling', () => {
     let hookState: ReturnType<typeof useDemandForecast> | null = null;
 
     const TestComponent = () => {
-      const hook = useDemandForecast();
+      const hook = useDemandForecast('acc-1');
       useEffect(() => {
         hookState = hook;
       }, [hook]);
@@ -345,7 +345,7 @@ describe('useDemandForecast failure handling', () => {
     let hookState: ReturnType<typeof useDemandForecast> | null = null;
     const options = { timeZone: 'America/Lima', serviceLevel: 0.9 };
     const TestComponent = () => {
-      const hook = useDemandForecast(undefined, options);
+      const hook = useDemandForecast('acc-1', undefined, options);
       useEffect(() => {
         hookState = hook;
       }, [hook]);
@@ -388,7 +388,7 @@ describe('useDemandForecast stored overrides (CHG-088)', () => {
   const render = async () => {
     const state: { current: ReturnType<typeof useDemandForecast> | null } = { current: null };
     const Probe = () => {
-      state.current = useDemandForecast();
+      state.current = useDemandForecast('acc-1');
       return null;
     };
     await act(async () => {
@@ -467,5 +467,107 @@ describe('useDemandForecast stored overrides (CHG-088)', () => {
       await state.current!.overrideTarget({ ...override, expected: 4.2, model: 'holtWinters', mase: 0.7 });
     });
     expect(sentBody(fetchMock, 'upsertTargets').targets).toEqual([{ date: override.date, role: override.role, required: 5, notes: 'Launch' }]);
+  });
+});
+
+describe('useDemandForecast across a tenant switch (D3, CHG-109)', () => {
+  const status = { hasHistorical: false, hasExternalSignals: false, hasExistingTargets: true, apiAvailable: false };
+  const orgA = { date: '2026-11-02', role: 'Support', required: 5, source: 'override' as const };
+  const orgB = { date: '2026-11-03', role: 'Kitchen', required: 2, source: 'override' as const };
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  /** Each tenant's stored overrides; `tenant` says whose session the proxy sees. */
+  let tenant = 'org_a';
+  const install = () => {
+    const fetchMock = jest.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(options.body as string) as { action: string };
+      if (body.action === 'status') return { ok: true, status: 200, json: async () => status };
+      if (body.action === 'loadTargets') {
+        return { ok: true, status: 200, json: async () => ({ targets: [tenant === 'org_a' ? orgA : orgB], hasMore: false }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ success: true }) };
+    });
+    (global as unknown as { fetch: typeof fetchMock }).fetch = fetchMock;
+    return fetchMock;
+  };
+
+  const settle = async () => {
+    await act(async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+  };
+
+  it("drops the old organization's targets at once and loads the new one's", async () => {
+    tenant = 'org_a';
+    const fetchMock = install();
+    const seen: { accountId: string; roles: string[] }[] = [];
+    const state: { current: ReturnType<typeof useDemandForecast> | null } = { current: null };
+    const Probe = ({ accountId }: { accountId: string }) => {
+      state.current = useDemandForecast(accountId);
+      seen.push({ accountId, roles: state.current.demandTargets.map((t) => t.role) });
+      return null;
+    };
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<Probe accountId="org_a" />);
+    });
+    await settle();
+    expect(state.current?.demandTargets).toEqual([orgA]);
+
+    tenant = 'org_b';
+    seen.length = 0;
+    await act(async () => {
+      root.update(<Probe accountId="org_b" />);
+    });
+    await settle();
+    // No render for org_b ever showed org_a's Support target.
+    expect(seen.filter((r) => r.accountId === 'org_b' && r.roles.includes('Support'))).toEqual([]);
+    expect(state.current?.demandTargets).toEqual([orgB]);
+    const loads = fetchMock.mock.calls.filter((c) => JSON.parse((c[1] as RequestInit).body as string).action === 'loadTargets');
+    expect(loads).toHaveLength(2);
+  });
+
+  it('ignores a forecast that finishes after the switch', async () => {
+    tenant = 'org_a';
+    install();
+    let finish!: (value: Awaited<ReturnType<typeof demandForecast.generateDemandForecast>>) => void;
+    const spy = jest.spyOn(demandForecast, 'generateDemandForecast').mockImplementation(
+      () => new Promise((resolve) => { finish = resolve; }),
+    );
+    const state: { current: ReturnType<typeof useDemandForecast> | null } = { current: null };
+    const Probe = ({ accountId }: { accountId: string }) => {
+      state.current = useDemandForecast(accountId);
+      return null;
+    };
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<Probe accountId="org_a" />);
+    });
+    await settle();
+    let run!: Promise<void>;
+    act(() => {
+      run = state.current!.triggerForecast({ date: '2026-11-04', role: 'Support' });
+    });
+    tenant = 'org_b';
+    await act(async () => {
+      root.update(<Probe accountId="org_b" />);
+    });
+    await settle();
+    await act(async () => {
+      finish({
+        forecasts: [{ date: '2026-11-04', role: 'Support', required: 9, source: 'model' }],
+        metadata: { ...status, usedApi: false, usedFallback: false, apiCallFailed: false },
+      });
+      await run;
+    });
+    await settle();
+    expect(state.current?.demandTargets).toEqual([orgB]);
+    expect(state.current?.lastGenerationMetadata).toBeNull();
+    expect(state.current?.forecasting).toBe(false);
+    spy.mockRestore();
   });
 });

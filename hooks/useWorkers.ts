@@ -116,9 +116,13 @@ export const useWorkers = (accountId: string) => {
     [accountId, write],
   );
 
-  /** Saves new values for an existing worker; labor fields left out keep their stored value. */
+  /**
+   * Saves new values for an existing worker; labor fields left out keep their stored value.
+   * `ifUpdatedAt` is the row's `updatedAt` as the edit form read it (when Edit was
+   * pressed); without it, the one in the list now. The server refuses (409) a row changed since.
+   */
   const updateWorker = useCallback(
-    async (id: string, changes: WorkerChanges): Promise<UpsertWorkerResult> => {
+    async (id: string, changes: WorkerChanges, ifUpdatedAt?: string): Promise<UpsertWorkerResult> => {
       const previous = items.find((w) => w.id === id);
       if (!previous) return { success: false, error: 'Worker not found' };
       const checked = validateWorkerInput({ ...changes, id });
@@ -128,7 +132,7 @@ export const useWorkers = (accountId: string) => {
         id,
         apply: (prev) => prev.map((w) => (w.id === id ? { ...w, ...checked.value, id } : w)),
         // Saves only while the stored row is still the one this list read.
-        commit: () => upsertWorker(input, previous.updatedAt),
+        commit: () => upsertWorker(input, ifUpdatedAt ?? previous.updatedAt),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
         reconcile: (prev, r) => (r.success ? prev.map((w) => (w.id === id ? toStoredWorker(r.worker, w.availability) : w)) : prev),
       });

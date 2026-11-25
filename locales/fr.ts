@@ -318,6 +318,9 @@ export const fr = {
       autoAssignHint: "Exécute l'algorithme d'affectation basé sur l'équité",
       applyButton: 'Appliquer les suggestions',
       applyingButton: 'Application…',
+      dismissSuggestions: 'Ignorer les suggestions',
+      dismissSuggestionsHint: 'Retire ces suggestions sans enregistrer aucun poste',
+      autoAssignAlreadySaved: '{n} poste(s) suggéré(s) étaient déjà au planning : le premier « Appliquer » les a enregistrés.',
       suggestions: "{n} suggestion(s) d'affectation prête(s)",
       suggestionItem: '{worker} → {template} le {date}',
       partialCoverageBanner: "L'affectation automatique a trouvé {n} suggestion(s), mais {missing} poste(s) n'ont pas pu être pourvus. Vérifiez les manques ci-dessous, puis cliquez sur « Appliquer les suggestions ».",
@@ -604,7 +607,7 @@ export const fr = {
     },
     free: {
       badge: 'GRATUIT',
-      limitReached: 'Vous avez utilisé les plannings automatiques gratuits de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez d\'autres le mois prochain.',
+      limitReached: 'Vous avez utilisé la semaine remplie automatiquement gratuite de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez une autre le mois prochain.',
       autoAssignsLeft: 'Semaines remplies automatiquement gratuites ce mois-ci : {n}',
       ctaUnlimited: 'Esencial : plannings automatiques illimités jusqu\'à 40 personnes, sans frais par personne. Voir les offres',
       pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé',

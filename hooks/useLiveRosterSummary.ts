@@ -19,6 +19,7 @@ import {
 } from '@/services/rosterService';
 import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoDate } from '@/utils/schedulerUtils';
+import { computeStaffingGaps } from '@/utils/staffingGaps';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -119,26 +120,9 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
         })
         .slice(0, MAX_UPCOMING);
 
-      // Staffing gaps: demand targets where coverage (published only) < required
-      const coverageByDateRole = shifts
-        .filter((s) => s.status === 'Published')
-        .reduce<Record<string, number>>((acc, shift) => {
-          const template = templateMap.get(shift.templateId);
-          if (!template) return acc;
-          const key = `${shift.date}::${template.role}`;
-          // A roster row is one worker in one position; `coverage` is how many
-          // the template needs, not how many this row supplies.
-          acc[key] = (acc[key] ?? 0) + 1;
-          return acc;
-        }, {});
-
+      // Staffing gaps: one rule for every screen (utils/staffingGaps.ts).
       const inWindow = targets.filter((target) => target.date >= fromDate && target.date <= toDate);
-      const gaps: LiveStaffingGap[] = inWindow
-        .map((target) => {
-          const scheduled = coverageByDateRole[`${target.date}::${target.role}`] ?? 0;
-          return { ...target, scheduled, gap: Math.max(0, target.required - scheduled) };
-        })
-        .filter((t) => t.gap > 0);
+      const gaps: LiveStaffingGap[] = computeStaffingGaps(inWindow, shifts, dbTemplates);
 
       setUpcomingShifts(resolved);
       setCounts({

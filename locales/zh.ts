@@ -299,6 +299,9 @@ export const zh = {
       autoAssignHint: '运行基于公平性的分配算法',
       applyButton: '应用建议',
       applyingButton: '应用中…',
+      dismissSuggestions: '放弃建议',
+      dismissSuggestionsHint: '移除这些建议，不保存任何班次',
+      autoAssignAlreadySaved: '{n} 个建议班次已在排班表中：第一次应用已保存它们。',
       suggestions: '{n} 条分配建议已就绪',
       suggestionItem: '{worker} → {template} 于 {date}',
       partialCoverageBanner: '自动分配找到 {n} 条建议，但仍有 {missing} 个岗位无法安排。请查看下方的缺口，然后点击“应用建议”。',
@@ -533,7 +536,7 @@ export const zh = {
     },
     free: {
       badge: '免费版',
-      limitReached: '本月的免费自动排班次数已用完。您仍可手动排班，下个月会有新的次数。',
+      limitReached: '本月的免费自动排班周已用完。您仍可手动排班，下个月会再有一周。',
       autoAssignsLeft: '本月剩余免费自动排班周数：{n}',
       ctaUnlimited: 'Esencial：最多 40 人无限次自动排班，不按人数收费。查看方案',
       pricing: '每个门店每月 19 美元起 · 不按员工收费',

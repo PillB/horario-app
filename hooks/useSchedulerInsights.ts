@@ -21,13 +21,15 @@ export type SchedulerInsight = {
 export type UseSchedulerInsightsReturn = {
   insights: SchedulerInsight[];
   loading: boolean;
+  /** The analytics data failed to load: no insight is derived from unknown numbers. */
+  error: string | null;
 };
 
 export function useSchedulerInsights(accountId: string): UseSchedulerInsightsReturn {
   const summary = useAnalytics(accountId);
 
   const insights = useMemo<SchedulerInsight[]>(() => {
-    if (summary.loading) {
+    if (summary.loading || summary.error) {
       return [];
     }
 
@@ -187,5 +189,6 @@ export function useSchedulerInsights(accountId: string): UseSchedulerInsightsRet
   return {
     insights,
     loading: summary.loading,
+    error: summary.error,
   };
 }

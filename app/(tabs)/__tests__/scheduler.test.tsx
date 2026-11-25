@@ -13,6 +13,7 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useLocalSearchParams: () => ({ section: mockSection }),
   useRouter: () => ({ setParams: jest.fn(), push: jest.fn() }),
+  useFocusEffect: () => {},
 }));
 
 jest.mock('@/hooks/useSessionWellness', () => ({

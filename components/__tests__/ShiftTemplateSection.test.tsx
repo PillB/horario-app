@@ -79,3 +79,55 @@ describe('ShiftTemplateSection — auto-assign shortfalls', () => {
     expect(tree.root.findAllByProps({ testID: 'auto-assign-shortfalls' })).toHaveLength(0);
   });
 });
+
+describe('ShiftTemplateSection — pending suggestions (D7, CHG-109)', () => {
+  const render = (applying: boolean, onDismiss: () => void) => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <ShiftTemplateSection
+          shiftTemplates={[{ id: 'ward', name: 'Ward day', role: 'Nurse', start: '08:00', end: '16:00', coverage: 3 }]}
+          templateForm={{ name: '', role: '', start: '', end: '', coverage: '' }}
+          updateTemplateField={field}
+          handleAddTemplate={noop}
+          templateError={null}
+          templateSuccessMessage={null}
+          shiftForm={{ workerId: '', templateId: '', date: '2026-03-30' }}
+          updateShiftField={field}
+          handleShiftSubmit={noop}
+          shiftError={null}
+          handleAutoAssign={noop}
+          applyAutoAssign={noop}
+          dismissAutoAssign={onDismiss}
+          autoAssignSuggestions={[{ date: '2026-03-30', templateId: 'ward', workerId: 'ana' }]}
+          autoAssignShortfalls={null}
+          autoAssignApplying={applying}
+          workers={[]}
+        />
+      );
+    });
+    return tree;
+  };
+  /** The Pressable with this testID (the outermost node carrying its props). */
+  const button = (tree: ReactTestRenderer, testID: string) =>
+    tree.root.findAll((node) => node.props.testID === testID && typeof node.props.onPress === 'function')[0];
+
+  it('has a labelled Dismiss button that drops the suggestions', () => {
+    const onDismiss = jest.fn();
+    const tree = render(false, onDismiss);
+    const dismiss = button(tree, 'dismiss-auto-assign');
+    expect(dismiss.props.accessibilityRole).toBe('button');
+    expect(dismiss.props.accessibilityLabel).toBe('Dismiss suggestions');
+    expect(dismiss.props.accessibilityHint).toBe('Removes these suggestions without saving any shift');
+    act(() => dismiss.props.onPress());
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Auto-assign and Dismiss while Apply is saving', () => {
+    const busy = render(true, noop);
+    expect(button(busy, 'run-auto-assign').props.disabled).toBe(true);
+    expect(button(busy, 'dismiss-auto-assign').props.disabled).toBe(true);
+    const idle = render(false, noop);
+    expect(button(idle, 'run-auto-assign').props.disabled).toBe(false);
+  });
+});

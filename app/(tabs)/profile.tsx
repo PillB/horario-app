@@ -28,6 +28,7 @@ import { useT } from '@/contexts/LocaleContext';
 import { useWelcomeTour, TOUR_MODES } from '@/contexts/WelcomeTourContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { isDiagnosticsEnabled } from '@/utils/appEnv';
 import { PageTitle } from '@/components/PageTitle';
 
@@ -151,6 +152,13 @@ export default function ProfileScreen() {
   const { startTourMode } = useWelcomeTour();
 
   const [pricingVisible, setPricingVisible] = useState(false);
+  // Tabs stay mounted: a plan bought or a trial granted elsewhere, or a
+  // location added on Home, shows when the user comes back (CHG-109).
+  const [focusReloads, setFocusReloads] = useState(0);
+  useRefreshOnFocus(() => {
+    subscription.refresh();
+    setFocusReloads((n) => n + 1);
+  });
   const handleBillingPress = useCallback(() => setPricingVisible(true), []);
 
   const handleSignOut = useCallback(async () => {
@@ -351,7 +359,7 @@ export default function ProfileScreen() {
           styles={styles}
         />
         <ErrorBoundary>
-          <LocationsManager accountId={accountId} />
+          <LocationsManager accountId={accountId} reloadSignal={focusReloads} />
         </ErrorBoundary>
       </ThemedView>
 

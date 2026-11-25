@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DemandForecast,
   ForecastFilters,
-  loadDemandTargets,
+  fetchOverrideTargets,
 } from '@/services/demandForecast';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 import { useRoster } from '@/hooks/useRoster';
 import { useShiftTemplates } from '@/hooks/useShiftTemplates';
@@ -229,7 +230,8 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
 
   const requestIdRef = useRef(0);
 
-  const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? '';
+  // The signed-in tenant: an organization switch reloads (was the build-time env id).
+  const { accountId } = useIdentity();
   const roster = useRoster(accountId);
   const { shiftTemplates: templates } = useShiftTemplates(accountId);
 
@@ -243,16 +245,14 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
     setLoading(true);
 
     try {
-      const [allCurrent, allPrior] = await Promise.all([
-        currentWeekRange
-          ? loadDemandTargets(filters)
-          : Promise.resolve([] as DemandForecast[]),
-        priorWeekRange
-          ? loadDemandTargets(filters)
-          : Promise.resolve([] as DemandForecast[]),
-      ]);
+      // One request: both weeks come from the same stored overrides.
+      const stored = await fetchOverrideTargets(filters);
 
       if (requestIdRef.current !== requestId) return;
+      // A failed load is reported, not shown as a week without demand.
+      if (!stored.ok) throw new Error(stored.error);
+      const allCurrent = currentWeekRange ? stored.targets : [];
+      const allPrior = priorWeekRange ? stored.targets : [];
 
       const filteredCurrent = currentWeekRange
         ? targetsInRange(allCurrent, currentWeekRange.start, currentWeekRange.end)
@@ -274,7 +274,10 @@ export function useDemandAnalysis(filters?: ForecastFilters): UseDemandAnalysisR
         setLoading(false);
       }
     }
-  }, [filters, currentWeekRange, priorWeekRange]);
+  // accountId is not sent (the server takes the tenant from the session), but
+  // a tenant switch must reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, filters, currentWeekRange, priorWeekRange]);
 
   useEffect(() => {
     void load();

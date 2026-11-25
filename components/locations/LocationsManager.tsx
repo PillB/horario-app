@@ -3,7 +3,7 @@
  * add, edit and delete (delete is admin-only on the server), plus a read-only
  * change history (CHG-089).
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { LocationHistoryList } from '@/components/locations/LocationHistoryList';
@@ -19,7 +19,13 @@ import type { BusinessLocation } from '@/services/locationService';
 
 type Editing = { mode: 'add' } | { mode: 'edit'; location: BusinessLocation } | null;
 
-export function LocationsManager({ accountId }: { accountId: string }) {
+type Props = {
+  accountId: string;
+  /** Bumped by the screen when it regains focus: the list reloads (0 = the mount, which loads anyway). */
+  reloadSignal?: number;
+};
+
+export function LocationsManager({ accountId, reloadSignal }: Props) {
   const { t } = useT();
   const colorScheme = useColorScheme() ?? 'light';
   const styles = makeStyles(Colors[colorScheme]);
@@ -30,6 +36,10 @@ export function LocationsManager({ accountId }: { accountId: string }) {
   const [showHistory, setShowHistory] = useState(false);
   // Bumped after a delete so an open history reloads (an edit remounts it).
   const [historyVersion, setHistoryVersion] = useState(0);
+
+  useEffect(() => {
+    if (reloadSignal) void refresh();
+  }, [refresh, reloadSignal]);
 
   const handleDelete = useCallback(
     async (location: BusinessLocation) => {

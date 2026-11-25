@@ -43,7 +43,7 @@ export const useShiftTemplates = (accountId: string) => {
   const { items, write } = list;
 
   const saveTemplate = useCallback(
-    async (id: string, changes: ShiftTemplateChanges, isNew: boolean): Promise<UpsertTemplateResult> => {
+    async (id: string, changes: ShiftTemplateChanges, isNew: boolean, ifUpdatedAt?: string): Promise<UpsertTemplateResult> => {
       const checked = validateShiftTemplateInput({ ...changes, id });
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id, accountId };
@@ -53,7 +53,7 @@ export const useShiftTemplates = (accountId: string) => {
         id,
         apply: (prev) => upsertById(prev, dbToTemplate({ ...input, updatedAt: previous?.updatedAt })),
         // An edit saves only while the stored row is still the one this list read.
-        commit: () => upsertShiftTemplate(input, previous?.updatedAt),
+        commit: () => upsertShiftTemplate(input, ifUpdatedAt ?? previous?.updatedAt),
         rollback: (prev) => (previous ? prev.map((t) => (t.id === id ? previous : t)) : removeById(prev, id)),
         reconcile: (prev, r) => (r.success ? upsertById(prev, dbToTemplate(r.template)) : prev),
       });
@@ -70,9 +70,10 @@ export const useShiftTemplates = (accountId: string) => {
     [saveTemplate],
   );
 
+  /** `ifUpdatedAt`: the row's `updatedAt` as the edit form read it (see useWorkers.updateWorker). */
   const updateShiftTemplate = useCallback(
-    (id: string, changes: ShiftTemplateChanges): Promise<UpsertTemplateResult> =>
-      items.some((t) => t.id === id) ? saveTemplate(id, changes, false) : Promise.resolve({ success: false, error: 'Template not found' }),
+    (id: string, changes: ShiftTemplateChanges, ifUpdatedAt?: string): Promise<UpsertTemplateResult> =>
+      items.some((t) => t.id === id) ? saveTemplate(id, changes, false, ifUpdatedAt) : Promise.resolve({ success: false, error: 'Template not found' }),
     [items, saveTemplate],
   );
 

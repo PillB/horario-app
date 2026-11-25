@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
-  listRoster,
-  listShiftTemplates,
-  listWorkers,
+  fetchRoster,
+  fetchShiftTemplates,
+  fetchWorkers,
   type DbRosterShift,
   type DbWorker,
   type DbShiftTemplate,
 } from '@/services/rosterService';
-import { loadDemandTargets, type DemandForecast } from '@/services/demandForecast';
+import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoDate, parseTimeToMinutes } from '@/utils/schedulerUtils';
 import { addDaysToKey, todayKey, weekdayOfKey } from '@/utils/dateKeys';
 
@@ -50,6 +50,8 @@ export type UseCapacityForecastReturn = {
   burnoutRisks: BurnoutRisk[];
   trends: CapacityTrend[];
   loading: boolean;
+  /** A list failed to load: the gaps and risks are unknown, not empty. */
+  error: string | null;
 };
 
 // ─── Availability type (internal) ─────────────────────────────────────────────
@@ -344,33 +346,39 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
   const [rawBurnout, setRawBurnout] = useState<BurnoutRisk[]>([]);
   const [rawTrends, setRawTrends] = useState<CapacityTrend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
+    setError(null);
 
     try {
       const today = isoDate(0);
       const futureDate = isoDate(FORECAST_DAYS);
       const pastDate = isoDate(-LOOKBACK_DAYS);
 
-      const [
-        futureRoster,
-        pastRoster,
-        demandTargets,
-        workers,
-        templates,
-      ] = await Promise.all([
-        listRoster(accountId, { fromDate: today, toDate: futureDate }),
-        listRoster(accountId, { fromDate: pastDate, toDate: today }),
+      const results = await Promise.all([
+        fetchRoster({ fromDate: today, toDate: futureDate }),
+        fetchRoster({ fromDate: pastDate, toDate: today }),
         // Every stored target; the proxy's `date` filter is an exact match.
-        loadDemandTargets(),
-        listWorkers(accountId),
-        listShiftTemplates(accountId),
+        fetchOverrideTargets(),
+        fetchWorkers(),
+        fetchShiftTemplates(),
       ]);
 
       if (requestId !== requestIdRef.current) return;
+
+      // A failed list is an error, not an empty account (CHG-109).
+      const failed = results.find((r) => !r.ok);
+      if (failed && !failed.ok) throw new Error(failed.error);
+      const [futureResult, pastResult, targetsResult, workersResult, templatesResult] = results;
+      const futureRoster = futureResult.ok ? futureResult.data : [];
+      const pastRoster = pastResult.ok ? pastResult.data : [];
+      const demandTargets = targetsResult.ok ? targetsResult.targets : [];
+      const workers = workersResult.ok ? workersResult.data : [];
+      const templates = templatesResult.ok ? templatesResult.data : [];
 
       // We do not have a real availability service imported here, so we derive
       // a best-effort availability list from historical roster patterns.
@@ -411,14 +419,19 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
       setRawGaps(gaps);
       setRawBurnout(burnoutRisks);
       setRawTrends(trends);
-    } catch {
+    } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setRawGaps([]);
       setRawBurnout([]);
       setRawTrends([]);
+      setError(err instanceof Error ? err.message : 'Unable to load capacity data');
     } finally {
-      if (requestIdRef.current === requestIdRef.current) setLoading(false);
+      // Only the newest request ends the loading state (was `x === x`, always true).
+      if (requestId === requestIdRef.current) setLoading(false);
     }
+  // accountId is not sent (the server takes the tenant from the session), but
+  // a tenant switch must reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
   useEffect(() => {
@@ -430,7 +443,7 @@ export function useCapacityForecast(accountId: string): UseCapacityForecastRetur
   const burnoutRisks = useMemo(() => rawBurnout, [rawBurnout]);
   const trends = useMemo(() => rawTrends, [rawTrends]);
 
-  return { gaps, burnoutRisks, trends, loading };
+  return { gaps, burnoutRisks, trends, loading, error };
 }
 
 // ─── Internal helper ──────────────────────────────────────────────────────────

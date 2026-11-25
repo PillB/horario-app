@@ -40,9 +40,13 @@ jest.mock('@/hooks/useColorScheme', () => ({
 }));
 
 // expo-router Link needs a stub.
+// useFocusEffect keeps the latest callback; a test calls it once per focus
+// (the first call is the mount's focus).
+let mockFocus: (() => void) | null = null;
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => { mockFocus = cb; },
 }));
 
 // TourStep requires WelcomeTourProvider — stub it out to a passthrough.
@@ -197,6 +201,31 @@ describe('AnalyticsScreen', () => {
 
     expect(findTextNodes(tree!, 'network failure').length).toBeGreaterThan(0);
 
+    act(() => { tree!.unmount(); });
+  });
+
+  // D5 (CHG-109): tabs stay mounted, so returning to Analytics must reload.
+  it('reloads on a return to the screen, not on the first focus', () => {
+    const refresh = jest.fn();
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, refresh });
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    act(() => { mockFocus!(); }); // the mount's focus: the hook already loads
+    expect(refresh).not.toHaveBeenCalled();
+    act(() => { mockFocus!(); }); // back from another tab
+    expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => { tree!.unmount(); });
+  });
+
+  it('says when a list was cut short (D2)', () => {
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, truncated: true });
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    expect(findHostByTestID(tree!, 'analytics-truncated')).toBeDefined();
     act(() => { tree!.unmount(); });
   });
 });

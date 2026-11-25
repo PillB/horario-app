@@ -10,6 +10,7 @@ import {
   type SchedulerInsight,
 } from '@/hooks/useSchedulerInsights';
 import { trackEvent } from '@/services/analytics';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ export type UseLeaderInsightsReturn = {
   tactical: TacticalRecommendation[];
   strategic: StrategicRecommendation[];
   loading: boolean;
+  /** A source failed to load: the recommendations are not shown as if the data were empty. */
+  error: string | null;
 };
 
 // ─── Revenue estimation constants ────────────────────────────────────────────
@@ -288,16 +291,19 @@ export function generateStrategicRecommendations(
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useLeaderInsights(): UseLeaderInsightsReturn {
-  const accountId = process.env.EXPO_PUBLIC_ACCOUNT_ID ?? '';
+  // The signed-in tenant, so an organization switch reloads (was the build-time env id).
+  const { accountId } = useIdentity();
 
   const {
     gaps,
     burnoutRisks,
     trends,
     loading: capacityLoading,
+    error: capacityError,
   } = useCapacityForecast(accountId);
 
-  const { insights, loading: insightsLoading } = useSchedulerInsights(accountId);
+  const { insights, loading: insightsLoading, error: insightsError } = useSchedulerInsights(accountId);
+  const error = capacityError ?? insightsError;
 
   const lastEventRef = useRef<string | null>(null);
 
@@ -325,5 +331,5 @@ export function useLeaderInsights(): UseLeaderInsightsReturn {
     );
   }, [loading, tactical, strategic]);
 
-  return { tactical, strategic, loading };
+  return { tactical, strategic, loading, error };
 }

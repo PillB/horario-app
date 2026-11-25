@@ -60,6 +60,8 @@ type Props = {
   shiftError: string | null;
   handleAutoAssign: () => void;
   applyAutoAssign: () => void;
+  /** Drops the suggestions without saving them. */
+  dismissAutoAssign?: () => void;
   autoAssignSuggestions: AssignedShift[] | null;
   /** Templates the last auto-assign run could not fully cover (partial or none). */
   autoAssignShortfalls?: CoverageShortfall[] | null;
@@ -139,6 +141,77 @@ const makeLocalStyles = (colors: ThemeColors, colorScheme: 'light' | 'dark') =>
     },
   });
 
+type LocalStyles = ReturnType<typeof makeLocalStyles>;
+
+/** The pending auto-assign suggestions with Apply and Dismiss (nothing when there are none). */
+function AutoAssignSuggestions({
+  suggestions,
+  applying,
+  onApply,
+  onDismiss,
+  workers,
+  shiftTemplates,
+  local,
+}: {
+  suggestions: AssignedShift[] | null;
+  applying: boolean;
+  onApply: () => void;
+  onDismiss?: () => void;
+  workers: Worker[];
+  shiftTemplates: ShiftTemplate[];
+  local: LocalStyles;
+}) {
+  const { t } = useT();
+  if (!suggestions || suggestions.length === 0) return null;
+  const nameOf = (list: { id: string; name: string }[], id: string) => list.find((item) => item.id === id)?.name ?? id;
+  return (
+    <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
+      <ThemedText style={styles.bannerText}>
+        {t('scheduler.shifts.suggestions', { n: String(suggestions.length) })}
+      </ThemedText>
+      {suggestions.map((s) => (
+        <ThemedText key={`${s.templateId}-${s.workerId}-${s.date}`} style={local.bannerMutedText}>
+          {t('scheduler.shifts.suggestionItem', {
+            worker: nameOf(workers, s.workerId),
+            template: nameOf(shiftTemplates, s.templateId),
+            date: s.date,
+          })}
+        </ThemedText>
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint={t('scheduler.shifts.autoAssignHint')}
+        testID="apply-auto-assign"
+        accessibilityLabel={t('scheduler.shifts.applyButton')}
+        onPress={onApply}
+        disabled={applying}
+        accessibilityState={{ disabled: applying }}
+        style={[styles.primaryButton, applying && local.disabledButton]}
+      >
+        <ThemedText style={applying ? local.disabledButtonText : styles.primaryButtonText}>
+          {applying ? t('scheduler.shifts.applyingButton') : t('scheduler.shifts.applyButton')}
+        </ThemedText>
+      </Pressable>
+      {onDismiss ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('scheduler.shifts.dismissSuggestions')}
+          accessibilityHint={t('scheduler.shifts.dismissSuggestionsHint')}
+          testID="dismiss-auto-assign"
+          onPress={onDismiss}
+          disabled={applying}
+          accessibilityState={{ disabled: applying }}
+          style={[styles.secondaryButton, applying && local.disabledButton]}
+        >
+          <ThemedText style={applying ? local.disabledButtonText : local.secondaryButtonText}>
+            {t('scheduler.shifts.dismissSuggestions')}
+          </ThemedText>
+        </Pressable>
+      ) : null}
+    </ThemedView>
+  );
+}
+
 export const ShiftTemplateSection = ({
   shiftTemplates,
   templatesLoaded = true,
@@ -157,6 +230,7 @@ export const ShiftTemplateSection = ({
   shiftError,
   handleAutoAssign,
   applyAutoAssign,
+  dismissAutoAssign,
   autoAssignSuggestions,
   autoAssignShortfalls,
   autoAssignApplying,
@@ -394,9 +468,13 @@ export const ShiftTemplateSection = ({
               accessibilityLabel={t('scheduler.shifts.autoAssignA11y')}
               accessibilityHint={t('scheduler.shifts.autoAssignHint')}
               onPress={handleAutoAssign}
-              style={[styles.secondaryButton, styles.actionButton]}
+              // A run while Apply saves would replace the suggestions being saved.
+              disabled={autoAssignApplying}
+              accessibilityState={{ disabled: autoAssignApplying }}
+              testID="run-auto-assign"
+              style={[styles.secondaryButton, styles.actionButton, autoAssignApplying && local.disabledButton]}
             >
-              <ThemedText style={local.secondaryButtonText}>
+              <ThemedText style={autoAssignApplying ? local.disabledButtonText : local.secondaryButtonText}>
                 {t('scheduler.shifts.autoAssignButton')}
               </ThemedText>
             </Pressable>
@@ -434,36 +512,15 @@ export const ShiftTemplateSection = ({
             </ThemedView>
           ) : null}
 
-          {autoAssignSuggestions && autoAssignSuggestions.length > 0 ? (
-            <ThemedView style={[styles.banner, styles.bannerSuccess, styles.dismissibleBanner]}>
-              <ThemedText style={styles.bannerText}>
-                {t('scheduler.shifts.suggestions', { n: String(autoAssignSuggestions.length) })}
-              </ThemedText>
-              {autoAssignSuggestions.map((s) => {
-                const workerName = workers.find((w) => w.id === s.workerId)?.name ?? s.workerId;
-                const templateName = shiftTemplates.find((tpl) => tpl.id === s.templateId)?.name ?? s.templateId;
-                return (
-                  <ThemedText key={`${s.date}-${s.templateId}-${s.workerId}`} style={local.bannerMutedText}>
-                    {t('scheduler.shifts.suggestionItem', { worker: workerName, template: templateName, date: s.date })}
-                  </ThemedText>
-                );
-              })}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityHint={t('scheduler.shifts.autoAssignHint')}
-                testID="apply-auto-assign"
-                accessibilityLabel={t('scheduler.shifts.applyButton')}
-                onPress={applyAutoAssign}
-                disabled={autoAssignApplying}
-                accessibilityState={{ disabled: autoAssignApplying }}
-                style={[styles.primaryButton, autoAssignApplying && local.disabledButton]}
-              >
-                <ThemedText style={autoAssignApplying ? local.disabledButtonText : styles.primaryButtonText}>
-                  {autoAssignApplying ? t('scheduler.shifts.applyingButton') : t('scheduler.shifts.applyButton')}
-                </ThemedText>
-              </Pressable>
-            </ThemedView>
-          ) : null}
+          <AutoAssignSuggestions
+            suggestions={autoAssignSuggestions}
+            applying={autoAssignApplying}
+            onApply={applyAutoAssign}
+            onDismiss={dismissAutoAssign}
+            workers={workers}
+            shiftTemplates={shiftTemplates}
+            local={local}
+          />
         </SectionCard>
         ) : null}
       </ScrollView>

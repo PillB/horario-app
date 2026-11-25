@@ -87,18 +87,28 @@ describe('price list', () => {
 
 describe('the free plan copy (CHG-108)', () => {
   // The copy says "1 auto-filled week" in words; a change of the limit must change the copy too.
+  // The landing plan string takes the limit as {n} (app/welcome.tsx passes it), so it is
+  // checked as the page renders it, and it must not hard-code the number (CHG-109).
   const n = TIER_LIMITS.gratis.maxAutoSchedulesPerMonth;
+  const rendered = (text: string) => text.replace('{n}', String(n));
   it.each([
     ['en pricing', en.pricing.feature.autoScheduleLimited, `${n} auto-filled week a month`],
     ['en profile', en.profile.subscription.gratisDesc, `${n} auto-filled week a month`],
-    ['en landing plan', en.landing.plans.autoLimited, `${n} auto-filled week a month`],
+    ['en landing plan', rendered(en.landing.plans.autoLimited), `${n} auto-filled week a month`],
     ['en landing FAQ', en.landing.faq.a3, `${n} auto-filled week a month`],
-    ['es pricing', es.pricing.feature.autoScheduleLimited, `${n} semana llenada automáticamente al mes`],
-    ['es profile', es.profile.subscription.gratisDesc, `${n} semana llenada automáticamente al mes`],
-    ['es landing plan', es.landing.plans.autoLimited, `${n} semana llenada automáticamente al mes`],
-    ['es landing FAQ', es.landing.faq.a3, `${n} semana llenada automáticamente al mes`],
+    ['es pricing', es.pricing.feature.autoScheduleLimited, `${n} semana automática al mes`],
+    ['es profile', es.profile.subscription.gratisDesc, `${n} semana automática al mes`],
+    ['es landing plan', rendered(es.landing.plans.autoLimited), `${n} semana automática al mes`],
+    ['es landing FAQ', es.landing.faq.a3, `${n} semana automática al mes`],
   ])('%s states the limit the server enforces', (_where, text, expected) => {
     expect(text).toContain(expected);
+  });
+
+  it.each([
+    ['en', en.landing.plans.autoLimited],
+    ['es', es.landing.plans.autoLimited],
+  ])('the %s landing plan string takes the limit from the page, not a fixed number', (_code, text) => {
+    expect(text.startsWith('{n} ')).toBe(true);
   });
 });
 

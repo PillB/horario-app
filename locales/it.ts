@@ -318,6 +318,9 @@ export const it = {
       autoAssignHint: 'Esegue l\'algoritmo di assegnazione basato sull\'equità',
       applyButton: 'Applica suggerimenti',
       applyingButton: 'Applicazione…',
+      dismissSuggestions: 'Scarta suggerimenti',
+      dismissSuggestionsHint: 'Rimuove questi suggerimenti senza salvare alcun turno',
+      autoAssignAlreadySaved: '{n} turno/i suggerito/i erano già nel calendario: il primo «Applica» li ha salvati.',
       suggestions: '{n} suggerimento/i di assegnazione pronto/i',
       suggestionItem: '{worker} → {template} il {date}',
       partialCoverageBanner: "L'assegnazione automatica ha trovato {n} suggerimento/i, ma non è stato possibile coprire {missing} posto/i. Controlla le lacune qui sotto, poi fai clic su «Applica suggerimenti».",
@@ -604,7 +607,7 @@ export const it = {
     },
     free: {
       badge: 'GRATIS',
-      limitReached: 'Hai usato i turni automatici gratuiti di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai altri.',
+      limitReached: 'Hai usato la settimana compilata automaticamente gratuita di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai un\'altra.',
       autoAssignsLeft: 'Settimane compilate automaticamente gratis questo mese: {n}',
       ctaUnlimited: 'Esencial: turni automatici illimitati fino a 40 persone, senza costi per persona. Vedi i piani',
       pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente',

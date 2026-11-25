@@ -57,9 +57,13 @@ export const restoreAt = <T extends { id: string }>(items: T[], item: T, index: 
   return next;
 };
 
+const NO_ITEMS: never[] = [];
+
 /**
  * `key` names what is loaded (tenant, filters). A new key clears the list and
- * loads again, so one tenant's rows never show while another's load.
+ * loads again, so one tenant's rows never show while another's load. The
+ * render in which the key changes (before the effect clears the state) shows
+ * no rows, not loaded, no error: the state still belongs to the old key (QA L2, CHG-109).
  */
 export const usePersistedList = <T extends { id: string }>(key: string, load: () => Promise<LoadResult<T>>) => {
   const [items, setItemsState] = useState<T[]>([]);
@@ -67,6 +71,8 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
+  /** The key the state above belongs to. */
+  const [stateKey, setStateKey] = useState(key);
 
   // The list as last set, so a write can compare its item synchronously.
   const itemsRef = useRef<T[]>([]);
@@ -111,6 +117,8 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
     update(() => []);
     setLoaded(false);
     setTruncated(false);
+    setError(null);
+    setStateKey(key);
     void refresh();
     return () => {
       requestIdRef.current += 1;
@@ -155,5 +163,18 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
     [refresh, update],
   );
 
-  return { items, loading, loaded, error, truncated, refresh, write };
+  /** The list as last set, read synchronously (e.g. right after an awaited refresh). */
+  const getItems = useCallback(() => itemsRef.current, []);
+
+  const current = stateKey === key;
+  return {
+    items: current ? items : (NO_ITEMS as T[]),
+    loading: current ? loading : true,
+    loaded: current && loaded,
+    error: current ? error : null,
+    truncated: current && truncated,
+    refresh,
+    write,
+    getItems,
+  };
 };
