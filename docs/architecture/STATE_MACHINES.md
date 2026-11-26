@@ -21,6 +21,8 @@ Map:
 | 13 | Demand target model vs override | trigger `demand_targets_keep_override` | database |
 | 14 | Shift messages | `shift_messages` | database |
 | 15 | Checkout and billing actions | `server/billing.ts`, `app/pay.tsx` | server + client |
+| 16 | Removing a person | `useSchedulerHandlers`, `WorkerRemovalConfirm`, proxy `deleteWorker`, `delete_worker_with_shifts()` | client + server + database |
+| 17 | Adding availability | `useSchedulerHandlers.handleAvailabilitySubmit`, `useWorkers.addAvailabilityDays`, proxy `addAvailabilitySlots` | client + server |
 
 ---
 
@@ -56,18 +58,21 @@ Open: the error message is not cleared when a retry starts; a hung request has n
 stateDiagram-v2
   [*] --> Idle
   Idle --> Blocked: monthly limit used (banner)
-  Idle --> ReadingDaysOff: press "Auto-assign the week"
+  Idle --> ReadingDaysOff: press "Auto-assign the week" (old suggestions cleared)
   ReadingDaysOff --> Idle: days off unreadable (banner, nothing runs)
   ReadingDaysOff --> Solving
   Solving --> Idle: aborted or nothing to assign
   Solving --> Suggested: suggestions for {tenant, location, week}
   Suggested --> Idle: Dismiss, or tenant or location changes
   Suggested --> Applying: Apply (Auto-assign and Dismiss disabled)
-  Applying --> Suggested: refused (suggestions kept, same ids for the retry)
+  Applying --> Suggested: refused, not 409 (suggestions kept, same ids for the retry)
+  Applying --> ReadingDaysOff: 409 (roster reloaded, suggestions dropped, run again for the same date)
   Applying --> Idle: saved, or already saved by a lost first answer
 ```
 
 Fixed (CHG-109): suggestions were applied under whatever location was picked at apply time, not the one the run used for its law and time zone; they could not be dismissed; Auto-assign stayed clickable during Apply, and a retry after a lost answer minted new ids. Suggestions now carry their tenant and location, keep their ids until saved, and the server recognises a retried batch (machine 12).
+
+Fixed (CHG-109, F-6): after a 409 on Apply (another tab saved a shift that a suggestion repeats or overlaps) the old suggestions stayed on screen and could be applied again, refused the same way; a run started after it also read the roster of the last render, so it could suggest the taken slot again. Now every run clears the suggestions before it starts and reads the roster when it runs (`getRoster`), and a 409 reloads the roster and runs again for the same date, saying so in the banner. The manager checks the new suggestions and applies them. A refused batch is not counted, so the rerun costs no free week.
 
 ## 3. Solver worker
 
@@ -109,6 +114,12 @@ Each screen loads its own copy of the data (no shared cache, no realtime). What 
 Fixed (CHG-109): only Home reloaded on focus. After adding a location on Profile, Home still offered the "set up your location" card (and saving it made a second location or a 402); after a plan change only the plans dialog refreshed; Analytics showed old numbers until reload. `useRefreshOnFocus` skips the first focus so nothing loads twice on mount.
 
 Also fixed: the same gap figure was computed three ways. The Scheduler added each template's coverage per shift and counted drafts and unsaved forecast rows; Home and Analytics counted one per published shift against stored targets. `utils/staffingGaps.ts` is now the only rule: stored targets, published shifts, one per shift, per date and role.
+
+Also fixed (F-3, F-10): a write refused by the plan (402) now makes every mounted plan reader (`useSubscription`) read the plan again at once (`services/planSignal.ts`), so a trial that ends mid-session shows on Profile and the banners without a reload. Over the people limit, the Scheduler says the schedule is read-only before any write is refused (`PlanLimitNotice`, numbers from the server).
+
+Also fixed (F-12): Home's "This week" counted today to today + 7 (eight days, into next week), while Analytics' "This week" is Monday to Sunday. Home now counts the Monday–Sunday week; its staffing gaps run from today to Sunday (past days cannot be filled) and its upcoming list shows the next 7 days (`homeWindows`).
+
+Also fixed (F-1): tabs stay mounted, and `<Head>` writes the title only on mount, so going back to an open tab kept the last mounted tab's title. `PageTitle` also writes it on each focus.
 
 Also fixed: Analytics and the capacity outlook read through functions that return an empty list on failure, so a failed load showed 0% coverage as a fact. They now show the error, and a notice when a list was cut short.
 
@@ -252,6 +263,39 @@ The proxy never writes the database when it calls Paddle; the webhook is the onl
 Open: if Paddle.js loads but never opens, `/pay` stays on loading with no way back; after paying, Profile shows the old plan until the webhook lands and the screen regains focus.
 
 ---
+
+## 16. Removing a person
+
+```mermaid
+stateDiagram-v2
+  [*] --> Listed
+  Listed --> Armed: first tap on Remove
+  Armed --> Removed: second tap, no shifts known (deleteWorker)
+  Armed --> Asking: second tap, shifts known (counts of upcoming and past shifts)
+  Removed --> Asking: 409, the roster reloads and shows shifts
+  Asking --> Listed: Cancel
+  Asking --> RemovedWithShifts: Confirm (deleteWorker withShifts, one transaction)
+  RemovedWithShifts --> [*]: roster reloads
+  Removed --> [*]
+```
+
+Fixed (CHG-109, F-11): a person with shifts could not be removed: the delete hit the roster's foreign key and the owner read "Record is still referenced", with no way forward but finding and removing each shift. The proxy now answers a foreign-key refusal with a plain 409 (`IN_USE_MESSAGES`, workers and templates), and `delete_worker_with_shifts()` removes the person and every one of their shifts under the account's roster lock, so a shift added meanwhile cannot be left without its person.
+
+Trade-off: past shifts go too, so the hours history and the forecast lose them. Keeping them needs a "former staff" state on the worker (archive instead of delete), which is not built; the question states how many past shifts will go. A template in use is not removed with its shifts: the message says to remove or change them first.
+
+## 17. Adding availability
+
+```mermaid
+stateDiagram-v2
+  [*] --> Picking: worker and days selected
+  Picking --> Saving: Add (one request for all days)
+  Saving --> Picking: refused (days kept, error shown, nothing saved)
+  Saving --> Saved: ok (days cleared only if the form still shows the same worker and days)
+```
+
+Fixed (CHG-109, F-5): one request per day, so a failure in the middle left some days saved and some not, and the end of the loop cleared the days the manager had already picked for the next person. All the days are one request now (`addAvailabilitySlots`, up to 7, all or nothing, ids from the client so a retry is the same rows).
+
+Also fixed (F-9): the roster form and the publish check required one availability slot to hold the whole shift, while the assigner joins slots that touch across midnight; a night shift auto-fill made could not be published, and a person available all day could not get a night shift by hand. Both now use the assigner's rule (`availabilityCoversShift`), and a refused publish says why next to the shift.
 
 ## Patterns used and why
 

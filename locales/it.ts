@@ -604,14 +604,14 @@ export const it = {
     trial: {
       badge: 'PROVA',
       title: 'Prova Pro attiva — assegnazioni automatiche illimitate abilitate.',
-      subtitle: 'Dopo la prova, i piani partono da 19 US$ per sede al mese. Nessun costo per dipendente.',
+      subtitle: 'Dopo la prova, i piani partono da {price} per sede al mese. Nessun costo per dipendente.',
     },
     free: {
       badge: 'GRATIS',
       limitReached: 'Hai usato la settimana compilata automaticamente gratuita di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai un\'altra.',
       autoAssignsLeft: 'Settimane compilate automaticamente gratis questo mese: {n}',
       ctaUnlimited: 'Esencial: turni automatici illimitati fino a 40 persone, senza costi per persona. Vedi i piani',
-      pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente',
+      pricing: 'Da {price} per sede al mese · nessun costo per dipendente',
     },
     buttonA11y: 'Passa al piano Pro',
     buttonHint: 'Apre i piani e i prezzi',

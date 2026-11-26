@@ -589,14 +589,14 @@ export const sw = {
     trial: {
       badge: 'JARIBIO',
       title: 'Jaribio la Pro limeanzishwa — ugawaji otomatiki usio na kikomo umewezeshwa.',
-      subtitle: 'Baada ya jaribio, mipango inaanza US$19 kwa kila eneo kwa mwezi. Hakuna ada ya kila mfanyakazi.',
+      subtitle: 'Baada ya jaribio, mipango inaanza {price} kwa kila eneo kwa mwezi. Hakuna ada ya kila mfanyakazi.',
     },
     free: {
       badge: 'BURE',
       limitReached: 'Umetumia wiki ya bure iliyojazwa kiotomatiki ya mwezi huu. Unaweza kuendelea kupanga zamu kwa mkono, na mwezi ujao utapata nyingine.',
       autoAssignsLeft: 'Wiki za bure zinazojazwa otomatiki mwezi huu: {n}',
       ctaUnlimited: 'Esencial: ratiba za kiotomatiki bila kikomo hadi watu 40, bila ada kwa kila mtu. Tazama mipango',
-      pricing: 'Kuanzia US$19 kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi',
+      pricing: 'Kuanzia {price} kwa kila eneo kwa mwezi · hakuna ada ya kila mfanyakazi',
     },
     buttonA11y: 'Panda hadhi hadi mpango wa Pro',
     buttonHint: 'Inafungua mipango na bei',

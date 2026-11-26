@@ -14,6 +14,7 @@
  */
 
 import { getSessionToken } from '@/services/authToken';
+import { reportPlanRefusal } from '@/services/planSignal';
 
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
@@ -133,6 +134,8 @@ const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
   });
 
   if (!response.ok) {
+    // The plan refused it (a trial that ended, a limit reached): the plan readers reload (F-3, F-10).
+    if (response.status === 402) reportPlanRefusal();
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     if (payload?.error) throw new ProxyError(payload.error, response.status);
     // No JSON body: the route itself is missing (not deployed, or no migrations).
@@ -239,8 +242,15 @@ export const importWorkers = async (
   return result.success ? { success: true, added: result.added ?? 0, workers: result.workers ?? [] } : result;
 };
 
-export const deleteWorker = async (id: string): Promise<MutationResult> => {
-  const result = await mutate({ action: 'deleteWorker', id }, 'Unable to delete worker');
+/**
+ * Removes a worker. A worker with roster shifts is refused (409) unless
+ * `withShifts` is set: then their shifts are removed in the same transaction (F-11).
+ */
+export const deleteWorker = async (id: string, options: { withShifts?: boolean } = {}): Promise<MutationResult> => {
+  const result = await mutate(
+    { action: 'deleteWorker', id, ...(options.withShifts ? { withShifts: true } : {}) },
+    'Unable to delete worker',
+  );
   return result.success ? { success: true } : result;
 };
 
@@ -259,6 +269,24 @@ export const upsertAvailability = async (
   const { id, workerId, dayOfWeek, fromTime, toTime } = availability;
   const result = await mutate<{ availability: DbAvailability }>(
     { action: 'upsertAvailability', availability: { id, workerId, dayOfWeek, fromTime, toTime } },
+    'Unable to save availability',
+  );
+  return result.success ? { success: true, availability: result.availability } : result;
+};
+
+/**
+ * Adds one worker's availability for several days in one request: every day is
+ * stored or none (F-5). Each slot carries its client id, so a retry after a lost
+ * answer is the same rows.
+ */
+export const addAvailabilitySlots = async (
+  slots: (Omit<DbAvailability, 'accountId'> & { accountId?: string })[],
+): Promise<{ success: true; availability: DbAvailability[] } | { success: false; error: string; status?: number }> => {
+  const result = await mutate<{ availability: DbAvailability[] }>(
+    {
+      action: 'addAvailabilitySlots',
+      availability: slots.map(({ id, workerId, dayOfWeek, fromTime, toTime }) => ({ id, workerId, dayOfWeek, fromTime, toTime })),
+    },
     'Unable to save availability',
   );
   return result.success ? { success: true, availability: result.availability } : result;

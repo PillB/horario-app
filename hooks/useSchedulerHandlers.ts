@@ -37,8 +37,10 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { computeStaffingGaps } from '@/utils/staffingGaps';
 import {
   findCoveringAvailability,
+  localizeValidationErrors,
   validateAvailabilitySubmission,
   validateShiftReadiness,
+  type ValidationErrorItem,
 } from '@/utils/schedulerValidators';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import {
@@ -55,6 +57,18 @@ import { useIdentity } from '@/contexts/IdentityContext';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ActionBanner = { type: 'success' | 'error' | 'info'; message: string } | null;
+
+/** A person to remove with their shifts, counted before and from today (F-11). */
+export type WorkerRemoval = { workerId: string; name: string; upcoming: number; past: number };
+
+/** A refusal tied to one roster row. */
+export type ShiftRowNotice = { shiftId: string; message: string } | null;
+
+/** The readiness errors in the user's language (the English text when a key is missing). */
+const readinessMessage = (
+  errors: ValidationErrorItem[],
+  t: (key: string, params?: Record<string, string>) => string,
+): string => localizeValidationErrors(errors, t).map((m, i) => m || errors[i].message).join(' ');
 
 export type WorkerFormState = {
   name: string;
@@ -94,6 +108,8 @@ type AutoAssignRun = {
   suggestions: AssignedShift[];
   /** One client id per suggestion, kept until Apply succeeds: a retry is the same rows. */
   ids: string[];
+  /** The date the run was started for: a conflict on Apply runs that week again (F-6). */
+  date: string;
 };
 
 /** A row the server has stored: it carries the server's `updatedAt` (an optimistic row has none). */
@@ -206,7 +222,7 @@ export function useSchedulerHandlers() {
     workers,
     addWorker,
     updateWorker,
-    addAvailability,
+    addAvailabilityDays,
     removeWorker,
     removeAvailability,
     loading: workersLoading,
@@ -238,6 +254,7 @@ export function useSchedulerHandlers() {
     error: rosterError,
     truncated: rosterTruncated,
     refresh: refreshRoster,
+    getRoster,
   } = useRoster(accountId);
   const { canAutoAssign, count: usageCount, refresh: refreshUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
@@ -267,6 +284,10 @@ export function useSchedulerHandlers() {
   const templateSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
   const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
+  /** Why the last Publish of a shift was refused, shown next to that shift's buttons (F-9). */
+  const [shiftRowNotice, setShiftRowNotice] = useState<ShiftRowNotice>(null);
+  /** A person with shifts the manager asked to remove: waiting for the confirm (F-11). */
+  const [workerRemoval, setWorkerRemoval] = useState<WorkerRemoval | null>(null);
   const [publishCelebration, setPublishCelebration] = useState({
     badgeVisible: false,
     confettiBurst: false,
@@ -975,33 +996,28 @@ export function useSchedulerHandlers() {
     }
 
     setAvailabilityError(null);
-    // One request per day, in order: a refused day stays selected to fix.
-    const failed: string[] = [];
-    let lastError: string | undefined;
-    let saved = 0;
-    for (const check of checks) {
-      const result = await addAvailability(
-        check.trimmedWorkerId,
-        check.normalizedDay as DayOfWeek,
-        check.trimmedFrom,
-        check.trimmedTo,
-      );
-      if (result.success) saved += 1;
-      else {
-        failed.push(check.normalizedDay as string);
-        lastError = result.error;
-      }
+    // Every picked day in one request: all are saved or none (F-5, CHG-109).
+    const submitted = availabilityForm;
+    const result = await addAvailabilityDays(
+      checks[0].trimmedWorkerId,
+      checks.map((check) => check.normalizedDay as DayOfWeek),
+      checks[0].trimmedFrom,
+      checks[0].trimmedTo,
+    );
+    if (!result.success) {
+      // The days stay selected to fix and save again.
+      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+      return;
     }
-    if (saved > 0) {
-      setAvailabilitySuccessPromptVisible(true);
-      recordTourAction('availability-section');
-    }
-    // Keep the worker and the hours for the next entry; clear the saved days.
-    setAvailabilityForm((prev) => ({ ...prev, day: failed.join(',') }));
-    if (failed.length > 0) {
-      setAvailabilityError(lastError ?? 'Failed to save availability. Please try again.');
-    }
-  }, [addAvailability, availabilityForm, recordTourAction, workers]);
+    setAvailabilitySuccessPromptVisible(true);
+    recordTourAction('availability-section');
+    // Keep the worker and the hours for the next entry; clear the saved days, but only
+    // while the form still shows this entry: a manager who already picked the next
+    // person and their days keeps them (F-5: the answer used to clear them).
+    setAvailabilityForm((prev) =>
+      prev.workerId === submitted.workerId && prev.day === submitted.day ? { ...prev, day: '' } : prev,
+    );
+  }, [addAvailabilityDays, availabilityForm, recordTourAction, workers]);
 
   const handleShiftSubmit = useCallback(async () => {
     const workerInput = shiftForm.workerId.trim();
@@ -1013,13 +1029,11 @@ export function useSchedulerHandlers() {
     // The picker fills the short id ("W-1"); a pasted UUID works too.
     const worker = workers.find((w) => w.displayId === workerInput) ?? workers.find((w) => w.id === workerInput);
     const trimmedWorkerId = worker?.id ?? workerInput;
-    const { coveringSlot, weekdayLabel } =
+    // The assigner's own availability rule, in the zone of the shift's location (F-9).
+    const { covered, weekdayLabel } =
       template && worker
-        ? findCoveringAvailability(worker, template, trimmedDate)
-        : {
-            coveringSlot: undefined,
-            weekdayLabel: null,
-          };
+        ? findCoveringAvailability(worker, template, trimmedDate, getBusinessTimeZone(autoAssignLocation))
+        : { covered: false, weekdayLabel: null };
 
     if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate)
       errors.push('All fields are required.');
@@ -1038,7 +1052,7 @@ export function useSchedulerHandlers() {
     if (rosterLookup.has(shiftKey))
       errors.push('This worker, date, and template combination is already scheduled.');
 
-    if (template && worker && weekdayLabel && !coveringSlot)
+    if (template && worker && weekdayLabel && !covered)
       errors.push(
         `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
       );
@@ -1208,26 +1222,29 @@ export function useSchedulerHandlers() {
     (shiftId: string) => {
       const shift = roster.find((s) => s.id === shiftId);
       if (!shift) return;
+      setShiftRowNotice(null);
+      // The publish check uses the assigner's availability rule in the zone of the
+      // shift's location, so what auto-assign made can be published (F-9).
+      const readiness = (s: Shift) =>
+        validateShiftReadiness(s, roster, shiftTemplates, workers, getBusinessTimeZone(resolveShiftLocation(locations, s.location)));
+      // A refusal is said next to the shift's buttons as well as in the banner at the
+      // top, which may be scrolled out of view and hides after a few seconds (F-9).
+      const refuse = (message: string) => {
+        setShiftRowNotice({ shiftId, message });
+        showActionBanner(message, 'error');
+      };
 
-      const { errors } = validateShiftReadiness(
-        shift, roster, shiftTemplates, workers
-      );
-      if (errors.length) { showActionBanner(errors.map((e) => e.message).join(' '), 'error'); return; }
+      const { errors } = readiness(shift);
+      if (errors.length) { refuse(readinessMessage(errors, t)); return; }
 
       // Alert.alert is a no-op on web — skip confirmation and publish directly.
       const doPublish = async () => {
         const latestShift = roster.find((s) => s.id === shiftId);
         if (!latestShift) return;
-        const validation = validateShiftReadiness(
-          latestShift, roster, shiftTemplates, workers
-        );
-        if (validation.errors.length) {
-          showActionBanner(validation.errors.map((e) => e.message).join(' '), 'error'); return;
-        }
+        const validation = readiness(latestShift);
+        if (validation.errors.length) { refuse(readinessMessage(validation.errors, t)); return; }
         const publishResult = await setShiftStatus(shiftId, 'Published');
-        if (!publishResult.success) {
-          showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
-        }
+        if (!publishResult.success) { refuse(publishResult.error ?? 'Failed to publish shift.'); return; }
         const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
         showActionBanner(
           `${workerName} scheduled for ${latestShift.date}. Tell them, then mark the shift as told.`,
@@ -1248,10 +1265,12 @@ export function useSchedulerHandlers() {
     },
     [
       celebrateRosterPublish,
+      locations,
       roster,
       setShiftStatus,
       shiftTemplates,
       showActionBanner,
+      t,
       workers,
     ]
   );
@@ -1355,14 +1374,51 @@ export function useSchedulerHandlers() {
     setTemplateForm(EMPTY_TEMPLATE_FORM);
   }, []);
 
+  /** The person's roster shifts, split at today in the business zone, for the confirm step. */
+  const removalOf = useCallback(
+    (workerId: string, name: string): WorkerRemoval | null => {
+      const shifts = getRoster().filter((s) => s.workerId === workerId);
+      if (shifts.length === 0) return null;
+      const today = todayKey(forecastTimeZone);
+      const past = shifts.filter((s) => s.date < today).length;
+      return { workerId, name, upcoming: shifts.length - past, past };
+    },
+    [forecastTimeZone, getRoster]
+  );
+
+  /**
+   * Removes a person. One with shifts on the roster is not removed at once: the
+   * screen asks first (F-11), because their shifts go with them. A plain delete
+   * the server refuses because a shift was added elsewhere meanwhile asks too.
+   */
   const handleRemoveWorker = useCallback(
     async (workerId: string) => {
       const name = workers.find((w) => w.id === workerId)?.name ?? workerId;
       if (workerId === editingWorkerId) cancelWorkerEdit();
-      reportRemoval(await removeWorker(workerId), name);
+      const known = removalOf(workerId, name);
+      if (known) { setWorkerRemoval(known); return; }
+      const result = await removeWorker(workerId);
+      if (!result.success && result.status === 409 && (await refreshRoster())) {
+        const found = removalOf(workerId, name);
+        if (found) { setWorkerRemoval(found); return; }
+      }
+      reportRemoval(result, name);
     },
-    [cancelWorkerEdit, editingWorkerId, removeWorker, reportRemoval, workers]
+    [cancelWorkerEdit, editingWorkerId, refreshRoster, removalOf, removeWorker, reportRemoval, workers]
   );
+
+  /** The manager confirmed: the person and all their shifts go, in one transaction. */
+  const confirmWorkerRemoval = useCallback(async () => {
+    const pending = workerRemoval;
+    if (!pending) return;
+    setWorkerRemoval(null);
+    const result = await removeWorker(pending.workerId, { withShifts: true });
+    // Their shifts left the roster on the server: show that here too.
+    if (result.success) void refreshRoster();
+    reportRemoval(result, pending.name);
+  }, [refreshRoster, removeWorker, reportRemoval, workerRemoval]);
+
+  const cancelWorkerRemoval = useCallback(() => setWorkerRemoval(null), []);
 
   const handleRemoveAvailability = useCallback(
     async (workerId: string, slotId: string) => {
@@ -1400,21 +1456,16 @@ export function useSchedulerHandlers() {
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
 
-  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for the whole week
-   *  (Monday to Sunday) that contains shiftForm.date, and stores suggestions. One run is one
-   *  auto-schedule of the plan (CHG-108). The user must call applyAutoAssign to commit them. */
-  const handleAutoAssign = useCallback(async () => {
-    // While Apply is saving, a new run would replace what is being saved.
-    if (autoAssignApplying) return;
-    if (!canAutoAssign) {
-      showAutoAssignLimitReached(showActionBanner, t);
-      return;
-    }
-    const date = shiftForm.date.trim();
-    if (!isValidDate(date)) {
-      showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
-      return;
-    }
+  /**
+   * Computes suggestions for the Monday-to-Sunday week of `date` against the roster
+   * as it is now. The previous suggestions go first: while the new ones compute, Apply
+   * cannot save the old ones (F-6: they were applied again after a refusal). The
+   * roster is read when the run starts (`getRoster`), not from this render, so a run
+   * started right after a reload (the re-run after a 409) sees the reloaded rows.
+   */
+  const runAutoAssignFor = useCallback(async (date: string, lead = '') => {
+    setAutoAssignRun(null);
+    setAutoAssignShortfalls(null);
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
     // One run fills the date's Monday-to-Sunday week, from today on (CHG-108).
@@ -1441,7 +1492,7 @@ export function useSchedulerHandlers() {
           templates: shiftTemplates,
           workers,
           daysOff: off.daysOff,
-          existingRoster: roster,
+          existingRoster: getRoster(),
           constraints: settings.constraints,
           timeZone: settings.timeZone,
         },
@@ -1458,11 +1509,10 @@ export function useSchedulerHandlers() {
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {
-      setAutoAssignRun(null);
       showActionBanner(
-        result.unassigned.length > 0
+        lead + (result.unassigned.length > 0
           ? `Auto-assign: no valid assignments found. ${result.unassigned[0].reason}`
-          : 'Auto-assign: no templates configured yet.',
+          : 'Auto-assign: no templates configured yet.'),
         'info'
       );
       return;
@@ -1472,9 +1522,29 @@ export function useSchedulerHandlers() {
       locationId: autoAssignLocationId,
       suggestions: result.assignments,
       ids: result.assignments.map(() => newUuid()),
+      date,
     });
-    showActionBanner(autoAssignFoundBanner(result.assignments.length, result.unassigned, t), 'info');
-  }, [accountId, autoAssignApplying, autoAssignLocation, autoAssignLocationId, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
+    // `lead` says why the run happened (a refused Apply); it stays in front of the result.
+    showActionBanner(`${lead}${autoAssignFoundBanner(result.assignments.length, result.unassigned, t)}`, 'info');
+  }, [accountId, autoAssignLocation, autoAssignLocationId, businessConstraints, getRoster, shiftTemplates, showActionBanner, t, workers]);
+
+  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for the whole week
+   *  (Monday to Sunday) that contains shiftForm.date, and stores suggestions. One run is one
+   *  auto-schedule of the plan (CHG-108). The user must call applyAutoAssign to commit them. */
+  const handleAutoAssign = useCallback(async () => {
+    // While Apply is saving, a new run would replace what is being saved.
+    if (autoAssignApplying) return;
+    if (!canAutoAssign) {
+      showAutoAssignLimitReached(showActionBanner, t);
+      return;
+    }
+    const date = shiftForm.date.trim();
+    if (!isValidDate(date)) {
+      showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
+      return;
+    }
+    await runAutoAssignFor(date);
+  }, [autoAssignApplying, canAutoAssign, runAutoAssignFor, shiftForm.date, showActionBanner, t]);
 
   /**
    * Persists all pending auto-assign suggestions to the roster, under the
@@ -1499,7 +1569,16 @@ export function useSchedulerHandlers() {
     void refreshUsage();
     setAutoAssignApplying(false);
     if (!result.success) {
-      // The suggestions stay, so the manager can apply again after the roster reloaded.
+      if (result.status === 409) {
+        // Some suggested slot was taken meanwhile (another tab, another manager). addShifts
+        // has reloaded the roster; these suggestions can never be saved as they are, so they
+        // are made again from the reloaded roster (a run is counted only when applied) (F-6).
+        showActionBanner(t('scheduler.shifts.autoAssignConflictRerun'), 'error');
+        void runAutoAssignFor(run.date, `${t('scheduler.shifts.autoAssignConflictRerun')} `);
+        return;
+      }
+      // No clear answer or another refusal: the suggestions stay with their ids, so the
+      // manager can apply again and a lost answer is replayed, not saved twice.
       showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
       return;
     }
@@ -1513,7 +1592,7 @@ export function useSchedulerHandlers() {
     }
     void trackEvent('auto_assign_used', { successCount });
     showActionBanner(`Applied ${successCount} of ${successCount} auto-assign suggestion(s).`, 'success');
-  }, [addShifts, autoAssignApplying, autoAssignRun, autoAssignSuggestions, refreshUsage, showActionBanner, t]);
+  }, [addShifts, autoAssignApplying, autoAssignRun, autoAssignSuggestions, refreshUsage, runAutoAssignFor, showActionBanner, t]);
 
   /** Drops the suggestions without saving any. */
   const dismissAutoAssign = useCallback(() => {
@@ -1651,6 +1730,7 @@ export function useSchedulerHandlers() {
 
     // UI state
     actionBanner,
+    shiftRowNotice,
     publishCelebration,
     reduceMotionEnabled,
     availabilitySuccessPromptVisible,
@@ -1711,6 +1791,9 @@ export function useSchedulerHandlers() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    workerRemoval,
+    confirmWorkerRemoval,
+    cancelWorkerRemoval,
     editingWorkerId,
     handleEditWorker,
     cancelWorkerEdit,

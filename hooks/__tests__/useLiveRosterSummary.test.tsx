@@ -5,8 +5,8 @@
  */
 import React, { useEffect } from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { useLiveRosterSummary, type LiveRosterSummary } from '../useLiveRosterSummary';
-import { todayKey } from '@/utils/dateKeys';
+import { homeWindows, useLiveRosterSummary, type LiveRosterSummary } from '../useLiveRosterSummary';
+import { addDaysToKey, isoWeekDates, todayKey } from '@/utils/dateKeys';
 
 // ─── Fetch mock helpers ───────────────────────────────────────────────────────
 
@@ -204,5 +204,43 @@ describe('useLiveRosterSummary', () => {
     expect(capturedHook!.error).toBe('network error');
     expect(capturedHook!.upcomingShifts).toHaveLength(0);
     expect(capturedHook!.loading).toBe(false);
+  });
+});
+
+// ─── F-12 (CHG-109): "This week" is Monday to Sunday, as on Analytics ─────────
+
+describe('homeWindows', () => {
+  it('Thursday 2026-11-26: the week is Mon 23 – Sun 29, gaps from today, the list a week ahead', () => {
+    expect(homeWindows('2026-11-26')).toEqual({
+      week: { from: '2026-11-23', to: '2026-11-29' },
+      gaps: { from: '2026-11-26', to: '2026-11-29' },
+      upcoming: { from: '2026-11-26', to: '2026-12-02' },
+      fetch: { from: '2026-11-23', to: '2026-12-02' },
+    });
+  });
+
+  it('on a Sunday the week ends today; on a Monday it starts today', () => {
+    expect(homeWindows('2026-11-29')).toMatchObject({ week: { from: '2026-11-23', to: '2026-11-29' }, gaps: { from: '2026-11-29', to: '2026-11-29' } });
+    expect(homeWindows('2026-11-30')).toMatchObject({ week: { from: '2026-11-30', to: '2026-12-06' }, fetch: { from: '2026-11-30', to: '2026-12-06' } });
+  });
+
+  it('across a year end (Thu 2026-12-31: ISO week Mon 28 Dec – Sun 3 Jan)', () => {
+    expect(homeWindows('2026-12-31').week).toEqual({ from: '2026-12-28', to: '2027-01-03' });
+  });
+});
+
+describe('useLiveRosterSummary: the week counts', () => {
+  it('counts the shifts of this Monday–Sunday week only, and lists the next seven days', async () => {
+    const monday = isoWeekDates(TODAY)[0];
+    const nextMonday = addDaysToKey(monday, 7);
+    const row = (id: string, date: string) => ({ id, accountId: 'demo', date, workerId: 'alice', templateId: 'morning', location: '', status: 'Draft', notified: false });
+    setupFetch({ listRoster: [row('this-monday', monday), row('next-monday', nextMonday)] });
+    await act(async () => { renderer.create(<TestHook accountId="demo" />); });
+    expect(capturedHook!.shiftCount).toBe(1);
+    const listed = capturedHook!.upcomingShifts.map((s) => s.id);
+    // Next Monday is in the list unless it is today + 7 (today is a Monday).
+    expect(listed.includes('next-monday')).toBe(nextMonday <= addDaysToKey(TODAY, 6));
+    // This Monday is in the list only when it is today (the list starts today).
+    expect(listed.includes('this-monday')).toBe(monday === TODAY);
   });
 });

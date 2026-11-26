@@ -18,6 +18,7 @@ import {
   type DbShiftTemplate,
   type DbRosterShift,
 } from '../rosterService';
+import { onPlanRefusal } from '../planSignal';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -323,5 +324,33 @@ describe('deleteRosterShift', () => {
     mockFetch({ success: true });
     const result = await deleteRosterShift('shift-1');
     expect(result.success).toBe(true);
+  });
+});
+
+// ─── CHG-109 ─────────────────────────────────────────────────────────────────
+
+describe('plan refusals reach the plan readers (F-3, F-10)', () => {
+  it('a 402 answer is reported, and other refusals are not', async () => {
+    const heard = jest.fn();
+    const stop = onPlanRefusal(heard);
+    mockFetch({ error: 'Your team has 14 people and the Gratis plan covers 10' }, false, 402);
+    expect(await updateShiftStatus('shift-1', 'Published')).toMatchObject({ success: false });
+    mockFetch({ error: 'Conflicting record' }, false, 409);
+    await updateShiftStatus('shift-1', 'Published');
+    stop();
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('deleteWorker with its shifts (F-11)', () => {
+  it('sends withShifts only when asked', async () => {
+    mockFetch({ success: true, removedShifts: 2 });
+    await deleteWorker('w-1');
+    await deleteWorker('w-1', { withShifts: true });
+    const calls = (global as unknown as { fetch: jest.Mock }).fetch.mock.calls as [string, { body: string }][];
+    expect(calls.map((c) => JSON.parse(c[1].body))).toEqual([
+      { action: 'deleteWorker', id: 'w-1' },
+      { action: 'deleteWorker', id: 'w-1', withShifts: true },
+    ]);
   });
 });

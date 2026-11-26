@@ -3,6 +3,7 @@
  * signed-in tenant and re-validates the jurisdiction server-side.
  */
 import { getSessionToken } from '@/services/authToken';
+import { reportPlanRefusal } from '@/services/planSignal';
 import type { BusinessLocation, LocationHistoryEntry, LocationInput } from '@/utils/locationValidation';
 
 export type { BusinessLocation, LocationHistoryEntry, LocationInput };
@@ -30,6 +31,7 @@ const postToProxy = async <T>(body: Record<string, unknown>): Promise<LocationRe
     const response = await fetch(proxyUrl(), { method: 'POST', headers, body: JSON.stringify(body) });
     const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
     if (!response.ok) {
+      if (response.status === 402) reportPlanRefusal();
       console.warn(`Location ${String(body.action)} failed`, payload?.error ?? response.status);
       return { ok: false, error: payload?.error ?? `Request failed (${response.status})` };
     }

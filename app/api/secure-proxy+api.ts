@@ -90,6 +90,7 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'deleteWorker',
   'importWorkers',
   'upsertAvailability',
+  'addAvailabilitySlots',
   'deleteAvailability',
   'upsertTimeOff',
   'deleteTimeOff',
@@ -222,6 +223,15 @@ async function updateOrInsert<Row>(
   return { row: data as Row };
 }
 
+/**
+ * What a refused delete (23503: roster shifts still point at the row) tells the
+ * manager to do, per table (F-11, CHG-109; before, "Record is still referenced").
+ */
+export const IN_USE_MESSAGES: Record<string, string> = {
+  workers: 'This person still has shifts on the roster. Remove them together with their shifts, or remove those shifts first',
+  shift_templates: 'Shifts on the roster use this template. Remove or change those shifts first, or keep the template',
+};
+
 async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthContext, id: unknown): Promise<Result> {
   if (!isUuid(id)) return badRequest('id must be a UUID');
   const { data, error } = await client
@@ -230,8 +240,27 @@ async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthConte
     .eq('id', id)
     .eq('account_id', ctx.accountId)
     .select('id');
+  if (error?.code === '23503' && IN_USE_MESSAGES[table]) {
+    console.error(`[secure-proxy] delete ${table}:`, error.code, error.message ?? '');
+    return fail(409, IN_USE_MESSAGES[table]);
+  }
   if (error) return dbFailure(`delete ${table}`, error);
   return (data ?? []).length ? ok({ success: true }) : notFound();
+}
+
+/**
+ * Removes a person. With `withShifts: true` (the manager confirmed it in the app)
+ * their roster shifts are removed in the same transaction (delete_worker_with_shifts,
+ * F-11); without it a person with shifts is refused (409) and nothing changes.
+ */
+async function deleteWorker(client: SupabaseClient, ctx: AuthContext, id: unknown, withShifts: unknown): Promise<Result> {
+  if (withShifts !== true) return deleteOwned(client, 'workers', ctx, id);
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client.rpc('delete_worker_with_shifts', { p_account_id: ctx.accountId, p_worker_id: id });
+  if (error?.code === 'P0002') return notFound();
+  if (error) return dbFailure('delete_worker_with_shifts', error);
+  const removed = (data as { removedShifts?: unknown } | null)?.removedShifts;
+  return ok({ success: true, removedShifts: typeof removed === 'number' ? removed : 0 });
 }
 
 /** True when every id exists in `table` for the caller's tenant. */
@@ -906,6 +935,69 @@ async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: 
     .single();
   if (error) return dbFailure('upsert worker_availability', error);
   return ok({ success: true, availability: rowToAvailability(data as AvailabilityRow) });
+}
+
+/** One slot per weekday at most: the day chips of the availability form (F-5). */
+export const AVAILABILITY_BATCH_MAX = 7;
+
+type CheckedSlot = { id: string; workerId: string; dayOfWeek: string; fromTime: string; toTime: string };
+
+/** Every slot valid, with its client id, all for one worker and on different days; else the 400 sentence. */
+function readAvailabilitySlots(slots: unknown): CheckedSlot[] | string {
+  if (!Array.isArray(slots) || slots.length === 0 || slots.length > AVAILABILITY_BATCH_MAX) {
+    return `availability must be a list of 1 to ${AVAILABILITY_BATCH_MAX} slots`;
+  }
+  const out: CheckedSlot[] = [];
+  for (let i = 0; i < slots.length; i += 1) {
+    const checked = validateAvailabilityInput(slots[i]);
+    if (!checked.ok) return `slot ${i + 1}: ${checked.error}`;
+    // A retry after a lost answer must name the same rows, so each slot carries its id.
+    if (checked.value.id === undefined) return `slot ${i + 1}: id is required`;
+    out.push({ ...checked.value, id: checked.value.id });
+  }
+  if (new Set(out.map((s) => s.workerId)).size !== 1) return 'all slots must be for one worker';
+  if (new Set(out.map((s) => s.dayOfWeek)).size !== out.length) return 'each day may appear once';
+  if (new Set(out.map((s) => s.id)).size !== out.length) return 'each slot needs its own id';
+  return out;
+}
+
+/**
+ * Adds one worker's availability for several days in one statement: every day
+ * is stored or none (CHG-109, F-5; before, one request per day, and a refused
+ * day left the others saved). A retry with the same ids after a lost answer
+ * inserts nothing new (ON CONFLICT (id) DO NOTHING) and returns the stored rows;
+ * an id that names another tenant's row, or a stored row with other values, is
+ * a conflict, never an update of that row.
+ */
+async function addAvailabilitySlots(client: SupabaseClient, ctx: AuthContext, slots: unknown): Promise<Result> {
+  const checked = readAvailabilitySlots(slots);
+  if (typeof checked === 'string') return badRequest(checked);
+  const owns = await ownsAll(client, 'workers', ctx, [checked[0].workerId]);
+  if (owns !== true) return owns === false ? notFound() : owns;
+
+  const rows = checked.map((s) => ({
+    id: s.id, account_id: ctx.accountId, worker_id: s.workerId, day_of_week: s.dayOfWeek, from_time: s.fromTime, to_time: s.toTime,
+  }));
+  const { error } = await client.from('worker_availability').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) {
+    if (error.code === '23505') {
+      console.error('[secure-proxy] add worker_availability:', error.code, error.message ?? '');
+      return fail(409, 'One of these days already has availability starting at that time. Nothing was saved. Reload and try again');
+    }
+    return dbFailure('add worker_availability', error);
+  }
+  const { data, error: readError } = await client
+    .from('worker_availability')
+    .select(AVAILABILITY_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .in('id', rows.map((r) => r.id));
+  if (readError) return dbFailure('read worker_availability', readError);
+  const stored = (data ?? []) as AvailabilityRow[];
+  const same = rows.every((r) =>
+    stored.some((s) => s.id === r.id && s.worker_id === r.worker_id && s.day_of_week === r.day_of_week && s.from_time === r.from_time && s.to_time === r.to_time),
+  );
+  if (!same) return fail(409, 'Conflicting record');
+  return ok({ success: true, availability: stored.map(rowToAvailability) });
 }
 
 // ─── Days off ─────────────────────────────────────────────────────────────────
@@ -1741,13 +1833,17 @@ async function forecastStatus(client: SupabaseClient, ctx: AuthContext, rawFilte
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
+/** The `forecast` action: refuses unreadable date filters, then fits the forecast. */
+async function forecastAction(client: SupabaseClient, ctx: AuthContext, filters: unknown): Promise<Result> {
+  const dateError = filtersDateError(filters);
+  if (dateError) return badRequest(dateError);
+  return ok(await generateForecast(client, ctx, cleanFilters(filters)));
+}
+
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
   switch (p.action) {
-    case 'forecast': {
-      const dateError = filtersDateError(p.filters);
-      if (dateError) return badRequest(dateError);
-      return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
-    }
+    case 'forecast':
+      return forecastAction(client, ctx, p.filters);
     case 'status':
       return forecastStatus(client, ctx, p.filters);
     case 'forecastHistory':
@@ -1769,13 +1865,15 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'upsertWorker':
       return upsertWorker(client, ctx, p.worker, p.ifUpdatedAt);
     case 'deleteWorker':
-      return deleteOwned(client, 'workers', ctx, p.id);
+      return deleteWorker(client, ctx, p.id, p.withShifts);
     case 'importWorkers':
       return importWorkers(client, ctx, p.workers);
     case 'listWorkerAvailability':
       return listAvailability(client, ctx, p.page);
     case 'upsertAvailability':
       return upsertAvailability(client, ctx, p.availability);
+    case 'addAvailabilitySlots':
+      return addAvailabilitySlots(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
     case 'listTimeOff':

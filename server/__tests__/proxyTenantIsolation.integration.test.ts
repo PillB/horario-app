@@ -235,6 +235,81 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
 
   // ── CHG-088: every scheduling record survives a reload and stays per tenant ──
 
+  // ── CHG-109 F-5: several days of availability are one request, all or none ──
+
+  it('saves several days of availability in one request, all or none, per tenant', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Dora', role: 'Barista' } })).body.worker as { id: string };
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const slots = days.map((day) => ({ id: randomUUID(), workerId: worker.id, dayOfWeek: day, fromTime: '00:00', toTime: '23:59' }));
+    const mine = async () =>
+      ((await asA({ action: 'listWorkerAvailability' })).body.availabilities as { workerId: string; dayOfWeek: string }[])
+        .filter((s) => s.workerId === worker.id)
+        .map((s) => s.dayOfWeek)
+        .sort();
+
+    const saved = await asA({ action: 'addAvailabilitySlots', availability: slots });
+    expect(saved.status).toBe(200);
+    expect((saved.body.availability as unknown[]).length).toBe(7);
+    expect(await mine()).toEqual([...days].sort());
+
+    // A retry after a lost answer (same ids) is the same rows: 200, nothing doubled.
+    expect((await asA({ action: 'addAvailabilitySlots', availability: slots })).status).toBe(200);
+    expect(await mine()).toEqual([...days].sort());
+
+    // New ids for days that already start at 00:00: refused whole, nothing added.
+    const again = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID() })) });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatch(/Nothing was saved/);
+    expect(await mine()).toEqual([...days].sort());
+
+    // Another tenant: not for A's worker, and A's slot ids are never taken over.
+    expect((await asB({ action: 'addAvailabilitySlots', availability: [{ ...slots[0], id: randomUUID() }] })).status).toBe(404);
+    const workerB = (await asB({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Eli', role: 'Barista' } })).body.worker as { id: string };
+    const stolen = await asB({ action: 'addAvailabilitySlots', availability: [{ id: slots[0].id, workerId: workerB.id, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '10:00' }] });
+    expect(stolen.status).toBe(409);
+    expect(await mine()).toEqual([...days].sort());
+
+    // Malformed batches never reach the database.
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [slots[0], { ...slots[1], dayOfWeek: 'Mon' }] })).status).toBe(400);
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [] })).status).toBe(400);
+
+    expect((await asB({ action: 'deleteWorker', id: workerB.id })).status).toBe(200);
+    expect((await asA({ action: 'deleteWorker', id: worker.id })).status).toBe(200);
+  });
+
+  // ── CHG-109 F-11: a person with shifts is removed with their shifts, only when asked ──
+
+  it('removes a person with their shifts only when asked, and only in their own account', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Fede', role: 'Barista' } })).body.worker as { id: string };
+    const shift = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2099-03-02', workerId: worker.id, templateId: templateA, location: '', status: 'Draft' } });
+    expect(shift.status).toBe(200);
+    const shiftId = (shift.body.shift as { id: string }).id;
+    const rosterIds = async () => ((await asA({ action: 'listRoster' })).body.shifts as { id: string }[]).map((s) => s.id);
+
+    const plain = await asA({ action: 'deleteWorker', id: worker.id });
+    expect(plain.status).toBe(409);
+    expect(plain.body.error).toBe('This person still has shifts on the roster. Remove them together with their shifts, or remove those shifts first');
+
+    expect((await asB({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(404);
+    expect(await rosterIds()).toContain(shiftId);
+
+    const removed = await asA({ action: 'deleteWorker', id: worker.id, withShifts: true });
+    expect(removed).toEqual({ status: 200, body: { success: true, removedShifts: 1 } });
+    expect(await rosterIds()).not.toContain(shiftId);
+    expect(((await asA({ action: 'listWorkers' })).body.workers as { id: string }[]).some((w) => w.id === worker.id)).toBe(false);
+    expect((await asA({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(404);
+  });
+
+  it('a template that shifts use says what to do instead of "Record is still referenced"', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Gil', role: 'Barista' } })).body.worker as { id: string };
+    const template = (await asA({ action: 'upsertShiftTemplate', template: { name: `Used ${run}`, role: 'Barista', startTime: '09:00', endTime: '13:00', coverage: 1 } })).body.template as { id: string };
+    expect((await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2099-03-03', workerId: worker.id, templateId: template.id, location: '', status: 'Draft' } })).status).toBe(200);
+    const refused = await asA({ action: 'deleteShiftTemplate', id: template.id });
+    expect(refused).toEqual({ status: 409, body: { error: 'Shifts on the roster use this template. Remove or change those shifts first, or keep the template' } });
+    expect((await asA({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(200);
+    expect((await asA({ action: 'deleteShiftTemplate', id: template.id })).status).toBe(200);
+  });
+
   it('persists worker and availability updates and deletes, per tenant', async () => {
     const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Iris', role: 'Barista', skills: ['Latte'] } })).body.worker as { id: string };
     expect((await asA({ action: 'upsertWorker', worker: { id: worker.id, name: 'Iris K.', role: 'Lead', skills: [] } })).status).toBe(200);

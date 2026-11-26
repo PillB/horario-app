@@ -130,6 +130,10 @@ describe('useRoster', () => {
     });
     expect(result.success).toBe(false);
     expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
+    // The caller tells a conflict (409: make the suggestions again) from a lost answer (F-6),
+    // and reads the reloaded rows at once, before the next render.
+    expect(result).toMatchObject({ success: false, status: 409 });
+    expect(hook.result.getRoster().map((s) => s.id)).toEqual([S1, S2]);
   });
 
   it('keeps an added shift the server stores', async () => {

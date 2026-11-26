@@ -37,7 +37,7 @@ const dbToShift = (db: Pick<DbRosterShift, 'id' | 'date' | 'workerId' | 'templat
 export type RosterShiftChanges = Partial<Omit<Shift, 'id'>>;
 
 /** `alreadyStored`: the request failed, but after a reload every shift was on the roster (a lost answer). */
-export type AddShiftsResult = { success: true; alreadyStored?: boolean; error?: never } | { success: false; error: string };
+export type AddShiftsResult = { success: true; alreadyStored?: boolean; error?: never } | { success: false; error: string; status?: number };
 
 /**
  * A refusal after which the batch may still be stored: a conflict (409, the
@@ -125,7 +125,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
         return { success: true, alreadyStored: true };
       }
       log.warn('ROSTER', 'Shifts add rolled back', { count: inputs.length, reason: result.error });
-      return { success: false, error: result.error };
+      return { success: false, error: result.error, ...(result.status !== undefined ? { status: result.status } : {}) };
     },
     [accountId, getItems, refresh, write],
   );
@@ -230,5 +230,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     notifyShift,
     removeShift,
     refresh: list.refresh,
+    /** The list as last set, read synchronously: a run started right after a reload sees it (F-6). */
+    getRoster: getItems,
   };
 };

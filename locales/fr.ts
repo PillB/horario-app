@@ -604,14 +604,14 @@ export const fr = {
     trial: {
       badge: 'ESSAI',
       title: 'Essai Pro actif — affectations automatiques illimitées activées.',
-      subtitle: 'Après l\'essai, les formules commencent à 19 $ US par établissement et par mois. Sans frais par employé.',
+      subtitle: 'Après l\'essai, les formules commencent à {price} par établissement et par mois. Sans frais par employé.',
     },
     free: {
       badge: 'GRATUIT',
       limitReached: 'Vous avez utilisé la semaine remplie automatiquement gratuite de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez une autre le mois prochain.',
       autoAssignsLeft: 'Semaines remplies automatiquement gratuites ce mois-ci : {n}',
       ctaUnlimited: 'Esencial : plannings automatiques illimités jusqu\'à 40 personnes, sans frais par personne. Voir les offres',
-      pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé',
+      pricing: 'Dès {price} par établissement et par mois · sans frais par employé',
     },
     buttonA11y: 'Passer au plan Pro',
     buttonHint: 'Ouvre les offres et les prix',

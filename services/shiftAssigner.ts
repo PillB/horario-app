@@ -384,6 +384,29 @@ export const buildCheckContext = (
   at,
 });
 
+/**
+ * True when `worker`'s weekly availability covers `template` starting on `date`, by the
+ * assigner's own rule (`workerCoversInterval`): slots of the previous, same and next
+ * local day are placed on the zone's timeline and touching or overlapping slots are
+ * joined, so Thu 00:00–23:59 and Fri 00:00–23:59 cover a Thu 22:00–06:00 night.
+ * The scheduler's publish check and manual-shift form use this, so a shift auto-assign
+ * creates is never refused by hand (CHG-109, F-9). `timeZone` is the business IANA
+ * zone; an invalid or missing one falls back to the device zone, as the assigner does.
+ */
+export const availabilityCoversShift = (
+  worker: Worker,
+  template: ShiftTemplate,
+  date: string,
+  timeZone?: string,
+): boolean => {
+  const window = getTemplateWindow(template);
+  // A template whose times cannot be read covers nothing (and is no instant to convert).
+  if (!Number.isFinite(window.startMinutes) || !Number.isFinite(window.endMinutes)) return false;
+  const at = zonedTimeline(timeZone && isValidTimeZone(timeZone) ? timeZone : getDeviceTimeZone());
+  const ctx = buildCheckContext(date, undefined, at);
+  return workerCoversInterval(worker, shiftInterval(template, date, at), ctx);
+};
+
 /** Template lookup: the catalog plus the run's templates (which win on id clashes). */
 export const buildCatalog = (input: AssignmentInput): Map<string, ShiftTemplate> => {
   const catalog = new Map<string, ShiftTemplate>();

@@ -12,7 +12,18 @@
 **So far:**
 - Server state guards (merged from the server worker's branch): over the location quota only the locations beyond the plan are locked (the oldest ones by `created_at` stay usable; an extra location and its shifts are read-only, 402; Pablo's decision card, option recommended); the plan gate fails closed (503) when the plan can't be read; an admin lookup no longer starts a trial; `incrementAutoAssign` is manager-only; `apply_auto_assign` replays a saved run on retry instead of counting it again (migration `20261125000111_state_guards.sql`); a moved Published shift gets a new `published_at`; CHECK `roster_notified_needs_published`.
 - `docs/architecture/STACK.md`: where the code, hosting, database, auth, payments, workers and docs live, with what is not set up yet (no Vercel deployment, dev Supabase secrets missing so migrations are skipped).
-- Client sync fixes and the browser flow simulation are still running; this entry is completed before the PR is updated.
+- Flow-simulation defects fixed (branch `fix/flow-defects`; details in `docs/architecture/STATE_MACHINES.md` §2, §5, §16, §17):
+  - F-1: `PageTitle` writes the document title on every tab focus (tabs stay mounted; `<Head>` wrote it only on mount).
+  - F-2 / F-3: focus reloads were already in place; a 402 now makes every `useSubscription` read the plan again at once (`services/planSignal.ts`, reported by the roster and location proxy clients).
+  - F-5: availability for several days is one all-or-nothing request (`addAvailabilitySlots`, ≤ 7, client ids, in `SCHEDULING_WRITE_ACTIONS`); the answer no longer clears the next person's picked days.
+  - F-6: a run clears old suggestions first and reads the roster at run time; a 409 on Apply reloads the roster and runs again.
+  - F-9: roster form and publish check use the assigner's availability rule (`availabilityCoversShift`, touching slots joined across midnight, business time zone); a refused publish says why next to the shift.
+  - F-10: `PlanLimitNotice` on the Scheduler says the schedule is read-only over the people limit, with the server's numbers.
+  - F-11: a foreign-key refusal is a plain 409 (`IN_USE_MESSAGES`, workers and templates); removing a person with shifts asks first, then `delete_worker_with_shifts()` (migration `20261126000113`, pgTAP `delete_worker_with_shifts.test.sql`) removes both under the roster lock. Past shifts go too (no archive state yet).
+  - F-12: Home's "This week" is the Monday–Sunday week; gaps today..Sunday; upcoming list next 7 days.
+  - Trial / free banner quotes the price list of the first location's country (S/ 59 in Peru), via `{price}` in every locale.
+  - `e2e/flows.spec.ts`: BUG markers removed, expectations follow the fixes (one availability request, confirm step on removal, Home's ISO week).
+- The flow spec itself was not run in this round (needs the dev server and a dedicated tenant).
 
 ---
 

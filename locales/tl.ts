@@ -589,14 +589,14 @@ export const tl = {
     trial: {
       badge: 'TRIAL',
       title: 'Aktibo ang Pro trial — naka-enable ang walang limitasyong auto-assign.',
-      subtitle: 'Pagkatapos ng trial, nagsisimula ang mga plano sa US$19 bawat lokasyon kada buwan. Walang bayad bawat empleyado.',
+      subtitle: 'Pagkatapos ng trial, nagsisimula ang mga plano sa {price} bawat lokasyon kada buwan. Walang bayad bawat empleyado.',
     },
     free: {
       badge: 'LIBRE',
       limitReached: 'Nagamit mo na ang libreng linggong awtomatikong napunan ngayong buwan. Puwede ka pa ring gumawa ng shift nang mano-mano, at may bago ka sa susunod na buwan.',
       autoAssignsLeft: 'Natitirang libreng linggong awtomatikong napunan ngayong buwan: {n}',
       ctaUnlimited: 'Esencial: walang limitasyong awtomatikong iskedyul hanggang 40 tao, walang bayad kada tao. Tingnan ang mga plan',
-      pricing: 'Mula US$19 bawat lokasyon kada buwan · walang bayad bawat empleyado',
+      pricing: 'Mula {price} bawat lokasyon kada buwan · walang bayad bawat empleyado',
     },
     buttonA11y: 'Mag-upgrade sa Pro plan',
     buttonHint: 'Binubuksan ang mga plan at presyo',

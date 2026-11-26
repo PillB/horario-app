@@ -19,6 +19,7 @@ import {
 } from '@/services/rosterService';
 import { fetchOverrideTargets, type DemandForecast } from '@/services/demandForecast';
 import { isoDate } from '@/utils/schedulerUtils';
+import { addDaysToKey, isoWeekDates } from '@/utils/dateKeys';
 import { computeStaffingGaps } from '@/utils/staffingGaps';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -36,14 +37,15 @@ export type LiveStaffingGap = DemandForecast & {
 };
 
 export type LiveRosterSummary = {
-  /** The next MAX_UPCOMING shifts, for the list. */
+  /** The next MAX_UPCOMING shifts from today, for the list. */
   upcomingShifts: LiveUpcomingShift[];
-  /** Every shift in the next UPCOMING_DAYS (not capped like upcomingShifts). */
+  /** Every shift of this Monday-to-Sunday week ("This week", as on Analytics). */
   shiftCount: number;
   /** How many of those are published. */
   publishedCount: number;
+  /** Roles still to fill this week: from today to Sunday (a gap on a past day cannot be filled). */
   staffingGaps: LiveStaffingGap[];
-  /** Demand targets inside the upcoming window: no gaps means "staffed" only when this is > 0. */
+  /** Demand targets from today to Sunday: no gaps means "staffed" only when this is > 0. */
   windowTargets: number;
   /** What the account has set up so far (drives the "next step" card). */
   setup: { workers: number; templates: number; targets: number };
@@ -54,8 +56,30 @@ export type LiveRosterSummary = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+/** The upcoming list: today and the six days after it. */
 const UPCOMING_DAYS = 7;
 const MAX_UPCOMING = 10;
+
+/**
+ * The dates Home reads for `today` (F-12, CHG-109). "This week" is the ISO week,
+ * Monday to Sunday, the same week Analytics calls "This week"; before, Home
+ * counted today to today + 7, eight days that ran into next week. The staffing
+ * gaps are the days of that week from today on; the upcoming list is the next
+ * seven days, which may reach into next week (it is labelled "Upcoming").
+ */
+export const homeWindows = (today: string) => {
+  const week = isoWeekDates(today);
+  const upcomingTo = addDaysToKey(today, UPCOMING_DAYS - 1);
+  return {
+    week: { from: week[0], to: week[6] },
+    gaps: { from: today, to: week[6] },
+    upcoming: { from: today, to: upcomingTo },
+    // One read covers all three: Monday is never after today, Sunday never after today + 6.
+    fetch: { from: week[0], to: upcomingTo },
+  };
+};
+
+const within = (date: string, range: { from: string; to: string }) => date >= range.from && date <= range.to;
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -74,12 +98,11 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
     setError(null);
 
     try {
-      const fromDate = isoDate(0);
-      const toDate = isoDate(UPCOMING_DAYS);
+      const windows = homeWindows(isoDate(0));
 
       // All fetches in parallel — no sequential state-change cascade
       const [rosterResult, targetsResult, workersResult, templatesResult] = await Promise.all([
-        fetchRoster({ fromDate, toDate }),
+        fetchRoster({ fromDate: windows.fetch.from, toDate: windows.fetch.to }),
         // Every stored target: the setup checklist asks whether any exists,
         // and the gaps below keep the ones inside the roster window.
         fetchOverrideTargets(),
@@ -92,7 +115,8 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
       // A failed load is reported: an empty list would read as an empty account.
       const failed = [rosterResult, targetsResult, workersResult, templatesResult].find((r) => !r.ok);
       if (failed && !failed.ok) throw new Error(failed.error);
-      const shifts = rosterResult.ok ? rosterResult.data : [];
+      const fetched = rosterResult.ok ? rosterResult.data : [];
+      const weekShifts = fetched.filter((shift) => within(shift.date, windows.week));
       const targets = targetsResult.ok ? targetsResult.targets : [];
       const workers = workersResult.ok ? workersResult.data : [];
       const dbTemplates = templatesResult.ok ? templatesResult.data : [];
@@ -101,7 +125,8 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
       const templateMap = new Map<string, DbShiftTemplate>(dbTemplates.map((t) => [t.id, t]));
 
       // Upcoming shifts (sorted by date + start time, capped at MAX_UPCOMING)
-      const resolved: LiveUpcomingShift[] = shifts
+      const resolved: LiveUpcomingShift[] = fetched
+        .filter((shift) => within(shift.date, windows.upcoming))
         .map((shift) => {
           const worker = workerMap.get(shift.workerId);
           const template = templateMap.get(shift.templateId);
@@ -121,13 +146,13 @@ export function useLiveRosterSummary(accountId: string): LiveRosterSummary {
         .slice(0, MAX_UPCOMING);
 
       // Staffing gaps: one rule for every screen (utils/staffingGaps.ts).
-      const inWindow = targets.filter((target) => target.date >= fromDate && target.date <= toDate);
-      const gaps: LiveStaffingGap[] = computeStaffingGaps(inWindow, shifts, dbTemplates);
+      const inWindow = targets.filter((target) => within(target.date, windows.gaps));
+      const gaps: LiveStaffingGap[] = computeStaffingGaps(inWindow, weekShifts, dbTemplates);
 
       setUpcomingShifts(resolved);
       setCounts({
-        shiftCount: shifts.length,
-        publishedCount: shifts.filter((s) => s.status === 'Published').length,
+        shiftCount: weekShifts.length,
+        publishedCount: weekShifts.filter((s) => s.status === 'Published').length,
         windowTargets: inWindow.length,
       });
       setStaffingGaps(gaps);

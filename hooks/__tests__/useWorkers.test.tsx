@@ -206,6 +206,44 @@ describe('useWorkers', () => {
     expect(hook.result.workers[0].availability).toEqual([]);
   });
 
+  // F-5 (CHG-109): several days were one request each.
+  it('saves availability for several days in one request, and keeps the stored rows', async () => {
+    const fetchMock = installFakeProxy((body) => {
+      const list = baseLists()[body.action];
+      if (list) return list;
+      if (body.action === 'addAvailabilitySlots') {
+        return { body: { success: true, availability: (body.availability as object[]).map((s) => ({ accountId: 'acc-1', ...s })) } };
+      }
+      return { body: { success: true } };
+    });
+    const hook = await renderHook(useWorkers, 'acc-1');
+    let added!: Awaited<ReturnType<typeof hook.result.addAvailabilityDays>>;
+    await act(async () => {
+      added = await hook.result.addAvailabilityDays(W2, ['Mon', 'Tue', 'Wed'], '00:00', '23:59');
+    });
+    expect(added).toEqual({ success: true });
+    const calls = callsOf(fetchMock, 'addAvailabilitySlots');
+    expect(calls).toHaveLength(1);
+    expect(callsOf(fetchMock, 'upsertAvailability')).toEqual([]);
+    const sent = calls[0].availability as { id: string; workerId: string; dayOfWeek: string }[];
+    expect(sent.map((s) => [s.workerId, s.dayOfWeek])).toEqual([[W2, 'Mon'], [W2, 'Tue'], [W2, 'Wed']]);
+    expect(new Set(sent.map((s) => s.id)).size).toBe(3);
+    expect(hook.result.workers[1].availability.map((s) => s.day)).toEqual(['Mon', 'Tue', 'Wed']);
+  });
+
+  it('rolls back every day of a refused multi-day save', async () => {
+    proxy({ addAvailabilitySlots: { status: 409, body: { error: 'One of these days already has availability starting at that time. Nothing was saved. Reload and try again' } } });
+    const hook = await renderHook(useWorkers, 'acc-1');
+    let added!: Awaited<ReturnType<typeof hook.result.addAvailabilityDays>>;
+    await act(async () => {
+      added = await hook.result.addAvailabilityDays(W1, ['Tue', 'Wed'], '09:00', '17:00');
+    });
+    expect(added).toMatchObject({ success: false, status: 409 });
+    await flush();
+    // Only the stored Monday slot is left.
+    expect(hook.result.workers[0].availability).toEqual([{ id: AV1, day: 'Mon', from: '09:00', to: '17:00' }]);
+  });
+
   it('puts an availability slot back when its delete fails', async () => {
     proxy({ deleteAvailability: { status: 500, body: { error: 'Database request failed' } } });
     const hook = await renderHook(useWorkers, 'acc-1');

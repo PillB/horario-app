@@ -13,9 +13,9 @@
  * account-wide totals, ends the trial and moves the month of the usage count
  * with psql (DB_URL in the environment or .env.local). It never touches other rows.
  *
- * Tests that fail today because of a real defect carry `// BUG: F-n` (see the
- * findings report of CHG-109). Coherence checks are soft, so one test reports
- * every mismatch of a step, not only the first.
+ * The defects this flow found (F-1 .. F-12, CHG-109) are fixed; each check now
+ * guards its fix. Coherence checks are soft, so one test reports every mismatch
+ * of a step, not only the first.
  */
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
@@ -67,11 +67,12 @@ const addDays = (key: string, n: number) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+/** Home counts staffing gaps from today to Sunday (F-12): tomorrow is in that window unless today is Sunday. */
+const TOMORROW_THIS_WEEK = () => mondayOf(dateKey(1)) === mondayOf(dateKey(0));
 
 /** What the database holds for this account: the numbers every tab should agree with. */
 const truth = () => {
   const today = dateKey(0);
-  const in7 = dateKey(7);
   const monday = mondayOf(today);
   const sunday = addDays(monday, 6);
   return {
@@ -80,9 +81,7 @@ const truth = () => {
     rosterAll: num(`select count(*) from roster where account_id=${acc()}`),
     draftsAll: num(`select count(*) from roster where account_id=${acc()} and status='Draft'`),
     publishedAll: num(`select count(*) from roster where account_id=${acc()} and status='Published'`),
-    // Home's "This week": today .. today + 7 (useLiveRosterSummary).
-    homeWindow: num(`select count(*) from roster where account_id=${acc()} and date between '${today}' and '${in7}'`),
-    // Analytics' "This week" and the compliance week: ISO Monday .. Sunday.
+    // Home's and Analytics' "This week" and the compliance week: ISO Monday .. Sunday (F-12).
     isoWeek: num(`select count(*) from roster where account_id=${acc()} and date between '${monday}' and '${sunday}'`),
     locations: num(`select count(*) from locations where account_id=${acc()}`),
     overrides: num(`select count(*) from demand_targets where account_id=${acc()} and source='override'`),
@@ -245,7 +244,7 @@ const expectCoherent = (seen: Seen, t: Truth, plan: 'trial' | 'gratis', note = '
   expect.soft(seen.scheduler.team, where('Scheduler team count = workers in the database')).toBe(t.workers);
   expect.soft(seen.scheduler.templates, where('Scheduler templates count = templates in the database')).toBe(t.templates);
   expect.soft(seen.scheduler.roster, where('Scheduler roster count = shifts in the database')).toBe(t.rosterAll);
-  expect.soft(seen.home.scheduled, where('Home "Shifts scheduled" = shifts in its 7-day window')).toBe(t.homeWindow);
+  expect.soft(seen.home.scheduled, where('Home "Shifts scheduled" = shifts of this Monday–Sunday week')).toBe(t.isoWeek);
   expect.soft(seen.analytics.drafts, where('Analytics drafts (all dates) = drafts in the database')).toBe(t.draftsAll);
   expect.soft(seen.analytics.published, where('Analytics published (all dates) = published in the database')).toBe(t.publishedAll);
   expect.soft(seen.profile.people, where('Profile people = workers in the database')).toBe(of(t.workers, max.people));
@@ -397,7 +396,7 @@ test('FL-1 first visit: every tab agrees the account is empty, on the trial', as
   // Back to tabs that are already mounted: the document title must follow.
   for (const tab of ['Home', 'Scheduler', 'Analytics'] as const) {
     await goTab(page, tab);
-    // BUG: F-1 — the title stays "Profile · Horario" (the last tab mounted).
+    // F-1: the screen writes its title each time its tab gains focus.
     await expect.soft(page, `document title follows the ${tab} tab`).toHaveTitle(new RegExp(`^${tab} `), { timeout: 5_000 });
   }
 });
@@ -422,7 +421,7 @@ test('FL-2 location on Home: Profile, Scheduler and Home agree (Peru, America/Li
   const seen = await tour(page, '02-location');
   const t = truth();
   expect(t.locations).toBe(1);
-  // BUG: F-2 — Profile mounted in FL-1 keeps "Locations: 0" and "No locations yet." (no reload on focus).
+  // F-2: Profile, mounted in FL-1, reloads on focus.
   expectCoherent(seen, t, 'trial', 'after location');
   expect.soft(seen.profile.locationRows, 'Profile lists the new location').toBeGreaterThan(0);
   // The roster step's compliance panel needs the location; it must not still ask to set one up.
@@ -440,21 +439,20 @@ test('FL-3 team: 6 by hand, 8 by CSV, availability; every tab counts 14', async 
   expect((await imported).status()).toBe(200);
   await expect(page.getByTestId('team-import-message')).toBeVisible();
   // Availability for everyone, all weekdays at once, all day (the night template crosses midnight).
-  // The app saves one request per day: wait for all seven before the next person.
+  // All the days picked are one request (F-5).
   await page.getByLabel('From', { exact: true }).fill('00:00');
   await page.getByLabel('To', { exact: true }).fill('23:59');
   for (const name of [...BY_HAND, ...CSV_PEOPLE]) {
     await page.getByRole('button', { name: `Select worker ${name}` }).first().click();
     await pickAllDays(page);
-    const statuses = await proxyResponses(page, 'upsertAvailability', 7, () =>
+    const statuses = await proxyResponses(page, 'addAvailabilitySlots', 1, () =>
       page.getByRole('button', { name: 'Add availability', exact: true }).click());
-    expect(statuses, `availability for ${name}`).toEqual([200, 200, 200, 200, 200, 200, 200]);
+    expect(statuses, `availability for ${name}`).toEqual([200]);
   }
   const seen = await tour(page, '03-team');
   const t = truth();
   expect(t.workers).toBe(14);
   expect(num(`select count(*) from worker_availability where account_id=${acc()}`)).toBe(14 * 7);
-  // BUG: F-2 — Profile still says "People: 0".
   expectCoherent(seen, t, 'trial', 'after team');
 });
 
@@ -477,8 +475,8 @@ test('FL-4 templates (mañana, tarde, noche across midnight) and a demand overri
   expect(t.templates).toBe(3);
   expect(t.overrides).toBe(1);
   expectCoherent(seen, t, 'trial', 'after templates and demand');
-  // Nothing is published yet: the demand of 4 is a gap of 4 on Home.
-  expect.soft(seen.home.gaps, 'Home: one role to fill tomorrow').toBe(1);
+  // Nothing is published yet: the demand of 4 is a gap of 4 on Home, which counts gaps from today to Sunday (F-12).
+  expect.soft(seen.home.gaps, 'Home: one role to fill tomorrow, when tomorrow is in this week').toBe(TOMORROW_THIS_WEEK() ? 1 : 0);
   expect.soft(seen.home.checklist, 'Home: setup checklist done (team, templates, demand)').toBe(false);
   expect.soft(seen.analytics.coverage, 'Analytics coverage: 0 % (nothing published)').toBe('0%');
 });
@@ -495,7 +493,6 @@ test('FL-5 auto-fill this week, apply, publish all, mark one as told', async () 
   const afterApply = await tour(page, '05a-applied');
   const t1 = truth();
   expect(t1.rosterAll).toBeGreaterThan(0);
-  // BUG: F-2 — Analytics (mounted earlier) keeps 0 drafts; Profile keeps "Auto-schedules: 0".
   expectCoherent(afterApply, t1, 'trial', 'after apply');
 
   // Publish tomorrow's shifts (the date with demand) and mark the first as told.
@@ -510,14 +507,14 @@ test('FL-5 auto-fill this week, apply, publish all, mark one as told', async () 
     const label = (await button.getAttribute('aria-label')) ?? '';
     const status = await proxyResponses(page, 'updateShiftStatus', 1, () => button.click(), 5_000);
     if (status[0] !== 200) {
-      // Refused in the browser: the reason is in the banner at the top of the screen.
+      // Refused in the browser: the reason is next to the shift (F-9) and in the banner.
       const said = (await page.locator('body').innerText()).split('\n').filter((l) => /must cover|must match|no longer available/i.test(l));
       notPublished.push(`${label}: ${said.join(' | ') || '(no message on screen)'}`);
       fs.appendFileSync(path.join(SHOTS, 'form-refusals.log'), `${new Date().toISOString()} publish ${notPublished.at(-1)}\n`);
     }
   }
   await shot(page, '05b-publish-refused');
-  // BUG: F-9 — the night shift auto-fill created cannot be published: "availability must cover 22:00 - 06:00".
+  // F-9: the publish check uses the assigner's availability rule, so what auto-fill made can be published.
   expect.soft(notPublished, 'every shift of tomorrow can be published').toEqual([]);
   const told = proxyResponse(page, 'markShiftNotified');
   await page.getByRole('button', { name: new RegExp(`^Mark this shift as told to the worker: .*, ${tomorrow}$`) }).first().click();
@@ -528,8 +525,9 @@ test('FL-5 auto-fill this week, apply, publish all, mark one as told', async () 
   expectCoherent(seen, t, 'trial', 'after publish');
   // Published cooks tomorrow cover part of the 4: the gap on Home is the same date/role.
   const cooksTomorrow = num(`select count(*) from roster r join shift_templates s on s.id=r.template_id where r.account_id=${acc()} and r.date='${tomorrow}' and r.status='Published' and s.role='${COOK}'`);
-  expect.soft(seen.home.gaps, 'Home roles to fill').toBe(cooksTomorrow >= 4 ? 0 : 1);
-  expect.soft(seen.home.raw, 'Home shows the remaining open count').toContain(`${Math.max(0, 4 - cooksTomorrow)} open`);
+  // Home counts gaps from today to Sunday (F-12): tomorrow's gap shows only when tomorrow is in this week.
+  expect.soft(seen.home.gaps, 'Home roles to fill').toBe(cooksTomorrow >= 4 || !TOMORROW_THIS_WEEK() ? 0 : 1);
+  if (TOMORROW_THIS_WEEK() && cooksTomorrow < 4) expect.soft(seen.home.raw, 'Home shows the remaining open count').toContain(`${4 - cooksTomorrow} open`);
   expect.soft(seen.analytics.hoursBars, 'Analytics hours bars: one per person with published shifts').toBe(
     num(`select count(distinct worker_id) from roster where account_id=${acc()} and status='Published'`),
   );
@@ -560,7 +558,6 @@ test('FL-6 daily: add a shift by hand, remove one, a day off; every tab follows'
   await page.getByTestId('day-off-add').click();
   expect((await off).status()).toBe(200);
   const seen = await tour(page, '06b-daily');
-  // BUG: F-2 — Analytics keeps the counts from when it was first opened.
   expectCoherent(seen, truth(), 'trial', 'after daily edits');
 });
 
@@ -575,7 +572,7 @@ test('FL-7 availability for several days, then the next person right away: nothi
   await page.getByLabel('To', { exact: true }).fill('23:59');
   await page.getByRole('button', { name: `Select worker ${a}` }).first().click();
   await pickAllDays(page);
-  const first = proxyResponse(page, 'upsertAvailability');
+  const first = proxyResponse(page, 'addAvailabilitySlots');
   await page.getByRole('button', { name: 'Add availability', exact: true }).click();
   await first;
   // A quick person: the next worker and their days while the first save is still running.
@@ -584,7 +581,7 @@ test('FL-7 availability for several days, then the next person right away: nothi
   await page.waitForTimeout(8_000);
   await shot(page, '07-availability-fast-switch');
   const rows = (name: string) => num(`select count(*) from worker_availability a join workers w on w.id=a.worker_id where w.account_id=${acc()} and w.name='${name}'`);
-  // BUG: F-5 — the first person is saved one day per request; the loop's end clears the days picked for the second.
+  // F-5: the seven days are one request, and its answer leaves the second person's picked days alone.
   expect.soft(rows(a), `${a} has all seven days`).toBe(7);
   const checked = await Promise.all(DAYS.map((d) => page.getByTestId(`availability-day-${d}`).getAttribute('aria-checked')));
   expect.soft(checked.filter((c) => c === 'true').length, `the days picked for ${b} are still selected`).toBe(7);
@@ -599,7 +596,7 @@ test('FL-7 availability for several days, then the next person right away: nothi
     const have = sql(`select string_agg(day_of_week::text, ',') from worker_availability a join workers w on w.id=a.worker_id where w.account_id=${acc()} and w.name='${name}'`).split(',');
     const missing = DAYS.filter((d) => !have.includes(d));
     for (const d of missing) await page.getByTestId(`availability-day-${d}`).click();
-    await proxyResponses(page, 'upsertAvailability', missing.length, () => page.getByRole('button', { name: 'Add availability', exact: true }).click());
+    if (missing.length) await proxyResponses(page, 'addAvailabilitySlots', 1, () => page.getByRole('button', { name: 'Add availability', exact: true }).click());
   }
   expect(rows(a) + rows(b)).toBe(14);
 });
@@ -639,8 +636,7 @@ test('FL-9 a template time edit that would double-book someone is refused (409),
   expect(await addShiftByHand(page, BY_HAND[0], T_MORNING, day)).toBe(200);
   expect(await addShiftByHand(page, BY_HAND[0], T_SPLIT, day)).toBe(200);
   // The same person can take a night shift (22–06) two days later: availability is all day, every day.
-  // BUG: F-9 — the roster form refuses it (availability must cover 22:00–06:00 inside one day's slot),
-  // while auto-assign gives the same people night shifts.
+  // F-9: the roster form uses the assigner's rule (touching slots of two days are joined), as auto-assign does.
   expect.soft(await addShiftByHand(page, BY_HAND[0], T_NIGHT, addDays(day, 2)), 'a night shift by hand for someone available all day').toBe(200);
   // Stretching the morning to 17:00 would put her on two shifts from 16:00.
   await goStep(page, 'templates');
@@ -680,7 +676,7 @@ test('FL-10 weekly: auto-fill next week while another tab takes a suggested slot
   await shot(page, '10b-apply-409');
   await expect(banner()).toContainText(/already on the roster|Reload/);
   await page.waitForTimeout(3_000);
-  // The roster list of this tab does reload after the 409 (passes today); the suggestions below do not follow it.
+  // F-6: after the 409 the roster reloads, the old suggestions go and a new run is made from the reloaded roster.
   expect.soft(await stepCount(page, 'shifts'), 'after the 409 this tab counts the other tab\'s shift').toBe(truth().rosterAll);
   await expect.soft(page.getByText(firstLine, { exact: true }), 'the taken slot is no longer suggested').toHaveCount(0, { timeout: 10_000 });
   const again = await proxyResponses(page, 'addRosterShifts', 1, () => page.getByTestId('apply-auto-assign').click());
@@ -690,7 +686,6 @@ test('FL-10 weekly: auto-fill next week while another tab takes a suggested slot
     await autoAssign(nextMonday);
     await expect(page.getByTestId('apply-auto-assign')).toBeVisible({ timeout: 90_000 });
     const third = await proxyResponses(page, 'addRosterShifts', 1, () => page.getByTestId('apply-auto-assign').click());
-    // BUG: F-6 — even a new run in this tab suggests the taken slot again; only a page reload clears it.
     expect.soft(third, 'a new run after the 409 can be applied').toEqual([200]);
     if (third[0] !== 200) {
       await page.reload({ waitUntil: 'domcontentloaded' });
@@ -707,9 +702,8 @@ test('FL-10 weekly: auto-fill next week while another tab takes a suggested slot
   const t = truth();
   // Refused applies are not counted: this week and next week.
   expect(t.autoRuns).toBe(2);
-  // Profile and Analytics are stale here unless the page was reloaded above (F-2).
   expectCoherent(seen, t, 'trial', 'after next week');
-  // BUG: F-12 — Home's "This week" counts today .. today + 7 (eight days, into next week), not the week Analytics calls "This week".
+  // F-12: Home's "This week" is the Monday–Sunday week Analytics calls "This week".
   expect.soft(seen.home.scheduled, 'Home "This week" = shifts of this Monday–Sunday week').toBe(t.isoWeek);
 });
 
@@ -728,7 +722,7 @@ test('FL-11 the trial ends mid-session with 14 people: the next write is 402 and
   // The optimistic row is rolled back.
   await expect.soft(page.getByText(`Extra ${RUN}`, { exact: true }), 'refused worker is not left in the list').toHaveCount(0);
   const seen = await tour(page, '11b-gratis-no-reload');
-  // BUG: F-3 — without a reload Profile still shows the trial and the roster banner the trial.
+  // F-3: the 402 makes every plan reader read the plan again, without a reload.
   expectCoherent(seen, truth(), 'gratis', 'trial ended, no reload');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -737,7 +731,7 @@ test('FL-11 the trial ends mid-session with 14 people: the next write is 402 and
   // Passes today, and shows F-4 (product decision): the two runs of the trial count against Gratis, "2 / 1",
   // so an owner whose trial ends mid-month gets no free week that month.
   expectCoherent(reloaded, truth(), 'gratis', 'trial ended, after reload');
-  // BUG: F-10 — nothing says the schedule is read-only until a write is refused.
+  // F-10: the Scheduler says up front that the schedule is read-only over the people limit.
   expect.soft(reloaded.scheduler.raw, 'Scheduler says the team is over the Gratis people limit').toMatch(/10 people|people limit|over the limit|read-only/i);
 });
 
@@ -765,7 +759,6 @@ test('FL-12 Gratis over the people limit: deletes work, a publish is 402; removi
   expect(truth().overrides).toBe(0);
   const seen = await tour(page, '12b-gratis-delete');
   expectCoherent(seen, truth(), 'gratis', 'Gratis over the people limit');
-  // BUG: F-2 — Analytics still shows the coverage of the removed demand.
   expect.soft(seen.analytics.coverage, 'Analytics coverage has no demand left').toBe('—');
   expect.soft(seen.home.gaps, 'Home has no roles to fill without demand').toBe(0);
 });
@@ -807,7 +800,6 @@ test('FL-13 back to 10 people, new month: two tabs at the one-week limit, one ap
   expect(truth().autoRuns).toBe(1);
 
   const used = await tour(page, '13c-used-the-free-week');
-  // BUG: F-2 — Profile does not follow the count.
   expectCoherent(used, truth(), 'gratis', 'free week used');
   // A second week in this tab: refused before running.
   await autoAssign(addDays(weekAfter, 7));
@@ -828,33 +820,26 @@ test('FL-14 phone width 390: Home, Scheduler, Analytics and Profile show the sam
 });
 
 /**
- * Removes a person the way an owner would. A person with shifts is refused today
- * (409 "Record is still referenced"); the owner then removes their shifts first.
+ * Removes a person the way an owner would: two taps on Remove. A person with
+ * shifts is not refused (F-11): the app asks whether to remove them together
+ * with their shifts, and the confirm removes both in one transaction.
  */
 async function removePerson(name: string) {
   await goStep(page, 'workers');
   const id = sql(`select id from workers where account_id=${acc()} and name='${name}'`);
+  const hasShifts = num(`select count(*) from roster where account_id=${acc()} and worker_id='${id}'`) > 0;
   const btn = page.getByTestId(`remove-worker-${id}`);
   await btn.click();
-  const first = await proxyResponses(page, 'deleteWorker', 1, () => btn.click());
-  if (first[0] === 200) return;
-  // BUG: F-11 — a person with shifts cannot be removed, and the message is "Record is still referenced".
-  expect.soft(first, `remove ${name} (has shifts)`).toEqual([200]);
-  expect.soft(await screenText(page), 'the refusal says what to do').not.toMatch(/Record is still referenced/);
-  await goStep(page, 'shifts');
-  await showAll();
-  const shiftIds = sql(`select coalesce(string_agg(id::text, ','), '') from roster where account_id=${acc()} and worker_id='${id}'`).split(',').filter(Boolean);
-  for (const shiftId of shiftIds) {
-    const b = page.getByTestId(`remove-shift-${shiftId}`);
-    const reachable = await b.click({ timeout: 10_000 }).then(() => true, () => false);
-    // A shift the roster list does not show cannot be removed from the app; the database removes it so the flow goes on.
-    expect.soft(reachable, `the roster list shows ${name}'s shift ${shiftId}`).toBe(true);
-    if (!reachable) { sql(`delete from roster where account_id=${acc()} and id='${shiftId}'`); continue; }
-    expect(await proxyResponses(page, 'deleteRosterShift', 1, () => b.click(), 10_000), `remove a shift of ${name}`).toEqual([200]);
+  if (!hasShifts) {
+    expect(await proxyResponses(page, 'deleteWorker', 1, () => btn.click()), `remove ${name}`).toEqual([200]);
+    return;
   }
-  await goStep(page, 'workers');
-  await page.getByTestId(`remove-worker-${id}`).click();
-  expect(await proxyResponses(page, 'deleteWorker', 1, () => page.getByTestId(`remove-worker-${id}`).click()), `remove ${name} after their shifts`).toEqual([200]);
+  await btn.click();
+  const confirm = page.getByTestId(`confirm-remove-worker-${id}`);
+  await expect(confirm, `the app asks before removing ${name} with their shifts`).toBeVisible({ timeout: 15_000 });
+  expect.soft(await screenText(page), 'the question says what happens').not.toMatch(/Record is still referenced/);
+  expect(await proxyResponses(page, 'deleteWorker', 1, () => confirm.click()), `remove ${name} with their shifts`).toEqual([200]);
+  expect(num(`select count(*) from roster where account_id=${acc()} and worker_id='${id}'`), `${name}'s shifts are gone`).toBe(0);
 }
 
 /** Starts a guide from the header's tour button and walks it to the end. */

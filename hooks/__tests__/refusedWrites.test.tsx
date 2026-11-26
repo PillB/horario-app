@@ -255,7 +255,7 @@ describe('useRoster.addShifts "already stored" fallback', () => {
     await act(async () => {
       result = await hook.result.addShifts(batch, { countAutoAssign: true });
     });
-    expect(result).toEqual({ success: false, error: 'A shift date is not valid' });
+    expect(result).toEqual({ success: false, error: 'A shift date is not valid', status: 400 });
   });
 
   it('reloads once after a failure and trusts that reload for a 409', async () => {

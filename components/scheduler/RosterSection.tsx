@@ -34,6 +34,8 @@ type Props = {
   handlePublishShift: (shiftId: string) => void;
   handleUnpublishShift: (shiftId: string) => void;
   handleNotifyShift: (shiftId: string) => void;
+  /** Why the last Publish of a shift was refused; shown under that shift's buttons. */
+  rowNotice?: { shiftId: string; message: string } | null;
   onRemoveShift?: (shiftId: string) => void;
   /** False until the stored roster has loaded: the empty note waits for it. */
   rosterLoaded?: boolean;
@@ -48,6 +50,33 @@ type Props = {
 const LIST_PREVIEW_COUNT = 6;
 
 const NO_LOCATIONS = { locations: [] as BusinessLocation[], loaded: false };
+
+/**
+ * The reason a shift could not be published, under its buttons (F-9, CHG-109): the
+ * screen's banner sits at the top, out of view in a long list, and hides after a
+ * few seconds. Renders nothing for other rows.
+ */
+const ShiftRowNoticeText = ({
+  notice,
+  shiftId,
+  color,
+}: {
+  notice: Props['rowNotice'];
+  shiftId: string;
+  color: string;
+}) =>
+  notice && notice.shiftId === shiftId ? (
+    <ThemedText
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
+      style={[rowNoticeStyles.text, { color }]}
+      testID={`shift-row-notice-${shiftId}`}
+    >
+      {notice.message}
+    </ThemedText>
+  ) : null;
+
+const rowNoticeStyles = StyleSheet.create({ text: { fontSize: 13, lineHeight: 19, marginTop: 6 } });
 
 /** Sunday of the current week (the calendar's weeks run Sunday to Saturday). */
 const currentWeekStartKey = (): string => {
@@ -311,6 +340,7 @@ export const RosterSection = ({
   handlePublishShift,
   handleUnpublishShift,
   handleNotifyShift,
+  rowNotice,
   onRemoveShift,
   rosterLoaded = true,
   onSelectShiftForNotes,
@@ -559,6 +589,7 @@ export const RosterSection = ({
                   />
                 ) : null}
               </View>
+              <ShiftRowNoticeText notice={rowNotice} shiftId={shift.id} color={colors.error} />
             </View>
           ))}
           {upcomingShifts.length > LIST_PREVIEW_COUNT ? (

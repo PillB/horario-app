@@ -121,7 +121,7 @@
     },
     "utils/schedulerValidators.ts": {
       "validateAvailabilitySubmission": 32,
-      "validateShiftReadiness": 22
+      "validateShiftReadiness": 21
     },
     "utils/schedulingValidation.ts": {
       "validateDemandTargetInput": 21,

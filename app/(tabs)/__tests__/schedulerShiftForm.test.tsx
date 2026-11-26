@@ -68,7 +68,7 @@ jest.mock('@/contexts/LocaleContext', () => {
 
 const WORKER_ID = '00000000-0000-4000-8000-0000000000a1';
 const mockAddShift = jest.fn().mockResolvedValue({ success: true, shift: {} });
-const mockAddAvailability = jest.fn();
+const mockAddAvailabilityDays = jest.fn();
 const BEA_ID = '00000000-0000-4000-8000-0000000000b2';
 const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -82,7 +82,7 @@ jest.mock('@/hooks/useWorkers', () => ({
     }],
     loading: false,
     error: null,
-    addAvailability: (...args: unknown[]) => mockAddAvailability(...args),
+    addAvailabilityDays: (...args: unknown[]) => mockAddAvailabilityDays(...args),
     refresh: jest.fn(),
   }),
 }));
@@ -146,13 +146,12 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     warnSpy.mockRestore();
   });
 
-  it('adds availability for every picked day and keeps a refused day selected', async () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  // F-5 (CHG-109): all the picked days are one request, all or nothing.
+  const pickDaysAndAdd = async (answer: { success: boolean; error?: string }) => {
     (global as unknown as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
     (getSupabaseClient as jest.Mock).mockReturnValue(null);
-    mockAddAvailability.mockReset();
-    mockAddAvailability.mockImplementation(async (_worker: string, day: string) =>
-      day === 'Tue' ? { success: false, error: 'Overlaps another slot' } : { success: true });
+    mockAddAvailabilityDays.mockReset();
+    mockAddAvailabilityDays.mockResolvedValue(answer);
     mockSection = 'workers';
     let tree: renderer.ReactTestRenderer | null = null;
     await act(async () => { tree = renderer.create(<SchedulerScreen />); });
@@ -166,16 +165,26 @@ describe('scheduler shift form (QA 2026-10-28)', () => {
     expect(byTestId('availability-day-Tue').props['aria-checked']).toBe(true);
     const add = root.findAllByType(Pressable).find((p) => p.props.accessibilityLabel === 'Add availability')!;
     await act(async () => { await add.props.onPress(); });
+    const checked = ['Mon', 'Tue', 'Wed'].map((d) => byTestId(`availability-day-${d}`).props['aria-checked']);
+    return { root, checked, unmount: () => act(() => { tree!.unmount(); }) };
+  };
 
-    expect(mockAddAvailability.mock.calls.map((call) => call.slice(0, 4))).toEqual([
-      [BEA_ID, 'Mon', '09:00', '17:00'],
-      [BEA_ID, 'Tue', '09:00', '17:00'],
-      [BEA_ID, 'Wed', '09:00', '17:00'],
+  it('adds availability for every picked day in one request and clears the days once saved', async () => {
+    const { checked, unmount } = await pickDaysAndAdd({ success: true });
+    expect(mockAddAvailabilityDays.mock.calls.map((call) => call.slice(0, 4))).toEqual([
+      [BEA_ID, ['Mon', 'Tue', 'Wed'], '09:00', '17:00'],
     ]);
-    // Saved days are cleared; the refused one stays picked, with the server's reason.
-    expect(['Mon', 'Tue', 'Wed'].map((d) => byTestId(`availability-day-${d}`).props['aria-checked'])).toEqual([false, true, false]);
+    expect(checked).toEqual([false, false, false]);
+    unmount();
+  });
+
+  it('keeps every picked day selected, with the server\'s reason, when the request is refused (nothing saved)', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const { root, checked, unmount } = await pickDaysAndAdd({ success: false, error: 'Overlaps another slot' });
+    expect(mockAddAvailabilityDays).toHaveBeenCalledTimes(1);
+    expect(checked).toEqual([true, true, true]);
     expect(root.findAll((n) => typeof n.type === 'string' && n.props.children === 'Overlaps another slot').length).toBeGreaterThan(0);
-    act(() => { tree!.unmount(); });
+    unmount();
     warnSpy.mockRestore();
   });
 });

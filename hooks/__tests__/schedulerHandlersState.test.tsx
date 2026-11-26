@@ -9,6 +9,7 @@
  */
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
+import { Alert } from 'react-native';
 
 import type { AssignedShift } from '@/services/shiftAssigner';
 
@@ -53,14 +54,19 @@ const mockData: {
 const mockUpdateWorker = jest.fn();
 const mockUpdateTemplate = jest.fn();
 const mockAddShifts = jest.fn();
+const mockAddShift = jest.fn();
+const mockAddAvailabilityDays = jest.fn();
+const mockRemoveWorker = jest.fn();
+const mockSetShiftStatus = jest.fn();
+const mockRefreshRoster = jest.fn();
 const mockRefreshLocations = jest.fn();
 const mockRefreshUsage = jest.fn();
 
 jest.mock('@/hooks/useWorkers', () => ({
   useWorkers: () => ({
     workers: mockData.workers, loading: false, loaded: true, error: null, truncated: false,
-    addWorker: jest.fn(), updateWorker: mockUpdateWorker, addAvailability: jest.fn(),
-    removeWorker: jest.fn(), removeAvailability: jest.fn(), refresh: jest.fn(),
+    addWorker: jest.fn(), updateWorker: mockUpdateWorker, addAvailability: jest.fn(), addAvailabilityDays: mockAddAvailabilityDays,
+    removeWorker: mockRemoveWorker, removeAvailability: jest.fn(), refresh: jest.fn(),
   }),
 }));
 jest.mock('@/hooks/useShiftTemplates', () => ({
@@ -72,8 +78,8 @@ jest.mock('@/hooks/useShiftTemplates', () => ({
 jest.mock('@/hooks/useRoster', () => ({
   useRoster: () => ({
     roster: mockData.roster, loading: false, loaded: true, error: null, truncated: false,
-    addShift: jest.fn(), addShifts: mockAddShifts, setShiftStatus: jest.fn(), notifyShift: jest.fn(),
-    removeShift: jest.fn(), refresh: jest.fn(),
+    addShift: mockAddShift, addShifts: mockAddShifts, setShiftStatus: mockSetShiftStatus, notifyShift: jest.fn(),
+    removeShift: jest.fn(), refresh: mockRefreshRoster, getRoster: () => mockData.roster,
   }),
 }));
 jest.mock('@/hooks/useDemandForecast', () => ({
@@ -173,6 +179,216 @@ beforeEach(() => {
   mockUpdateWorker.mockResolvedValue({ success: true, worker: W1 });
   mockUpdateTemplate.mockResolvedValue({ success: true, template: T1 });
   mockRunAutoAssign.mockResolvedValue({ assignments: [SUGGESTION], unassigned: [] });
+  mockAddShift.mockResolvedValue({ success: true });
+  mockSetShiftStatus.mockResolvedValue({ success: true });
+  mockRefreshRoster.mockResolvedValue(true);
+});
+
+// ─── F-9 ──────────────────────────────────────────────────────────────────────
+
+describe('night shifts over touching availability (F-9)', () => {
+  // 2099-12-03 is a Thursday. Thu and Fri all day cover Thu 22:00–06:00 when the two
+  // days are joined at midnight, as auto-assign joins them.
+  const NIGHT = { id: 'tn', name: 'Night', role: 'Barista', start: '22:00', end: '06:00', coverage: 1, updatedAt: 'x' };
+  const allDay = (day: string) => ({ id: `a-${day}`, day, from: '00:00', to: '23:59' });
+  const NIGHT_SHIFT = { id: 's-night', date: '2099-12-03', workerId: 'w1', templateId: 'tn', location: '', status: 'Draft' as const, notified: false };
+
+  beforeEach(() => {
+    // Native confirms with Alert; press its Publish button.
+    jest.spyOn(Alert, 'alert').mockImplementation((...args: unknown[]) => {
+      const buttons = args[2] as { text: string; onPress?: () => void }[];
+      buttons.find((b) => b.text === 'Publish')?.onPress?.();
+    });
+  });
+
+  it('can be published', async () => {
+    mockData.workers = [{ ...W1, availability: [allDay('Thu'), allDay('Fri')] }];
+    mockData.templates = [NIGHT];
+    mockData.roster = [NIGHT_SHIFT];
+    const screen = await render();
+    await act(async () => {
+      screen.h.handlePublishShift('s-night');
+    });
+    await settle();
+    expect(screen.h.shiftRowNotice).toBeNull();
+    expect(mockSetShiftStatus).toHaveBeenCalledWith('s-night', 'Published');
+    screen.unmount();
+  });
+
+  it('can be added by hand', async () => {
+    mockData.workers = [{ ...W1, availability: [allDay('Thu'), allDay('Fri')] }];
+    mockData.templates = [NIGHT];
+    const screen = await render();
+    act(() => screen.h.updateShiftField('workerId')('W-1'));
+    act(() => screen.h.updateShiftField('templateId')('tn'));
+    act(() => screen.h.updateShiftField('date')('2099-12-03'));
+    await act(async () => {
+      await screen.h.handleShiftSubmit();
+    });
+    expect(screen.h.shiftError).toBeNull();
+    expect(mockAddShift).toHaveBeenCalledTimes(1);
+    expect(mockAddShift.mock.calls[0][0]).toMatchObject({ date: '2099-12-03', workerId: 'w1', templateId: 'tn' });
+    screen.unmount();
+  });
+
+  it('a refused publish says why next to the shift, and sends nothing', async () => {
+    // Thursday only: the night's Friday hours are not covered.
+    mockData.workers = [{ ...W1, availability: [allDay('Thu')] }];
+    mockData.templates = [NIGHT];
+    mockData.roster = [NIGHT_SHIFT];
+    const screen = await render();
+    await act(async () => {
+      screen.h.handlePublishShift('s-night');
+    });
+    expect(mockSetShiftStatus).not.toHaveBeenCalled();
+    expect(screen.h.shiftRowNotice).toEqual({
+      shiftId: 's-night',
+      message: 'Worker availability on Thu must cover the template window 22:00 - 06:00.',
+    });
+    expect(screen.h.actionBanner).toEqual({ type: 'error', message: screen.h.shiftRowNotice?.message });
+    screen.unmount();
+  });
+
+  it('a publish the server refuses is said next to the shift too', async () => {
+    mockData.workers = [{ ...W1, availability: [allDay('Thu'), allDay('Fri')] }];
+    mockData.templates = [NIGHT];
+    mockData.roster = [NIGHT_SHIFT];
+    mockSetShiftStatus.mockResolvedValueOnce({ success: false, error: 'The Gratis plan covers up to 10 people' });
+    const screen = await render();
+    await act(async () => {
+      screen.h.handlePublishShift('s-night');
+    });
+    await settle();
+    expect(screen.h.shiftRowNotice).toEqual({ shiftId: 's-night', message: 'The Gratis plan covers up to 10 people' });
+    screen.unmount();
+  });
+});
+
+// ─── F-5 ──────────────────────────────────────────────────────────────────────
+
+describe('availability for several days (F-5)', () => {
+  const W2 = { ...W1, id: 'w2', displayId: 'W-2', name: 'Bea' };
+
+  it('is one request, and its answer keeps the next person\'s picked days', async () => {
+    mockData.workers = [W1, W2];
+    let finish!: (r: { success: boolean; error?: string }) => void;
+    mockAddAvailabilityDays.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const screen = await render();
+    act(() => screen.h.updateAvailabilityField('workerId')('W-1'));
+    act(() => screen.h.updateAvailabilityField('day')('Mon,Tue,Wed'));
+    let saving!: Promise<void>;
+    await act(async () => {
+      saving = screen.h.handleAvailabilitySubmit();
+    });
+    // While the save runs, the manager moves on to the next person and their days.
+    act(() => screen.h.updateAvailabilityField('workerId')('W-2'));
+    act(() => screen.h.updateAvailabilityField('day')('Thu,Fri'));
+    await act(async () => {
+      finish({ success: true });
+      await saving;
+    });
+    expect(mockAddAvailabilityDays).toHaveBeenCalledTimes(1);
+    expect(mockAddAvailabilityDays).toHaveBeenCalledWith('w1', ['Mon', 'Tue', 'Wed'], '09:00', '17:00');
+    expect(screen.h.availabilityForm).toMatchObject({ workerId: 'W-2', day: 'Thu,Fri' });
+    screen.unmount();
+  });
+
+  it('clears the saved days when the form still shows that entry, and keeps them when refused', async () => {
+    mockData.workers = [W1];
+    mockAddAvailabilityDays.mockResolvedValueOnce({ success: false, error: 'Nothing was saved' });
+    const screen = await render();
+    act(() => screen.h.updateAvailabilityField('workerId')('W-1'));
+    act(() => screen.h.updateAvailabilityField('day')('Mon,Tue'));
+    await act(async () => {
+      await screen.h.handleAvailabilitySubmit();
+    });
+    expect(screen.h.availabilityForm.day).toBe('Mon,Tue');
+    expect(screen.h.availabilityError).toBe('Nothing was saved');
+    mockAddAvailabilityDays.mockResolvedValueOnce({ success: true });
+    await act(async () => {
+      await screen.h.handleAvailabilitySubmit();
+    });
+    expect(screen.h.availabilityForm).toMatchObject({ workerId: 'W-1', day: '' });
+    screen.unmount();
+  });
+});
+
+// ─── F-11 ─────────────────────────────────────────────────────────────────────
+
+describe('removing a person with shifts (F-11)', () => {
+  const shift = (id: string, date: string, workerId = 'w1') => ({ id, date, workerId, templateId: 't1', location: '', status: 'Draft' as const, notified: false });
+
+  it('asks first, counting shifts before and from today, and sends nothing yet', async () => {
+    mockData.workers = [W1];
+    mockData.templates = [T1];
+    mockData.roster = [shift('s1', '2020-01-06'), shift('s2', '2099-01-05'), shift('s3', '2099-01-06'), shift('s4', '2099-01-06', 'w2')];
+    const screen = await render();
+    await act(async () => {
+      await screen.h.handleRemoveWorker('w1');
+    });
+    expect(mockRemoveWorker).not.toHaveBeenCalled();
+    expect(screen.h.workerRemoval).toEqual({ workerId: 'w1', name: 'Ana', upcoming: 2, past: 1 });
+    screen.unmount();
+  });
+
+  it('on confirm removes the person with their shifts in one request and reloads the roster', async () => {
+    mockData.workers = [W1];
+    mockData.roster = [shift('s2', '2099-01-05')];
+    mockRemoveWorker.mockResolvedValue({ success: true });
+    const screen = await render();
+    await act(async () => {
+      await screen.h.handleRemoveWorker('w1');
+    });
+    await act(async () => {
+      await screen.h.confirmWorkerRemoval();
+    });
+    expect(mockRemoveWorker).toHaveBeenCalledTimes(1);
+    expect(mockRemoveWorker).toHaveBeenCalledWith('w1', { withShifts: true });
+    expect(mockRefreshRoster).toHaveBeenCalled();
+    expect(screen.h.workerRemoval).toBeNull();
+    expect(screen.h.actionBanner).toEqual({ type: 'success', message: 'scheduler.remove.removed' });
+    screen.unmount();
+  });
+
+  it('Keep closes the question and removes nothing', async () => {
+    mockData.workers = [W1];
+    mockData.roster = [shift('s2', '2099-01-05')];
+    const screen = await render();
+    await act(async () => {
+      await screen.h.handleRemoveWorker('w1');
+    });
+    act(() => screen.h.cancelWorkerRemoval());
+    expect(screen.h.workerRemoval).toBeNull();
+    expect(mockRemoveWorker).not.toHaveBeenCalled();
+    screen.unmount();
+  });
+
+  it('a person without shifts is removed at once', async () => {
+    mockData.workers = [W1];
+    mockRemoveWorker.mockResolvedValue({ success: true });
+    const screen = await render();
+    await act(async () => {
+      await screen.h.handleRemoveWorker('w1');
+    });
+    expect(mockRemoveWorker).toHaveBeenCalledWith('w1');
+    expect(screen.h.workerRemoval).toBeNull();
+    screen.unmount();
+  });
+
+  it('a shift added elsewhere meanwhile (409) reloads the roster and asks', async () => {
+    mockData.workers = [W1];
+    mockRemoveWorker.mockResolvedValueOnce({ success: false, status: 409, error: 'This person still has shifts on the roster.' });
+    mockRefreshRoster.mockImplementationOnce(async () => {
+      mockData.roster = [shift('elsewhere', '2099-02-02')];
+      return true;
+    });
+    const screen = await render();
+    await act(async () => {
+      await screen.h.handleRemoveWorker('w1');
+    });
+    expect(screen.h.workerRemoval).toEqual({ workerId: 'w1', name: 'Ana', upcoming: 1, past: 0 });
+    screen.unmount();
+  });
 });
 
 // ─── D1 ───────────────────────────────────────────────────────────────────────
@@ -387,6 +603,66 @@ describe('auto-assign suggestions (D7)', () => {
     expect(idsOf(0)).toHaveLength(1);
     expect(typeof idsOf(0)[0]).toBe('string');
     expect(idsOf(1)).toEqual(idsOf(0));
+    screen.unmount();
+  });
+
+  // F-6 (CHG-109): another tab took a suggested slot; Apply got 409 and the roster reloaded,
+  // but the old suggestions stayed and were applied again, refused again.
+  it('a 409 on Apply drops the suggestions and makes new ones from the reloaded roster', async () => {
+    mockData.workers = [W1, { ...W1, id: 'w2', displayId: 'W-2', name: 'Bea' }];
+    mockData.templates = [T1];
+    const taken = { id: 'other-tab', date: '2026-12-01', workerId: 'w1', templateId: 't1', location: '', status: 'Draft' as const, notified: false };
+    const SECOND: AssignedShift = { date: '2026-12-01', workerId: 'w2', templateId: 't1' } as AssignedShift;
+    const screen = await render();
+    await runFor(screen);
+    expect(screen.h.autoAssignSuggestions).toEqual([SUGGESTION]);
+    // The refused Apply reloads the roster (useRoster.addShifts): the other tab's shift is in it now.
+    mockAddShifts.mockImplementationOnce(async () => {
+      mockData.roster = [taken];
+      return { success: false, status: 409, error: 'One of these shifts is already on the roster. Nothing was added. Reload and try again' };
+    });
+    mockRunAutoAssign.mockResolvedValueOnce({ assignments: [SECOND], unassigned: [] });
+    await act(async () => {
+      await screen.h.applyAutoAssign();
+    });
+    await settle();
+    expect(mockRunAutoAssign).toHaveBeenCalledTimes(2);
+    // The new run saw the reloaded roster, not the one of the render that pressed Apply.
+    expect((mockRunAutoAssign.mock.calls[1][0] as { existingRoster: unknown[] }).existingRoster).toEqual([taken]);
+    expect(screen.h.autoAssignSuggestions).toEqual([SECOND]);
+    expect(screen.h.actionBanner?.message.startsWith('scheduler.shifts.autoAssignConflictRerun')).toBe(true);
+    // Applying now sends the new suggestion with new ids, not the refused one.
+    await act(async () => {
+      await screen.h.applyAutoAssign();
+    });
+    const sent = mockAddShifts.mock.calls[1][0] as { workerId: string; id: string }[];
+    expect(sent.map((s) => s.workerId)).toEqual(['w2']);
+    expect(sent[0].id).not.toBe((mockAddShifts.mock.calls[0][0] as { id: string }[])[0].id);
+    screen.unmount();
+  });
+
+  it('a new run clears the old suggestions while it computes, so Apply cannot save them', async () => {
+    mockData.workers = [W1];
+    mockData.templates = [T1];
+    const screen = await render();
+    await runFor(screen);
+    let finish!: (r: unknown) => void;
+    mockRunAutoAssign.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let running!: Promise<void>;
+    await act(async () => {
+      running = screen.h.handleAutoAssign();
+    });
+    await settle();
+    expect(screen.h.autoAssignSuggestions).toBeNull();
+    await act(async () => {
+      await screen.h.applyAutoAssign();
+    });
+    expect(mockAddShifts).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ assignments: [SUGGESTION], unassigned: [] });
+      await running;
+    });
+    expect(screen.h.autoAssignSuggestions).toEqual([SUGGESTION]);
     screen.unmount();
   });
 

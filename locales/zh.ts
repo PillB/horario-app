@@ -533,14 +533,14 @@ export const zh = {
     trial: {
       badge: '试用',
       title: '专业版试用激活——无限自动分配已启用。',
-      subtitle: '试用结束后，方案每个门店每月 19 美元起，不按员工收费。',
+      subtitle: '试用结束后，方案每个门店每月 {price} 起，不按员工收费。',
     },
     free: {
       badge: '免费版',
       limitReached: '本月的免费自动排班周已用完。您仍可手动排班，下个月会再有一周。',
       autoAssignsLeft: '本月剩余免费自动排班周数：{n}',
       ctaUnlimited: 'Esencial：最多 40 人无限次自动排班，不按人数收费。查看方案',
-      pricing: '每个门店每月 19 美元起 · 不按员工收费',
+      pricing: '每个门店每月 {price} 起 · 不按员工收费',
     },
     buttonA11y: '升级到专业版',
     buttonHint: '打开方案和价格',
