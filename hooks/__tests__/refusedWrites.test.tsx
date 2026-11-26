@@ -44,13 +44,22 @@ describe('sameValues and judgeRefusedEdit', () => {
 
   it('say saved, conflict or failed from the reloaded row and the status', () => {
     const rows = [{ id: 'a', name: 'Ana', updatedAt: NEWER }];
-    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Ana' }, 502)).toEqual({ kind: 'saved' });
-    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 409)).toEqual({ kind: 'conflict', row: rows[0] });
-    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 403)).toEqual({ kind: 'failed' });
+    const OLDER = '2024-01-01T00:00:00.000000+00:00';
+    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Ana' }, 502, OLDER)).toEqual({ kind: 'saved' });
+    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 409, OLDER)).toEqual({ kind: 'conflict', row: rows[0] });
+    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 403, OLDER)).toEqual({ kind: 'failed' });
     // The reload failed: nothing is known, even if the old list looks right.
-    expect(judgeRefusedEdit(false, rows, 'a', { name: 'Ana' }, 409)).toEqual({ kind: 'failed' });
+    expect(judgeRefusedEdit(false, rows, 'a', { name: 'Ana' }, 409, OLDER)).toEqual({ kind: 'failed' });
     // Deleted meanwhile.
-    expect(judgeRefusedEdit(true, [], 'a', { name: 'Ana' }, 404)).toEqual({ kind: 'failed' });
+    expect(judgeRefusedEdit(true, [], 'a', { name: 'Ana' }, 404, OLDER)).toEqual({ kind: 'failed' });
+  });
+
+  it('call a 409 on a row nobody changed another rule, not a conflict (flow simulation FL-9)', () => {
+    // A template time edit that would double-book someone: 409 from a trigger, the stored row is the one the form read.
+    const rows = [{ id: 'a', name: 'Ana', updatedAt: NEWER }];
+    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 409, NEWER)).toEqual({ kind: 'failed' });
+    // A save that sent no version cannot have been refused as stale.
+    expect(judgeRefusedEdit(true, rows, 'a', { name: 'Bea' }, 409, undefined)).toEqual({ kind: 'failed' });
   });
 });
 

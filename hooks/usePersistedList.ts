@@ -200,21 +200,26 @@ export const sameValues = <T extends object>(row: T, wanted: Partial<T>): boolea
  * after it (`reloaded` false = the reload failed, nothing is known):
  * - `saved`: the stored row already holds the values (the user's own save
  *   went through and only its answer was lost, or the same edit was made elsewhere);
- * - `conflict`: 409 and the row holds other values; `row` is that version,
- *   whose `updatedAt` a save must send to replace it;
+ * - `conflict`: 409 and the row was changed since the edit read it (its
+ *   `updatedAt` is not `sentUpdatedAt`, the one the save sent); `row` is that
+ *   version, whose `updatedAt` a save must send to replace it. A 409 on a row
+ *   nobody changed is another rule (a template edit that would double-book
+ *   someone), so it is `failed` and keeps the server's reason;
  * - `failed`: anything else (deleted, refused for another reason, unknown).
  */
 export type RefusedEdit<T> = { kind: 'saved' } | { kind: 'conflict'; row: T } | { kind: 'failed' };
 
-export const judgeRefusedEdit = <T extends { id: string }>(
+export const judgeRefusedEdit = <T extends { id: string; updatedAt?: string }>(
   reloaded: boolean,
   rows: T[],
   id: string,
   wanted: Partial<T>,
   status: number | undefined,
+  sentUpdatedAt: string | undefined,
 ): RefusedEdit<T> => {
   const row = reloaded ? rows.find((r) => r.id === id) : undefined;
   if (!row) return { kind: 'failed' };
   if (sameValues(row, wanted)) return { kind: 'saved' };
-  return status === 409 ? { kind: 'conflict', row } : { kind: 'failed' };
+  const changedSince = sentUpdatedAt !== undefined && row.updatedAt !== sentUpdatedAt;
+  return status === 409 && changedSince ? { kind: 'conflict', row } : { kind: 'failed' };
 };

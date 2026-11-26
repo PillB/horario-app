@@ -80,13 +80,14 @@ export const useShiftTemplates = (accountId: string) => {
   /** `ifUpdatedAt`: the row's `updatedAt` as the edit form read it (see useWorkers.updateWorker). */
   const updateShiftTemplate = useCallback(
     async (id: string, changes: ShiftTemplateChanges, ifUpdatedAt?: string): Promise<UpdateTemplateResult> => {
-      if (!items.some((t) => t.id === id)) return { success: false, error: 'Template not found' };
+      const previous = items.find((t) => t.id === id);
+      if (!previous) return { success: false, error: 'Template not found' };
       const result = await saveTemplate(id, changes, false, ifUpdatedAt);
       if (result.success) return { success: true };
       // Compare what the server stores (the validated, normalised values), not the raw form input.
       const checked = validateShiftTemplateInput({ ...changes, id });
       const { id: _id, ...wanted } = dbToTemplate(checked.ok ? { ...checked.value, id } : { ...changes, id });
-      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status);
+      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status, ifUpdatedAt ?? previous.updatedAt);
       if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
       if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };
       return { success: false, error: result.error };

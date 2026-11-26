@@ -6,10 +6,10 @@
 
 ---
 
-### CHG-109 — 2026-11-25 UTC (in progress)
+### CHG-109 — 2026-11-26 UTC
 **Type:** AUDIT + FIX (Pablo: find every implicit state machine, diagnose bad, colliding or contradictory states, fix them, simulate first setup and daily / weekly / monthly use across tabs, document the stack.)
 
-**So far:**
+**What changed:**
 - Server state guards (merged from the server worker's branch): over the location quota only the locations beyond the plan are locked (the oldest ones by `created_at` stay usable; an extra location and its shifts are read-only, 402; Pablo's decision card, option recommended); the plan gate fails closed (503) when the plan can't be read; an admin lookup no longer starts a trial; `incrementAutoAssign` is manager-only; `apply_auto_assign` replays a saved run on retry instead of counting it again (migration `20261125000111_state_guards.sql`); a moved Published shift gets a new `published_at`; CHECK `roster_notified_needs_published`.
 - `docs/architecture/STACK.md`: where the code, hosting, database, auth, payments, workers and docs live, with what is not set up yet (no Vercel deployment, dev Supabase secrets missing so migrations are skipped).
 - Flow-simulation defects fixed (branch `fix/flow-defects`; details in `docs/architecture/STATE_MACHINES.md` §2, §5, §16, §17):
@@ -23,7 +23,20 @@
   - F-12: Home's "This week" is the Monday–Sunday week; gaps today..Sunday; upcoming list next 7 days.
   - Trial / free banner quotes the price list of the first location's country (S/ 59 in Peru), via `{price}` in every locale.
   - `e2e/flows.spec.ts`: BUG markers removed, expectations follow the fixes (one availability request, confirm step on removal, Home's ISO week).
-- The flow spec itself was not run in this round (needs the dev server and a dedicated tenant).
+- Found by the re-run: any 409 on an edit was judged "changed somewhere else", so a template time edit refused because it would double-book someone showed the conflict text instead of the reason. `judgeRefusedEdit` now calls it a conflict only when the reloaded row's `updatedAt` differs from the one the save sent (test in `hooks/__tests__/refusedWrites.test.tsx`).
+- Client sync (earlier in this change): focus reloads on Home, Analytics, Profile and the Scheduler (`hooks/useRefreshOnFocus.ts`), one staffing-gap rule (`utils/staffingGaps.ts`), suggestions tied to tenant and location, edit forms send the `updatedAt` they read, onboarding flags from confirmed rows.
+- Migrations: `20261125000111_state_guards.sql`, `20261125000112_state_guards_review.sql` (replay needs the same id, date, worker and template; a moved Published shift is not told), `20261126000113_delete_worker_with_shifts.sql`.
+- Docs: `docs/architecture/STATE_MACHINES.md` (17 machines, diagrams, fixed and open items, patterns: optimistic locking, advisory locks, idempotent replays, outbox for messages later, pooling not needed behind PostgREST) and `docs/architecture/STACK.md`.
+
+**Red team (4 rounds):**
+1. Own server review: deletes stayed blocked when the plan could not be read (fixed, `needsPlan`).
+2. Independent review: replay matched by id only, a moved shift stayed told, trimmed values counted as a failed save, refusal lookup read inherited keys (all fixed, migration 112).
+3. Browser flow simulation (`e2e/flows.spec.ts`, opt-in `HORARIO_FLOW_SIM=1`, a fresh tenant): first run 12 of 15 failed on 12 defects (F-1..F-12, above); after the fixes 15 of 15 pass.
+4. QA thread second look: folded into round 2's fixes.
+
+**Trade-offs and open items:** the location lock is proxy-only and `roster.location` is not checked to be a location of the account; removing a person deletes their past shifts too (no archive state); removing a template with shifts only explains; Paddle reconcile job, wall-clock overlap check and UTC usage month stay as documented in STATE_MACHINES.md.
+
+**Tests:** Jest 1600 passed (60 skipped: database); integration 60; pgTAP for every touched file; flows 15/15; tsc, lint and the complexity gate pass.
 
 ---
 

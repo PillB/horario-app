@@ -139,11 +139,12 @@ export const useWorkers = (accountId: string) => {
       const checked = validateWorkerInput({ ...changes, id });
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id, accountId };
+      const sentUpdatedAt = ifUpdatedAt ?? previous.updatedAt;
       const result = await write({
         id,
         apply: (prev) => prev.map((w) => (w.id === id ? { ...w, ...checked.value, id } : w)),
         // Saves only while the stored row is still the one this list read.
-        commit: () => upsertWorker(input, ifUpdatedAt ?? previous.updatedAt),
+        commit: () => upsertWorker(input, sentUpdatedAt),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
         reconcile: (prev, r) => (r.success ? prev.map((w) => (w.id === id ? toStoredWorker(r.worker, w.availability) : w)) : prev),
         reloadOnFailure: false,
@@ -151,7 +152,7 @@ export const useWorkers = (accountId: string) => {
       if (result.success) return { success: true };
       log.warn('WORKER', 'Worker update rolled back', { workerId: id, reason: result.error });
       const { id: _id, ...wanted } = checked.value;
-      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status);
+      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status, sentUpdatedAt);
       if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
       if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };
       return { success: false, error: result.error };

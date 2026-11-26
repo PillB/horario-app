@@ -203,14 +203,14 @@ const readProfile = async (page: Page): Promise<Seen['profile']> => {
   await goTab(page, 'Profile');
   await expect(page.getByText(/People: /).filter({ visible: true }).first()).toBeVisible({ timeout: 60_000 });
   const raw = await screenText(page);
-  const usage = raw.match(/People: (.+?) · Locations: (.+?) · Auto-schedules this month: (.+)/);
+  const usage = raw.match(/People: (.+?) · Locations: (.+?) · Auto-filled weeks this month: (.+)/);
   const plan = raw.includes('Pro trial:') ? 'trial' : raw.includes('Up to 10 people, 1 location') ? 'gratis' : 'other';
   return {
     plan,
     people: usage?.[1]?.trim() ?? '?',
     locations: usage?.[2]?.trim() ?? '?',
     runs: usage?.[3]?.trim() ?? '?',
-    locationRows: raw.includes('No locations yet.') ? 0 : (raw.match(/Edit location|Edit /g) ?? []).length,
+    locationRows: await page.locator('[data-testid^="location-row-"]').filter({ visible: true }).count(),
     raw,
   };
 };
@@ -617,7 +617,7 @@ test('FL-8 the same worker edited in two tabs: the second save is refused with 4
   const second = proxyResponse(other, 'upsertWorker');
   await other.getByTestId('add-worker-btn').click();
   expect((await second).status()).toBe(409);
-  await expect(other.getByText(/Someone else changed this/).first(), 'the 409 says someone else changed it').toBeVisible();
+  await expect(other.getByText(/was changed somewhere else after you opened it/).first(), 'the 409 says someone else changed it').toBeVisible();
   await other.screenshot({ path: path.join(SHOTS, '08-conflict-second-tab.png'), fullPage: true });
   // After the refusal the list reloads (CLAUDE.md, Concurrency): the stored skills show in the second tab.
   // Passes today: the refused tab shows the stored skills; its form keeps the edit and says "Reload to see their change".
