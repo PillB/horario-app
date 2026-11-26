@@ -52,7 +52,8 @@ test('SC-3 gives both workers availability on every weekday', async ({ page }) =
       const chip = page.getByTestId(`availability-day-${day}`);
       if ((await chip.getAttribute('aria-checked')) !== 'true') await chip.click();
     }
-    const saved = proxyResponse(page, 'upsertAvailability');
+    // Several days are one all-or-nothing request (CHG-109, F-5).
+    const saved = proxyResponse(page, 'addAvailabilitySlots');
     await page.getByRole('button', { name: 'Add availability', exact: true }).click();
     expect((await saved).status()).toBe(200);
     await expect(page.getByRole('button', { name: 'Assign now' }).or(page.getByText('Availability saved')).first()).toBeVisible();
