@@ -8,8 +8,10 @@ import { useLiveRosterSummary } from '../useLiveRosterSummary';
 import { addDaysToKey, todayKey } from '@/utils/dateKeys';
 import { installFakeProxy, renderHook } from '../testUtils/fakeProxy';
 
-const D1 = addDaysToKey(todayKey(), 1);
-const D2 = addDaysToKey(todayKey(), 2);
+// Home counts gaps from today to Sunday (F-12), so the open day is today: tomorrow is next week on a Sunday.
+// D2 is covered, so it never shows on Home; Analytics reads all dates by default.
+const D1 = todayKey();
+const D2 = addDaysToKey(todayKey(), 1);
 
 const TEMPLATE = { id: 't1', accountId: 'acc', name: 'Morning', role: 'Support', startTime: '08:00', endTime: '16:00', coverage: 3 };
 const row = (id: string, date: string, status: 'Draft' | 'Published') => ({
