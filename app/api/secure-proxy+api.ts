@@ -964,10 +964,15 @@ function readAvailabilitySlots(slots: unknown): CheckedSlot[] | string {
 /**
  * Adds one worker's availability for several days in one statement: every day
  * is stored or none (CHG-109, F-5; before, one request per day, and a refused
- * day left the others saved). A retry with the same ids after a lost answer
- * inserts nothing new (ON CONFLICT (id) DO NOTHING) and returns the stored rows;
- * an id that names another tenant's row, or a stored row with other values, is
- * a conflict, never an update of that row.
+ * day left the others saved). The batch's ids are read first, so nothing is
+ * written unless the whole batch is new (red team: an insert that skipped
+ * stored ids could save part of a batch and still answer 409):
+ * - no id stored: one plain insert; a race on an id or a slot fails it whole;
+ * - every id stored by this account with the same values: a retry after a lost
+ *   answer, answered with the stored rows;
+ * - anything else (another tenant's id, other values, a mix): 409, nothing written.
+ * A slot clash (23505 on worker, day and start) whose requested days are all
+ * stored already with the same hours is also a replay: a retry that made new ids.
  */
 async function addAvailabilitySlots(client: SupabaseClient, ctx: AuthContext, slots: unknown): Promise<Result> {
   const checked = readAvailabilitySlots(slots);
@@ -978,26 +983,44 @@ async function addAvailabilitySlots(client: SupabaseClient, ctx: AuthContext, sl
   const rows = checked.map((s) => ({
     id: s.id, account_id: ctx.accountId, worker_id: s.workerId, day_of_week: s.dayOfWeek, from_time: s.fromTime, to_time: s.toTime,
   }));
-  const { error } = await client.from('worker_availability').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
-  if (error) {
-    if (error.code === '23505') {
-      console.error('[secure-proxy] add worker_availability:', error.code, error.message ?? '');
-      return fail(409, 'One of these days already has availability starting at that time. Nothing was saved. Reload and try again');
-    }
-    return dbFailure('add worker_availability', error);
+  const known = await client.from('worker_availability').select(AVAILABILITY_COLUMNS).in('id', rows.map((r) => r.id));
+  if (known.error) return dbFailure('read worker_availability', known.error);
+  const stored = (known.data ?? []) as AvailabilityRow[];
+  if (stored.length > 0) {
+    const replay = stored.length === rows.length && rows.every((r) => stored.some((s) => s.id === r.id && sameSlot(s, r, ctx.accountId)));
+    return replay ? ok({ success: true, availability: stored.map(rowToAvailability) }) : fail(409, 'Conflicting record');
   }
-  const { data, error: readError } = await client
+  const { data, error } = await client.from('worker_availability').insert(rows).select(AVAILABILITY_COLUMNS);
+  if (!error) return ok({ success: true, availability: ((data ?? []) as AvailabilityRow[]).map(rowToAvailability) });
+  if (error.code !== '23505') return dbFailure('add worker_availability', error);
+  console.error('[secure-proxy] add worker_availability:', error.code, error.message ?? '');
+  return availabilityClash(client, ctx, rows);
+}
+
+type SlotValues = { account_id: string; worker_id: string; day_of_week: string; from_time: string; to_time: string };
+
+/** Same account, worker, day and hours (times compared as HH:MM, the column may say 09:00:00). */
+const sameSlot = (s: AvailabilityRow | SlotValues, r: SlotValues, accountId: string) =>
+  s.account_id === accountId &&
+  s.worker_id === r.worker_id &&
+  s.day_of_week === r.day_of_week &&
+  String(s.from_time).slice(0, 5) === r.from_time.slice(0, 5) &&
+  String(s.to_time).slice(0, 5) === r.to_time.slice(0, 5);
+
+/** After a slot clash: a replay when every requested day is stored with these hours, else the 409 that names the clash. */
+async function availabilityClash(client: SupabaseClient, ctx: AuthContext, rows: SlotValues[]): Promise<Result> {
+  const { data, error } = await client
     .from('worker_availability')
     .select(AVAILABILITY_COLUMNS)
     .eq('account_id', ctx.accountId)
-    .in('id', rows.map((r) => r.id));
-  if (readError) return dbFailure('read worker_availability', readError);
+    .eq('worker_id', rows[0].worker_id);
+  if (error) return dbFailure('read worker_availability', error);
   const stored = (data ?? []) as AvailabilityRow[];
-  const same = rows.every((r) =>
-    stored.some((s) => s.id === r.id && s.worker_id === r.worker_id && s.day_of_week === r.day_of_week && s.from_time === r.from_time && s.to_time === r.to_time),
-  );
-  if (!same) return fail(409, 'Conflicting record');
-  return ok({ success: true, availability: stored.map(rowToAvailability) });
+  const matches = rows.map((r) => stored.find((s) => sameSlot(s, r, ctx.accountId)));
+  if (matches.every((m) => m !== undefined)) {
+    return ok({ success: true, availability: (matches as AvailabilityRow[]).map(rowToAvailability) });
+  }
+  return fail(409, 'One of these days already has availability starting at that time. Nothing was saved. Reload and try again');
 }
 
 // ─── Days off ─────────────────────────────────────────────────────────────────
@@ -1147,6 +1170,23 @@ async function listRoster(client: SupabaseClient, ctx: AuthContext, p: Record<st
  * it in updateShiftStatus too). The update matches the values it was decided
  * on, so a change made in between gives 409 instead of keeping a stale flag.
  */
+/** Shown when a roster shift names a location that is not one of the account's. */
+export const UNKNOWN_LOCATION = 'Unknown location. Choose one of your locations, or leave the location empty';
+
+/**
+ * A roster shift's location is '' or the id of one of the account's locations
+ * (CHG-109 red team: the per-location plan lock and the labor rules read it, and
+ * a made-up value passed both). An edit may keep the value its stored row
+ * already has, so rows saved before this check (the tour's sample text) stay editable.
+ */
+async function rosterLocationsRefusal(client: SupabaseClient, ctx: AuthContext, locations: string[], stored?: string | null): Promise<Result | null> {
+  const named = Array.from(new Set(locations.filter((l) => l !== '' && l !== (stored ?? ''))));
+  if (named.length === 0) return null;
+  const owns = named.every(isUuid) ? await ownsAll(client, 'locations', ctx, named) : false;
+  if (owns === true) return null;
+  return owns === false ? badRequest(UNKNOWN_LOCATION) : owns;
+}
+
 async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
   const checked = validateRosterShiftInput(shift);
   if (!checked.ok) return badRequest(checked.error);
@@ -1163,30 +1203,39 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   if (id !== undefined) {
     const existing = await ownRosterRow(client, ctx, id);
     if (isResult(existing)) return existing;
-    if (existing) {
-      const reassigned =
-        existing.date !== date || existing.worker_id !== workerId || existing.template_id !== templateId || existing.status !== status;
-      const { data, error } = await client
-        .from('roster')
-        .update(reassigned ? { ...values, notified: false } : values)
-        .eq('id', id)
-        .eq('account_id', ctx.accountId)
-        .eq('date', existing.date)
-        .eq('worker_id', existing.worker_id)
-        .eq('template_id', existing.template_id)
-        .eq('status', existing.status)
-        .select(ROSTER_COLUMNS)
-        .maybeSingle();
-      if (error) return dbFailure('update roster', error);
-      if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
-      return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
-    }
+    if (existing) return updateRosterRow(client, ctx, id, existing, values);
   }
+  const unknown = await rosterLocationsRefusal(client, ctx, [location]);
+  if (unknown) return unknown;
 
   // New shift (or a client id with no row of this tenant): never notified.
   // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
   const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
+
+type RosterValues = { date: string; worker_id: string; template_id: string; location: string; status: string };
+
+/** An edit of a stored shift: saved only while the row is still the one read; a move clears `notified`. */
+async function updateRosterRow(client: SupabaseClient, ctx: AuthContext, id: string, existing: RosterRow, values: RosterValues): Promise<Result> {
+  const unknown = await rosterLocationsRefusal(client, ctx, [values.location], existing.location);
+  if (unknown) return unknown;
+  const reassigned =
+    existing.date !== values.date || existing.worker_id !== values.worker_id || existing.template_id !== values.template_id || existing.status !== values.status;
+  const { data, error } = await client
+    .from('roster')
+    .update(reassigned ? { ...values, notified: false } : values)
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .eq('date', existing.date)
+    .eq('worker_id', existing.worker_id)
+    .eq('template_id', existing.template_id)
+    .eq('status', existing.status)
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster', error);
+  if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
+  return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
 }
 
 type RosterWrite = { data: unknown; error: { code?: string; message?: string } | { refusal: Result } | null };
@@ -1306,6 +1355,8 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
   ]);
   if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
   if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
+  const unknown = await rosterLocationsRefusal(client, ctx, rows.map((r) => String(r.location ?? '')));
+  if (unknown) return unknown;
 
   return saveRosterBatch(client, ctx, rows, countAutoAssign);
 }

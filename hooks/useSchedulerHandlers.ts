@@ -1665,14 +1665,14 @@ export function useSchedulerHandlers() {
     const shiftPromises: ReturnType<typeof addShift>[] = [];
     if (w1Id && t1Id) {
       shiftPromises.push(
-        addShift({ date: dateOffset(1), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Draft', notified: false }),
-        addShift({ date: dateOffset(3), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Published', notified: true }),
+        addShift({ date: dateOffset(1), workerId: w1Id, templateId: t1Id, location: '', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(3), workerId: w1Id, templateId: t1Id, location: '', status: 'Published', notified: true }),
       );
     }
     if (w2Id && t2Id) {
       shiftPromises.push(
-        addShift({ date: dateOffset(2), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Draft', notified: false }),
-        addShift({ date: dateOffset(5), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Published', notified: true }),
+        addShift({ date: dateOffset(2), workerId: w2Id, templateId: t2Id, location: '', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(5), workerId: w2Id, templateId: t2Id, location: '', status: 'Published', notified: true }),
       );
     }
     if (shiftPromises.length > 0) await Promise.all(shiftPromises);

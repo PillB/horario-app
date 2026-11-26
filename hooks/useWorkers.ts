@@ -223,7 +223,11 @@ export const useWorkers = (accountId: string) => {
         rollback: (prev) => withSlots(prev, workerId, (slots) => slots.filter((s) => !s.id || !ids.has(s.id))),
         reconcile: (prev, r) =>
           r.success
-            ? withSlots(prev, workerId, (slots) => [...slots.filter((s) => !s.id || !ids.has(s.id)), ...r.availability.map(toSlot)])
+            ? withSlots(prev, workerId, (slots) => {
+                // A replay may answer with rows the list already shows (stored by the lost first attempt).
+                const answered = new Set(r.availability.map((a) => a.id));
+                return [...slots.filter((s) => !s.id || (!ids.has(s.id) && !answered.has(s.id))), ...r.availability.map(toSlot)];
+              })
             : prev,
       });
       if (result.success) log.info('WORKER', 'Availability added', { workerId, days: days.length });

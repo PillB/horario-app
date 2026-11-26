@@ -28,15 +28,17 @@
 - Migrations: `20261125000111_state_guards.sql`, `20261125000112_state_guards_review.sql` (replay needs the same id, date, worker and template; a moved Published shift is not told), `20261126000113_delete_worker_with_shifts.sql`.
 - Docs: `docs/architecture/STATE_MACHINES.md` (17 machines, diagrams, fixed and open items, patterns: optimistic locking, advisory locks, idempotent replays, outbox for messages later, pooling not needed behind PostgREST) and `docs/architecture/STACK.md`.
 
+- QA thread red team of migration 113 and `addAvailabilitySlots` (after the simulation): a batch with one stored id (other values) and one new slot saved the new slot and answered 409 (ON CONFLICT DO NOTHING before the check). Now the batch's ids are read first and nothing is written unless all are new; a retry that made new ids for days already stored with the same hours is answered as a replay; the client drops answered rows it already shows. A roster location must be '' or one of the account's locations (`rosterLocationsRefusal`, 400 "Unknown location…"; an edit may keep its stored value), which closes the bypass of the per-location lock; the tour's sample shifts use ''. Integration tests for both fail on the old proxy.
+
 **Red team (4 rounds):**
 1. Own server review: deletes stayed blocked when the plan could not be read (fixed, `needsPlan`).
 2. Independent review: replay matched by id only, a moved shift stayed told, trimmed values counted as a failed save, refusal lookup read inherited keys (all fixed, migration 112).
 3. Browser flow simulation (`e2e/flows.spec.ts`, opt-in `HORARIO_FLOW_SIM=1`, a fresh tenant): first run 12 of 15 failed on 12 defects (F-1..F-12, above); after the fixes 15 of 15 pass.
 4. QA thread second look: folded into round 2's fixes.
 
-**Trade-offs and open items:** the location lock is proxy-only and `roster.location` is not checked to be a location of the account; removing a person deletes their past shifts too (no archive state); removing a template with shifts only explains; Paddle reconcile job, wall-clock overlap check and UTC usage month stay as documented in STATE_MACHINES.md.
+**Trade-offs and open items:** the location lock is proxy-only (a read, then the write); availability may still hold two overlapping slots with different start times on one day (older rule, unique on worker, day and start); removing a person deletes their past shifts too (no archive state); removing a template with shifts only explains; Paddle reconcile job, wall-clock overlap check and UTC usage month stay as documented in STATE_MACHINES.md.
 
-**Tests:** Jest 1600 passed (60 skipped: database); integration 60; pgTAP for every touched file; flows 15/15; tsc, lint and the complexity gate pass.
+**Tests:** Jest 1600 passed (61 skipped: database); integration 61; pgTAP for every touched file; flows 15/15; tsc, lint and the complexity gate pass.
 
 ---
 

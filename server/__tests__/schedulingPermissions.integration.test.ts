@@ -58,7 +58,7 @@ describeIfDb('scheduling permissions and roster notified (local Supabase)', () =
   };
   /** A published, notified shift on `date`. */
   const notifiedShift = async (date: string): Promise<Shift> => {
-    const shift = await saveShift({ id: randomUUID(), date, workerId: worker1, templateId: template1, location: 'HQ' });
+    const shift = await saveShift({ id: randomUUID(), date, workerId: worker1, templateId: template1, location: '' });
     expect((await asAdmin({ action: 'updateShiftStatus', id: shift.id, status: 'Published' })).status).toBe(200);
     const notified = await asAdmin({ action: 'markShiftNotified', id: shift.id });
     expect(notified.body.shift).toMatchObject({ status: 'Published', notified: true });
@@ -179,8 +179,13 @@ describeIfDb('scheduling permissions and roster notified (local Supabase)', () =
 
     it('keeps the stored value on an edit that does not reassign, whatever the client sends', async () => {
       const shift = await notifiedShift('2026-11-25');
-      const edited = await saveShift({ ...shift, location: 'Bar', notified: false });
-      expect(edited).toMatchObject({ location: 'Bar', notified: true });
+      // A roster location is one of the account's locations (CHG-109).
+      const bar = (await asAdmin({
+        action: 'upsertLocation',
+        location: { name: 'Bar', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' },
+      })).body.location as { id: string };
+      const edited = await saveShift({ ...shift, location: bar.id, notified: false });
+      expect(edited).toMatchObject({ location: bar.id, notified: true });
       const listed = (await asAdmin({ action: 'listRoster', fromDate: '2026-11-25', toDate: '2026-11-25' })).body.shifts as Shift[];
       expect(listed.find((s) => s.id === shift.id)?.notified).toBe(true);
     });

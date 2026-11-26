@@ -14,6 +14,7 @@
  * whose member is user_b. For every action, B must not be able to read,
  * change or delete A's rows by id.
  */
+import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
 import { installJwksFetch, signToken, TEST_JWKS_URL } from '../testUtils/testTokens';
@@ -256,11 +257,32 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
     expect((await asA({ action: 'addAvailabilitySlots', availability: slots })).status).toBe(200);
     expect(await mine()).toEqual([...days].sort());
 
-    // New ids for days that already start at 00:00: refused whole, nothing added.
-    const again = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID() })) });
+    // A retry that made new ids, for days already stored with these hours: the same rows, 200, nothing doubled.
+    const retried = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID() })) });
+    expect(retried.status).toBe(200);
+    expect((retried.body.availability as { id: string }[]).map((a) => a.id).sort()).toEqual([slots[0].id, slots[1].id].sort());
+    expect(await mine()).toEqual([...days].sort());
+
+    // New ids for days that already start at 00:00 with other hours: refused whole, nothing added.
+    const again = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID(), toTime: '12:00' })) });
     expect(again.status).toBe(409);
     expect(again.body.error).toMatch(/Nothing was saved/);
     expect(await mine()).toEqual([...days].sort());
+
+    // A batch with one stored id (other values) and one new slot: refused before writing, the new slot is not stored (red team).
+    const other = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Gus', role: 'Barista' } })).body.worker as { id: string };
+    const first = { id: randomUUID(), workerId: other.id, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '17:00' };
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [first] })).status).toBe(200);
+    const mixed = await asA({
+      action: 'addAvailabilitySlots',
+      availability: [{ ...first, dayOfWeek: 'Tue', fromTime: '10:00' }, { id: randomUUID(), workerId: other.id, dayOfWeek: 'Wed', fromTime: '10:00', toTime: '18:00' }],
+    });
+    expect(mixed.status).toBe(409);
+    const otherDays = ((await asA({ action: 'listWorkerAvailability' })).body.availabilities as { workerId: string; dayOfWeek: string }[])
+      .filter((a) => a.workerId === other.id)
+      .map((a) => a.dayOfWeek);
+    expect(otherDays).toEqual(['Mon']);
+    expect((await asA({ action: 'deleteWorker', id: other.id })).status).toBe(200);
 
     // Another tenant: not for A's worker, and A's slot ids are never taken over.
     expect((await asB({ action: 'addAvailabilitySlots', availability: [{ ...slots[0], id: randomUUID() }] })).status).toBe(404);
@@ -275,6 +297,38 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
 
     expect((await asB({ action: 'deleteWorker', id: workerB.id })).status).toBe(200);
     expect((await asA({ action: 'deleteWorker', id: worker.id })).status).toBe(200);
+  });
+
+  // ── CHG-109 red team: a roster location is '' or one of the account's locations ──
+
+  it("refuses a roster location that is not one of the account's, and keeps a stored one on edit", async () => {
+    const lima = { name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' };
+    const locA = (await asA({ action: 'upsertLocation', location: lima })).body.location as { id: string };
+    const locB = (await asB({ action: 'upsertLocation', location: lima })).body.location as { id: string };
+    const shift = (location: string, date: string) => ({ id: randomUUID(), date, workerId: workerA, templateId: templateA, location, status: 'Draft' });
+
+    const madeUp = await asA({ action: 'upsertRosterShift', shift: shift('Main Floor', '2099-04-01') });
+    expect(madeUp.status).toBe(400);
+    expect(madeUp.body.error).toMatch(/Unknown location/);
+    expect((await asA({ action: 'upsertRosterShift', shift: shift(locB.id, '2099-04-01') })).status).toBe(400);
+    expect((await asA({ action: 'addRosterShifts', shifts: [shift('', '2099-04-02'), shift('Patio', '2099-04-03')] })).status).toBe(400);
+    expect((await asA({ action: 'listRoster', fromDate: '2099-04-01', toDate: '2099-04-03' })).body.shifts).toEqual([]);
+
+    const mine = await asA({ action: 'upsertRosterShift', shift: shift(locA.id, '2099-04-01') });
+    expect(mine.status).toBe(200);
+    expect(mine.body.shift).toMatchObject({ location: locA.id });
+
+    // A row stored before the check with free text stays editable while its location is unchanged.
+    const db = createClient(SUPABASE_URL as string, SERVICE_KEY as string, { auth: { persistSession: false } });
+    const old = shift('Bar', '2099-04-05');
+    const inserted = await db.from('roster').insert({ id: old.id, account_id: USER_A, date: old.date, worker_id: workerA, template_id: templateA, location: 'Bar', status: 'Draft' });
+    expect(inserted.error).toBeNull();
+    expect((await asA({ action: 'upsertRosterShift', shift: { ...old, status: 'Published' } })).status).toBe(200);
+    expect((await asA({ action: 'upsertRosterShift', shift: { ...old, location: 'Terrace' } })).status).toBe(400);
+
+    for (const id of [old.id, (mine.body.shift as { id: string }).id]) expect((await asA({ action: 'deleteRosterShift', id })).status).toBe(200);
+    expect((await asA({ action: 'deleteLocation', id: locA.id })).status).toBe(200);
+    expect((await asB({ action: 'deleteLocation', id: locB.id })).status).toBe(200);
   });
 
   // ── CHG-109 F-11: a person with shifts is removed with their shifts, only when asked ──
@@ -349,10 +403,10 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
   });
 
   it('persists roster status and notified, with notify only after publish', async () => {
-    const created = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-11-06', workerId: workerA, templateId: templateA, location: ' Bar ' } });
+    const created = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-11-06', workerId: workerA, templateId: templateA, location: '' } });
     expect(created.status).toBe(200);
     const id = (created.body.shift as { id: string }).id;
-    expect(created.body.shift).toMatchObject({ status: 'Draft', notified: false, location: 'Bar' });
+    expect(created.body.shift).toMatchObject({ status: 'Draft', notified: false, location: '' });
 
     expect((await asA({ action: 'markShiftNotified', id })).status).toBe(409);
     expect((await asA({ action: 'updateShiftStatus', id, status: 'Published' })).body.shift).toMatchObject({ status: 'Published', notified: false });

@@ -21,8 +21,7 @@
       "forecastHistory": 17,
       "listForecastSignals": 16,
       "updateOrInsert": 16,
-      "uploadPosSales": 18,
-      "upsertRosterShift": 17
+      "uploadPosSales": 18
     },
     "components/SyncStatusBar.tsx": {
       "SyncStatusBar": 31
