@@ -13,6 +13,7 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useLocalSearchParams: () => ({ section: mockSection }),
   useRouter: () => ({ setParams: jest.fn(), push: jest.fn() }),
+  useFocusEffect: () => {},
 }));
 
 jest.mock('@/hooks/useSessionWellness', () => ({
@@ -127,13 +128,13 @@ describe('findCoveringAvailability', () => {
   it('uses the calendar weekday of the business-local date, not an offset-shifted one', () => {
     // 2024-05-31 is a Friday; the shift date is already business-local, so a
     // UTC-12 offset must not shift it to another weekday.
-    const friday = findCoveringAvailability(worker, template, '2024-05-31', -720);
+    const friday = findCoveringAvailability(worker, template, '2024-05-31', 'Etc/GMT+12');
     expect(friday.weekdayLabel).toBe('Fri');
-    expect(friday.coveringSlot).toEqual(worker.availability[0]);
+    expect(friday.covered).toBe(true);
 
-    const saturday = findCoveringAvailability(worker, template, '2024-06-01', -720);
+    const saturday = findCoveringAvailability(worker, template, '2024-06-01', 'Etc/GMT+12');
     expect(saturday.weekdayLabel).toBe('Sat');
-    expect(saturday.coveringSlot).toBeUndefined();
+    expect(saturday.covered).toBe(false);
   });
 });
 

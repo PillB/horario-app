@@ -31,8 +31,23 @@ jest.mock('@/contexts/LocaleContext', () => {
   };
 });
 
-// The insights panel loads its own data; it has its own tests.
-jest.mock('@/components/analytics/InsightsPanel', () => ({ InsightsPanel: () => null }));
+// The insights panel loads its own data; it has its own tests. The stub
+// records each mount and the props it was given.
+const mockPanelMounts: number[] = [];
+const mockPanelProps: { reloadSignal?: number }[] = [];
+jest.mock('@/components/analytics/InsightsPanel', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useEffect } = require('react');
+  return {
+    InsightsPanel: (props: { reloadSignal?: number }) => {
+      mockPanelProps.push(props);
+      useEffect(() => {
+        mockPanelMounts.push(1);
+      }, []);
+      return null;
+    },
+  };
+});
 
 // Themed components need useColorScheme.
 jest.mock('@/hooks/useColorScheme', () => ({
@@ -40,9 +55,13 @@ jest.mock('@/hooks/useColorScheme', () => ({
 }));
 
 // expo-router Link needs a stub.
+// useFocusEffect keeps the latest callback; a test calls it once per focus
+// (the first call is the mount's focus).
+let mockFocus: (() => void) | null = null;
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useRouter: () => ({ push: jest.fn() }),
+  useFocusEffect: (cb: () => void) => { mockFocus = cb; },
 }));
 
 // TourStep requires WelcomeTourProvider — stub it out to a passthrough.
@@ -98,6 +117,7 @@ const baseResult = {
   fairnessScore: 8.0,
   uncoveredRevenue: 1950,
   loading: false,
+  loaded: true,
   error: null,
   refresh: jest.fn(),
 };
@@ -165,7 +185,7 @@ describe('AnalyticsScreen', () => {
   });
 
   it('shows SkeletonCard and hides KPI cards when loading', () => {
-    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true });
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true, loaded: false });
 
     let tree: renderer.ReactTestRenderer | null = null;
     act(() => {
@@ -197,6 +217,54 @@ describe('AnalyticsScreen', () => {
 
     expect(findTextNodes(tree!, 'network failure').length).toBeGreaterThan(0);
 
+    act(() => { tree!.unmount(); });
+  });
+
+  // D5 (CHG-109): tabs stay mounted, so returning to Analytics must reload.
+  it('reloads on a return to the screen, not on the first focus', () => {
+    const refresh = jest.fn();
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, refresh });
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    act(() => { mockFocus!(); }); // the mount's focus: the hook already loads
+    expect(refresh).not.toHaveBeenCalled();
+    act(() => { mockFocus!(); }); // back from another tab
+    expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => { tree!.unmount(); });
+  });
+
+  // A return to the screen reloads: the figures already shown stay until the
+  // answer, and the insights reload in place instead of remounting.
+  it('keeps the figures while a reload runs, and reloads the insights without a remount', () => {
+    mockPanelMounts.length = 0;
+    mockPanelProps.length = 0;
+    (useAnalytics as jest.Mock).mockReturnValue(baseResult);
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    const signalBefore = mockPanelProps.at(-1)!.reloadSignal;
+    act(() => { mockFocus!(); }); // the mount's focus
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, loading: true, loaded: true });
+    act(() => { mockFocus!(); }); // back from another tab
+    expect(findTextNodes(tree!, '75%').length).toBeGreaterThan(0);
+    expect(
+      tree!.root.findAll((node) => node.props.testID === 'skeleton-card' && typeof node.type === 'string'),
+    ).toHaveLength(0);
+    expect(mockPanelMounts).toHaveLength(1);
+    expect(mockPanelProps.at(-1)!.reloadSignal).not.toBe(signalBefore);
+    act(() => { tree!.unmount(); });
+  });
+
+  it('says when a list was cut short (D2)', () => {
+    (useAnalytics as jest.Mock).mockReturnValue({ ...baseResult, truncated: true });
+    let tree: renderer.ReactTestRenderer | null = null;
+    act(() => {
+      tree = renderer.create(<AnalyticsScreen />);
+    });
+    expect(findHostByTestID(tree!, 'analytics-truncated')).toBeDefined();
     act(() => { tree!.unmount(); });
   });
 });

@@ -46,7 +46,7 @@ import { resolvePack } from '@/services/labor/engine';
 import { READ_LIMIT, WRITE_LIMIT, rateLimiter } from '@/server/rateLimit';
 import { validateOverrides } from '@/services/labor/overrides';
 import { OnboardingProgress } from '@/services/onboardingProgress';
-import { isDateKey, todayKey } from '@/utils/dateKeys';
+import { inOneIsoWeek, isDateKey, todayKey } from '@/utils/dateKeys';
 import {
   type BusinessLocation,
   type LocationHistoryEntry,
@@ -90,6 +90,7 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
   'deleteWorker',
   'importWorkers',
   'upsertAvailability',
+  'addAvailabilitySlots',
   'deleteAvailability',
   'upsertTimeOff',
   'deleteTimeOff',
@@ -110,14 +111,17 @@ const SCHEDULING_WRITE_ACTIONS = new Set([
 /**
  * Actions that need `canManage` (a personal account, or an admin of the
  * organization). Open to members: reads, a forecast (which stores model rows
- * only for a manager), and the member's own per-user data (onboarding, usage
- * count; referrals live in their own route).
+ * only for a manager), and the member's own per-user data (onboarding;
+ * referrals live in their own route).
  */
 const MANAGER_ACTIONS = new Set([
   ...SCHEDULING_WRITE_ACTIONS,
   // A location decides which labor rules apply, so only admins set it (QA, CHG-080).
   'upsertLocation',
   'deleteLocation',
+  // Uses up the account's monthly auto-schedule allowance without saving anything; a member
+  // could spend it for the whole business (CHG-109). Applying a run is addRosterShifts.
+  'incrementAutoAssign',
   'cancelSubscription',
   'createCheckoutSession',
   'changeSubscription',
@@ -125,22 +129,31 @@ const MANAGER_ACTIONS = new Set([
 ]);
 
 /** Writes open to members (their own data); they share the write rate limit. */
-const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'incrementAutoAssign', 'forecast']);
+const MEMBER_WRITE_ACTIONS = new Set(['upsertOnboarding', 'forecast']);
+
+// 23P01 from our own triggers (roster_no_overlap, template_times_no_overlap) carries a sentence
+// written for the manager. Any other 23P01 is an exclusion constraint whose text names schema objects.
+const exclusionFailure = (message: string): Result => {
+  if (message.startsWith('This person already has a shift')) return fail(409, `${message}. Reload and try again`);
+  if (message.startsWith('With these times')) return fail(409, message);
+  return fail(409, 'Conflicting record');
+};
+
+/** Database refusals the manager can act on, by SQLSTATE; null = not one of ours (a 500). */
+const DB_REFUSALS: Record<string, (message: string) => Result | null> = {
+  '23505': () => fail(409, 'Conflicting record'),
+  '23503': () => fail(409, 'Record is still referenced'),
+  '23P01': exclusionFailure,
+  // CHECK roster_notified_needs_published (CHG-109): only a published shift can be marked as told.
+  '23514': (message) =>
+    message.includes('roster_notified_needs_published') ? fail(409, 'Only a published shift can be marked as told. Publish it first') : null,
+};
 
 /** Logs the database error and returns a generic message. */
-const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
+export const dbFailure = (context: string, error: { message?: string; code?: string } | null): Result => {
   console.error(`[secure-proxy] ${context}:`, error?.code ?? '', error?.message ?? error);
-  if (error?.code === '23505') return fail(409, 'Conflicting record');
-  if (error?.code === '23503') return fail(409, 'Record is still referenced');
-  // 23P01 from our own triggers (roster_no_overlap, template_times_no_overlap) carries a sentence
-  // written for the manager. Any other 23P01 is an exclusion constraint whose text names schema objects.
-  if (error?.code === '23P01') {
-    const message = error.message ?? '';
-    if (message.startsWith('This person already has a shift')) return fail(409, `${message}. Reload and try again`);
-    if (message.startsWith('With these times')) return fail(409, message);
-    return fail(409, 'Conflicting record');
-  }
-  return fail(500, 'Database request failed');
+  const known = error?.code ? (Object.hasOwn(DB_REFUSALS, error.code) ? DB_REFUSALS[error.code](error.message ?? '') : null) : null;
+  return known ?? fail(500, 'Database request failed');
 };
 
 // ─── Validators ───────────────────────────────────────────────────────────────
@@ -210,6 +223,15 @@ async function updateOrInsert<Row>(
   return { row: data as Row };
 }
 
+/**
+ * What a refused delete (23503: roster shifts still point at the row) tells the
+ * manager to do, per table (F-11, CHG-109; before, "Record is still referenced").
+ */
+export const IN_USE_MESSAGES: Record<string, string> = {
+  workers: 'This person still has shifts on the roster. Remove them together with their shifts, or remove those shifts first',
+  shift_templates: 'Shifts on the roster use this template. Remove or change those shifts first, or keep the template',
+};
+
 async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthContext, id: unknown): Promise<Result> {
   if (!isUuid(id)) return badRequest('id must be a UUID');
   const { data, error } = await client
@@ -218,8 +240,27 @@ async function deleteOwned(client: SupabaseClient, table: string, ctx: AuthConte
     .eq('id', id)
     .eq('account_id', ctx.accountId)
     .select('id');
+  if (error?.code === '23503' && IN_USE_MESSAGES[table]) {
+    console.error(`[secure-proxy] delete ${table}:`, error.code, error.message ?? '');
+    return fail(409, IN_USE_MESSAGES[table]);
+  }
   if (error) return dbFailure(`delete ${table}`, error);
   return (data ?? []).length ? ok({ success: true }) : notFound();
+}
+
+/**
+ * Removes a person. With `withShifts: true` (the manager confirmed it in the app)
+ * their roster shifts are removed in the same transaction (delete_worker_with_shifts,
+ * F-11); without it a person with shifts is refused (409) and nothing changes.
+ */
+async function deleteWorker(client: SupabaseClient, ctx: AuthContext, id: unknown, withShifts: unknown): Promise<Result> {
+  if (withShifts !== true) return deleteOwned(client, 'workers', ctx, id);
+  if (!isUuid(id)) return badRequest('id must be a UUID');
+  const { data, error } = await client.rpc('delete_worker_with_shifts', { p_account_id: ctx.accountId, p_worker_id: id });
+  if (error?.code === 'P0002') return notFound();
+  if (error) return dbFailure('delete_worker_with_shifts', error);
+  const removed = (data as { removedShifts?: unknown } | null)?.removedShifts;
+  return ok({ success: true, removedShifts: typeof removed === 'number' ? removed : 0 });
 }
 
 /** True when every id exists in `table` for the caller's tenant. */
@@ -896,6 +937,92 @@ async function upsertAvailability(client: SupabaseClient, ctx: AuthContext, av: 
   return ok({ success: true, availability: rowToAvailability(data as AvailabilityRow) });
 }
 
+/** One slot per weekday at most: the day chips of the availability form (F-5). */
+export const AVAILABILITY_BATCH_MAX = 7;
+
+type CheckedSlot = { id: string; workerId: string; dayOfWeek: string; fromTime: string; toTime: string };
+
+/** Every slot valid, with its client id, all for one worker and on different days; else the 400 sentence. */
+function readAvailabilitySlots(slots: unknown): CheckedSlot[] | string {
+  if (!Array.isArray(slots) || slots.length === 0 || slots.length > AVAILABILITY_BATCH_MAX) {
+    return `availability must be a list of 1 to ${AVAILABILITY_BATCH_MAX} slots`;
+  }
+  const out: CheckedSlot[] = [];
+  for (let i = 0; i < slots.length; i += 1) {
+    const checked = validateAvailabilityInput(slots[i]);
+    if (!checked.ok) return `slot ${i + 1}: ${checked.error}`;
+    // A retry after a lost answer must name the same rows, so each slot carries its id.
+    if (checked.value.id === undefined) return `slot ${i + 1}: id is required`;
+    out.push({ ...checked.value, id: checked.value.id });
+  }
+  if (new Set(out.map((s) => s.workerId)).size !== 1) return 'all slots must be for one worker';
+  if (new Set(out.map((s) => s.dayOfWeek)).size !== out.length) return 'each day may appear once';
+  if (new Set(out.map((s) => s.id)).size !== out.length) return 'each slot needs its own id';
+  return out;
+}
+
+/**
+ * Adds one worker's availability for several days in one statement: every day
+ * is stored or none (CHG-109, F-5; before, one request per day, and a refused
+ * day left the others saved). The batch's ids are read first, so nothing is
+ * written unless the whole batch is new (red team: an insert that skipped
+ * stored ids could save part of a batch and still answer 409):
+ * - no id stored: one plain insert; a race on an id or a slot fails it whole;
+ * - every id stored by this account with the same values: a retry after a lost
+ *   answer, answered with the stored rows;
+ * - anything else (another tenant's id, other values, a mix): 409, nothing written.
+ * A slot clash (23505 on worker, day and start) whose requested days are all
+ * stored already with the same hours is also a replay: a retry that made new ids.
+ */
+async function addAvailabilitySlots(client: SupabaseClient, ctx: AuthContext, slots: unknown): Promise<Result> {
+  const checked = readAvailabilitySlots(slots);
+  if (typeof checked === 'string') return badRequest(checked);
+  const owns = await ownsAll(client, 'workers', ctx, [checked[0].workerId]);
+  if (owns !== true) return owns === false ? notFound() : owns;
+
+  const rows = checked.map((s) => ({
+    id: s.id, account_id: ctx.accountId, worker_id: s.workerId, day_of_week: s.dayOfWeek, from_time: s.fromTime, to_time: s.toTime,
+  }));
+  const known = await client.from('worker_availability').select(AVAILABILITY_COLUMNS).in('id', rows.map((r) => r.id));
+  if (known.error) return dbFailure('read worker_availability', known.error);
+  const stored = (known.data ?? []) as AvailabilityRow[];
+  if (stored.length > 0) {
+    const replay = stored.length === rows.length && rows.every((r) => stored.some((s) => s.id === r.id && sameSlot(s, r, ctx.accountId)));
+    return replay ? ok({ success: true, availability: stored.map(rowToAvailability) }) : fail(409, 'Conflicting record');
+  }
+  const { data, error } = await client.from('worker_availability').insert(rows).select(AVAILABILITY_COLUMNS);
+  if (!error) return ok({ success: true, availability: ((data ?? []) as AvailabilityRow[]).map(rowToAvailability) });
+  if (error.code !== '23505') return dbFailure('add worker_availability', error);
+  console.error('[secure-proxy] add worker_availability:', error.code, error.message ?? '');
+  return availabilityClash(client, ctx, rows);
+}
+
+type SlotValues = { account_id: string; worker_id: string; day_of_week: string; from_time: string; to_time: string };
+
+/** Same account, worker, day and hours (times compared as HH:MM, the column may say 09:00:00). */
+const sameSlot = (s: AvailabilityRow | SlotValues, r: SlotValues, accountId: string) =>
+  s.account_id === accountId &&
+  s.worker_id === r.worker_id &&
+  s.day_of_week === r.day_of_week &&
+  String(s.from_time).slice(0, 5) === r.from_time.slice(0, 5) &&
+  String(s.to_time).slice(0, 5) === r.to_time.slice(0, 5);
+
+/** After a slot clash: a replay when every requested day is stored with these hours, else the 409 that names the clash. */
+async function availabilityClash(client: SupabaseClient, ctx: AuthContext, rows: SlotValues[]): Promise<Result> {
+  const { data, error } = await client
+    .from('worker_availability')
+    .select(AVAILABILITY_COLUMNS)
+    .eq('account_id', ctx.accountId)
+    .eq('worker_id', rows[0].worker_id);
+  if (error) return dbFailure('read worker_availability', error);
+  const stored = (data ?? []) as AvailabilityRow[];
+  const matches = rows.map((r) => stored.find((s) => sameSlot(s, r, ctx.accountId)));
+  if (matches.every((m) => m !== undefined)) {
+    return ok({ success: true, availability: (matches as AvailabilityRow[]).map(rowToAvailability) });
+  }
+  return fail(409, 'One of these days already has availability starting at that time. Nothing was saved. Reload and try again');
+}
+
 // ─── Days off ─────────────────────────────────────────────────────────────────
 
 const TIME_OFF_COLUMNS = 'id, account_id, worker_id, date, reason, created_at';
@@ -1043,6 +1170,23 @@ async function listRoster(client: SupabaseClient, ctx: AuthContext, p: Record<st
  * it in updateShiftStatus too). The update matches the values it was decided
  * on, so a change made in between gives 409 instead of keeping a stale flag.
  */
+/** Shown when a roster shift names a location that is not one of the account's. */
+export const UNKNOWN_LOCATION = 'Unknown location. Choose one of your locations, or leave the location empty';
+
+/**
+ * A roster shift's location is '' or the id of one of the account's locations
+ * (CHG-109 red team: the per-location plan lock and the labor rules read it, and
+ * a made-up value passed both). An edit may keep the value its stored row
+ * already has, so rows saved before this check (the tour's sample text) stay editable.
+ */
+async function rosterLocationsRefusal(client: SupabaseClient, ctx: AuthContext, locations: string[], stored?: string | null): Promise<Result | null> {
+  const named = Array.from(new Set(locations.filter((l) => l !== '' && l !== (stored ?? ''))));
+  if (named.length === 0) return null;
+  const owns = named.every(isUuid) ? await ownsAll(client, 'locations', ctx, named) : false;
+  if (owns === true) return null;
+  return owns === false ? badRequest(UNKNOWN_LOCATION) : owns;
+}
+
 async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift: unknown): Promise<Result> {
   const checked = validateRosterShiftInput(shift);
   if (!checked.ok) return badRequest(checked.error);
@@ -1059,30 +1203,39 @@ async function upsertRosterShift(client: SupabaseClient, ctx: AuthContext, shift
   if (id !== undefined) {
     const existing = await ownRosterRow(client, ctx, id);
     if (isResult(existing)) return existing;
-    if (existing) {
-      const reassigned =
-        existing.date !== date || existing.worker_id !== workerId || existing.template_id !== templateId || existing.status !== status;
-      const { data, error } = await client
-        .from('roster')
-        .update(reassigned ? { ...values, notified: false } : values)
-        .eq('id', id)
-        .eq('account_id', ctx.accountId)
-        .eq('date', existing.date)
-        .eq('worker_id', existing.worker_id)
-        .eq('template_id', existing.template_id)
-        .eq('status', existing.status)
-        .select(ROSTER_COLUMNS)
-        .maybeSingle();
-      if (error) return dbFailure('update roster', error);
-      if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
-      return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
-    }
+    if (existing) return updateRosterRow(client, ctx, id, existing, values);
   }
+  const unknown = await rosterLocationsRefusal(client, ctx, [location]);
+  if (unknown) return unknown;
 
   // New shift (or a client id with no row of this tenant): never notified.
   // A primary-key clash with another tenant's row fails (409) instead of overwriting it.
   const result = await updateOrInsert<RosterRow>(client, 'roster', ctx, undefined, { ...values, notified: false, ...(id !== undefined ? { id } : {}) }, ROSTER_COLUMNS);
   return 'error' in result ? result.error : ok({ success: true, shift: rowToRosterShift(result.row) });
+}
+
+type RosterValues = { date: string; worker_id: string; template_id: string; location: string; status: string };
+
+/** An edit of a stored shift: saved only while the row is still the one read; a move clears `notified`. */
+async function updateRosterRow(client: SupabaseClient, ctx: AuthContext, id: string, existing: RosterRow, values: RosterValues): Promise<Result> {
+  const unknown = await rosterLocationsRefusal(client, ctx, [values.location], existing.location);
+  if (unknown) return unknown;
+  const reassigned =
+    existing.date !== values.date || existing.worker_id !== values.worker_id || existing.template_id !== values.template_id || existing.status !== values.status;
+  const { data, error } = await client
+    .from('roster')
+    .update(reassigned ? { ...values, notified: false } : values)
+    .eq('id', id)
+    .eq('account_id', ctx.accountId)
+    .eq('date', existing.date)
+    .eq('worker_id', existing.worker_id)
+    .eq('template_id', existing.template_id)
+    .eq('status', existing.status)
+    .select(ROSTER_COLUMNS)
+    .maybeSingle();
+  if (error) return dbFailure('update roster', error);
+  if (!data) return fail(409, 'The shift changed while saving. Reload and try again');
+  return ok({ success: true, shift: rowToRosterShift(data as RosterRow) });
 }
 
 type RosterWrite = { data: unknown; error: { code?: string; message?: string } | { refusal: Result } | null };
@@ -1096,6 +1249,8 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   const resolved = await resolvePlan(client, ctx.accountId);
   if (!resolved.ok) return { data: null, error: { refusal: dbFailure('resolve plan', resolved.error) } };
   const limit = resolved.plan.limits.maxAutoSchedulesPerMonth;
+  const outsideWeek = limit === null ? null : autoScheduleWeekRefusal(rows);
+  if (outsideWeek) return { data: null, error: { refusal: outsideWeek } };
   const { data, error } = await client.rpc('apply_auto_assign', {
     p_user_id: ctx.userId,
     p_account_id: ctx.accountId,
@@ -1105,21 +1260,42 @@ async function applyAutoAssignRun(client: SupabaseClient, ctx: AuthContext, rows
   const usedUp: RosterWrite = {
     data: null,
     error: {
-      refusal: fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Nothing was added. Upgrade for unlimited auto-schedule`),
+      refusal: fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${autoWeeks(limit)} a month, already used this month. Nothing was added. Upgrade to auto-fill every week`),
     },
   };
-  if (error?.code === 'PGRST202' || error?.code === '42883') {
-    // The function is not there yet (migration pending): count, then save, as before it existed.
-    console.error('[secure-proxy] apply_auto_assign is missing; apply migration 20261118000105. Counting and saving in two steps.');
-    const counted = await client.rpc('consume_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId, p_limit: limit });
-    if (counted.error) return { data: null, error: counted.error };
-    if (Number(counted.data ?? 0) < 0) return usedUp;
-    return client.from('roster').insert(rows).select(ROSTER_COLUMNS);
-  }
+  if (error?.code === 'PGRST202' || error?.code === '42883') return countThenInsert(client, ctx, rows, limit, usedUp);
   if (error) return { data: null, error };
-  const answer = data as { rows?: unknown[]; limited?: boolean } | null;
+  // `replayed`: every shift of this run is already on the roster (a retry after a lost answer,
+  // CHG-109). The run was counted when it was saved; the stored rows are the answer.
+  const answer = data as { rows?: unknown[]; limited?: boolean; replayed?: boolean } | null;
   if (answer?.limited) return usedUp;
   return { data: answer?.rows ?? [], error: null };
+}
+
+/** apply_auto_assign is not there yet (migration pending): count, then save, as before it existed. */
+async function countThenInsert(
+  client: SupabaseClient,
+  ctx: AuthContext,
+  rows: Record<string, unknown>[],
+  limit: number | null,
+  usedUp: RosterWrite,
+): Promise<RosterWrite> {
+  console.error('[secure-proxy] apply_auto_assign is missing; apply migration 20261118000105. Counting and saving in two steps.');
+  const counted = await client.rpc('consume_auto_assign', { p_user_id: ctx.userId, p_account_id: ctx.accountId, p_limit: limit });
+  if (counted.error) return { data: null, error: counted.error };
+  if (Number(counted.data ?? 0) < 0) return usedUp;
+  return client.from('roster').insert(rows).select(ROSTER_COLUMNS);
+}
+
+/** "1 auto-filled week" / "2 auto-filled weeks": what one counted run buys on a limited plan. */
+const autoWeeks = (limit: number | null): string => `${limit} auto-filled week${limit === 1 ? '' : 's'}`;
+
+/**
+ * On a plan with a monthly limit one counted run fills one week (Monday to Sunday, CHG-108):
+ * a batch that spans two weeks is refused, so one run cannot fill the month.
+ */
+export function autoScheduleWeekRefusal(rows: readonly Record<string, unknown>[]): Result | null {
+  return inOneIsoWeek(rows.map((r) => String(r.date))) ? null : badRequest('An auto-schedule on this plan fills one week, Monday to Sunday. Apply one week at a time');
 }
 
 /** True when the account's plan limits auto-schedules a month (Gratis); a Result when the plan cannot be read. */
@@ -1130,7 +1306,7 @@ async function planLimitsAutoSchedules(client: SupabaseClient, ctx: AuthContext)
 }
 
 /** Shifts one request may add. */
-const ADD_ROSTER_SHIFTS_MAX = 200;
+const ADD_ROSTER_SHIFTS_MAX = 1000;
 
 /**
  * Adds several new shifts in one step (applying an auto-assign result): every
@@ -1179,6 +1355,8 @@ async function addRosterShifts(client: SupabaseClient, ctx: AuthContext, shifts:
   ]);
   if (ownsWorkers !== true) return ownsWorkers === false ? notFound() : ownsWorkers;
   if (ownsTemplates !== true) return ownsTemplates === false ? notFound() : ownsTemplates;
+  const unknown = await rosterLocationsRefusal(client, ctx, rows.map((r) => String(r.location ?? '')));
+  if (unknown) return unknown;
 
   return saveRosterBatch(client, ctx, rows, countAutoAssign);
 }
@@ -1454,7 +1632,7 @@ async function listLocationHistory(client: SupabaseClient, ctx: AuthContext, p: 
 
 // ─── Usage limits ─────────────────────────────────────────────────────────────
 // Auto-schedule runs are counted per account and calendar month (UTC). The
-// plan decides the limit (Gratis: 3 a month; paid plans: none).
+// plan decides the limit (Gratis: 1 a month, one week each; paid plans: none).
 
 async function getUsageLimit(client: SupabaseClient, ctx: AuthContext): Promise<Result> {
   const resolved = await resolvePlan(client, ctx.accountId);
@@ -1478,7 +1656,7 @@ async function incrementAutoAssign(client: SupabaseClient, ctx: AuthContext): Pr
   if (error) return dbFailure('consume_auto_assign', error);
   const count = Number(data ?? 0);
   if (count < 0) {
-    return fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${limit} auto-schedules a month and they are used up. Upgrade for unlimited auto-schedule`);
+    return fail(402, `The ${TIER_META[resolved.plan.plan].label} plan includes ${autoWeeks(limit)} a month, already used this month. Upgrade to auto-fill every week`);
   }
   return ok({ success: true, count, limit, canAutoAssign: limit === null || count < limit });
 }
@@ -1624,9 +1802,9 @@ async function adminListEntitlements(client: SupabaseClient, accountId: unknown)
     .limit(200);
   if (error) return dbFailure('list entitlements', error);
   const now = new Date();
-  const resolved = await resolvePlan(client, accountId, now);
+  // Looking an account up must not start its one trial (CHG-109): only the account's own requests do.
+  const resolved = await resolvePlan(client, accountId, now, { startTrial: false });
   if (!resolved.ok) return dbFailure('resolve plan', resolved.error);
-  // Re-read is not needed for the list: a trial started by resolvePlan shows on the next load.
   return ok({
     entitlements: ((data ?? []) as unknown as EntitlementRow[]).map((row) => rowToEntitlement(row, now)),
     plan: resolved.plan,
@@ -1706,13 +1884,17 @@ async function forecastStatus(client: SupabaseClient, ctx: AuthContext, rawFilte
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
+/** The `forecast` action: refuses unreadable date filters, then fits the forecast. */
+async function forecastAction(client: SupabaseClient, ctx: AuthContext, filters: unknown): Promise<Result> {
+  const dateError = filtersDateError(filters);
+  if (dateError) return badRequest(dateError);
+  return ok(await generateForecast(client, ctx, cleanFilters(filters)));
+}
+
 async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<string, unknown>): Promise<Result> {
   switch (p.action) {
-    case 'forecast': {
-      const dateError = filtersDateError(p.filters);
-      if (dateError) return badRequest(dateError);
-      return ok(await generateForecast(client, ctx, cleanFilters(p.filters)));
-    }
+    case 'forecast':
+      return forecastAction(client, ctx, p.filters);
     case 'status':
       return forecastStatus(client, ctx, p.filters);
     case 'forecastHistory':
@@ -1734,13 +1916,15 @@ async function dispatch(client: SupabaseClient, ctx: AuthContext, p: Record<stri
     case 'upsertWorker':
       return upsertWorker(client, ctx, p.worker, p.ifUpdatedAt);
     case 'deleteWorker':
-      return deleteOwned(client, 'workers', ctx, p.id);
+      return deleteWorker(client, ctx, p.id, p.withShifts);
     case 'importWorkers':
       return importWorkers(client, ctx, p.workers);
     case 'listWorkerAvailability':
       return listAvailability(client, ctx, p.page);
     case 'upsertAvailability':
       return upsertAvailability(client, ctx, p.availability);
+    case 'addAvailabilitySlots':
+      return addAvailabilitySlots(client, ctx, p.availability);
     case 'deleteAvailability':
       return deleteOwned(client, 'worker_availability', ctx, p.id);
     case 'listTimeOff':

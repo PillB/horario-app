@@ -23,9 +23,11 @@ const strings = (value: unknown, out: string[] = []): string[] => {
 
 describe('pricing copy', () => {
   it.each(Object.keys(LOCALES))('%s quotes US$19 per location and a 14-day trial, never $12', (code) => {
-    const locale = LOCALES[code] as { auth: { signUp: { pricing: string } }; upgrade: { free: { pricing: string } } } & { auth: { signUp: { promo: string } } };
+    const locale = LOCALES[code] as { auth: { signUp: { pricing: string } }; upgrade: { trial: { subtitle: string }; free: { pricing: string } } } & { auth: { signUp: { promo: string } } };
     expect(locale.auth.signUp.pricing).toMatch(/19/);
-    expect(locale.upgrade.free.pricing).toMatch(/19/);
+    // The banner fills in the price list of the business's country (CHG-109): US$19, or S/ 59 in Peru.
+    expect(locale.upgrade.free.pricing).toContain('{price}');
+    expect(locale.upgrade.trial.subtitle).toContain('{price}');
     // The trial is automatic (no button offers it): the sign-up offer states it.
     expect(locale.auth.signUp.promo).toMatch(/14/);
     const all = strings(LOCALES[code]);

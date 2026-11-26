@@ -36,6 +36,20 @@ const dbToShift = (db: Pick<DbRosterShift, 'id' | 'date' | 'workerId' | 'templat
 
 export type RosterShiftChanges = Partial<Omit<Shift, 'id'>>;
 
+/** `alreadyStored`: the request failed, but after a reload every shift was on the roster (a lost answer). */
+export type AddShiftsResult = { success: true; alreadyStored?: boolean; error?: never } | { success: false; error: string; status?: number };
+
+/**
+ * A refusal after which the batch may still be stored: a conflict (409, the
+ * slots are taken) or no clear answer (no status: the request or its answer
+ * was lost; 5xx: a gateway or the server failed after the database may have
+ * committed). Any other refusal (400, 402, 403) saved nothing.
+ */
+const mayBeStored = (status: number | undefined) => status === undefined || status === 409 || status >= 500;
+
+const sameSlot = (a: Pick<Shift, 'date' | 'workerId' | 'templateId'>, b: Pick<Shift, 'date' | 'workerId' | 'templateId'>) =>
+  a.date === b.date && a.workerId === b.workerId && a.templateId === b.templateId;
+
 /** `accountId` only names the tenant (a new one reloads); the proxy takes it from the session. */
 export const useRoster = (accountId: string, filters?: RosterFilters) => {
   // Stable key: a new filters object with the same values does not reload.
@@ -47,7 +61,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     return { ok: true, data: result.data.map(dbToShift), truncated: result.truncated };
   }, [filtersKey]);
   const list = usePersistedList<Shift>(`${accountId}|${filtersKey}`, load);
-  const { items, write } = list;
+  const { items, write, refresh, getItems } = list;
 
   /** A new shift is never notified (the server stores false whatever is sent, CHG-091). */
   const addShift = useCallback(
@@ -72,12 +86,15 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
   /**
    * Adds several new shifts in one request: all are stored or none
    * (applying an auto-assign result must never leave half a schedule).
+   * A shift may carry its client id: the caller keeps it until the save
+   * succeeds, so a retry after a lost answer is the same rows (the server
+   * then replays the run instead of refusing or counting it again).
    */
   const addShifts = useCallback(
-    async (shifts: Omit<Shift, 'id'>[], options: { countAutoAssign?: boolean } = {}): Promise<MutationResult> => {
+    async (shifts: (Omit<Shift, 'id'> & { id?: string })[], options: { countAutoAssign?: boolean } = {}): Promise<AddShiftsResult> => {
       const inputs: (DbRosterShift & { id: string })[] = [];
       for (const shift of shifts) {
-        const checked = validateRosterShiftInput({ ...shift, notified: false, id: newUuid() });
+        const checked = validateRosterShiftInput({ ...shift, notified: false, id: shift.id ?? newUuid() });
         if (!checked.ok) return { success: false, error: checked.error };
         inputs.push({ ...checked.value, id: checked.value.id as string, accountId, notified: false });
       }
@@ -85,16 +102,32 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
       const ids = new Set(inputs.map((s) => s.id));
       const result = await write({
         id: inputs[0].id,
-        apply: (prev) => [...prev, ...inputs.map(dbToShift)],
+        // A retry's rows may already be listed (the reload after a lost answer).
+        apply: (prev) => [...prev.filter((s) => !ids.has(s.id)), ...inputs.map(dbToShift)],
         commit: () => addRosterShifts(inputs.map(({ id, date, workerId, templateId, location, status }) => ({ id, date, workerId, templateId, location, status })), options),
         rollback: (prev) => prev.filter((s) => !ids.has(s.id)),
         reconcile: (prev, r) => (r.success ? r.shifts.reduce((list, s) => upsertById(list, dbToShift(s)), prev) : prev),
+        // Reloaded below, once, and awaited: the check needs the server's rows.
+        reloadOnFailure: false,
       });
-      if (result.success) log.info('ROSTER', 'Shifts added', { count: inputs.length });
-      else log.warn('ROSTER', 'Shifts add rolled back', { count: inputs.length, reason: result.error });
-      return result.success ? { success: true } : { success: false, error: result.error };
+      if (result.success) {
+        log.info('ROSTER', 'Shifts added', { count: inputs.length });
+        return { success: true };
+      }
+      // A retry after a lost answer can be refused as "already on the roster".
+      // Only a reload that succeeded says what is stored (the rolled-back
+      // optimistic rows are gone by then); when every shift is there, the batch
+      // is saved: say so instead of failing (QA, CHG-109).
+      const reloaded = await refresh();
+      const stored = reloaded && mayBeStored(result.status) ? getItems() : [];
+      if (stored.length > 0 && inputs.every((input) => stored.some((s) => sameSlot(s, input)))) {
+        log.info('ROSTER', 'Shifts already on the roster', { count: inputs.length });
+        return { success: true, alreadyStored: true };
+      }
+      log.warn('ROSTER', 'Shifts add rolled back', { count: inputs.length, reason: result.error });
+      return { success: false, error: result.error, ...(result.status !== undefined ? { status: result.status } : {}) };
     },
-    [accountId, write],
+    [accountId, getItems, refresh, write],
   );
 
   /**
@@ -197,5 +230,7 @@ export const useRoster = (accountId: string, filters?: RosterFilters) => {
     notifyShift,
     removeShift,
     refresh: list.refresh,
+    /** The list as last set, read synchronously: a run started right after a reload sees it (F-6). */
+    getRoster: getItems,
   };
 };

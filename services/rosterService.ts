@@ -14,6 +14,7 @@
  */
 
 import { getSessionToken } from '@/services/authToken';
+import { reportPlanRefusal } from '@/services/planSignal';
 
 const SECURE_PROXY_URL = process.env.EXPO_PUBLIC_SECURE_PROXY_URL ?? '/api/secure-proxy';
 
@@ -83,9 +84,13 @@ export type ListResult<T> =
   | { ok: true; data: T[]; truncated: boolean; error?: never }
   | { ok: false; data?: never; truncated?: never; error: string };
 
+/**
+ * `status`: the proxy's HTTP status when it refused the write (409 = the row
+ * changed since it was read, or a conflict); absent when no answer arrived.
+ */
 export type UpsertWorkerResult =
   | { success: true; worker: DbWorker; error?: never }
-  | { success: false; worker?: never; error: string };
+  | { success: false; worker?: never; error: string; status?: number };
 
 export type UpsertAvailabilityResult =
   | { success: true; availability: DbAvailability; error?: never }
@@ -93,7 +98,7 @@ export type UpsertAvailabilityResult =
 
 export type UpsertTemplateResult =
   | { success: true; template: DbShiftTemplate; error?: never }
-  | { success: false; template?: never; error: string };
+  | { success: false; template?: never; error: string; status?: number };
 
 export type UpsertRosterShiftResult =
   | { success: true; shift: DbRosterShift; error?: never }
@@ -101,7 +106,7 @@ export type UpsertRosterShiftResult =
 
 export type MutationResult =
   | { success: true; error?: never }
-  | { success: false; error: string };
+  | { success: false; error: string; status?: number };
 
 /** Status / notified changes return the stored shift (absent from an older proxy). */
 export type ShiftUpdateResult =
@@ -109,6 +114,13 @@ export type ShiftUpdateResult =
   | { success: false; shift?: never; error: string };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
+
+/** A refused request, with the proxy's HTTP status. */
+class ProxyError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
   const token = await getSessionToken();
@@ -122,13 +134,15 @@ const proxyPost = async <T>(body: Record<string, unknown>): Promise<T> => {
   });
 
   if (!response.ok) {
+    // The plan refused it (a trial that ended, a limit reached): the plan readers reload (F-3, F-10).
+    if (response.status === 402) reportPlanRefusal();
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    if (payload?.error) throw new Error(payload.error);
+    if (payload?.error) throw new ProxyError(payload.error, response.status);
     // No JSON body: the route itself is missing (not deployed, or no migrations).
     if (response.status === 404) {
-      throw new Error('Service unavailable. Please check your connection or run database migrations.');
+      throw new ProxyError('Service unavailable. Please check your connection or run database migrations.', 404);
     }
-    throw new Error(`Server error (${response.status})`);
+    throw new ProxyError(`Server error (${response.status})`, response.status);
   }
 
   return (await response.json()) as T;
@@ -140,14 +154,18 @@ const messageOf = (err: unknown, fallback: string) => (err instanceof Error && e
 const mutate = async <T extends Record<string, unknown>>(
   body: Record<string, unknown>,
   fallback: string,
-): Promise<({ success: true } & T) | { success: false; error: string }> => {
+): Promise<({ success: true } & T) | { success: false; error: string; status?: number }> => {
   try {
     const result = await proxyPost<{ success?: boolean; error?: string } & T>(body);
     if (!result.success) return { success: false, error: result.error ?? fallback };
     return { ...result, success: true };
   } catch (err) {
     console.warn(fallback, err);
-    return { success: false, error: messageOf(err, fallback) };
+    return {
+      success: false,
+      error: messageOf(err, fallback),
+      ...(err instanceof ProxyError ? { status: err.status } : {}),
+    };
   }
 };
 
@@ -224,8 +242,15 @@ export const importWorkers = async (
   return result.success ? { success: true, added: result.added ?? 0, workers: result.workers ?? [] } : result;
 };
 
-export const deleteWorker = async (id: string): Promise<MutationResult> => {
-  const result = await mutate({ action: 'deleteWorker', id }, 'Unable to delete worker');
+/**
+ * Removes a worker. A worker with roster shifts is refused (409) unless
+ * `withShifts` is set: then their shifts are removed in the same transaction (F-11).
+ */
+export const deleteWorker = async (id: string, options: { withShifts?: boolean } = {}): Promise<MutationResult> => {
+  const result = await mutate(
+    { action: 'deleteWorker', id, ...(options.withShifts ? { withShifts: true } : {}) },
+    'Unable to delete worker',
+  );
   return result.success ? { success: true } : result;
 };
 
@@ -244,6 +269,24 @@ export const upsertAvailability = async (
   const { id, workerId, dayOfWeek, fromTime, toTime } = availability;
   const result = await mutate<{ availability: DbAvailability }>(
     { action: 'upsertAvailability', availability: { id, workerId, dayOfWeek, fromTime, toTime } },
+    'Unable to save availability',
+  );
+  return result.success ? { success: true, availability: result.availability } : result;
+};
+
+/**
+ * Adds one worker's availability for several days in one request: every day is
+ * stored or none (F-5). Each slot carries its client id, so a retry after a lost
+ * answer is the same rows.
+ */
+export const addAvailabilitySlots = async (
+  slots: (Omit<DbAvailability, 'accountId'> & { accountId?: string })[],
+): Promise<{ success: true; availability: DbAvailability[] } | { success: false; error: string; status?: number }> => {
+  const result = await mutate<{ availability: DbAvailability[] }>(
+    {
+      action: 'addAvailabilitySlots',
+      availability: slots.map(({ id, workerId, dayOfWeek, fromTime, toTime }) => ({ id, workerId, dayOfWeek, fromTime, toTime })),
+    },
     'Unable to save availability',
   );
   return result.success ? { success: true, availability: result.availability } : result;
@@ -341,7 +384,7 @@ export const upsertRosterShift = async (
 export const addRosterShifts = async (
   shifts: (Pick<DbRosterShift, 'id' | 'date' | 'workerId' | 'templateId' | 'status'> & { location?: string | null })[],
   options: { countAutoAssign?: boolean } = {},
-): Promise<{ success: true; shifts: DbRosterShift[] } | { success: false; error: string }> => {
+): Promise<{ success: true; shifts: DbRosterShift[] } | { success: false; error: string; status?: number }> => {
   const result = await mutate<{ shifts?: DbRosterShift[] }>(
     { action: 'addRosterShifts', shifts, ...(options.countAutoAssign ? { countAutoAssign: true } : {}) },
     'Unable to save the shifts',

@@ -5,17 +5,14 @@
 import { type Shift, type ShiftTemplate } from '@/utils/schedulerMetrics';
 import { type Worker } from '@/types/scheduler';
 import {
-  MINUTES_PER_DAY,
-  defaultTimezoneOffsetMinutes,
   getTemplateWindow,
   getWeekdayFromDate,
   isValidTime,
   normalizeDay,
-  normalizeWindow,
   parseTimeToMinutes,
   windowsOverlap,
 } from './schedulerUtils';
-import { addDaysToKey } from './dateKeys';
+import { availabilityCoversShift } from '@/services/shiftAssigner';
 
 // ─── ValidationErrorItem ─────────────────────────────────────────────────────
 
@@ -38,43 +35,24 @@ export function localizeValidationErrors(
 
 // ─── findCoveringAvailability ─────────────────────────────────────────────────
 
-/** Returns the availability slot (if any) that fully covers the template window on `date`.
+/** Whether the worker's availability covers the template window starting on `date`.
  *
- *  Overnight windows are supported on both sides: a template or slot whose end is at or
- *  before its start runs into the next day (21:00–07:00 covers 22:00–06:00), a slot
- *  ending at 23:59 counts as ending at midnight, and an overnight slot from the previous
- *  weekday covers the early hours of `date` (Mon 21:00–07:00 covers Tue 01:00–05:00).
- *  The weekday is that of the business-local date key; the offset argument is
- *  deprecated and ignored. */
+ *  One rule with auto-assign (CHG-109, F-9): `availabilityCoversShift` from the assigner,
+ *  which joins touching slots, also across midnight (Thu 00:00–23:59 + Fri 00:00–23:59
+ *  cover Thu 22:00–06:00). Before, only a single slot could cover a shift, so a night
+ *  shift auto-assign created could not be published or added by hand. An overnight slot
+ *  (21:00–07:00) and one from the previous weekday still count; a slot ending at 23:59
+ *  counts as ending at midnight. The weekday is that of the business-local date key;
+ *  `timeZone` is the business IANA zone (device zone when absent). */
 export const findCoveringAvailability = (
   worker: Worker,
   template: ShiftTemplate,
   date: string,
-  timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
-): { coveringSlot: Worker['availability'][number] | undefined; weekdayLabel: string | null } => {
-  const weekdayLabel = getWeekdayFromDate(date, timezoneOffsetMinutes);
-  if (!weekdayLabel) {
-    return { coveringSlot: undefined, weekdayLabel: null };
-  }
-  const previousLabel = getWeekdayFromDate(addDaysToKey(date, -1));
-
-  const shift = normalizeWindow(getTemplateWindow(template));
-
-  const coveringSlot = worker.availability.find((slot) => {
-    const dayShift = slot.day === weekdayLabel ? 0 : slot.day === previousLabel ? -MINUTES_PER_DAY : null;
-    if (dayShift === null) return false;
-    const rawEnd = parseTimeToMinutes(slot.to);
-    const window = normalizeWindow({
-      startMinutes: parseTimeToMinutes(slot.from),
-      endMinutes: rawEnd === MINUTES_PER_DAY - 1 ? MINUTES_PER_DAY : rawEnd,
-    });
-    return (
-      window.startMinutes + dayShift <= shift.startMinutes &&
-      window.endMinutes + dayShift >= shift.endMinutes
-    );
-  });
-
-  return { coveringSlot, weekdayLabel };
+  timeZone?: string
+): { covered: boolean; weekdayLabel: string | null } => {
+  const weekdayLabel = getWeekdayFromDate(date);
+  if (!weekdayLabel) return { covered: false, weekdayLabel: null };
+  return { covered: availabilityCoversShift(worker, template, date, timeZone), weekdayLabel };
 };
 
 // ─── validateAvailabilitySubmission ──────────────────────────────────────────
@@ -185,12 +163,13 @@ export const validateShiftReadiness = (
   roster: Shift[],
   shiftTemplates: ShiftTemplate[],
   workers: Worker[],
-  timezoneOffsetMinutes = defaultTimezoneOffsetMinutes
+  /** The business IANA zone of the shift's location (device zone when absent). */
+  timeZone?: string
 ): { errors: ValidationErrorItem[] } => {
   const errors: ValidationErrorItem[] = [];
   const template = shiftTemplates.find((t) => t.id === shift.templateId);
   const worker = workers.find((w) => w.id === shift.workerId);
-  const weekdayLabel = getWeekdayFromDate(shift.date, timezoneOffsetMinutes);
+  const weekdayLabel = getWeekdayFromDate(shift.date);
 
   if (!template) errors.push({ code: 'TEMPLATE_MISSING', message: 'Template is no longer available for this shift.' });
   if (!worker) errors.push({ code: 'WORKER_MISSING', message: 'Worker is no longer available for this shift.' });
@@ -203,8 +182,7 @@ export const validateShiftReadiness = (
     });
 
   if (template && worker && weekdayLabel) {
-    const { coveringSlot } = findCoveringAvailability(worker, template, shift.date, timezoneOffsetMinutes);
-    if (!coveringSlot)
+    if (!findCoveringAvailability(worker, template, shift.date, timeZone).covered)
       errors.push({
         code: 'COVERAGE_MISSING',
         message: `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`,

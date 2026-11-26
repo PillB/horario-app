@@ -4,7 +4,7 @@
  * The plan in force (server/plans.ts) and the price list (constants/pricing.ts),
  * checked against the product research: Gratis / Esencial / Pro, per location,
  * US$19 / S/ 59 and US$39 / S/ 119 a month, a year for the price of ten months,
- * 10 / 40 / unlimited people, 3 auto-schedules a month on Gratis, 14-day Pro trial.
+ * 10 / 40 / unlimited people, 1 auto-filled week a month on Gratis (one run fills Monday to Sunday, CHG-108), 14-day Pro trial.
  */
 import {
   ANNUAL_MONTHS_FREE,
@@ -19,7 +19,9 @@ import {
   tierCanAccessFeature,
   tierFromLegacy,
 } from '@/constants/pricing';
-import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PlanRefusal, type EntitlementRow } from '@/server/plans';
+import { en } from '@/locales/en';
+import { es } from '@/locales/es';
+import { effectivePlanFrom, gatedClient, insertWithinLimit, PAST_DUE_GRACE_DAYS, PLAN_UNREADABLE, PlanRefusal, planGate, resolvePlan, type EntitlementRow } from '@/server/plans';
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
@@ -64,7 +66,7 @@ describe('price list', () => {
   });
 
   it('has the researched limits and gates', () => {
-    expect(TIER_LIMITS.gratis).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 });
+    expect(TIER_LIMITS.gratis).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 });
     expect(TIER_LIMITS.esencial).toMatchObject({ maxWorkers: 40, maxAutoSchedulesPerMonth: Infinity });
     expect(TIER_LIMITS.pro).toMatchObject({ maxWorkers: Infinity, maxLocations: Infinity });
     expect(tierCanAccessFeature('gratis', 'labor_law.warnings')).toBe(true);
@@ -83,6 +85,33 @@ describe('price list', () => {
   });
 });
 
+describe('the free plan copy (CHG-108)', () => {
+  // The copy says "1 auto-filled week" in words; a change of the limit must change the copy too.
+  // The landing plan string takes the limit as {n} (app/welcome.tsx passes it), so it is
+  // checked as the page renders it, and it must not hard-code the number (CHG-109).
+  const n = TIER_LIMITS.gratis.maxAutoSchedulesPerMonth;
+  const rendered = (text: string) => text.replace('{n}', String(n));
+  it.each([
+    ['en pricing', en.pricing.feature.autoScheduleLimited, `${n} auto-filled week a month`],
+    ['en profile', en.profile.subscription.gratisDesc, `${n} auto-filled week a month`],
+    ['en landing plan', rendered(en.landing.plans.autoLimited), `${n} auto-filled week a month`],
+    ['en landing FAQ', en.landing.faq.a3, `${n} auto-filled week a month`],
+    ['es pricing', es.pricing.feature.autoScheduleLimited, `${n} semana automática al mes`],
+    ['es profile', es.profile.subscription.gratisDesc, `${n} semana automática al mes`],
+    ['es landing plan', rendered(es.landing.plans.autoLimited), `${n} semana automática al mes`],
+    ['es landing FAQ', es.landing.faq.a3, `${n} semana automática al mes`],
+  ])('%s states the limit the server enforces', (_where, text, expected) => {
+    expect(text).toContain(expected);
+  });
+
+  it.each([
+    ['en', en.landing.plans.autoLimited],
+    ['es', es.landing.plans.autoLimited],
+  ])('the %s landing plan string takes the limit from the page, not a fixed number', (_code, text) => {
+    expect(text.startsWith('{n} ')).toBe(true);
+  });
+});
+
 describe('effectivePlanFrom', () => {
   it('is Gratis with nothing active', () => {
     expect(effectivePlanFrom([], null, NOW)).toEqual({
@@ -91,7 +120,7 @@ describe('effectivePlanFrom', () => {
       endsAt: null,
       isTrial: false,
       trialEndsAt: null,
-      limits: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 },
+      limits: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 },
     });
   });
 
@@ -191,16 +220,27 @@ describe('gatedClient', () => {
   const fakeClient = (answers: Record<string, Reply>, log: string[]) => {
     const builder = (table: string): Record<string, unknown> => {
       const b: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'is', 'order', 'limit', 'insert', 'update', 'delete', 'maybeSingle', 'single']) b[m] = () => b;
+      let key = table;
+      for (const m of ['select', 'eq', 'is', 'order', 'limit', 'update', 'delete', 'maybeSingle', 'single']) b[m] = () => b;
+      b.insert = () => {
+        log.push(`insert:${table}`);
+        return b;
+      };
+      // A paged read answers from `${table}:range` and logs the rows it asked for.
+      b.range = (from: number, to: number) => {
+        log.push(`range:${table}:${from}-${to}`);
+        key = `${table}:range`;
+        return b;
+      };
       b.then = (resolve: (r: Reply) => unknown, reject: (e: unknown) => unknown) => {
         log.push(table);
-        return Promise.resolve(answers[table] ?? { data: null, error: null }).then(resolve, reject);
+        return Promise.resolve(answers[key] ?? { data: null, error: null }).then(resolve, reject);
       };
       return b;
     };
     return { from: builder, rpc: (name: string) => builder(`rpc:${name}`) } as never;
   };
-  const WRITES = new Set(['upsertWorker', 'deleteWorker']);
+  const WRITES = new Set(['upsertWorker', 'deleteWorker', 'upsertShiftTemplate']);
   const expiredTrial = row({ starts_at: day(-30), ends_at: day(-16) });
 
   // gatedClient reads the real clock (resolvePlan's default `now`), and the
@@ -243,6 +283,7 @@ describe('gatedClient', () => {
     const answers = {
       account_entitlements: { data: [expiredTrial], error: null },
       workers: { data: null, error: null, count: 12 },
+      locations: { data: null, error: null, count: 1 },
     };
     const write = gatedClient(fakeClient(answers, []), 'acct', { action: 'upsertWorker', worker: { name: 'x' } }, WRITES);
     await expect(write.from('workers').insert({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/12 people.*covers 10/) } });
@@ -250,16 +291,136 @@ describe('gatedClient', () => {
     await expect(del.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
   });
 
-  it('lets the action run when the plan cannot be read', async () => {
+  // CHG-109: before, a plan read that failed let the action run with no limit at all (fail open).
+  it.each([
+    ['a scheduling write', { action: 'upsertShiftTemplate', template: {} }, 'shift_templates'],
+    ['a new location', { action: 'upsertLocation', location: { name: 'x' } }, 'locations'],
+    ['a Pro read', { action: 'forecastHistory' }, 'shifts'],
+  ])('refuses %s with 503 when the plan cannot be read', async (_label, payload, table) => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, []);
-    const client = gatedClient(broken, 'acct', { action: 'forecastHistory' }, WRITES);
-    await expect(client.from('shifts').select('date')).resolves.toBeDefined();
+    const log: string[] = [];
+    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, log);
+    const client = gatedClient(broken, 'acct', payload, WRITES);
+    await expect(client.from(table).select('id')).rejects.toMatchObject({ refusal: { status: 503, error: 'Could not check your plan; try again' } });
+    expect(log).not.toContain(table);
     errorSpy.mockRestore();
   });
 
+  it('still lets an action that is not gated run when the plan cannot be read', async () => {
+    const broken = fakeClient({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } as never } }, []);
+    const client = gatedClient(broken, 'acct', { action: 'listWorkers' }, new Set(['upsertWorker']));
+    await expect(client.from('workers').select('id')).resolves.toBeDefined();
+  });
+
+  it('keeps a scheduling delete open when the plan cannot be read, without reading it', async () => {
+    const readPlan = jest.fn(async () => ({ ok: false as const, error: { message: 'down' } }));
+    const gate = await planGate(fakeClient({}, []), 'acct', { action: 'deleteWorker', id: 'w' }, new Set(['deleteWorker', 'upsertWorker']), readPlan);
+    expect(gate).toBeNull();
+    expect(readPlan).not.toHaveBeenCalled();
+    // The write next to it is refused: fail closed for everything but deletes.
+    expect(await planGate(fakeClient({}, []), 'acct', { action: 'upsertWorker', worker: {} }, new Set(['deleteWorker', 'upsertWorker']), readPlan)).toEqual(PLAN_UNREADABLE);
+  });
+
+  describe('locations over the plan (CHG-109)', () => {
+    // A trial ended (or a grant, or a paid plan was reduced) with 3 locations stored; Gratis covers 1:
+    // the oldest (HQ) is covered, B and C are the extras the database returns for rows 1 to 2.
+    const EXTRA_B = { id: 'loc-b', name: 'Branch B' };
+    const EXTRA_C = { id: 'loc-c', name: 'Branch C' };
+    const overQuota = {
+      account_entitlements: { data: [expiredTrial], error: null },
+      workers: { data: null, error: null, count: 2 },
+      locations: { data: null, error: null, count: 3 },
+      'locations:range': { data: [EXTRA_B, EXTRA_C], error: null },
+    };
+    const B_LOCKED = 'Branch B is not covered by your Gratis plan, which covers 1 location. Shifts there are read-only until you add it to your plan or remove a location';
+    const gate = (payload: Record<string, unknown>, answers: Record<string, Reply> = overQuota, log: string[] = []) =>
+      planGate(fakeClient(answers, log), 'acct', payload, WRITES);
+    const WRITES_WITH_ROSTER = new Set([...WRITES, 'upsertRosterShift', 'addRosterShifts', 'updateShiftStatus', 'markShiftNotified', 'upsertTimeOff']);
+    const rosterGate = (payload: Record<string, unknown>, answers: Record<string, Reply> = overQuota, log: string[] = []) =>
+      planGate(fakeClient(answers, log), 'acct', payload, WRITES_WITH_ROSTER);
+
+    it('locks only the extra locations: their edit and their shifts', async () => {
+      const log: string[] = [];
+      expect(await gate({ action: 'upsertLocation', location: { id: 'loc-b', name: 'B2' } }, overQuota, log)).toEqual({ status: 402, error: B_LOCKED });
+      // The extras are rows from offset max (1) to count - 1 (2), in created_at, id order.
+      expect(log).toContain('range:locations:1-2');
+      // HQ is stored (the row read finds it) and covered: its edit goes through.
+      const hqStored = { ...overQuota, locations: { data: { id: 'loc-hq' }, error: null, count: 3 } };
+      expect(await gate({ action: 'upsertLocation', location: { id: 'loc-hq', name: 'HQ' } }, hqStored)).toBeNull();
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: ' loc-b ' } })).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'addRosterShifts', countAutoAssign: true, shifts: [{ location: 'loc-hq' }, { location: 'loc-c' }] })).toMatchObject({
+        status: 402, error: expect.stringMatching(/^Branch C is not covered/),
+      });
+    });
+
+    it('uses the stored row for a status change or a notify, and for an edit that moves a shift away', async () => {
+      const storedAtB = { ...overQuota, roster: { data: { location: 'loc-b' }, error: null } };
+      expect(await rosterGate({ action: 'updateShiftStatus', id: 's1', status: 'Published' }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'markShiftNotified', id: 's1' }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { id: 's1', location: 'loc-hq' } }, storedAtB)).toEqual({ status: 402, error: B_LOCKED });
+      const storedAtHq = { ...overQuota, roster: { data: { location: 'loc-hq' }, error: null } };
+      expect(await rosterGate({ action: 'updateShiftStatus', id: 's1', status: 'Published' }, storedAtHq)).toBeNull();
+    });
+
+    it('keeps covered locations, shifts with no location or old free text, and the rest of the schedule writable', async () => {
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-hq' } })).toBeNull();
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: '' } })).toBeNull();
+      expect(await rosterGate({ action: 'addRosterShifts', shifts: [{ location: 'Main Floor' }, {}] })).toBeNull();
+      expect(await rosterGate({ action: 'upsertShiftTemplate', template: {} })).toBeNull();
+      expect(await rosterGate({ action: 'upsertTimeOff', timeOff: {} })).toBeNull();
+      expect(await gate({ action: 'upsertWorker', worker: { id: 'w1' } })).toBeNull();
+    });
+
+    it('fails closed when the extras or the stored shift cannot be read', async () => {
+      const broken = { ...overQuota, 'locations:range': { data: null, error: { message: 'down' } as never } };
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-hq' } }, broken)).toEqual({ status: 500, error: 'Database request failed' });
+      const rosterDown = { ...overQuota, roster: { data: null, error: { message: 'down' } as never } };
+      expect(await rosterGate({ action: 'markShiftNotified', id: 's1' }, rosterDown)).toEqual({ status: 500, error: 'Database request failed' });
+    });
+
+    it('keeps deletes open so the account can get under the quota', async () => {
+      const del = gatedClient(fakeClient(overQuota, []), 'acct', { action: 'deleteWorker', id: 'w' }, WRITES);
+      await expect(del.from('workers').delete().eq('id', 'w')).resolves.toBeDefined();
+      // deleteLocation is not a scheduling write and not upsertLocation: never gated.
+      const log: string[] = [];
+      const delLocation = gatedClient(fakeClient(overQuota, log), 'acct', { action: 'deleteLocation', id: 'l1' }, WRITES);
+      await expect(delLocation.rpc('delete_location')).resolves.toBeDefined();
+      expect(log).toEqual(['rpc:delete_location']);
+    });
+
+    it('reads no extras at or under the quota; the quota of the winning grant counts (3 paid locations)', async () => {
+      const log: string[] = [];
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-b' } }, { ...overQuota, locations: { data: null, error: null, count: 1 } }, log)).toBeNull();
+      expect(log.filter((l) => l.startsWith('range:'))).toEqual([]);
+      const paid = { ...overQuota, account_entitlements: { data: [row({ plan: 'esencial', source: 'paddle', ends_at: null, location_quota: 3 })], error: null } };
+      expect(await rosterGate({ action: 'upsertRosterShift', shift: { location: 'loc-c' } }, paid)).toBeNull();
+      // At 3 of 3, a fourth location is refused with the add-a-location sentence.
+      const fourth = gatedClient(fakeClient(paid, []), 'acct', { action: 'upsertLocation', location: { name: 'D' } }, WRITES);
+      await expect(fourth.from('locations').insert({})).rejects.toMatchObject({ refusal: { status: 402, error: expect.stringMatching(/covers 3 locations\. Add a location/) } });
+      // Over the quota, a new location is refused the same way.
+      expect(await gate({ action: 'upsertLocation', location: { name: 'E' } })).toMatchObject({ status: 402, error: expect.stringMatching(/covers 1 location\. Add a location/) });
+    });
+  });
+
+  describe('resolvePlan', () => {
+    it('starts the trial on first sight, and not when asked not to (admin lookup, CHG-109)', async () => {
+      const log: string[] = [];
+      const plan = await resolvePlan(fakeClient({ account_entitlements: { data: [], error: null } }, log), 'acct_new', NOW, { startTrial: false });
+      expect(plan).toEqual({ ok: true, plan: expect.objectContaining({ plan: 'gratis', source: 'default', trialEndsAt: null }) });
+      expect(log).not.toContain('insert:account_entitlements');
+
+      const started: string[] = [];
+      await resolvePlan(fakeClient({ account_entitlements: { data: [], error: null } }, started), 'acct_new', NOW);
+      expect(started).toContain('insert:account_entitlements');
+    });
+  });
+
   describe('insertWithinLimit', () => {
-    const gratis = { account_entitlements: { data: [expiredTrial], error: null }, workers: { data: null, error: null, count: 9 } };
+    const gratis = {
+      account_entitlements: { data: [expiredTrial], error: null },
+      workers: { data: null, error: null, count: 9 },
+      locations: { data: null, error: null, count: 1 },
+    };
     const gated = (answers: Record<string, unknown>, log: string[] = []) =>
       gatedClient(fakeClient(answers as Record<string, Reply>, log), 'acct', { action: 'upsertWorker', worker: { name: 'x' } }, WRITES);
 
@@ -287,6 +448,15 @@ describe('gatedClient', () => {
       const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const old = gated({ ...gratis, 'rpc:insert_within_limit': { data: null, error: { code: 'PGRST202', message: 'no function' } } });
       await expect(insertWithinLimit(old, 'workers', 'acct', {})).resolves.toBeNull();
+      errorSpy.mockRestore();
+    });
+
+    it('refuses with 503 instead of inserting without the limit when the plan cannot be read (CHG-109)', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const log: string[] = [];
+      const client = gated({ account_entitlements: { data: null, error: { message: 'down', code: '08006' } } }, log);
+      await expect(insertWithinLimit(client, 'workers', 'acct', { name: 'x' })).rejects.toMatchObject({ refusal: { status: 503 } });
+      expect(log).not.toContain('rpc:insert_within_limit');
       errorSpy.mockRestore();
     });
 

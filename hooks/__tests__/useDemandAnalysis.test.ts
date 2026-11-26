@@ -1,7 +1,7 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
-import { loadDemandTargets } from '@/services/demandForecast';
+import { fetchOverrideTargets } from '@/services/demandForecast';
 import { useRoster } from '@/hooks/useRoster';
 import { useShiftTemplates } from '@/hooks/useShiftTemplates';
 import { useDemandAnalysis, UseDemandAnalysisReturn } from '../useDemandAnalysis';
@@ -9,8 +9,11 @@ import type { DemandForecast } from '@/services/demandForecast';
 import { todayKey } from '@/utils/dateKeys';
 
 jest.mock('@/services/demandForecast', () => ({
-  loadDemandTargets: jest.fn(),
+  fetchOverrideTargets: jest.fn(),
 }));
+
+let mockAccountId = 'org_a';
+jest.mock('@/contexts/IdentityContext', () => ({ useIdentity: () => ({ accountId: mockAccountId, userId: 'u1', isLoaded: true }) }));
 
 jest.mock('@/hooks/useRoster', () => ({
   useRoster: jest.fn(),
@@ -39,7 +42,10 @@ type ShiftTemplate = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const mockLoadDemandTargets = loadDemandTargets as jest.Mock;
+// The stored overrides, as a list (or a rejection for a failed request); the
+// hook reads them through fetchOverrideTargets, once for both weeks (CHG-109).
+const mockLoadDemandTargets = jest.fn();
+const mockFetchOverrideTargets = fetchOverrideTargets as jest.Mock;
 const mockUseRoster = useRoster as jest.Mock;
 const mockUseShiftTemplates = useShiftTemplates as jest.Mock;
 
@@ -75,6 +81,13 @@ beforeEach(() => {
   mockUseRoster.mockReturnValue(defaultRoster);
   mockUseShiftTemplates.mockReturnValue(defaultTemplates);
   mockLoadDemandTargets.mockResolvedValue([]);
+  mockFetchOverrideTargets.mockImplementation(async (...args: unknown[]) => {
+    try {
+      return { ok: true, targets: await mockLoadDemandTargets(...args), truncated: false };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  });
 });
 
 let warnSpy: jest.SpyInstance;
@@ -119,8 +132,8 @@ describe('useDemandAnalysis', () => {
     expect(result.confidenceIntervals).toEqual([]);
   });
 
-  // 2. Loads current and prior week targets on mount (loadDemandTargets called twice)
-  it('calls loadDemandTargets twice on mount — once for current week, once for prior week', async () => {
+  // 2. Loads the stored targets once on mount: both weeks come from the same list
+  it('loads the stored targets once on mount for both weeks', async () => {
     mockLoadDemandTargets.mockResolvedValue([]);
 
     function TestComponent(): null {
@@ -132,7 +145,7 @@ describe('useDemandAnalysis', () => {
       renderer.create(React.createElement(TestComponent));
     });
 
-    expect(mockLoadDemandTargets).toHaveBeenCalledTimes(2);
+    expect(mockFetchOverrideTargets).toHaveBeenCalledTimes(1);
   });
 
   // 3. demandVsPrior — changePct=100 when prior=0 and current>0
@@ -142,8 +155,7 @@ describe('useDemandAnalysis', () => {
     const currentForecast = makeForecast({ date: currentDate, role: 'Nurse', required: 5 });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([currentForecast]) // current week
-      .mockResolvedValueOnce([]);               // prior week (empty → prior=0)
+      .mockResolvedValue([...[currentForecast], ...[]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -171,8 +183,7 @@ describe('useDemandAnalysis', () => {
     const currentForecast = makeForecast({ date: currentDate, role: 'Doctor', required: 0 });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([currentForecast])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([...[currentForecast], ...[]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -201,8 +212,7 @@ describe('useDemandAnalysis', () => {
     const priorForecast = makeForecast({ date: priorDate, role: 'Nurse', required: 10 });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([currentForecast])
-      .mockResolvedValueOnce([priorForecast]);
+      .mockResolvedValue([...[currentForecast], ...[priorForecast]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -235,8 +245,7 @@ describe('useDemandAnalysis', () => {
     ];
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce(forecasts)
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue(forecasts);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -289,8 +298,7 @@ describe('useDemandAnalysis', () => {
     const forecast = makeForecast({ date: saturday, role: 'Nurse', required: 5 });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([forecast])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([...[forecast], ...[]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -331,8 +339,7 @@ describe('useDemandAnalysis', () => {
     );
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce(forecasts)
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue(forecasts);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -365,8 +372,7 @@ describe('useDemandAnalysis', () => {
     });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([forecast])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([...[forecast], ...[]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -397,8 +403,7 @@ describe('useDemandAnalysis', () => {
     const forecast = makeForecast({ date: pastDate, role: 'Nurse', required: 4 });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([forecast])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([...[forecast], ...[]]);
 
     const rosterShifts: RosterShift[] = [
       { date: pastDate, status: 'Published', templateId },
@@ -450,8 +455,7 @@ describe('useDemandAnalysis', () => {
     });
 
     mockLoadDemandTargets
-      .mockResolvedValueOnce([forecastWithCI, forecastWithoutCI])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([...[forecastWithCI, forecastWithoutCI], ...[]]);
 
     let result!: UseDemandAnalysisReturn;
 
@@ -514,7 +518,7 @@ describe('useDemandAnalysis', () => {
     let callCount = 0;
     mockLoadDemandTargets.mockImplementation(() => {
       callCount++;
-      if (callCount <= 2) {
+      if (callCount <= 1) {
         // First load (mount) — stale
         return firstPromise;
       }
@@ -551,5 +555,35 @@ describe('useDemandAnalysis', () => {
     // Only fresh data should be present
     expect(result.demandVsPrior.some((d) => d.role === 'StaleRole')).toBe(false);
     expect(result.demandVsPrior.some((d) => d.role === 'FreshRole')).toBe(true);
+  });
+
+  // 14. D4 (CHG-109): the tenant comes from the signed-in identity, not the build-time env id.
+  it('reloads for the new organization when the identity switches, and drops the old one', async () => {
+    mockAccountId = 'org_a';
+    const orgA = makeForecast({ date: today, role: 'OrgARole', required: 3 });
+    const orgB = makeForecast({ date: today, role: 'OrgBRole', required: 2 });
+    mockLoadDemandTargets.mockResolvedValueOnce([orgA]).mockResolvedValueOnce([orgB]);
+
+    let result!: UseDemandAnalysisReturn;
+    function TestComponent(): null {
+      result = useDemandAnalysis();
+      return null;
+    }
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(React.createElement(TestComponent));
+    });
+    expect(result.weeklyDemandSummary.map((r) => r.role)).toEqual(['OrgARole']);
+    expect(mockUseRoster).toHaveBeenLastCalledWith('org_a');
+
+    mockAccountId = 'org_b';
+    await act(async () => {
+      tree.update(React.createElement(TestComponent));
+    });
+    expect(mockFetchOverrideTargets).toHaveBeenCalledTimes(2);
+    expect(mockUseRoster).toHaveBeenLastCalledWith('org_b');
+    expect(mockUseShiftTemplates).toHaveBeenLastCalledWith('org_b');
+    expect(result.weeklyDemandSummary.map((r) => r.role)).toEqual(['OrgBRole']);
+    mockAccountId = 'org_a';
   });
 });

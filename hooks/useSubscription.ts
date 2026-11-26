@@ -17,6 +17,7 @@ import {
   type PlanUsage,
   type SubscriptionStatus,
 } from '@/services/subscriptionService';
+import { onPlanRefusal } from '@/services/planSignal';
 
 export type { SubscriptionTier, SubscriptionStatus };
 
@@ -50,7 +51,7 @@ export type SubscriptionState = {
   refresh: () => void;
 };
 
-const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 };
+const GRATIS_LIMITS: AccountPlan['limits'] = { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 };
 
 export type Loaded = {
   plan: AccountPlan;
@@ -109,6 +110,10 @@ export function useSubscription(): SubscriptionState {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A write the plan refused (402) means the plan or its usage changed on the server
+  // (a trial ended, a limit was reached): read it again now, not on the next focus (F-3, F-10).
+  useEffect(() => onPlanRefusal(() => void load()), [load]);
 
   return useMemo(() => {
     const tier: SubscriptionTier = loaded?.plan.plan ?? 'gratis';

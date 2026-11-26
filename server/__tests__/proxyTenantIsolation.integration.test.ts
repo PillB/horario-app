@@ -14,6 +14,7 @@
  * whose member is user_b. For every action, B must not be able to read,
  * change or delete A's rows by id.
  */
+import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
 import { installJwksFetch, signToken, TEST_JWKS_URL } from '../testUtils/testTokens';
@@ -235,6 +236,134 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
 
   // ── CHG-088: every scheduling record survives a reload and stays per tenant ──
 
+  // ── CHG-109 F-5: several days of availability are one request, all or none ──
+
+  it('saves several days of availability in one request, all or none, per tenant', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Dora', role: 'Barista' } })).body.worker as { id: string };
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const slots = days.map((day) => ({ id: randomUUID(), workerId: worker.id, dayOfWeek: day, fromTime: '00:00', toTime: '23:59' }));
+    const mine = async () =>
+      ((await asA({ action: 'listWorkerAvailability' })).body.availabilities as { workerId: string; dayOfWeek: string }[])
+        .filter((s) => s.workerId === worker.id)
+        .map((s) => s.dayOfWeek)
+        .sort();
+
+    const saved = await asA({ action: 'addAvailabilitySlots', availability: slots });
+    expect(saved.status).toBe(200);
+    expect((saved.body.availability as unknown[]).length).toBe(7);
+    expect(await mine()).toEqual([...days].sort());
+
+    // A retry after a lost answer (same ids) is the same rows: 200, nothing doubled.
+    expect((await asA({ action: 'addAvailabilitySlots', availability: slots })).status).toBe(200);
+    expect(await mine()).toEqual([...days].sort());
+
+    // A retry that made new ids, for days already stored with these hours: the same rows, 200, nothing doubled.
+    const retried = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID() })) });
+    expect(retried.status).toBe(200);
+    expect((retried.body.availability as { id: string }[]).map((a) => a.id).sort()).toEqual([slots[0].id, slots[1].id].sort());
+    expect(await mine()).toEqual([...days].sort());
+
+    // New ids for days that already start at 00:00 with other hours: refused whole, nothing added.
+    const again = await asA({ action: 'addAvailabilitySlots', availability: slots.slice(0, 2).map((s) => ({ ...s, id: randomUUID(), toTime: '12:00' })) });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatch(/Nothing was saved/);
+    expect(await mine()).toEqual([...days].sort());
+
+    // A batch with one stored id (other values) and one new slot: refused before writing, the new slot is not stored (red team).
+    const other = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Gus', role: 'Barista' } })).body.worker as { id: string };
+    const first = { id: randomUUID(), workerId: other.id, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '17:00' };
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [first] })).status).toBe(200);
+    const mixed = await asA({
+      action: 'addAvailabilitySlots',
+      availability: [{ ...first, dayOfWeek: 'Tue', fromTime: '10:00' }, { id: randomUUID(), workerId: other.id, dayOfWeek: 'Wed', fromTime: '10:00', toTime: '18:00' }],
+    });
+    expect(mixed.status).toBe(409);
+    const otherDays = ((await asA({ action: 'listWorkerAvailability' })).body.availabilities as { workerId: string; dayOfWeek: string }[])
+      .filter((a) => a.workerId === other.id)
+      .map((a) => a.dayOfWeek);
+    expect(otherDays).toEqual(['Mon']);
+    expect((await asA({ action: 'deleteWorker', id: other.id })).status).toBe(200);
+
+    // Another tenant: not for A's worker, and A's slot ids are never taken over.
+    expect((await asB({ action: 'addAvailabilitySlots', availability: [{ ...slots[0], id: randomUUID() }] })).status).toBe(404);
+    const workerB = (await asB({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Eli', role: 'Barista' } })).body.worker as { id: string };
+    const stolen = await asB({ action: 'addAvailabilitySlots', availability: [{ id: slots[0].id, workerId: workerB.id, dayOfWeek: 'Mon', fromTime: '09:00', toTime: '10:00' }] });
+    expect(stolen.status).toBe(409);
+    expect(await mine()).toEqual([...days].sort());
+
+    // Malformed batches never reach the database.
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [slots[0], { ...slots[1], dayOfWeek: 'Mon' }] })).status).toBe(400);
+    expect((await asA({ action: 'addAvailabilitySlots', availability: [] })).status).toBe(400);
+
+    expect((await asB({ action: 'deleteWorker', id: workerB.id })).status).toBe(200);
+    expect((await asA({ action: 'deleteWorker', id: worker.id })).status).toBe(200);
+  });
+
+  // ── CHG-109 red team: a roster location is '' or one of the account's locations ──
+
+  it("refuses a roster location that is not one of the account's, and keeps a stored one on edit", async () => {
+    const lima = { name: 'Lima', countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' };
+    const locA = (await asA({ action: 'upsertLocation', location: lima })).body.location as { id: string };
+    const locB = (await asB({ action: 'upsertLocation', location: lima })).body.location as { id: string };
+    const shift = (location: string, date: string) => ({ id: randomUUID(), date, workerId: workerA, templateId: templateA, location, status: 'Draft' });
+
+    const madeUp = await asA({ action: 'upsertRosterShift', shift: shift('Main Floor', '2099-04-01') });
+    expect(madeUp.status).toBe(400);
+    expect(madeUp.body.error).toMatch(/Unknown location/);
+    expect((await asA({ action: 'upsertRosterShift', shift: shift(locB.id, '2099-04-01') })).status).toBe(400);
+    expect((await asA({ action: 'addRosterShifts', shifts: [shift('', '2099-04-02'), shift('Patio', '2099-04-03')] })).status).toBe(400);
+    expect((await asA({ action: 'listRoster', fromDate: '2099-04-01', toDate: '2099-04-03' })).body.shifts).toEqual([]);
+
+    const mine = await asA({ action: 'upsertRosterShift', shift: shift(locA.id, '2099-04-01') });
+    expect(mine.status).toBe(200);
+    expect(mine.body.shift).toMatchObject({ location: locA.id });
+
+    // A row stored before the check with free text stays editable while its location is unchanged.
+    const db = createClient(SUPABASE_URL as string, SERVICE_KEY as string, { auth: { persistSession: false } });
+    const old = shift('Bar', '2099-04-05');
+    const inserted = await db.from('roster').insert({ id: old.id, account_id: USER_A, date: old.date, worker_id: workerA, template_id: templateA, location: 'Bar', status: 'Draft' });
+    expect(inserted.error).toBeNull();
+    expect((await asA({ action: 'upsertRosterShift', shift: { ...old, status: 'Published' } })).status).toBe(200);
+    expect((await asA({ action: 'upsertRosterShift', shift: { ...old, location: 'Terrace' } })).status).toBe(400);
+
+    for (const id of [old.id, (mine.body.shift as { id: string }).id]) expect((await asA({ action: 'deleteRosterShift', id })).status).toBe(200);
+    expect((await asA({ action: 'deleteLocation', id: locA.id })).status).toBe(200);
+    expect((await asB({ action: 'deleteLocation', id: locB.id })).status).toBe(200);
+  });
+
+  // ── CHG-109 F-11: a person with shifts is removed with their shifts, only when asked ──
+
+  it('removes a person with their shifts only when asked, and only in their own account', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Fede', role: 'Barista' } })).body.worker as { id: string };
+    const shift = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2099-03-02', workerId: worker.id, templateId: templateA, location: '', status: 'Draft' } });
+    expect(shift.status).toBe(200);
+    const shiftId = (shift.body.shift as { id: string }).id;
+    const rosterIds = async () => ((await asA({ action: 'listRoster' })).body.shifts as { id: string }[]).map((s) => s.id);
+
+    const plain = await asA({ action: 'deleteWorker', id: worker.id });
+    expect(plain.status).toBe(409);
+    expect(plain.body.error).toBe('This person still has shifts on the roster. Remove them together with their shifts, or remove those shifts first');
+
+    expect((await asB({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(404);
+    expect(await rosterIds()).toContain(shiftId);
+
+    const removed = await asA({ action: 'deleteWorker', id: worker.id, withShifts: true });
+    expect(removed).toEqual({ status: 200, body: { success: true, removedShifts: 1 } });
+    expect(await rosterIds()).not.toContain(shiftId);
+    expect(((await asA({ action: 'listWorkers' })).body.workers as { id: string }[]).some((w) => w.id === worker.id)).toBe(false);
+    expect((await asA({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(404);
+  });
+
+  it('a template that shifts use says what to do instead of "Record is still referenced"', async () => {
+    const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Gil', role: 'Barista' } })).body.worker as { id: string };
+    const template = (await asA({ action: 'upsertShiftTemplate', template: { name: `Used ${run}`, role: 'Barista', startTime: '09:00', endTime: '13:00', coverage: 1 } })).body.template as { id: string };
+    expect((await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2099-03-03', workerId: worker.id, templateId: template.id, location: '', status: 'Draft' } })).status).toBe(200);
+    const refused = await asA({ action: 'deleteShiftTemplate', id: template.id });
+    expect(refused).toEqual({ status: 409, body: { error: 'Shifts on the roster use this template. Remove or change those shifts first, or keep the template' } });
+    expect((await asA({ action: 'deleteWorker', id: worker.id, withShifts: true })).status).toBe(200);
+    expect((await asA({ action: 'deleteShiftTemplate', id: template.id })).status).toBe(200);
+  });
+
   it('persists worker and availability updates and deletes, per tenant', async () => {
     const worker = (await asA({ action: 'upsertWorker', worker: { id: randomUUID(), name: 'Iris', role: 'Barista', skills: ['Latte'] } })).body.worker as { id: string };
     expect((await asA({ action: 'upsertWorker', worker: { id: worker.id, name: 'Iris K.', role: 'Lead', skills: [] } })).status).toBe(200);
@@ -274,10 +403,10 @@ describeIfDb('secure proxy tenant isolation (local Supabase)', () => {
   });
 
   it('persists roster status and notified, with notify only after publish', async () => {
-    const created = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-11-06', workerId: workerA, templateId: templateA, location: ' Bar ' } });
+    const created = await asA({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-11-06', workerId: workerA, templateId: templateA, location: '' } });
     expect(created.status).toBe(200);
     const id = (created.body.shift as { id: string }).id;
-    expect(created.body.shift).toMatchObject({ status: 'Draft', notified: false, location: 'Bar' });
+    expect(created.body.shift).toMatchObject({ status: 'Draft', notified: false, location: '' });
 
     expect((await asA({ action: 'markShiftNotified', id })).status).toBe(409);
     expect((await asA({ action: 'updateShiftStatus', id, status: 'Published' })).body.shift).toMatchObject({ status: 'Published', notified: false });

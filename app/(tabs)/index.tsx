@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useMemo } from 'react';
+import { useRouter, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -19,6 +19,7 @@ import { useHiddenCard } from '@/hooks/useHiddenCard';
 import { usePostingHabit } from '@/hooks/usePostingHabit';
 import { useTeamInvite } from '@/hooks/useTeamInvite';
 import { useLocations } from '@/hooks/useLocations';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useT } from '@/contexts/LocaleContext';
 import { useIdentity } from '@/contexts/IdentityContext';
 import { TourStep } from '@/components/TourStep';
@@ -42,29 +43,20 @@ export default function HomeScreen() {
     upcomingShifts, shiftCount, publishedCount, staffingGaps, windowTargets, setup, loading: rosterLoading, error: rosterError, refresh,
   } = useLiveRosterSummary(ACCOUNT_ID);
   // First-run: ask where the business is until it has a confirmed location.
-  const { locations, loaded: locationsLoaded, save: saveLocation } = useLocations(ACCOUNT_ID);
+  const { locations, loaded: locationsLoaded, save: saveLocation, refresh: refreshLocations } = useLocations(ACCOUNT_ID);
 
   // The weekly "posted ahead" habit, from when shifts were published (CHG-106).
   const postingHabit = usePostingHabit(ACCOUNT_ID, locations);
   const habitsCard = useHiddenCard('home-habits');
 
   // Tabs stay mounted: coming back from the roster (where a week was just
-  // published) must show it. The first focus is the mount, which already loads.
-  const focusedOnce = useRef(false);
-  const reloadRef = useRef(() => {});
-  reloadRef.current = () => {
+  // published) must show it, and a location added on Profile hides the setup
+  // card. The first focus is the mount, which already loads.
+  useRefreshOnFocus(() => {
     refresh();
     postingHabit.refresh();
-  };
-  useFocusEffect(
-    useCallback(() => {
-      if (!focusedOnce.current) {
-        focusedOnce.current = true;
-        return;
-      }
-      reloadRef.current();
-    }, []),
-  );
+    void refreshLocations();
+  });
   const { inviteModalVisible, inviteMode, openInviteAsManager, closeInvite } = useTeamInvite();
 
   // Suggested next actions, built from what is stored: open gaps, unpublished

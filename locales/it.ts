@@ -195,6 +195,7 @@ export const it = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    edit: { conflict: '{name} è stato modificato altrove dopo che l\'hai aperto. Le tue modifiche sono ancora nel modulo: salva di nuovo per sostituire quella versione con la tua, oppure annulla per mantenerla.' },
     title: 'Pianificatore',
     subtitle: 'Coordina la copertura tra lavoratori, modelli di turno e piani di personale giornalieri.',
     tooltip: 'Il tuo centro di pianificazione. Aggiungi lavoratori, imposta le loro disponibilità, crea modelli di turno, quindi assegna o riempi automaticamente i piani con un solo tocco. Inizia con il passaggio 1 — aggiungere un lavoratore.',
@@ -314,10 +315,13 @@ export const it = {
       saveButton: 'Salva come bozza',
       saveButtonA11y: 'Salva come bozza',
       autoAssignButton: 'Assegnazione automatica',
-      autoAssignA11y: 'Assegna automaticamente lavoratori a tutti i modelli per questa data',
+      autoAssignA11y: 'Assegna automaticamente lavoratori a tutti i modelli della settimana di questa data, da lunedì a domenica',
       autoAssignHint: 'Esegue l\'algoritmo di assegnazione basato sull\'equità',
       applyButton: 'Applica suggerimenti',
       applyingButton: 'Applicazione…',
+      dismissSuggestions: 'Scarta suggerimenti',
+      dismissSuggestionsHint: 'Rimuove questi suggerimenti senza salvare alcun turno',
+      autoAssignAlreadySaved: '{n} turno/i suggerito/i erano già nel calendario: il primo «Applica» li ha salvati.',
       suggestions: '{n} suggerimento/i di assegnazione pronto/i',
       suggestionItem: '{worker} → {template} il {date}',
       partialCoverageBanner: "L'assegnazione automatica ha trovato {n} suggerimento/i, ma non è stato possibile coprire {missing} posto/i. Controlla le lacune qui sotto, poi fai clic su «Applica suggerimenti».",
@@ -600,14 +604,14 @@ export const it = {
     trial: {
       badge: 'PROVA',
       title: 'Prova Pro attiva — assegnazioni automatiche illimitate abilitate.',
-      subtitle: 'Dopo la prova, i piani partono da 19 US$ per sede al mese. Nessun costo per dipendente.',
+      subtitle: 'Dopo la prova, i piani partono da {price} per sede al mese. Nessun costo per dipendente.',
     },
     free: {
       badge: 'GRATIS',
-      limitReached: 'Hai usato i turni automatici gratuiti di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai altri.',
-      autoAssignsLeft: '{n} assegnazione{plural} automatica{plural} gratuita{plural} rimasta{plural}',
+      limitReached: 'Hai usato la settimana compilata automaticamente gratuita di questo mese. Puoi continuare a creare i turni a mano, e il mese prossimo ne avrai un\'altra.',
+      autoAssignsLeft: 'Settimane compilate automaticamente gratis questo mese: {n}',
       ctaUnlimited: 'Esencial: turni automatici illimitati fino a 40 persone, senza costi per persona. Vedi i piani',
-      pricing: 'Da 19 US$ per sede al mese · nessun costo per dipendente',
+      pricing: 'Da {price} per sede al mese · nessun costo per dipendente',
     },
     buttonA11y: 'Passa al piano Pro',
     buttonHint: 'Apre i piani e i prezzi',

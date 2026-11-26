@@ -3,7 +3,7 @@
 -- an auto-schedule run is counted and saved together or not at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(31);
 
 insert into public.workers (id, account_id, name, role) values
   ('00000000-0000-0000-0000-0000000000d1', 'acct_o', 'Ana', 'Cook'),
@@ -64,6 +64,41 @@ select is(
   public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f6","date":"2026-12-13","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]'),
   '{"limited": true}'::jsonb, 'at the limit nothing is saved');
 
+-- ── A retry after a lost answer is the same run (CHG-109) ────────────────────
+select is(
+  public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]') - 'rows',
+  '{"count": 2, "replayed": true}'::jsonb, 'a retry of a saved run is a replay, even with the month used up');
+select is(
+  public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]') -> 'rows' -> 0 ->> 'id',
+  '00000000-0000-0000-0000-0000000000f5', 'and answers with the stored shifts');
+select is(public.auto_assign_month_count('acct_o'), 2, 'and is not counted again');
+select throws_ok(
+  $$select public.apply_auto_assign('user_o', 'acct_o', null, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"},{"id":"00000000-0000-0000-0000-0000000000f7","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"}]')$$,
+  '23505', null, 'a batch where only some shifts are stored still fails');
+select is((select count(*)::integer from public.roster where id = '00000000-0000-0000-0000-0000000000f7'), 0, 'and saves none of them');
+select throws_ok(
+  $$select public.apply_auto_assign('user_w', 'acct_w', null, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]')$$,
+  '23505', null, 'shifts stored by another account are not a replay for this one');
+select throws_ok(
+  $$select public.apply_auto_assign('user_o', 'acct_o', null, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e3"}]')$$,
+  '23505', null, 'a stored id with another template is not a replay (CHG-109 review)');
+select is((select template_id from public.roster where id = '00000000-0000-0000-0000-0000000000f5'), '00000000-0000-0000-0000-0000000000e1'::uuid,
+  'and the stored shift is unchanged');
+
+-- ── A counted run fills one week (CHG-108) ───────────────────────────────────
+select throws_ok(
+  $$select public.apply_auto_assign('user_w', 'acct_w', 1, '[{"id":"00000000-0000-0000-0000-0000000000a1","date":"2026-12-13","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"},{"id":"00000000-0000-0000-0000-0000000000a2","date":"2026-12-14","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"}]')$$,
+  '22023', 'apply_auto_assign: a counted run fills one week, Monday to Sunday',
+  'on a limited plan, a run from Sunday into the next Monday is refused');
+select is(public.auto_assign_month_count('acct_w'), 0, 'and is not counted');
+select is(
+  (select count(*)::integer from public.roster r
+    where r.id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')),
+  0, 'and saves nothing');
+select is(
+  (public.apply_auto_assign('user_o', 'acct_o', null, '[{"id":"00000000-0000-0000-0000-0000000000a3","date":"2026-12-27","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"},{"id":"00000000-0000-0000-0000-0000000000a4","date":"2026-12-28","worker_id":"00000000-0000-0000-0000-0000000000d2","template_id":"00000000-0000-0000-0000-0000000000e1"}]') -> 'count')::integer,
+  3, 'without a limit, a batch across two weeks is saved and counted');
+
 -- The proxy writes as service_role, which has no access to schema private.
 set local role service_role;
 select lives_ok(
@@ -72,6 +107,9 @@ select lives_ok(
 select throws_ok(
   $$insert into public.roster (account_id, date, worker_id, template_id) values ('acct_o', '2026-12-20', '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000e2')$$,
   '23P01', null, 'and its overlapping shift is refused');
+select is(
+  public.apply_auto_assign('user_o', 'acct_o', 2, '[{"id":"00000000-0000-0000-0000-0000000000f5","date":"2026-12-12","worker_id":"00000000-0000-0000-0000-0000000000d1","template_id":"00000000-0000-0000-0000-0000000000e1"}]') ->> 'replayed',
+  'true', 'the service role gets the replay too');
 reset role;
 
 select * from finish();

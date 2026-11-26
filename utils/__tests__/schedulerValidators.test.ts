@@ -45,8 +45,8 @@ function makeShift(overrides: Partial<Shift> = {}): Shift {
   };
 }
 
-// A fixed timezone offset (UTC+0) to make tests deterministic
-const UTC_OFFSET = 0;
+// A fixed time zone (UTC) to make tests deterministic
+const UTC_ZONE = 'UTC';
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -73,58 +73,58 @@ describe('findCoveringAvailability', () => {
     });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
     // 2024-01-15 is a Monday (UTC)
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
-    expect(coveringSlot).toBeUndefined();
+    const { covered } = findCoveringAvailability(worker, template, '2024-01-15', UTC_ZONE);
+    expect(covered).toBe(false);
   });
 
-  test('2. worker availability 07:00-18:00 fully covers template 09:00-17:00 → coveringSlot set', () => {
+  test('2. worker availability 07:00-18:00 fully covers template 09:00-17:00 → covered', () => {
     const slot = { day: 'Mon', from: '07:00', to: '18:00' };
     const worker = makeWorker({ availability: [slot] });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
-    expect(coveringSlot).toEqual(slot);
+    const { covered } = findCoveringAvailability(worker, template, '2024-01-15', UTC_ZONE);
+    expect(covered).toBe(true);
   });
 
-  test('3. worker with no availability → coveringSlot is undefined', () => {
+  test('3. worker with no availability → not covered', () => {
     const worker = makeWorker({ availability: [] });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
-    expect(coveringSlot).toBeUndefined();
+    const { covered } = findCoveringAvailability(worker, template, '2024-01-15', UTC_ZONE);
+    expect(covered).toBe(false);
   });
 
-  test('4. worker availability on wrong day (Tue vs Mon) → coveringSlot undefined', () => {
+  test('4. worker availability on wrong day (Tue vs Mon) → not covered', () => {
     const worker = makeWorker({
       availability: [{ day: 'Tue', from: '07:00', to: '18:00' }],
     });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
     // 2024-01-15 is Monday
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
-    expect(coveringSlot).toBeUndefined();
+    const { covered } = findCoveringAvailability(worker, template, '2024-01-15', UTC_ZONE);
+    expect(covered).toBe(false);
   });
 
   test('5. timezone offset does not shift a business-local date to another weekday', () => {
     // 2024-01-15 is a Monday as a calendar date in every timezone.
-    const negativeOffset = -720;
+    const farWestZone = 'Etc/GMT+12';
     const slot = { day: 'Sun', from: '00:00', to: '23:59' };
     const worker = makeWorker({ availability: [slot] });
     const template = makeTemplate({ start: '09:00', end: '17:00' });
-    const { weekdayLabel, coveringSlot } = findCoveringAvailability(
+    const { weekdayLabel, covered } = findCoveringAvailability(
       worker,
       template,
       '2024-01-15',
-      negativeOffset
+      farWestZone
     );
     expect(weekdayLabel).toBe('Mon');
-    expect(coveringSlot).toBeUndefined();
+    expect(covered).toBe(false);
   });
 
   test('6. worker role does not match template role — findCoveringAvailability still returns slot (role check is separate)', () => {
     const slot = { day: 'Mon', from: '07:00', to: '18:00' };
     const worker = makeWorker({ role: 'doctor', availability: [slot] });
     const template = makeTemplate({ role: 'nurse', start: '09:00', end: '17:00' });
-    const { coveringSlot } = findCoveringAvailability(worker, template, '2024-01-15', UTC_OFFSET);
+    const { covered } = findCoveringAvailability(worker, template, '2024-01-15', UTC_ZONE);
     // findCoveringAvailability ignores role — it only checks time coverage
-    expect(coveringSlot).toEqual(slot);
+    expect(covered).toBe(true);
   });
 
   describe('overnight windows', () => {
@@ -132,32 +132,32 @@ describe('findCoveringAvailability', () => {
 
     test('7. availability 21:00-07:00 covers a 22:00-06:00 shift', () => {
       const slot = { day: 'Mon', from: '21:00', to: '07:00' };
-      const { coveringSlot } = findCoveringAvailability(makeWorker({ availability: [slot] }), night, '2024-01-15');
-      expect(coveringSlot).toEqual(slot);
+      const { covered } = findCoveringAvailability(makeWorker({ availability: [slot] }), night, '2024-01-15');
+      expect(covered).toBe(true);
     });
 
     test('8. a daytime slot 05:00-23:00 does NOT cover a 22:00-06:00 shift', () => {
       const worker = makeWorker({ availability: [{ day: 'Mon', from: '05:00', to: '23:00' }] });
-      expect(findCoveringAvailability(worker, night, '2024-01-15').coveringSlot).toBeUndefined();
+      expect(findCoveringAvailability(worker, night, '2024-01-15').covered).toBe(false);
     });
 
     test('9. availability 21:00-05:00 does NOT cover a shift ending at 06:00', () => {
       const worker = makeWorker({ availability: [{ day: 'Mon', from: '21:00', to: '05:00' }] });
-      expect(findCoveringAvailability(worker, night, '2024-01-15').coveringSlot).toBeUndefined();
+      expect(findCoveringAvailability(worker, night, '2024-01-15').covered).toBe(false);
     });
 
     test('10. an overnight slot from the previous day covers early-morning hours', () => {
       const slot = { day: 'Mon', from: '21:00', to: '07:00' };
       const early = makeTemplate({ start: '01:00', end: '05:00' });
       // 2024-01-16 is a Tuesday; the Mon 21:00-07:00 slot runs into it.
-      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-16').coveringSlot).toEqual(slot);
-      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-15').coveringSlot).toBeUndefined();
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-16').covered).toBe(true);
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), early, '2024-01-15').covered).toBe(false);
     });
 
     test('11. a slot ending at 23:59 covers a shift ending at midnight', () => {
       const slot = { day: 'Mon', from: '16:00', to: '23:59' };
       const evening = makeTemplate({ start: '16:00', end: '00:00' });
-      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), evening, '2024-01-15').coveringSlot).toEqual(slot);
+      expect(findCoveringAvailability(makeWorker({ availability: [slot] }), evening, '2024-01-15').covered).toBe(true);
     });
 
     test('12. validateShiftReadiness accepts an overnight shift inside overnight availability', () => {
@@ -166,6 +166,74 @@ describe('findCoveringAvailability', () => {
       const shift = makeShift({ id: 's1', date: '2024-01-15', workerId: 'w-night', templateId: 'tpl-night' });
       const { errors } = validateShiftReadiness(shift, [shift], [template], [worker]);
       expect(errors.map((e) => e.code)).not.toContain('COVERAGE_MISSING');
+    });
+  });
+
+  // F-9 (CHG-109): auto-assign joins touching slots across midnight; the publish check and
+  // the manual form must accept the same shifts. Expected values worked by hand.
+  describe('touching slots are joined, as auto-assign does (F-9)', () => {
+    const night = makeTemplate({ id: 'tpl-night', start: '22:00', end: '06:00' });
+    // 2024-01-15 is a Monday.
+    const allDay = (day: string) => ({ day, from: '00:00', to: '23:59' });
+
+    test('Mon all day + Tue all day cover Mon 22:00–06:00 (the night ends on Tuesday)', () => {
+      const worker = makeWorker({ availability: [allDay('Mon'), allDay('Tue')] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15', UTC_ZONE)).toEqual({ covered: true, weekdayLabel: 'Mon' });
+    });
+
+    test('Mon all day alone does not: Tuesday 00:00–06:00 is not available', () => {
+      const worker = makeWorker({ availability: [allDay('Mon')] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15', UTC_ZONE).covered).toBe(false);
+    });
+
+    test('Mon 18:00–23:59 + Tue 00:00–05:00 stop an hour short of 06:00', () => {
+      const worker = makeWorker({ availability: [{ day: 'Mon', from: '18:00', to: '23:59' }, { day: 'Tue', from: '00:00', to: '05:00' }] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15', UTC_ZONE).covered).toBe(false);
+    });
+
+    test('a gap from 23:00 to midnight breaks the join', () => {
+      const worker = makeWorker({ availability: [{ day: 'Mon', from: '20:00', to: '23:00' }, { day: 'Tue', from: '00:00', to: '07:00' }] });
+      expect(findCoveringAvailability(worker, night, '2024-01-15', UTC_ZONE).covered).toBe(false);
+    });
+
+    test('two same-day slots that touch (08:00–12:00 + 12:00–18:00) cover 09:00–17:00', () => {
+      const worker = makeWorker({ availability: [{ day: 'Mon', from: '08:00', to: '12:00' }, { day: 'Mon', from: '12:00', to: '18:00' }] });
+      expect(findCoveringAvailability(worker, makeTemplate(), '2024-01-15', UTC_ZONE).covered).toBe(true);
+    });
+
+    test('validateShiftReadiness accepts the Mon night of someone available Mon and Tue all day', () => {
+      const worker = makeWorker({ availability: [allDay('Mon'), allDay('Tue')] });
+      const shift = makeShift({ templateId: night.id });
+      const { errors } = validateShiftReadiness(shift, [shift], [night], [worker], 'America/Lima');
+      expect(errors).toEqual([]);
+    });
+
+    test('every shift auto-assign makes passes the publish check (independent engines agree)', () => {
+      // Property over a grid of availability patterns: the assigner's choices are checked
+      // by validateShiftReadiness, so a pattern either is not assigned or can be published.
+      const { assignShifts } = jest.requireActual('@/services/shiftAssigner') as typeof import('@/services/shiftAssigner');
+      const patterns = [
+        [allDay('Mon'), allDay('Tue')],
+        [allDay('Mon')],
+        [{ day: 'Mon', from: '21:00', to: '23:59' }, { day: 'Tue', from: '00:00', to: '06:00' }],
+        [{ day: 'Mon', from: '22:00', to: '06:00' }],
+        [{ day: 'Mon', from: '12:00', to: '23:59' }, { day: 'Tue', from: '00:00', to: '03:00' }, { day: 'Tue', from: '03:00', to: '09:00' }],
+      ];
+      const refused: string[] = [];
+      let assigned = 0;
+      patterns.forEach((availability, i) => {
+        const worker = makeWorker({ id: `w${i}`, availability });
+        const result = assignShifts({ date: '2024-01-15', templates: [{ ...night, coverage: 1 }], workers: [worker], existingRoster: [], timeZone: 'America/Lima' });
+        for (const a of result.assignments) {
+          assigned += 1;
+          const shift = makeShift({ id: `s${i}`, workerId: a.workerId, templateId: a.templateId, date: a.date });
+          const { errors } = validateShiftReadiness(shift, [shift], [night], [worker], 'America/Lima');
+          if (errors.length) refused.push(`pattern ${i}: ${errors.map((e) => e.message).join(' ')}`);
+        }
+      });
+      expect(refused).toEqual([]);
+      // Patterns 0, 2, 3 and 4 cover the night; 1 does not.
+      expect(assigned).toBe(4);
     });
   });
 });
@@ -341,7 +409,7 @@ describe('validateShiftReadiness', () => {
       [],
       [], // no templates
       [workerWithCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('TEMPLATE_MISSING');
@@ -354,7 +422,7 @@ describe('validateShiftReadiness', () => {
       [],
       [template],
       [], // no workers
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('WORKER_MISSING');
@@ -371,7 +439,7 @@ describe('validateShiftReadiness', () => {
       [],
       [template],
       [doctorWorker],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('ROLE_MISMATCH');
@@ -388,7 +456,7 @@ describe('validateShiftReadiness', () => {
       [],
       [template],
       [workerWithPartialCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('COVERAGE_MISSING');
@@ -405,7 +473,7 @@ describe('validateShiftReadiness', () => {
       [],
       [template],
       [workerNoAvailability],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('COVERAGE_MISSING');
@@ -424,7 +492,7 @@ describe('validateShiftReadiness', () => {
       [overlappingShift], // roster
       [template],
       [workerWithCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('SHIFT_OVERLAP');
@@ -449,7 +517,7 @@ describe('validateShiftReadiness', () => {
       [shift2],
       [template, template2],
       [workerWithCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).toContain('SHIFT_OVERLAP');
@@ -461,7 +529,7 @@ describe('validateShiftReadiness', () => {
       [], // no other shifts in roster
       [template],
       [workerWithCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     expect(errors).toHaveLength(0);
   });
@@ -485,7 +553,7 @@ describe('validateShiftReadiness', () => {
       [shift2],
       [template, template2],
       [workerWithCoverage],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).not.toContain('SHIFT_OVERLAP');
@@ -511,7 +579,7 @@ describe('validateShiftReadiness', () => {
       [shiftDifferentDate],
       [template],
       [workerTueMon],
-      UTC_OFFSET
+      UTC_ZONE
     );
     const codes = errors.map((e) => e.code);
     expect(codes).not.toContain('SHIFT_OVERLAP');
@@ -574,7 +642,7 @@ describe('validateShiftReadiness — same slot twice (CHG-087)', () => {
     const first = makeShift({ id: 'a', templateId: 'broken' });
     const second = makeShift({ id: 'b', templateId: 'broken' });
     const worker = makeWorker({ availability: [{ day: 'Mon', from: '00:00', to: '23:59' }] });
-    const { errors } = validateShiftReadiness(second, [first, second], [broken], [worker], UTC_OFFSET);
+    const { errors } = validateShiftReadiness(second, [first, second], [broken], [worker], UTC_ZONE);
     expect(errors.map((e) => e.code)).toContain('SHIFT_OVERLAP');
   });
 });

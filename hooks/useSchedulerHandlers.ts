@@ -23,19 +23,24 @@ import {
   isoDate,
   windowsOverlap,
 } from '@/utils/schedulerUtils';
-import { addDaysToKey, isDateKey, todayKey } from '@/utils/dateKeys';
+import { addDaysToKey, autoAssignWeekDates, isDateKey, todayKey } from '@/utils/dateKeys';
 import { MIN_WORKER_AGE, validateBirthDate } from '@/utils/workerLaborValidation';
+import { newUuid } from '@/utils/schedulingValidation';
 import { autoAssignSettings } from '@/utils/autoAssignSettings';
-import { fetchWorkersOffOn } from '@/hooks/useTimeOff';
+import { fetchDaysOffOn } from '@/hooks/useTimeOff';
 import { validateDisplayString } from '@/utils/sanitize';
 import type { AssignedShift, CoverageShortfall, LaborConstraints } from '@/services/shiftAssigner';
 import { resolveShiftLocation } from '@/utils/scheduleLocation';
 import { getBusinessTimeZone } from '@/utils/businessTimeZone';
 import { useLocations } from '@/hooks/useLocations';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
+import { computeStaffingGaps } from '@/utils/staffingGaps';
 import {
   findCoveringAvailability,
+  localizeValidationErrors,
   validateAvailabilitySubmission,
   validateShiftReadiness,
+  type ValidationErrorItem,
 } from '@/utils/schedulerValidators';
 import { useWelcomeTour } from '@/contexts/WelcomeTourContext';
 import {
@@ -52,6 +57,18 @@ import { useIdentity } from '@/contexts/IdentityContext';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ActionBanner = { type: 'success' | 'error' | 'info'; message: string } | null;
+
+/** A person to remove with their shifts, counted before and from today (F-11). */
+export type WorkerRemoval = { workerId: string; name: string; upcoming: number; past: number };
+
+/** A refusal tied to one roster row. */
+export type ShiftRowNotice = { shiftId: string; message: string } | null;
+
+/** The readiness errors in the user's language (the English text when a key is missing). */
+const readinessMessage = (
+  errors: ValidationErrorItem[],
+  t: (key: string, params?: Record<string, string>) => string,
+): string => localizeValidationErrors(errors, t).map((m, i) => m || errors[i].message).join(' ');
 
 export type WorkerFormState = {
   name: string;
@@ -75,6 +92,78 @@ const EMPTY_WORKER_FORM: WorkerFormState = {
 };
 
 const EMPTY_TEMPLATE_FORM = { name: '', role: '', start: '09:00', end: '17:00', coverage: '1' };
+
+/**
+ * The stored row an edit form is editing: its id and its `updatedAt` exactly
+ * as read when Edit was pressed. The save sends that `updatedAt`, so a change
+ * made elsewhere in between is refused (409), even when the list reloaded
+ * meanwhile (CHG-109, D8).
+ */
+type EditTarget = { id: string; updatedAt?: string };
+
+/** Auto-assign suggestions and the tenant and location they were computed for (D7). */
+type AutoAssignRun = {
+  accountId: string;
+  locationId: string | null;
+  suggestions: AssignedShift[];
+  /** One client id per suggestion, kept until Apply succeeds: a retry is the same rows. */
+  ids: string[];
+  /** The date the run was started for: a conflict on Apply runs that week again (F-6). */
+  date: string;
+};
+
+/** A row the server has stored: it carries the server's `updatedAt` (an optimistic row has none). */
+const isServerConfirmed = (row: { updatedAt?: string }) => typeof row.updatedAt === 'string';
+
+/** The run's suggestions while the tenant and location are the ones it ran for, else none. */
+export const suggestionsFor = (
+  run: AutoAssignRun | null,
+  accountId: string,
+  locationId: string | null,
+): AssignedShift[] | null =>
+  run && run.accountId === accountId && run.locationId === locationId ? run.suggestions : null;
+
+/** Says the plan's auto-schedule limit is reached: a banner on web, an alert on native. */
+const showAutoAssignLimitReached = (
+  showActionBanner: (message: string, kind: 'error') => void,
+  t: (key: string) => string,
+): void => {
+  if (Platform.OS === 'web') {
+    showActionBanner(t('upgrade.limitReachedBanner'), 'error');
+  } else {
+    Alert.alert('Free limit reached', t('upgrade.limitReachedBanner'), [{ text: 'OK' }]);
+  }
+};
+
+/** The banner after an auto-assign run that found at least one suggestion. */
+const autoAssignFoundBanner = (
+  assigned: number,
+  unassigned: { missing: number }[],
+  t: (key: string, params?: Record<string, string>) => string,
+): string =>
+  unassigned.length > 0
+    ? t('scheduler.shifts.partialCoverageBanner', {
+        n: String(assigned),
+        missing: String(unassigned.reduce((sum, s) => sum + s.missing, 0)),
+      })
+    : `Auto-assign found ${assigned} suggestion(s). Review and click "Apply".`;
+
+/**
+ * What a refused edit leaves in the form: the message, and the `updatedAt` the
+ * next save sends. After a 409 that is the version now stored, so saving again
+ * replaces it with the form's values (on purpose, after the message said so);
+ * before, every later save was refused again with the old `updatedAt`.
+ */
+export const refusedEditState = (
+  result: { error: string; conflictUpdatedAt?: string },
+  name: string,
+  t: (key: string, params?: Record<string, string>) => string,
+): { message: string; updatedAt?: string } =>
+  result.conflictUpdatedAt !== undefined
+    ? { message: t('scheduler.edit.conflict', { name }), updatedAt: result.conflictUpdatedAt }
+    : { message: result.error };
+
+const idOf = (target: { id: string } | null | undefined): string | null => target?.id ?? null;
 
 /** Runs `fn` unless a previous call of it is still running. */
 const useSingleFlight = (fn: () => Promise<void> | void) => {
@@ -108,7 +197,7 @@ export function useSchedulerHandlers() {
   const { recordTourAction } = useWelcomeTour();
 
   // ── DB-backed data hooks ──────────────────────────────────────────────────
-  const { locations, loaded: locationsLoaded } = useLocations(accountId);
+  const { locations, loaded: locationsLoaded, refresh: refreshLocations } = useLocations(accountId);
   // "Today" and the forecast horizon are business-local dates (the account's
   // only location's zone, else the device zone).
   const forecastTimeZone = useMemo(() => getBusinessTimeZone(resolveShiftLocation(locations)), [locations]);
@@ -126,13 +215,14 @@ export function useSchedulerHandlers() {
     forecastNotices,
     targetsError,
     refresh: refreshDemandTargets,
-  } = useDemandForecast(undefined, { timeZone: forecastTimeZone });
+    forecastRan,
+  } = useDemandForecast(accountId, undefined, { timeZone: forecastTimeZone });
 
   const {
     workers,
     addWorker,
     updateWorker,
-    addAvailability,
+    addAvailabilityDays,
     removeWorker,
     removeAvailability,
     loading: workersLoading,
@@ -164,10 +254,21 @@ export function useSchedulerHandlers() {
     error: rosterError,
     truncated: rosterTruncated,
     refresh: refreshRoster,
+    getRoster,
   } = useRoster(accountId);
   const { canAutoAssign, count: usageCount, refresh: refreshUsage } = useUsageLimit(userId, accountId);
   const { acknowledgeBreak, dismissPrompt, minutesActive, promptVisible, recordInteraction } =
     useSessionWellness();
+
+  // Tabs stay mounted: a location added on Profile, a plan or the month's
+  // auto-fill count changed elsewhere shows when the user comes back (D5).
+  // The plan banner reloads on `focusReloads`.
+  const [focusReloads, setFocusReloads] = useState(0);
+  useRefreshOnFocus(() => {
+    void refreshLocations();
+    void refreshUsage();
+    setFocusReloads((n) => n + 1);
+  });
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [savedOnboardingProgress, setSavedOnboardingProgress] =
@@ -183,6 +284,10 @@ export function useSchedulerHandlers() {
   const templateSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [availabilitySuccessPromptVisible, setAvailabilitySuccessPromptVisible] = useState(false);
   const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
+  /** Why the last Publish of a shift was refused, shown next to that shift's buttons (F-9). */
+  const [shiftRowNotice, setShiftRowNotice] = useState<ShiftRowNotice>(null);
+  /** A person with shifts the manager asked to remove: waiting for the confirm (F-11). */
+  const [workerRemoval, setWorkerRemoval] = useState<WorkerRemoval | null>(null);
   const [publishCelebration, setPublishCelebration] = useState({
     badgeVisible: false,
     confettiBurst: false,
@@ -216,8 +321,10 @@ export function useSchedulerHandlers() {
   const [workerForm, setWorkerForm] = useState<WorkerFormState>(EMPTY_WORKER_FORM);
   const [templateForm, setTemplateForm] = useState(EMPTY_TEMPLATE_FORM);
   /** The stored worker / template the form is editing; null = the form adds a new one. */
-  const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingWorker, setEditingWorker] = useState<EditTarget | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<EditTarget | null>(null);
+  const editingWorkerId = idOf(editingWorker);
+  const editingTemplateId = idOf(editingTemplate);
   const [fallbackMode, setFallbackMode] = useState<'homogeneous' | 'manual' | 'pos'>('homogeneous');
   const [fallbackForm, setFallbackForm] = useState({
     role: 'Support',
@@ -232,7 +339,7 @@ export function useSchedulerHandlers() {
   const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [forecastPending, setForecastPending] = useState(false);
   const [forecastEditStarted, setForecastEditStarted] = useState(false);
-  const [autoAssignSuggestions, setAutoAssignSuggestions] = useState<AssignedShift[] | null>(null);
+  const [autoAssignRun, setAutoAssignRun] = useState<AutoAssignRun | null>(null);
   /** Templates the last auto-assign run could not fully cover (null = no run / cleared). */
   const [autoAssignShortfalls, setAutoAssignShortfalls] = useState<CoverageShortfall[] | null>(null);
   const [autoAssignApplying, setAutoAssignApplying] = useState(false);
@@ -267,6 +374,20 @@ export function useSchedulerHandlers() {
     () => locations.find((l) => l.id === pickedLocationId) ?? resolveShiftLocation(locations),
     [locations, pickedLocationId]
   );
+  const autoAssignLocationId = idOf(autoAssignLocation);
+  // Suggestions belong to the tenant and location they were computed for: a
+  // different pick (or tenant) shows none, so Apply never saves them under
+  // another location's rules (D7).
+  const autoAssignSuggestions = suggestionsFor(autoAssignRun, accountId, autoAssignLocationId);
+  useEffect(() => {
+    // A run still computing was for the old tenant or location: its result is dropped.
+    autoAssignRunRef.current?.abort();
+    autoAssignRunRef.current = null;
+    setAutoAssignRun((run) =>
+      run && (run.accountId !== accountId || run.locationId !== autoAssignLocationId) ? null : run,
+    );
+    setAutoAssignShortfalls(null);
+  }, [accountId, autoAssignLocationId]);
   const scheduleLocations = useMemo(
     () => ({ locations, loaded: locationsLoaded }),
     [locations, locationsLoaded]
@@ -396,20 +517,11 @@ export function useSchedulerHandlers() {
     void refreshDemandTargets();
   }, [refreshDemandTargets, refreshRoster, refreshTemplates, refreshWorkers]);
 
+  // The same rule as Home and Analytics (utils/staffingGaps.ts): stored
+  // overrides only (a model forecast still in memory is not demand yet),
+  // Published rows only, one row = one person (D1).
   const staffingGaps = useMemo(
-    () =>
-      demandTargets
-        .map((target) => {
-          const scheduled = roster.reduce((total, shift) => {
-            const template = shiftTemplates.find((t) => t.id === shift.templateId);
-            if (shift.date === target.date && template?.role === target.role) {
-              return total + (template.coverage ?? 1);
-            }
-            return total;
-          }, 0);
-          return { ...target, scheduled, gap: target.required - scheduled };
-        })
-        .filter((t) => t.gap > 0),
+    () => computeStaffingGaps(demandTargets, roster, shiftTemplates),
     [demandTargets, roster, shiftTemplates]
   );
 
@@ -456,15 +568,17 @@ export function useSchedulerHandlers() {
     t,
   ]);
 
+  // The server keeps a step done forever, so only rows the server confirmed
+  // count: an optimistic row may still be refused. "Run forecast" is done by
+  // a run that produced forecasts for this tenant (not a refused or empty
+  // one), or by a stored override.
   const derivedOnboardingFlags = useMemo(
     () => ({
-      workers: workers.length > 0,
-      templates: shiftTemplates.length > 0,
-      // Only real targets count: a forecast that is loading or running may
-      // still fail, and the persist effect below would store it as done.
-      forecast: demandTargets.length > 0,
+      workers: workers.some(isServerConfirmed),
+      templates: shiftTemplates.some(isServerConfirmed),
+      forecast: forecastRan || demandTargets.some((target) => target.source === 'override'),
     }),
-    [demandTargets.length, shiftTemplates.length, workers.length]
+    [demandTargets, forecastRan, shiftTemplates, workers]
   );
 
   const effectiveOnboardingFlags = useMemo(() => {
@@ -756,14 +870,20 @@ export function useSchedulerHandlers() {
       weeklyLimitOptOut: workerForm.weeklyLimitOptOut,
       noFixedHours: workerForm.noFixedHours,
     };
-    if (editingWorkerId) {
-      const updated = await updateWorker(editingWorkerId, { name: trimmedName, role: trimmedRole, skills, ...labor });
+    if (editingWorker) {
+      const updated = await updateWorker(
+        editingWorker.id,
+        { name: trimmedName, role: trimmedRole, skills, ...labor },
+        editingWorker.updatedAt,
+      );
       if (updated.success) {
         setWorkerForm(EMPTY_WORKER_FORM);
-        setEditingWorkerId(null);
+        setEditingWorker(null);
         showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
       } else {
-        setWorkerError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+        const refused = refusedEditState(updated, trimmedName, t);
+        if (refused.updatedAt) setEditingWorker({ id: editingWorker.id, updatedAt: refused.updatedAt });
+        setWorkerError(refused.message);
       }
       return;
     }
@@ -787,7 +907,7 @@ export function useSchedulerHandlers() {
     } else {
       setWorkerError(result.error ?? 'Failed to add worker. Please try again.');
     }
-  }, [addWorker, editingWorkerId, recordTourAction, showActionBanner, t, updateWorker, workerForm, workers.length]);
+  }, [addWorker, editingWorker, recordTourAction, showActionBanner, t, updateWorker, workerForm, workers.length]);
 
   const handleAddTemplate = useCallback(async () => {
     const trimmedName = templateForm.name.trim();
@@ -805,16 +925,18 @@ export function useSchedulerHandlers() {
     if (!isValidTime(trimmedEnd)) { setTemplateError('End time must use the 24-hour HH:MM format (e.g. 17:00).'); return; }
     if (isNaN(coverageNum) || coverageNum < 1) { setTemplateError('Coverage must be at least 1.'); return; }
     setTemplateError(null);
-    if (editingTemplateId) {
-      const updated = await updateShiftTemplate(editingTemplateId, {
+    if (editingTemplate) {
+      const updated = await updateShiftTemplate(editingTemplate.id, {
         name: trimmedName, role: trimmedRole, startTime: trimmedStart, endTime: trimmedEnd, coverage: coverageNum,
-      });
+      }, editingTemplate.updatedAt);
       if (updated.success) {
         setTemplateForm(EMPTY_TEMPLATE_FORM);
-        setEditingTemplateId(null);
+        setEditingTemplate(null);
         showActionBanner(t('scheduler.edit.saved', { name: trimmedName }), 'success');
       } else {
-        setTemplateError(updated.error ?? t('scheduler.sync.saveFailed', { error: '' }));
+        const refused = refusedEditState(updated, trimmedName, t);
+        if (refused.updatedAt) setEditingTemplate({ id: editingTemplate.id, updatedAt: refused.updatedAt });
+        setTemplateError(refused.message);
       }
       return;
     }
@@ -836,7 +958,7 @@ export function useSchedulerHandlers() {
     } else {
       setTemplateError(result.error ?? 'Failed to add template. Please try again.');
     }
-  }, [addShiftTemplate, editingTemplateId, recordTourAction, shiftTemplates.length, showActionBanner, t, templateForm, updateShiftTemplate]);
+  }, [addShiftTemplate, editingTemplate, recordTourAction, shiftTemplates.length, showActionBanner, t, templateForm, updateShiftTemplate]);
 
   /** Saves one template from a playbook. A template already saved under that name, role and hours is skipped. */
   const handleImportPlaybookTemplate = useCallback(
@@ -874,33 +996,28 @@ export function useSchedulerHandlers() {
     }
 
     setAvailabilityError(null);
-    // One request per day, in order: a refused day stays selected to fix.
-    const failed: string[] = [];
-    let lastError: string | undefined;
-    let saved = 0;
-    for (const check of checks) {
-      const result = await addAvailability(
-        check.trimmedWorkerId,
-        check.normalizedDay as DayOfWeek,
-        check.trimmedFrom,
-        check.trimmedTo,
-      );
-      if (result.success) saved += 1;
-      else {
-        failed.push(check.normalizedDay as string);
-        lastError = result.error;
-      }
+    // Every picked day in one request: all are saved or none (F-5, CHG-109).
+    const submitted = availabilityForm;
+    const result = await addAvailabilityDays(
+      checks[0].trimmedWorkerId,
+      checks.map((check) => check.normalizedDay as DayOfWeek),
+      checks[0].trimmedFrom,
+      checks[0].trimmedTo,
+    );
+    if (!result.success) {
+      // The days stay selected to fix and save again.
+      setAvailabilityError(result.error ?? 'Failed to save availability. Please try again.');
+      return;
     }
-    if (saved > 0) {
-      setAvailabilitySuccessPromptVisible(true);
-      recordTourAction('availability-section');
-    }
-    // Keep the worker and the hours for the next entry; clear the saved days.
-    setAvailabilityForm((prev) => ({ ...prev, day: failed.join(',') }));
-    if (failed.length > 0) {
-      setAvailabilityError(lastError ?? 'Failed to save availability. Please try again.');
-    }
-  }, [addAvailability, availabilityForm, recordTourAction, workers]);
+    setAvailabilitySuccessPromptVisible(true);
+    recordTourAction('availability-section');
+    // Keep the worker and the hours for the next entry; clear the saved days, but only
+    // while the form still shows this entry: a manager who already picked the next
+    // person and their days keeps them (F-5: the answer used to clear them).
+    setAvailabilityForm((prev) =>
+      prev.workerId === submitted.workerId && prev.day === submitted.day ? { ...prev, day: '' } : prev,
+    );
+  }, [addAvailabilityDays, availabilityForm, recordTourAction, workers]);
 
   const handleShiftSubmit = useCallback(async () => {
     const workerInput = shiftForm.workerId.trim();
@@ -912,13 +1029,11 @@ export function useSchedulerHandlers() {
     // The picker fills the short id ("W-1"); a pasted UUID works too.
     const worker = workers.find((w) => w.displayId === workerInput) ?? workers.find((w) => w.id === workerInput);
     const trimmedWorkerId = worker?.id ?? workerInput;
-    const { coveringSlot, weekdayLabel } =
+    // The assigner's own availability rule, in the zone of the shift's location (F-9).
+    const { covered, weekdayLabel } =
       template && worker
-        ? findCoveringAvailability(worker, template, trimmedDate)
-        : {
-            coveringSlot: undefined,
-            weekdayLabel: null,
-          };
+        ? findCoveringAvailability(worker, template, trimmedDate, getBusinessTimeZone(autoAssignLocation))
+        : { covered: false, weekdayLabel: null };
 
     if (!trimmedWorkerId || !trimmedTemplateId || !trimmedDate)
       errors.push('All fields are required.');
@@ -937,7 +1052,7 @@ export function useSchedulerHandlers() {
     if (rosterLookup.has(shiftKey))
       errors.push('This worker, date, and template combination is already scheduled.');
 
-    if (template && worker && weekdayLabel && !coveringSlot)
+    if (template && worker && weekdayLabel && !covered)
       errors.push(
         `Worker availability on ${weekdayLabel} must cover the template window ${template.start} - ${template.end}.`
       );
@@ -1107,26 +1222,29 @@ export function useSchedulerHandlers() {
     (shiftId: string) => {
       const shift = roster.find((s) => s.id === shiftId);
       if (!shift) return;
+      setShiftRowNotice(null);
+      // The publish check uses the assigner's availability rule in the zone of the
+      // shift's location, so what auto-assign made can be published (F-9).
+      const readiness = (s: Shift) =>
+        validateShiftReadiness(s, roster, shiftTemplates, workers, getBusinessTimeZone(resolveShiftLocation(locations, s.location)));
+      // A refusal is said next to the shift's buttons as well as in the banner at the
+      // top, which may be scrolled out of view and hides after a few seconds (F-9).
+      const refuse = (message: string) => {
+        setShiftRowNotice({ shiftId, message });
+        showActionBanner(message, 'error');
+      };
 
-      const { errors } = validateShiftReadiness(
-        shift, roster, shiftTemplates, workers
-      );
-      if (errors.length) { showActionBanner(errors.map((e) => e.message).join(' '), 'error'); return; }
+      const { errors } = readiness(shift);
+      if (errors.length) { refuse(readinessMessage(errors, t)); return; }
 
       // Alert.alert is a no-op on web — skip confirmation and publish directly.
       const doPublish = async () => {
         const latestShift = roster.find((s) => s.id === shiftId);
         if (!latestShift) return;
-        const validation = validateShiftReadiness(
-          latestShift, roster, shiftTemplates, workers
-        );
-        if (validation.errors.length) {
-          showActionBanner(validation.errors.map((e) => e.message).join(' '), 'error'); return;
-        }
+        const validation = readiness(latestShift);
+        if (validation.errors.length) { refuse(readinessMessage(validation.errors, t)); return; }
         const publishResult = await setShiftStatus(shiftId, 'Published');
-        if (!publishResult.success) {
-          showActionBanner(publishResult.error ?? 'Failed to publish shift.', 'error'); return;
-        }
+        if (!publishResult.success) { refuse(publishResult.error ?? 'Failed to publish shift.'); return; }
         const workerName = workers.find((w) => w.id === latestShift.workerId)?.name ?? latestShift.workerId;
         showActionBanner(
           `${workerName} scheduled for ${latestShift.date}. Tell them, then mark the shift as told.`,
@@ -1147,10 +1265,12 @@ export function useSchedulerHandlers() {
     },
     [
       celebrateRosterPublish,
+      locations,
       roster,
       setShiftStatus,
       shiftTemplates,
       showActionBanner,
+      t,
       workers,
     ]
   );
@@ -1211,7 +1331,7 @@ export function useSchedulerHandlers() {
       const worker = workers.find((w) => w.id === workerId);
       if (!worker) return;
       setWorkerError(null);
-      setEditingWorkerId(workerId);
+      setEditingWorker({ id: workerId, updatedAt: worker.updatedAt });
       setWorkerForm({
         name: worker.name,
         role: worker.role,
@@ -1226,7 +1346,7 @@ export function useSchedulerHandlers() {
   );
 
   const cancelWorkerEdit = useCallback(() => {
-    setEditingWorkerId(null);
+    setEditingWorker(null);
     setWorkerError(null);
     setWorkerForm(EMPTY_WORKER_FORM);
   }, []);
@@ -1236,7 +1356,7 @@ export function useSchedulerHandlers() {
       const template = shiftTemplates.find((tmpl) => tmpl.id === templateId);
       if (!template) return;
       setTemplateError(null);
-      setEditingTemplateId(templateId);
+      setEditingTemplate({ id: templateId, updatedAt: template.updatedAt });
       setTemplateForm({
         name: template.name,
         role: template.role,
@@ -1249,19 +1369,56 @@ export function useSchedulerHandlers() {
   );
 
   const cancelTemplateEdit = useCallback(() => {
-    setEditingTemplateId(null);
+    setEditingTemplate(null);
     setTemplateError(null);
     setTemplateForm(EMPTY_TEMPLATE_FORM);
   }, []);
 
+  /** The person's roster shifts, split at today in the business zone, for the confirm step. */
+  const removalOf = useCallback(
+    (workerId: string, name: string): WorkerRemoval | null => {
+      const shifts = getRoster().filter((s) => s.workerId === workerId);
+      if (shifts.length === 0) return null;
+      const today = todayKey(forecastTimeZone);
+      const past = shifts.filter((s) => s.date < today).length;
+      return { workerId, name, upcoming: shifts.length - past, past };
+    },
+    [forecastTimeZone, getRoster]
+  );
+
+  /**
+   * Removes a person. One with shifts on the roster is not removed at once: the
+   * screen asks first (F-11), because their shifts go with them. A plain delete
+   * the server refuses because a shift was added elsewhere meanwhile asks too.
+   */
   const handleRemoveWorker = useCallback(
     async (workerId: string) => {
       const name = workers.find((w) => w.id === workerId)?.name ?? workerId;
       if (workerId === editingWorkerId) cancelWorkerEdit();
-      reportRemoval(await removeWorker(workerId), name);
+      const known = removalOf(workerId, name);
+      if (known) { setWorkerRemoval(known); return; }
+      const result = await removeWorker(workerId);
+      if (!result.success && result.status === 409 && (await refreshRoster())) {
+        const found = removalOf(workerId, name);
+        if (found) { setWorkerRemoval(found); return; }
+      }
+      reportRemoval(result, name);
     },
-    [cancelWorkerEdit, editingWorkerId, removeWorker, reportRemoval, workers]
+    [cancelWorkerEdit, editingWorkerId, refreshRoster, removalOf, removeWorker, reportRemoval, workers]
   );
+
+  /** The manager confirmed: the person and all their shifts go, in one transaction. */
+  const confirmWorkerRemoval = useCallback(async () => {
+    const pending = workerRemoval;
+    if (!pending) return;
+    setWorkerRemoval(null);
+    const result = await removeWorker(pending.workerId, { withShifts: true });
+    // Their shifts left the roster on the server: show that here too.
+    if (result.success) void refreshRoster();
+    reportRemoval(result, pending.name);
+  }, [refreshRoster, removeWorker, reportRemoval, workerRemoval]);
+
+  const cancelWorkerRemoval = useCallback(() => setWorkerRemoval(null), []);
 
   const handleRemoveAvailability = useCallback(
     async (workerId: string, slotId: string) => {
@@ -1299,47 +1456,43 @@ export function useSchedulerHandlers() {
 
   // ── Auto-assign ───────────────────────────────────────────────────────────
 
-  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for shiftForm.date
-   *  and stores suggestions. The user must call applyAutoAssign to commit them. */
-  const handleAutoAssign = useCallback(async () => {
-    if (!canAutoAssign) {
-      if (Platform.OS === 'web') {
-        showActionBanner(t('upgrade.limitReachedBanner'), 'error');
-      } else {
-        Alert.alert(
-          'Free limit reached',
-          t('upgrade.limitReachedBanner'),
-          [{ text: 'OK' }]
-        );
-      }
-      return;
-    }
-    const date = shiftForm.date.trim();
-    if (!isValidDate(date)) {
-      showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
-      return;
-    }
+  /**
+   * Computes suggestions for the Monday-to-Sunday week of `date` against the roster
+   * as it is now. The previous suggestions go first: while the new ones compute, Apply
+   * cannot save the old ones (F-6: they were applied again after a refusal). The
+   * roster is read when the run starts (`getRoster`), not from this render, so a run
+   * started right after a reload (the re-run after a 409) sees the reloaded rows.
+   */
+  const runAutoAssignFor = useCallback(async (date: string, lead = '') => {
+    setAutoAssignRun(null);
+    setAutoAssignShortfalls(null);
     // The law's limits, merged with the manager's own (advanced controls); stricter wins.
     const settings = autoAssignSettings(date, autoAssignLocation, businessConstraints);
-    // A person with a day off on this date (team step) is not suggested.
+    // One run fills the date's Monday-to-Sunday week, from today on (CHG-108).
+    const week = autoAssignWeekDates(date, todayKey(settings.timeZone));
+    // A newer run, Dismiss, a tenant or location change or unmount aborts this
+    // one: from then on its outcome is dropped, whatever the engine returns.
+    autoAssignRunRef.current?.abort();
+    const run = new AbortController();
+    autoAssignRunRef.current = run;
+    // A person with a day off (team step) is not suggested on that day.
     // Unknown days off stop the run: a guess could suggest someone who is away.
-    const off = await fetchWorkersOffOn(date);
+    const off = await fetchDaysOffOn(week);
+    if (run.signal.aborted) return;
     if (!off.ok) {
       showActionBanner(t('teamTools.daysOffLoadError', { error: off.error }), 'error');
       return;
     }
-    const eligibleWorkers = off.workerIds.size > 0 ? workers.filter((w) => !off.workerIds.has(w.id)) : workers;
-    autoAssignRunRef.current?.abort();
-    const run = new AbortController();
-    autoAssignRunRef.current = run;
     let result;
     try {
       result = await runAutoAssign(
         {
-          date,
+          date: week[0],
+          dates: week,
           templates: shiftTemplates,
-          workers: eligibleWorkers,
-          existingRoster: roster,
+          workers,
+          daysOff: off.daysOff,
+          existingRoster: getRoster(),
           constraints: settings.constraints,
           timeZone: settings.timeZone,
         },
@@ -1352,58 +1505,103 @@ export function useSchedulerHandlers() {
     } finally {
       if (autoAssignRunRef.current === run) autoAssignRunRef.current = null;
     }
+    if (run.signal.aborted) return;
     // Every under-covered template (partial or none) is surfaced, not only empty ones.
     setAutoAssignShortfalls(result.unassigned.length > 0 ? result.unassigned : null);
     if (result.assignments.length === 0) {
-      setAutoAssignSuggestions(null);
       showActionBanner(
-        result.unassigned.length > 0
+        lead + (result.unassigned.length > 0
           ? `Auto-assign: no valid assignments found. ${result.unassigned[0].reason}`
-          : 'Auto-assign: no templates configured yet.',
+          : 'Auto-assign: no templates configured yet.'),
         'info'
       );
       return;
     }
-    setAutoAssignSuggestions(result.assignments);
-    showActionBanner(
-      result.unassigned.length > 0
-        ? t('scheduler.shifts.partialCoverageBanner', {
-            n: String(result.assignments.length),
-            missing: String(result.unassigned.reduce((sum, s) => sum + s.missing, 0)),
-          })
-        : `Auto-assign found ${result.assignments.length} suggestion(s). Review and click "Apply".`,
-      'info'
-    );
-  }, [autoAssignLocation, businessConstraints, canAutoAssign, roster, shiftForm.date, shiftTemplates, showActionBanner, t, workers]);
+    setAutoAssignRun({
+      accountId,
+      locationId: autoAssignLocationId,
+      suggestions: result.assignments,
+      ids: result.assignments.map(() => newUuid()),
+      date,
+    });
+    // `lead` says why the run happened (a refused Apply); it stays in front of the result.
+    showActionBanner(`${lead}${autoAssignFoundBanner(result.assignments.length, result.unassigned, t)}`, 'info');
+  }, [accountId, autoAssignLocation, autoAssignLocationId, businessConstraints, getRoster, shiftTemplates, showActionBanner, t, workers]);
 
-  /** Persists all pending auto-assign suggestions to the roster. */
+  /** Runs auto-assign (ILP in a Web Worker on web, greedy on native) for the whole week
+   *  (Monday to Sunday) that contains shiftForm.date, and stores suggestions. One run is one
+   *  auto-schedule of the plan (CHG-108). The user must call applyAutoAssign to commit them. */
+  const handleAutoAssign = useCallback(async () => {
+    // While Apply is saving, a new run would replace what is being saved.
+    if (autoAssignApplying) return;
+    if (!canAutoAssign) {
+      showAutoAssignLimitReached(showActionBanner, t);
+      return;
+    }
+    const date = shiftForm.date.trim();
+    if (!isValidDate(date)) {
+      showActionBanner('Enter a valid date in the Shift creation form before auto-assigning.', 'error');
+      return;
+    }
+    await runAutoAssignFor(date);
+  }, [autoAssignApplying, canAutoAssign, runAutoAssignFor, shiftForm.date, showActionBanner, t]);
+
+  /**
+   * Persists all pending auto-assign suggestions to the roster, under the
+   * location they were computed for (the run's, not whatever is picked now).
+   */
   const applyAutoAssign = useCallback(async () => {
-    if (!autoAssignSuggestions?.length) return;
+    const run = autoAssignRun;
+    if (!run || autoAssignSuggestions !== run.suggestions || !run.suggestions.length || autoAssignApplying) return;
     setAutoAssignApplying(true);
     // The run is counted in the same request that saves it (and in the same database
     // transaction): a save that is refused costs no run, and a run over the limit saves nothing.
     // One request: every suggestion is stored or none is, never half a schedule.
-    const result = await addShifts(autoAssignSuggestions.map((suggestion) => ({
+    const result = await addShifts(run.suggestions.map((suggestion, index) => ({
+      id: run.ids[index],
       date: suggestion.date,
       workerId: suggestion.workerId,
       templateId: suggestion.templateId,
-      location: autoAssignLocation?.id ?? '',
+      location: run.locationId ?? '',
       status: 'Draft' as const,
       notified: false,
     })), { countAutoAssign: true });
     void refreshUsage();
     setAutoAssignApplying(false);
     if (!result.success) {
-      // The suggestions stay, so the manager can apply again after the roster reloaded.
+      if (result.status === 409) {
+        // Some suggested slot was taken meanwhile (another tab, another manager). addShifts
+        // has reloaded the roster; these suggestions can never be saved as they are, so they
+        // are made again from the reloaded roster (a run is counted only when applied) (F-6).
+        showActionBanner(t('scheduler.shifts.autoAssignConflictRerun'), 'error');
+        void runAutoAssignFor(run.date, `${t('scheduler.shifts.autoAssignConflictRerun')} `);
+        return;
+      }
+      // No clear answer or another refusal: the suggestions stay with their ids, so the
+      // manager can apply again and a lost answer is replayed, not saved twice.
       showActionBanner(t('scheduler.sync.saveFailed', { error: result.error }), 'error');
       return;
     }
-    const successCount = autoAssignSuggestions.length;
-    setAutoAssignSuggestions(null);
+    const successCount = run.suggestions.length;
+    setAutoAssignRun((current) => (current === run ? null : current));
     setAutoAssignShortfalls(null);
+    if (result.alreadyStored) {
+      // The first Apply saved them and only its answer was lost.
+      showActionBanner(t('scheduler.shifts.autoAssignAlreadySaved', { n: String(successCount) }), 'success');
+      return;
+    }
     void trackEvent('auto_assign_used', { successCount });
     showActionBanner(`Applied ${successCount} of ${successCount} auto-assign suggestion(s).`, 'success');
-  }, [addShifts, autoAssignLocation, autoAssignSuggestions, refreshUsage, showActionBanner, t]);
+  }, [addShifts, autoAssignApplying, autoAssignRun, autoAssignSuggestions, refreshUsage, runAutoAssignFor, showActionBanner, t]);
+
+  /** Drops the suggestions without saving any. */
+  const dismissAutoAssign = useCallback(() => {
+    // A run still computing would bring the suggestions back when it finishes.
+    autoAssignRunRef.current?.abort();
+    autoAssignRunRef.current = null;
+    setAutoAssignRun(null);
+    setAutoAssignShortfalls(null);
+  }, []);
 
   const handlePosTargetsGenerated = useCallback(async (targets: {date: string; role: string; required: number; source: string; notes: string; lowerBound?: number; upperBound?: number; confidence?: number}[]) => {
     // One batch, and its real outcome: before, each row was its own request and
@@ -1438,7 +1636,8 @@ export function useSchedulerHandlers() {
   const seedTourData = useCallback(async () => {
     // Only into an account whose stored workers loaded and are empty: with a
     // failed or unfinished load, "no workers" is unknown (CHG-088).
-    if (!workersLoaded || workersError || workers.length > 0) return;
+    // A truncated list is not known to be empty either.
+    if (!workersLoaded || workersError || workersTruncated || workers.length > 0) return;
 
     // Helper: YYYY-MM-DD for today + offset days
     const dateOffset = (days: number): string => isoDate(days);
@@ -1466,14 +1665,14 @@ export function useSchedulerHandlers() {
     const shiftPromises: ReturnType<typeof addShift>[] = [];
     if (w1Id && t1Id) {
       shiftPromises.push(
-        addShift({ date: dateOffset(1), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Draft', notified: false }),
-        addShift({ date: dateOffset(3), workerId: w1Id, templateId: t1Id, location: 'Main Floor', status: 'Published', notified: true }),
+        addShift({ date: dateOffset(1), workerId: w1Id, templateId: t1Id, location: '', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(3), workerId: w1Id, templateId: t1Id, location: '', status: 'Published', notified: true }),
       );
     }
     if (w2Id && t2Id) {
       shiftPromises.push(
-        addShift({ date: dateOffset(2), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Draft', notified: false }),
-        addShift({ date: dateOffset(5), workerId: w2Id, templateId: t2Id, location: 'Bar', status: 'Published', notified: true }),
+        addShift({ date: dateOffset(2), workerId: w2Id, templateId: t2Id, location: '', status: 'Draft', notified: false }),
+        addShift({ date: dateOffset(5), workerId: w2Id, templateId: t2Id, location: '', status: 'Published', notified: true }),
       );
     }
     if (shiftPromises.length > 0) await Promise.all(shiftPromises);
@@ -1483,7 +1682,7 @@ export function useSchedulerHandlers() {
       setPublishCelebration({ badgeVisible: false, confettiBurst: true });
     }
     showActionBanner(t('tour.completed.seedConfirmation'), 'success');
-  }, [workersLoaded, workersError, workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
+  }, [workersLoaded, workersError, workersTruncated, workers.length, addWorker, addShiftTemplate, addShift, reduceMotionEnabled, setPublishCelebration, showActionBanner, t]);
 
   // ── Return all state and handlers for the screen ──────────────────────────
   // A second tap while a save is still on its way would add the row twice
@@ -1531,6 +1730,7 @@ export function useSchedulerHandlers() {
 
     // UI state
     actionBanner,
+    shiftRowNotice,
     publishCelebration,
     reduceMotionEnabled,
     availabilitySuccessPromptVisible,
@@ -1591,6 +1791,9 @@ export function useSchedulerHandlers() {
     handleUnpublishShift,
     handleNotifyShift,
     handleRemoveWorker,
+    workerRemoval,
+    confirmWorkerRemoval,
+    cancelWorkerRemoval,
     editingWorkerId,
     handleEditWorker,
     cancelWorkerEdit,
@@ -1599,7 +1802,7 @@ export function useSchedulerHandlers() {
     cancelTemplateEdit,
     handleRemoveAvailability,
     locations,
-    selectedLocationId: autoAssignLocation?.id ?? null,
+    selectedLocationId: autoAssignLocationId,
     selectLocation: setPickedLocationId,
     handleRemoveOverride,
     handleRemoveTemplate,
@@ -1607,6 +1810,7 @@ export function useSchedulerHandlers() {
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
+    dismissAutoAssign,
     handlePosTargetsGenerated,
 
     // Auto-assign state
@@ -1617,6 +1821,8 @@ export function useSchedulerHandlers() {
     // Usage / freemium
     canAutoAssign,
     usageCount,
+    /** Bumped when the screen regains focus (not on mount): the plan banner reloads. */
+    focusReloads,
 
     // Tour
     seedTourData,

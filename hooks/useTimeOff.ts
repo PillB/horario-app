@@ -34,10 +34,17 @@ const loadTimeOff = async () => {
 
 const byDate = (a: TimeOff, b: TimeOff) => a.date.localeCompare(b.date);
 
-/** Ids of the workers with a stored day off on `date`; an error when the list could not be read. */
-export const fetchWorkersOffOn = async (date: string): Promise<{ ok: true; workerIds: Set<string> } | { ok: false; error: string }> => {
-  const result = await fetchTimeOff(date);
-  return result.ok ? { ok: true, workerIds: new Set(result.data.map((row) => row.workerId)) } : result;
+/**
+ * Stored days off on any of `dates` (one filtered read per date, in parallel); an error when
+ * any date could not be read, so a failed read never looks like "nobody is off".
+ */
+export const fetchDaysOffOn = async (
+  dates: readonly string[],
+): Promise<{ ok: true; daysOff: { workerId: string; date: string }[] } | { ok: false; error: string }> => {
+  const results = await Promise.all([...new Set(dates)].map((date) => fetchTimeOff(date)));
+  const failed = results.find((r) => !r.ok);
+  if (failed && !failed.ok) return { ok: false, error: failed.error };
+  return { ok: true, daysOff: results.flatMap((r) => (r.ok ? r.data.map((row) => ({ workerId: row.workerId, date: row.date })) : [])) };
 };
 
 /** `workerIds` are the stored workers: their device-only days off are uploaded once. */

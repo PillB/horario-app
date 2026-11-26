@@ -29,15 +29,34 @@ const forecastKey = (f: DemandForecast) => `${f.date}::${f.role}`;
 const NO_MODELS: RoleModelSummary[] = [];
 const NO_NOTICES: ForecastNotices = { historyEndsDaysAgo: null, signalsTruncated: false };
 
+const NO_TARGETS: DemandForecast[] = [];
+
+const initialDataStatus = (): ForecastDataStatus => ({
+  hasHistorical: false,
+  hasExternalSignals: false,
+  hasExistingTargets: false,
+  apiAvailable: Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL),
+});
+
 /**
+ * `accountId` names the tenant (the proxy takes it from the session): a new
+ * one drops the previous tenant's targets and forecast, reloads, and any
+ * answer still on its way for the old tenant is ignored (CHG-109; before, the
+ * Scheduler kept showing the previous organization's demand after a switch).
+ *
  * `options` (service level, interval level, business time zone) is read when a
  * forecast runs, so passing a new object each render does not re-create
  * `triggerForecast`.
  */
-export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastOptions) => {
+export const useDemandForecast = (accountId: string, filters?: ForecastFilters, options?: ForecastOptions) => {
   const optionsRef = useRef(options);
   optionsRef.current = options;
-  const [demandTargets, setDemandTargets] = useState<DemandForecast[]>([]);
+  const accountIdRef = useRef(accountId);
+  accountIdRef.current = accountId;
+  /** The tenant the state below belongs to; the render in which it changes shows none of it. */
+  const [stateKey, setStateKey] = useState(accountId);
+  const [demandTargetsState, setDemandTargets] = useState<DemandForecast[]>([]);
+  const demandTargets = stateKey === accountId ? demandTargetsState : NO_TARGETS;
   const demandTargetsRef = useRef(demandTargets);
   demandTargetsRef.current = demandTargets;
   const [loading, setLoading] = useState(false);
@@ -48,14 +67,26 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
   /** The last load of the stored overrides failed (kept apart from forecast errors). */
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [lastGenerationMetadata, setLastGenerationMetadata] = useState<ForecastGenerationMetadata | null>(null);
-  const [dataStatus, setDataStatus] = useState<ForecastDataStatus>({
-    hasHistorical: false,
-    hasExternalSignals: false,
-    hasExistingTargets: false,
-    apiAvailable: Boolean(process.env.EXPO_PUBLIC_FORECAST_API_URL),
-  });
+  const [dataStatus, setDataStatus] = useState<ForecastDataStatus>(initialDataStatus);
+  // The tenant whose last forecast run produced forecasts (onboarding's "Run forecast").
+  const [forecastRanFor, setForecastRanFor] = useState<string | null>(null);
 
   const hydrateRequestIdRef = useRef(0);
+  const forecastRequestIdRef = useRef(0);
+
+  // A new tenant starts empty; a forecast still running for the old one is dropped.
+  useEffect(() => {
+    if (stateKey === accountId) return;
+    forecastRequestIdRef.current += 1;
+    setDemandTargets([]);
+    setTargetsLoaded(false);
+    setTargetsError(null);
+    setError(null);
+    setLastGenerationMetadata(null);
+    setDataStatus(initialDataStatus());
+    setForecasting(false);
+    setStateKey(accountId);
+  }, [accountId, stateKey]);
 
   const hydrate = useCallback(async () => {
     /**
@@ -92,11 +123,18 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
         setLoading(false);
       }
     }
-  }, [filters]);
+  // accountId is not sent (the server takes the tenant from the session), but
+  // a tenant switch must reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, accountId]);
 
   const triggerForecast = useCallback(
     async (overrideFilters?: ForecastFilters) => {
       if (forecasting) return;
+      // Only the newest run for the current tenant may change state.
+      const requestId = ++forecastRequestIdRef.current;
+      const tenant = accountIdRef.current;
+      const current = () => forecastRequestIdRef.current === requestId && accountIdRef.current === tenant;
       try {
         setForecasting(true);
         setLoading(true);
@@ -104,7 +142,9 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
           { ...filters, ...overrideFilters },
           optionsRef.current,
         );
+        if (!current()) return;
         setLastGenerationMetadata(metadata);
+        if (forecasts.length > 0) setForecastRanFor(tenant);
         // A manual override always beats a model forecast for the same date and role.
         setDemandTargets((prev) => {
           const overrides = prev.filter((item) => item.source === 'override');
@@ -128,21 +168,27 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
         }
       } catch (err) {
         console.warn('Unable to generate forecast', err);
+        if (!current()) return;
         setLastGenerationMetadata(null);
         setError('Unable to generate forecast');
       } finally {
-        setForecasting(false);
-        setLoading(false);
+        if (current()) {
+          setForecasting(false);
+          setLoading(false);
+        }
       }
     },
     [filters, forecasting]
   );
 
   const overrideTarget = useCallback(async (target: DemandForecast) => {
+    const tenant = accountIdRef.current;
     try {
       setLoading(true);
       const normalized = { ...target, required: Number(target.required), source: 'override' as const };
       const result = await upsertDemandTarget(normalized);
+      // Saved for the tenant it was made in; another tenant's list is not touched.
+      if (accountIdRef.current !== tenant) return;
       if (result.success) {
         setDemandTargets((prev) => mergeForecasts([normalized], prev));
         setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
@@ -166,7 +212,14 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     const key = forecastKey({ ...target, required: 0 });
     const removed = demandTargetsRef.current.find((f) => forecastKey(f) === key && f.source === 'override');
     if (removed) setDemandTargets((prev) => prev.filter((f) => forecastKey(f) !== key));
+    const tenant = accountIdRef.current;
     const result = await deleteDemandTarget(target);
+    // Another tenant's list never gets this row back.
+    if (accountIdRef.current !== tenant) {
+      return result.success
+        ? ({ success: true, error: null } as const)
+        : ({ success: false, error: result.error ?? 'Unable to remove override' } as const);
+    }
     if (!result.success) {
       if (removed) setDemandTargets((prev) => (prev.some((f) => forecastKey(f) === key) ? prev : mergeForecasts([removed], prev)));
       setError(result.error ?? 'Unable to remove override');
@@ -184,9 +237,10 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
         required: Number(target.required),
         source: target.source ?? ('override' as const),
       }));
+      const tenant = accountIdRef.current;
       const results = await upsertDemandTargets(normalized);
       const successfulTargets = results.filter((result) => result.success).map((result) => result.target);
-      if (successfulTargets.length) {
+      if (successfulTargets.length && accountIdRef.current === tenant) {
         setDemandTargets((prev) => mergeForecasts(successfulTargets, prev));
         setDataStatus((prev) => ({ ...prev, hasExistingTargets: true }));
       }
@@ -238,6 +292,8 @@ export const useDemandForecast = (filters?: ForecastFilters, options?: ForecastO
     forecasting,
     dataStatus,
     lastGenerationMetadata,
+    /** True once a forecast run produced forecasts for this tenant (a refused or empty run does not count). */
+    forecastRan: forecastRanFor === accountId,
     /** Statistical forecasts: model chosen per role and its backtest MASE (empty otherwise). */
     forecastModels,
     /** Statistical forecasts: history gap and signal truncation, for a note in the UI. */

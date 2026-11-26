@@ -1,7 +1,10 @@
 import {
   addDaysToKey,
+  autoAssignWeekDates,
   daysBetweenKeys,
+  inOneIsoWeek,
   isDateKey,
+  isoWeekDates,
   parseDateKey,
   toDateKey,
   todayKey,
@@ -186,5 +189,57 @@ describe('isDateKey', () => {
     expect(isDateKey('2024-02-29')).toBe(true);
     expect(isDateKey('2025-02-29')).toBe(false);
     expect(isDateKey('2026-10-18T00:00:00Z')).toBe(false);
+  });
+});
+
+describe('isoWeekDates (CHG-108: one auto-assign run fills this week)', () => {
+  it('returns Monday to Sunday for a midweek date', () => {
+    expect(isoWeekDates('2026-12-09')).toEqual(['2026-12-07', '2026-12-08', '2026-12-09', '2026-12-10', '2026-12-11', '2026-12-12', '2026-12-13']);
+  });
+
+  it('puts a Sunday in the week that started the Monday before, not the next one', () => {
+    expect(isoWeekDates('2026-12-13')[0]).toBe('2026-12-07');
+    expect(isoWeekDates('2026-12-14')[0]).toBe('2026-12-14');
+  });
+
+  it('crosses a month and a year end', () => {
+    expect(isoWeekDates('2027-01-01')).toEqual(['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']);
+  });
+
+  it('keeps seven calendar days across a DST change (Europe moves its clocks on 2026-10-25)', () => {
+    expect(isoWeekDates('2026-10-25')).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25']);
+  });
+});
+
+describe('inOneIsoWeek', () => {
+  it('is true for dates inside one Monday-to-Sunday week, in any order and with repeats', () => {
+    expect(inOneIsoWeek(['2026-12-13', '2026-12-07', '2026-12-07'])).toBe(true);
+  });
+
+  it('is false from Sunday into the next Monday', () => {
+    expect(inOneIsoWeek(['2026-12-13', '2026-12-14'])).toBe(false);
+  });
+
+  it('is false for no dates and for a value that is not a date key', () => {
+    expect(inOneIsoWeek([])).toBe(false);
+    expect(inOneIsoWeek(['2026-12-07', 'undefined'])).toBe(false);
+  });
+});
+
+describe('autoAssignWeekDates (CHG-108)', () => {
+  it('fills the whole week when it has not started yet', () => {
+    expect(autoAssignWeekDates('2026-12-16', '2026-12-09')).toEqual(isoWeekDates('2026-12-16'));
+  });
+
+  it('skips the days of this week that are already past', () => {
+    expect(autoAssignWeekDates('2026-12-12', '2026-12-10')).toEqual(['2026-12-10', '2026-12-11', '2026-12-12', '2026-12-13']);
+  });
+
+  it('keeps a past date the manager picked, from that date to Sunday', () => {
+    expect(autoAssignWeekDates('2026-12-02', '2026-12-10')).toEqual(['2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05', '2026-12-06']);
+  });
+
+  it('on Sunday fills only Sunday', () => {
+    expect(autoAssignWeekDates('2026-12-13', '2026-12-13')).toEqual(['2026-12-13']);
   });
 });

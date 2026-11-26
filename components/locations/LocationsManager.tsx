@@ -14,12 +14,19 @@ import { locationNeedsReconfirm } from '@/utils/locationValidation';
 import { useT } from '@/contexts/LocaleContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useLocations } from '@/hooks/useLocations';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 import { getJurisdiction } from '@/services/labor/jurisdictions';
 import type { BusinessLocation } from '@/services/locationService';
 
 type Editing = { mode: 'add' } | { mode: 'edit'; location: BusinessLocation } | null;
 
-export function LocationsManager({ accountId }: { accountId: string }) {
+type Props = {
+  accountId: string;
+  /** Bumped by the screen when it regains focus: each change after mount reloads the list (the mount loads it anyway). */
+  reloadSignal?: number;
+};
+
+export function LocationsManager({ accountId, reloadSignal }: Props) {
   const { t } = useT();
   const colorScheme = useColorScheme() ?? 'light';
   const styles = makeStyles(Colors[colorScheme]);
@@ -30,6 +37,8 @@ export function LocationsManager({ accountId }: { accountId: string }) {
   const [showHistory, setShowHistory] = useState(false);
   // Bumped after a delete so an open history reloads (an edit remounts it).
   const [historyVersion, setHistoryVersion] = useState(0);
+
+  useReloadOnSignal(reloadSignal, () => void refresh());
 
   const handleDelete = useCallback(
     async (location: BusinessLocation) => {

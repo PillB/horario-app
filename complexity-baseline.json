@@ -21,8 +21,7 @@
       "forecastHistory": 17,
       "listForecastSignals": 16,
       "updateOrInsert": 16,
-      "uploadPosSales": 18,
-      "upsertRosterShift": 17
+      "uploadPosSales": 18
     },
     "components/SyncStatusBar.tsx": {
       "SyncStatusBar": 31
@@ -48,16 +47,13 @@
       "map callback": 21
     },
     "components/scheduler/ShiftTemplateSection.tsx": {
-      "ShiftTemplateSection": 28
+      "ShiftTemplateSection": 25
     },
     "components/scheduler/WorkerSection.tsx": {
       "WorkerSection": 20
     },
     "contexts/WelcomeTourContext.tsx": {
       "tourReducer": 19
-    },
-    "hooks/useAnalytics.ts": {
-      "load (useCallback)": 16
     },
     "hooks/useCompliance.ts": {
       "evaluateCompliance": 29
@@ -73,10 +69,6 @@
     },
     "hooks/useTeamSetup.ts": {
       "bulkImportWorkers (useCallback)": 21
-    },
-    "server/plans.ts": {
-      "insertWithinLimit": 16,
-      "planGate": 24
     },
     "server/proxyAuth.ts": {
       "authenticate": 16,
@@ -128,7 +120,7 @@
     },
     "utils/schedulerValidators.ts": {
       "validateAvailabilitySubmission": 32,
-      "validateShiftReadiness": 22
+      "validateShiftReadiness": 21
     },
     "utils/schedulingValidation.ts": {
       "validateDemandTargetInput": 21,

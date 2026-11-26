@@ -36,6 +36,11 @@ export type OptimisticWrite<T, R extends WriteResult> = {
   rollback: (items: T[]) => T[];
   /** Applies the server's answer (e.g. the stored row) after a success. Same condition as `rollback`. */
   reconcile?: (items: T[], result: R) => T[];
+  /**
+   * False when the caller reloads after a failure itself (it awaits `refresh`
+   * to read what the server holds), so the list is not loaded twice.
+   */
+  reloadOnFailure?: boolean;
 };
 
 /** Replaces the item with the same id, or appends it. */
@@ -57,9 +62,13 @@ export const restoreAt = <T extends { id: string }>(items: T[], item: T, index: 
   return next;
 };
 
+const NO_ITEMS: never[] = [];
+
 /**
  * `key` names what is loaded (tenant, filters). A new key clears the list and
- * loads again, so one tenant's rows never show while another's load.
+ * loads again, so one tenant's rows never show while another's load. The
+ * render in which the key changes (before the effect clears the state) shows
+ * no rows, not loaded, no error: the state still belongs to the old key (QA L2, CHG-109).
  */
 export const usePersistedList = <T extends { id: string }>(key: string, load: () => Promise<LoadResult<T>>) => {
   const [items, setItemsState] = useState<T[]>([]);
@@ -67,6 +76,8 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
+  /** The key the state above belongs to. */
+  const [stateKey, setStateKey] = useState(key);
 
   // The list as last set, so a write can compare its item synchronously.
   const itemsRef = useRef<T[]>([]);
@@ -85,12 +96,13 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
   const pendingRef = useRef(new Map<string, number>());
   const staleRef = useRef(new Set<string>());
 
-  const refresh = useCallback(async () => {
+  /** True when this load succeeded and its rows are what the list now holds. */
+  const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     loadInFlightRef.current = true;
     setLoading(true);
     const result = await loadRef.current();
-    if (requestIdRef.current !== requestId) return;
+    if (requestIdRef.current !== requestId) return false;
     loadInFlightRef.current = false;
     if (result.ok) {
       update(() => result.data);
@@ -102,6 +114,7 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
       setError(result.error);
     }
     setLoading(false);
+    return result.ok;
   }, [update]);
 
   useEffect(() => {
@@ -111,6 +124,8 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
     update(() => []);
     setLoaded(false);
     setTruncated(false);
+    setError(null);
+    setStateKey(key);
     void refresh();
     return () => {
       requestIdRef.current += 1;
@@ -119,7 +134,7 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
   }, [key, refresh, update]);
 
   const write = useCallback(
-    async <R extends WriteResult>({ id, apply, commit, rollback, reconcile }: OptimisticWrite<T, R>): Promise<R> => {
+    async <R extends WriteResult>({ id, apply, commit, rollback, reconcile, reloadOnFailure = true }: OptimisticWrite<T, R>): Promise<R> => {
       const epoch = epochRef.current;
       const pending = pendingRef.current;
       const stale = staleRef.current;
@@ -138,7 +153,7 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
         update(rollback);
         // The server may have saved it and only the answer was lost: show what is stored,
         // so a retry is not a second copy.
-        reloadAfterFailure = true;
+        reloadAfterFailure = reloadOnFailure;
       }
       else if (reconcile) update((prev) => reconcile(prev, result));
 
@@ -155,5 +170,56 @@ export const usePersistedList = <T extends { id: string }>(key: string, load: ()
     [refresh, update],
   );
 
-  return { items, loading, loaded, error, truncated, refresh, write };
+  /** The list as last set, read synchronously (e.g. right after an awaited refresh). */
+  const getItems = useCallback(() => itemsRef.current, []);
+
+  const current = stateKey === key;
+  return {
+    items: current ? items : (NO_ITEMS as T[]),
+    loading: current ? loading : true,
+    loaded: current && loaded,
+    error: current ? error : null,
+    truncated: current && truncated,
+    refresh,
+    write,
+    getItems,
+  };
+};
+
+/**
+ * True when `row` already holds every value in `wanted`. A key `wanted` leaves
+ * undefined is not part of the edit; a stored null and an absent field are the same.
+ */
+export const sameValues = <T extends object>(row: T, wanted: Partial<T>): boolean =>
+  (Object.keys(wanted) as (keyof T)[])
+    .filter((key) => wanted[key] !== undefined)
+    .every((key) => JSON.stringify(row[key] ?? null) === JSON.stringify(wanted[key]));
+
+/**
+ * The outcome of an edit the server refused, judged from the list reloaded
+ * after it (`reloaded` false = the reload failed, nothing is known):
+ * - `saved`: the stored row already holds the values (the user's own save
+ *   went through and only its answer was lost, or the same edit was made elsewhere);
+ * - `conflict`: 409 and the row was changed since the edit read it (its
+ *   `updatedAt` is not `sentUpdatedAt`, the one the save sent); `row` is that
+ *   version, whose `updatedAt` a save must send to replace it. A 409 on a row
+ *   nobody changed is another rule (a template edit that would double-book
+ *   someone), so it is `failed` and keeps the server's reason;
+ * - `failed`: anything else (deleted, refused for another reason, unknown).
+ */
+export type RefusedEdit<T> = { kind: 'saved' } | { kind: 'conflict'; row: T } | { kind: 'failed' };
+
+export const judgeRefusedEdit = <T extends { id: string; updatedAt?: string }>(
+  reloaded: boolean,
+  rows: T[],
+  id: string,
+  wanted: Partial<T>,
+  status: number | undefined,
+  sentUpdatedAt: string | undefined,
+): RefusedEdit<T> => {
+  const row = reloaded ? rows.find((r) => r.id === id) : undefined;
+  if (!row) return { kind: 'failed' };
+  if (sameValues(row, wanted)) return { kind: 'saved' };
+  const changedSince = sentUpdatedAt !== undefined && row.updatedAt !== sentUpdatedAt;
+  return status === 409 && changedSince ? { kind: 'conflict', row } : { kind: 'failed' };
 };

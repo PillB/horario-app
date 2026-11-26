@@ -20,6 +20,7 @@ import { ShiftTemplateSection } from '@/components/scheduler/ShiftTemplateSectio
 import { DemandSection } from '@/components/scheduler/DemandSection';
 import { RosterSection } from '@/components/scheduler/RosterSection';
 import { UpgradeBanner } from '@/components/UpgradeBanner';
+import { PlanLimitNotice } from '@/components/PlanLimitNotice';
 import { TimezoneBar } from '@/components/scheduler/TimezoneBar';
 import { ShiftNotesPanel } from '@/components/scheduler/ShiftNotesPanel';
 import { SyncNotice } from '@/components/scheduler/SyncNotice';
@@ -45,6 +46,9 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 import { PageTitle } from '@/components/PageTitle';
+
+/** Country of the account's first location: the price list the plans screen shows. */
+const firstCountry = (locations: readonly { countryCode?: string | null }[]): string | null => locations[0]?.countryCode ?? null;
 
 export default function SchedulerScreen() {
   const { t } = useT();
@@ -87,6 +91,10 @@ export default function SchedulerScreen() {
 
     // UI state
     actionBanner,
+    shiftRowNotice,
+    workerRemoval,
+    confirmWorkerRemoval,
+    cancelWorkerRemoval,
     publishCelebration,
     reduceMotionEnabled,
     availabilitySuccessPromptVisible,
@@ -161,6 +169,7 @@ export default function SchedulerScreen() {
     runForecast,
     handleAutoAssign,
     applyAutoAssign,
+    dismissAutoAssign,
     handlePosTargetsGenerated,
 
     // Auto-assign state
@@ -170,6 +179,7 @@ export default function SchedulerScreen() {
 
     // Freemium
     usageCount,
+    focusReloads,
 
     // Tour
     seedTourData,
@@ -268,6 +278,7 @@ export default function SchedulerScreen() {
             shiftError={shiftError}
             handleAutoAssign={handleAutoAssign}
             applyAutoAssign={applyAutoAssign}
+            dismissAutoAssign={dismissAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
             autoAssignShortfalls={autoAssignShortfalls}
             autoAssignApplying={autoAssignApplying}
@@ -287,6 +298,7 @@ export default function SchedulerScreen() {
           handlePublishShift={handlePublishShift}
           handleUnpublishShift={handleUnpublishShift}
           handleNotifyShift={handleNotifyShift}
+          rowNotice={shiftRowNotice}
           onRemoveShift={handleRemoveShift}
           rosterLoaded={rosterLoaded}
           upcomingShifts={upcomingShifts}
@@ -322,9 +334,11 @@ export default function SchedulerScreen() {
         onRetry={retrySync}
       />
       <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
+        {/* Over the plan's people limit every step is read-only: said before a write is refused (F-10). */}
+        <PlanLimitNotice reloadSignal={focusReloads} />
         {/* The paid-plan prompt sits where auto-assign is used. */}
         {activeSection === 'shifts' ? (
-          <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} />
+          <UpgradeBanner autoAssignUsesLeft={FREE_AUTO_ASSIGN_LIMIT - usageCount} reloadSignal={focusReloads} countryCode={firstCountry(locations)} />
         ) : null}
 
         <SyncNotice
@@ -384,6 +398,9 @@ export default function SchedulerScreen() {
             workers={workers}
             workersLoaded={workersLoaded}
             onRemoveWorker={handleRemoveWorker}
+            workerRemoval={workerRemoval}
+            onConfirmRemoval={() => { void confirmWorkerRemoval(); }}
+            onCancelRemoval={cancelWorkerRemoval}
             onEditWorker={handleEditWorker}
             editingWorkerId={editingWorkerId}
             onCancelEdit={cancelWorkerEdit}
@@ -477,6 +494,7 @@ export default function SchedulerScreen() {
             shiftError={shiftError}
             handleAutoAssign={handleAutoAssign}
             applyAutoAssign={applyAutoAssign}
+            dismissAutoAssign={dismissAutoAssign}
             autoAssignSuggestions={autoAssignSuggestions}
             autoAssignShortfalls={autoAssignShortfalls}
             autoAssignApplying={autoAssignApplying}

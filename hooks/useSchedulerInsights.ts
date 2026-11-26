@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 
 export type InsightSeverity = 'critical' | 'warning' | 'tip';
 
@@ -21,13 +22,17 @@ export type SchedulerInsight = {
 export type UseSchedulerInsightsReturn = {
   insights: SchedulerInsight[];
   loading: boolean;
+  /** The analytics data failed to load: no insight is derived from unknown numbers. */
+  error: string | null;
 };
 
-export function useSchedulerInsights(accountId: string): UseSchedulerInsightsReturn {
+/** `reloadSignal`: each change after mount reloads; the insights stay until the new answer. */
+export function useSchedulerInsights(accountId: string, reloadSignal?: number): UseSchedulerInsightsReturn {
   const summary = useAnalytics(accountId);
+  useReloadOnSignal(reloadSignal, summary.refresh);
 
   const insights = useMemo<SchedulerInsight[]>(() => {
-    if (summary.loading) {
+    if (!summary.loaded || summary.error) {
       return [];
     }
 
@@ -187,5 +192,6 @@ export function useSchedulerInsights(accountId: string): UseSchedulerInsightsRet
   return {
     insights,
     loading: summary.loading,
+    error: summary.error,
   };
 }

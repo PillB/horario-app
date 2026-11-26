@@ -9,6 +9,7 @@ import { useCallback, useMemo } from 'react';
 
 import { log } from '@/services/logger';
 import {
+  addAvailabilitySlots,
   deleteAvailability,
   deleteWorker,
   fetchWorkerAvailability,
@@ -24,7 +25,7 @@ import {
 } from '@/services/rosterService';
 import { newUuid, validateAvailabilityInput, validateWorkerInput } from '@/utils/schedulingValidation';
 import type { WorkerLaborAttributes } from '@/utils/workerLaborValidation';
-import { removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
+import { judgeRefusedEdit, removeById, restoreAt, upsertById, usePersistedList, type LoadResult } from './usePersistedList';
 
 export type WorkerAvailabilitySlot = {
   /** The stored slot's id (absent only on slots built outside this hook). */
@@ -51,6 +52,16 @@ export type WorkerWithAvailability = {
 };
 
 export type WorkerChanges = { name: string; role: string; skills: string[] } & Partial<WorkerLaborAttributes>;
+
+/**
+ * An edit's outcome. `alreadySaved`: refused, but the reloaded row already
+ * holds these values. `conflictUpdatedAt`: refused with 409 because the row
+ * changed elsewhere; the `updatedAt` of the version now stored, which a save
+ * sends to replace it.
+ */
+export type UpdateWorkerResult =
+  | { success: true; alreadySaved?: boolean; error?: never }
+  | { success: false; error: string; conflictUpdatedAt?: string };
 
 type StoredWorker = Omit<WorkerWithAvailability, 'displayId'>;
 
@@ -89,7 +100,7 @@ const withSlots = (items: StoredWorker[], workerId: string, change: (slots: Work
 /** `accountId` only names the tenant (a new one reloads); the proxy takes it from the session. */
 export const useWorkers = (accountId: string) => {
   const list = usePersistedList<StoredWorker>(accountId, loadWorkers);
-  const { items, write } = list;
+  const { items, write, refresh, getItems } = list;
 
   const workers = useMemo<WorkerWithAvailability[]>(
     () => items.map((w, i) => ({ ...w, displayId: `W-${i + 1}` })),
@@ -116,38 +127,50 @@ export const useWorkers = (accountId: string) => {
     [accountId, write],
   );
 
-  /** Saves new values for an existing worker; labor fields left out keep their stored value. */
+  /**
+   * Saves new values for an existing worker; labor fields left out keep their stored value.
+   * `ifUpdatedAt` is the row's `updatedAt` as the edit form read it (when Edit was
+   * pressed); without it, the one in the list now. The server refuses (409) a row changed since.
+   */
   const updateWorker = useCallback(
-    async (id: string, changes: WorkerChanges): Promise<UpsertWorkerResult> => {
+    async (id: string, changes: WorkerChanges, ifUpdatedAt?: string): Promise<UpdateWorkerResult> => {
       const previous = items.find((w) => w.id === id);
       if (!previous) return { success: false, error: 'Worker not found' };
       const checked = validateWorkerInput({ ...changes, id });
       if (!checked.ok) return { success: false, error: checked.error };
       const input = { ...checked.value, id, accountId };
+      const sentUpdatedAt = ifUpdatedAt ?? previous.updatedAt;
       const result = await write({
         id,
         apply: (prev) => prev.map((w) => (w.id === id ? { ...w, ...checked.value, id } : w)),
         // Saves only while the stored row is still the one this list read.
-        commit: () => upsertWorker(input, previous.updatedAt),
+        commit: () => upsertWorker(input, sentUpdatedAt),
         rollback: (prev) => prev.map((w) => (w.id === id ? previous : w)),
         reconcile: (prev, r) => (r.success ? prev.map((w) => (w.id === id ? toStoredWorker(r.worker, w.availability) : w)) : prev),
+        reloadOnFailure: false,
       });
-      if (!result.success) log.warn('WORKER', 'Worker update rolled back', { workerId: id, reason: result.error });
-      return result;
+      if (result.success) return { success: true };
+      log.warn('WORKER', 'Worker update rolled back', { workerId: id, reason: result.error });
+      const { id: _id, ...wanted } = checked.value;
+      const outcome = judgeRefusedEdit(await refresh(), getItems(), id, wanted, result.status, sentUpdatedAt);
+      if (outcome.kind === 'saved') return { success: true, alreadySaved: true };
+      if (outcome.kind === 'conflict') return { success: false, error: result.error, conflictUpdatedAt: outcome.row.updatedAt };
+      return { success: false, error: result.error };
     },
-    [accountId, items, write],
+    [accountId, getItems, items, refresh, write],
   );
 
   /** Deleting a worker deletes their availability; the proxy refuses (409) while shifts reference them. */
   const removeWorker = useCallback(
-    async (id: string): Promise<MutationResult> => {
+    /** `withShifts`: the manager confirmed that the worker's roster shifts go too (F-11). */
+    async (id: string, options: { withShifts?: boolean } = {}): Promise<MutationResult> => {
       const index = items.findIndex((w) => w.id === id);
       if (index === -1) return { success: false, error: 'Worker not found' };
       const previous = items[index];
       const result = await write({
         id,
         apply: (prev) => removeById(prev, id),
-        commit: () => deleteWorker(id),
+        commit: () => deleteWorker(id, options),
         rollback: (prev) => restoreAt(prev, previous, index),
       });
       if (!result.success) log.warn('WORKER', 'Worker delete rolled back', { workerId: id, reason: result.error });
@@ -174,6 +197,42 @@ export const useWorkers = (accountId: string) => {
       if (result.success) log.info('WORKER', 'Availability added', { workerId, day });
       else log.warn('WORKER', 'Availability add rolled back', { workerId, reason: result.error });
       return result;
+    },
+    [accountId, write],
+  );
+
+  /**
+   * Adds the same hours on several days for one worker in one request: all days
+   * are stored or none (F-5, CHG-109). Before, one request per day: a refused
+   * day left the others saved, and the form was changed after each answer.
+   */
+  const addAvailabilityDays = useCallback(
+    async (workerId: string, days: DayOfWeek[], from: string, to: string): Promise<MutationResult> => {
+      const inputs: (DbAvailability & { id: string })[] = [];
+      for (const day of days) {
+        const checked = validateAvailabilityInput({ id: newUuid(), workerId, dayOfWeek: day, fromTime: from, toTime: to });
+        if (!checked.ok) return { success: false, error: checked.error };
+        inputs.push({ ...checked.value, id: checked.value.id as string, accountId });
+      }
+      if (inputs.length === 0) return { success: false, error: 'Choose at least one day' };
+      const ids = new Set(inputs.map((s) => s.id));
+      const result = await write({
+        id: workerId,
+        apply: (prev) => withSlots(prev, workerId, (slots) => [...slots, ...inputs.map((s) => ({ id: s.id, day: s.dayOfWeek, from, to }))]),
+        commit: () => addAvailabilitySlots(inputs),
+        rollback: (prev) => withSlots(prev, workerId, (slots) => slots.filter((s) => !s.id || !ids.has(s.id))),
+        reconcile: (prev, r) =>
+          r.success
+            ? withSlots(prev, workerId, (slots) => {
+                // A replay may answer with rows the list already shows (stored by the lost first attempt).
+                const answered = new Set(r.availability.map((a) => a.id));
+                return [...slots.filter((s) => !s.id || (!ids.has(s.id) && !answered.has(s.id))), ...r.availability.map(toSlot)];
+              })
+            : prev,
+      });
+      if (result.success) log.info('WORKER', 'Availability added', { workerId, days: days.length });
+      else log.warn('WORKER', 'Availability add rolled back', { workerId, reason: result.error });
+      return result.success ? { success: true } : { success: false, error: result.error, ...('status' in result && result.status !== undefined ? { status: result.status } : {}) };
     },
     [accountId, write],
   );
@@ -215,6 +274,7 @@ export const useWorkers = (accountId: string) => {
     updateWorker,
     removeWorker,
     addAvailability,
+    addAvailabilityDays,
     removeAvailability,
     refresh: list.refresh,
   };

@@ -195,6 +195,7 @@ export const fr = {
 
   // ─── Scheduler screen ──────────────────────────────────────────────────────
   scheduler: {
+    edit: { conflict: '{name} a été modifié ailleurs après que vous l\'avez ouvert. Vos modifications sont toujours dans le formulaire : enregistrez à nouveau pour remplacer cette version par la vôtre, ou annulez pour la garder.' },
     title: 'Planificateur',
     subtitle: "Coordonnez la couverture entre les employés, les modèles d'équipes et les plans de dotation quotidiens.",
     tooltip: "Votre centre de planification. Ajoutez des employés, définissez leurs disponibilités, créez des modèles d'équipes, puis affectez ou remplissez automatiquement les plannings en un seul appui. Commencez par l'étape 1 — ajouter un employé.",
@@ -314,10 +315,13 @@ export const fr = {
       saveButton: 'Enregistrer comme brouillon',
       saveButtonA11y: 'Enregistrer comme brouillon',
       autoAssignButton: 'Affectation automatique',
-      autoAssignA11y: 'Affecter automatiquement les employés à tous les modèles pour cette date',
+      autoAssignA11y: 'Affecter automatiquement les employés à tous les modèles de la semaine de cette date, du lundi au dimanche',
       autoAssignHint: "Exécute l'algorithme d'affectation basé sur l'équité",
       applyButton: 'Appliquer les suggestions',
       applyingButton: 'Application…',
+      dismissSuggestions: 'Ignorer les suggestions',
+      dismissSuggestionsHint: 'Retire ces suggestions sans enregistrer aucun poste',
+      autoAssignAlreadySaved: '{n} poste(s) suggéré(s) étaient déjà au planning : le premier « Appliquer » les a enregistrés.',
       suggestions: "{n} suggestion(s) d'affectation prête(s)",
       suggestionItem: '{worker} → {template} le {date}',
       partialCoverageBanner: "L'affectation automatique a trouvé {n} suggestion(s), mais {missing} poste(s) n'ont pas pu être pourvus. Vérifiez les manques ci-dessous, puis cliquez sur « Appliquer les suggestions ».",
@@ -600,14 +604,14 @@ export const fr = {
     trial: {
       badge: 'ESSAI',
       title: 'Essai Pro actif — affectations automatiques illimitées activées.',
-      subtitle: 'Après l\'essai, les formules commencent à 19 $ US par établissement et par mois. Sans frais par employé.',
+      subtitle: 'Après l\'essai, les formules commencent à {price} par établissement et par mois. Sans frais par employé.',
     },
     free: {
       badge: 'GRATUIT',
-      limitReached: 'Vous avez utilisé les plannings automatiques gratuits de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez d\'autres le mois prochain.',
-      autoAssignsLeft: '{n} affectation{plural} automatique{plural} gratuite{plural} restante{plural}',
+      limitReached: 'Vous avez utilisé la semaine remplie automatiquement gratuite de ce mois. Vous pouvez continuer à placer les horaires à la main, et vous en aurez une autre le mois prochain.',
+      autoAssignsLeft: 'Semaines remplies automatiquement gratuites ce mois-ci : {n}',
       ctaUnlimited: 'Esencial : plannings automatiques illimités jusqu\'à 40 personnes, sans frais par personne. Voir les offres',
-      pricing: 'Dès 19 $ US par établissement et par mois · sans frais par employé',
+      pricing: 'Dès {price} par établissement et par mois · sans frais par employé',
     },
     buttonA11y: 'Passer au plan Pro',
     buttonHint: 'Ouvre les offres et les prix',

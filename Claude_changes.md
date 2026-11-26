@@ -6,6 +6,82 @@
 
 ---
 
+### CHG-109 — 2026-11-26 UTC
+**Type:** AUDIT + FIX (Pablo: find every implicit state machine, diagnose bad, colliding or contradictory states, fix them, simulate first setup and daily / weekly / monthly use across tabs, document the stack.)
+
+**What changed:**
+- Server state guards (merged from the server worker's branch): over the location quota only the locations beyond the plan are locked (the oldest ones by `created_at` stay usable; an extra location and its shifts are read-only, 402; Pablo's decision card, option recommended); the plan gate fails closed (503) when the plan can't be read; an admin lookup no longer starts a trial; `incrementAutoAssign` is manager-only; `apply_auto_assign` replays a saved run on retry instead of counting it again (migration `20261125000111_state_guards.sql`); a moved Published shift gets a new `published_at`; CHECK `roster_notified_needs_published`.
+- `docs/architecture/STACK.md`: where the code, hosting, database, auth, payments, workers and docs live, with what is not set up yet (no Vercel deployment, dev Supabase secrets missing so migrations are skipped).
+- Flow-simulation defects fixed (branch `fix/flow-defects`; details in `docs/architecture/STATE_MACHINES.md` §2, §5, §16, §17):
+  - F-1: `PageTitle` writes the document title on every tab focus (tabs stay mounted; `<Head>` wrote it only on mount).
+  - F-2 / F-3: focus reloads were already in place; a 402 now makes every `useSubscription` read the plan again at once (`services/planSignal.ts`, reported by the roster and location proxy clients).
+  - F-5: availability for several days is one all-or-nothing request (`addAvailabilitySlots`, ≤ 7, client ids, in `SCHEDULING_WRITE_ACTIONS`); the answer no longer clears the next person's picked days.
+  - F-6: a run clears old suggestions first and reads the roster at run time; a 409 on Apply reloads the roster and runs again.
+  - F-9: roster form and publish check use the assigner's availability rule (`availabilityCoversShift`, touching slots joined across midnight, business time zone); a refused publish says why next to the shift.
+  - F-10: `PlanLimitNotice` on the Scheduler says the schedule is read-only over the people limit, with the server's numbers.
+  - F-11: a foreign-key refusal is a plain 409 (`IN_USE_MESSAGES`, workers and templates); removing a person with shifts asks first, then `delete_worker_with_shifts()` (migration `20261126000113`, pgTAP `delete_worker_with_shifts.test.sql`) removes both under the roster lock. Past shifts go too (no archive state yet).
+  - F-12: Home's "This week" is the Monday–Sunday week; gaps today..Sunday; upcoming list next 7 days.
+  - Trial / free banner quotes the price list of the first location's country (S/ 59 in Peru), via `{price}` in every locale.
+  - `e2e/flows.spec.ts`: BUG markers removed, expectations follow the fixes (one availability request, confirm step on removal, Home's ISO week).
+- Found by the re-run: any 409 on an edit was judged "changed somewhere else", so a template time edit refused because it would double-book someone showed the conflict text instead of the reason. `judgeRefusedEdit` now calls it a conflict only when the reloaded row's `updatedAt` differs from the one the save sent (test in `hooks/__tests__/refusedWrites.test.tsx`).
+- Client sync (earlier in this change): focus reloads on Home, Analytics, Profile and the Scheduler (`hooks/useRefreshOnFocus.ts`), one staffing-gap rule (`utils/staffingGaps.ts`), suggestions tied to tenant and location, edit forms send the `updatedAt` they read, onboarding flags from confirmed rows.
+- Migrations: `20261125000111_state_guards.sql`, `20261125000112_state_guards_review.sql` (replay needs the same id, date, worker and template; a moved Published shift is not told), `20261126000113_delete_worker_with_shifts.sql`.
+- Docs: `docs/architecture/STATE_MACHINES.md` (17 machines, diagrams, fixed and open items, patterns: optimistic locking, advisory locks, idempotent replays, outbox for messages later, pooling not needed behind PostgREST) and `docs/architecture/STACK.md`.
+
+- QA thread red team of migration 113 and `addAvailabilitySlots` (after the simulation): a batch with one stored id (other values) and one new slot saved the new slot and answered 409 (ON CONFLICT DO NOTHING before the check). Now the batch's ids are read first and nothing is written unless all are new; a retry that made new ids for days already stored with the same hours is answered as a replay; the client drops answered rows it already shows. A roster location must be '' or one of the account's locations (`rosterLocationsRefusal`, 400 "Unknown location…"; an edit may keep its stored value), which closes the bypass of the per-location lock; the tour's sample shifts use ''. Integration tests for both fail on the old proxy.
+
+**Red team (4 rounds):**
+1. Own server review: deletes stayed blocked when the plan could not be read (fixed, `needsPlan`).
+2. Independent review: replay matched by id only, a moved shift stayed told, trimmed values counted as a failed save, refusal lookup read inherited keys (all fixed, migration 112).
+3. Browser flow simulation (`e2e/flows.spec.ts`, opt-in `HORARIO_FLOW_SIM=1`, a fresh tenant): first run 12 of 15 failed on 12 defects (F-1..F-12, above); after the fixes 15 of 15 pass.
+4. QA thread second look: folded into round 2's fixes.
+
+**Trade-offs and open items:** the location lock is proxy-only (a read, then the write); availability may still hold two overlapping slots with different start times on one day (older rule, unique on worker, day and start); removing a person deletes their past shifts too (no archive state); removing a template with shifts only explains; Paddle reconcile job, wall-clock overlap check and UTC usage month stay as documented in STATE_MACHINES.md.
+
+**Tests:** Jest 1600 passed (61 skipped: database); integration 61; pgTAP for every touched file; flows 15/15; tsc, lint and the complexity gate pass.
+
+---
+
+### CHG-108 — 2026-11-25 UTC
+**Type:** FEATURE + PLAN CHANGE (Pablo picked "One run fills a week, 1 a month" on the decision card, after the evidence doc "Free plan auto-schedule limit: evidence and recommendation". Blind pair ratings showed personas reading "3 auto-schedules" as about three weeks, while one run filled one day.)
+
+**What changed:**
+- Auto-assign in the scheduler fills the chosen date's Monday–Sunday week, from today on (`autoAssignWeekDates`, `isoWeekDates`, `inOneIsoWeek` in `utils/dateKeys.ts`; `handleAutoAssign` passes `dates` to `runAutoAssign`, which both engines already supported).
+- Days off are a hard rule of both engines per date (`AssignmentInput.daysOff`, `CheckContext.off`, checked in `checkEligibility` after the role, so the ILP model, its repair and the greedy all see it). Before, the handler removed workers off on the one run date from the list, which cannot work for a week. `fetchDaysOffOn(dates)` reads each date with the existing filter; any failed read stops the run. `fetchWorkersOffOn` removed (no caller left).
+- Gratis: `maxAutoSchedulesPerMonth` 3 → 1 (`constants/pricing.ts`, `hooks/useSubscription.ts`). Copy in en / es says "1 auto-filled week a month" (pricing, profile, landing plan card and FAQ, upgrade banner); the other seven locales say weeks in `autoAssignsLeft` and the button label.
+- Server: on a limited plan a counted batch whose dates span two ISO weeks is refused with 400 before anything is counted (`autoScheduleWeekRefusal` in the proxy; migration `20261125000110_auto_schedule_week.sql` does the same in `apply_auto_assign`, 22023). A batch takes up to 1000 shifts (was 200: one week of a 40-person team with several templates). The 402 texts name the weeks ("includes 1 auto-filled week a month, already used this month").
+- Suggestion list keys include the date (a worker on the same template on several days repeated a key).
+- `applyAutoAssignRun` was 16 over the ceiling; the pre-migration fallback moved to `countThenInsert`.
+
+**Red team (5):**
+- One run a month could still fill a month if a modified client sent 30 days in one batch: refused by the proxy and again by the database, with the limit. Unlimited plans may still send any batch (`p_limit` null), as before.
+- A run from Wednesday would have written Monday and Tuesday, days already past: the run starts today. A past date the manager typed on purpose is kept, from that date to Sunday. Trade-off: a week started mid-week uses the month's one run for fewer days; the alternative (count only full weeks) gives an easy way round the limit.
+- The ISO week is Monday first. Some countries plan Sunday to Saturday (US, Mexico, Brazil restaurants often do). A per-location week start would need a column and would change the server rule; not done, named here. The labor engine's weekly hours also use ISO weeks, so the two stay consistent.
+- Shortfall reasons: on a day someone is off, the shortfall says the reason of the nearest worker (often "overlap"), not "day off". Existing behaviour of `shortfallReason`; a dedicated `day_off` code would need translations in nine locales.
+- The copy says "1" in words. A guard test (`server/__tests__/plans.test.ts`) fails if the limit changes and the en / es copy does not. The seven other locales are not guarded.
+
+**Tests:** new `services/__tests__/autoAssignWeek.test.ts` (day off in `checkEligibility`, greedy one day plus a regression without days off, the whole week through greedy and through the real HiGHS ILP); `utils/__tests__/dateKeys.test.ts` (week bounds, Sunday, year end, DST week, `inOneIsoWeek`, `autoAssignWeekDates`); `hooks/__tests__/useTimeOff.test.tsx` (`fetchDaysOffOn`, failed read); `server/__tests__/schedulingProxy.test.ts` (`autoScheduleWeekRefusal`, 1001-shift batch); `server/__tests__/plans.test.ts` (limit 1, copy guard); `server/__tests__/plans.integration.test.ts` rewritten for 1 run (week refusal before counting, three concurrent week runs with one left → one week stored); pgTAP `roster_atomic_rules.test.sql` 22 (two-week batch refused and not counted, unlimited batch saved); e2e `scheduler.spec.ts` asserts per date. Full Jest 1469 passed (55 skipped: database), tsc, lint and the complexity gate pass; pgTAP run locally on Postgres 16 with a shim (integration and e2e run in CI).
+
+---
+
+### CHG-107 — 2026-11-25 UTC
+**Type:** FIX (Pablo flagged a payment-webhook race found in another project: two near-simultaneous subscription webhooks, an older state written over a newer one. Coordinator: check the Paddle handler for concurrent deliveries, fix with a test that simulates the race.)
+
+**Checked:** `apply_paddle_subscription()` already serialised changes per account (advisory lock) and re-checked event order after taking it, so two deliveries that both name the account end on the newest event in either order. New test proves it with two real connections.
+
+**Found and fixed:** a newer event that carries no account reference, delivered while an older event that names the account was being applied, did not wait: it looked the account up before the older one committed, was stored as `unmatched`, and the older one's reconcile ran before that row committed. Result: the subscription stayed on the older state (active after a cancel) until another event arrived, which after a cancel may be never. The same gap existed between a waiting subscription event and the `transaction.*` event that names its account. Migration `20261125000109_paddle_subscription_lock.sql`: both functions take a per-subscription advisory lock before any read; lock order is always subscription, then account.
+
+**Red team (5):**
+- Optimistic locking (version column, `WHERE version = :read`, retry), as suggested for the other project: correct for "only if unchanged", but the order rule needs the subscription's other events, not only its stored row, and a retry loop would live in the webhook. The lock gives the same guarantee with no retry. Trade-off: deliveries for one subscription wait on each other (milliseconds; Paddle allows 5 s).
+- READ COMMITTED is assumed (each statement sees what committed before it). PostgREST runs functions in it; a caller in REPEATABLE READ would not see the earlier delivery. Stated in the migration.
+- Deadlock: only if some path took the account lock before the subscription lock. None does (`apply_paddle_fields` is only reached after the subscription lock).
+- A delivery with no subscription id never reaches the lock (the function refuses it first, 22023).
+- The test leaves committed rows (unique ids per run) in the local test database; CI runs pgTAP before it, and the pgTAP Paddle test counts `unmatched` rows globally, so it must not run after it on the same database.
+
+**Tests:** `server/__tests__/paddleRace.integration.test.ts` (4 cases, two connections, connection 1 holds its transaction open; `pg` added as a dev dependency). On the old functions 2 of 4 fail (the cancel stored as `unmatched`, the transaction not waiting); with the fix 4 of 4 pass. pgTAP `paddle_billing.test.sql` 27/27 on a fresh database with the new migration. CI passes `DB_URL` from `supabase status` as `SUPABASE_TEST_DB_URL`.
+
+---
+
 ### CHG-106 — 2026-11-21 UTC
 **Id:** CHG-106 (CHG-103 is the AGENTS.md change on main; CHG-104 is PR #66 and CHG-105 is PR #65; the migration moved to `20261123000108` because #66 uses `20261122000107`). Earlier commits on this branch say CHG-103 or CHG-105.
 

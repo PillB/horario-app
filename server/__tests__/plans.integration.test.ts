@@ -91,7 +91,7 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     await endTrial(OWNER);
     const plan = await planOf(OWNER);
     expect(plan).toMatchObject({ plan: 'gratis', source: 'default', isTrial: false });
-    expect(plan.limits).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 });
+    expect(plan.limits).toEqual({ maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 });
 
     // No second trial.
     const { data: trials } = await db().from('account_entitlements').select('id').eq('account_id', OWNER).eq('source', 'trial');
@@ -148,25 +148,23 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect((await asOwner({ action: 'upsertLocation', location: { ...lima, id, name: 'Lima centro' } })).status).toBe(200);
   });
 
-  it('counts 3 auto-schedules a month on Gratis, for the whole account', async () => {
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 3, canAutoAssign: true });
-    for (const expected of [1, 2, 3]) {
-      const res = await asOwner({ action: 'incrementAutoAssign' });
-      expect(res.body).toMatchObject({ success: true, count: expected, canAutoAssign: expected < 3 });
-    }
-    const fourth = await asOwner({ action: 'incrementAutoAssign' });
-    expect(fourth.status).toBe(402);
-    expect(String(fourth.body.error)).toMatch(/3 auto-schedules a month/);
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 3, limit: 3, canAutoAssign: false });
+  it('counts 1 auto-filled week a month on Gratis, for the whole account (CHG-108)', async () => {
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 1, canAutoAssign: true });
+    const first = await asOwner({ action: 'incrementAutoAssign' });
+    expect(first.body).toMatchObject({ success: true, count: 1, canAutoAssign: false });
+    const second = await asOwner({ action: 'incrementAutoAssign' });
+    expect(second.status).toBe(402);
+    expect(String(second.body.error)).toMatch(/includes 1 auto-filled week a month, already used this month/);
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 1, limit: 1, canAutoAssign: false });
 
-    // Last month's runs do not count.
+    // Last month's run does not count.
     const { error } = await db().from('usage_limits').update({ auto_assign_month: '2020-01' }).eq('account_id', OWNER);
     expect(error).toBeNull();
-    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 3, canAutoAssign: true });
+    expect((await asOwner({ action: 'getUsageLimit' })).body).toEqual({ count: 0, limit: 1, canAutoAssign: true });
     expect((await asOwner({ action: 'incrementAutoAssign' })).body).toMatchObject({ count: 1 });
   });
 
-  it('counts an auto-schedule only when its shifts are saved, and saves nothing over the limit (CHG-101)', async () => {
+  it('counts an auto-schedule only when its shifts are saved, one week per run, nothing over the limit (CHG-101, CHG-108)', async () => {
     await planOf(AUTO);
     await endTrial(AUTO);
     const asAuto = (body: Record<string, unknown>) => call(AUTO, body);
@@ -175,31 +173,50 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
       ((await asAuto({ action: 'upsertShiftTemplate', template: { name, role: 'Cook', startTime, endTime, coverage: 1 } })).body.template as { id: string }).id;
     const early = await template('Early', '06:00', '14:00');
     const mid = await template('Mid', '10:00', '18:00');
-    const apply = (date: string, templateId: string) =>
-      asAuto({ action: 'addRosterShifts', countAutoAssign: true, shifts: [{ id: randomUUID(), date, workerId: worker, templateId }] });
+    const shift = (date: string, templateId: string) => ({ id: randomUUID(), date, workerId: worker, templateId });
+    const apply = (...shifts: ReturnType<typeof shift>[]) => asAuto({ action: 'addRosterShifts', countAutoAssign: true, shifts });
     const used = async () => ((await asAuto({ action: 'getUsageLimit' })).body as { count: number }).count;
 
-    expect((await apply('2026-12-01', early)).status).toBe(200);
-    expect(await used()).toBe(1);
+    // One shift added by hand is not a run.
+    expect((await asAuto({ action: 'upsertRosterShift', shift: shift('2026-12-06', early) })).status).toBe(200);
+    expect(await used()).toBe(0);
     // A run the roster refuses costs nothing.
-    const refused = await apply('2026-12-01', mid);
+    const refused = await apply(shift('2026-12-06', mid));
     expect(refused.status).toBe(409);
     expect(String(refused.body.error)).toMatch(/already has a shift.*Nothing was added/);
+    expect(await used()).toBe(0);
+    // A run from Sunday into Monday spans two weeks: refused before it is counted.
+    const twoWeeks = await apply(shift('2026-12-13', early), shift('2026-12-14', early));
+    expect(twoWeeks.status).toBe(400);
+    expect(String(twoWeeks.body.error)).toMatch(/fills one week, Monday to Sunday/);
+    expect(await used()).toBe(0);
+    expect((await asAuto({ action: 'listRoster', fromDate: '2026-12-13', toDate: '2026-12-14' })).body.shifts).toEqual([]);
+
+    // Three runs at once with one left: one fills its week, the other two save nothing.
+    const week = (monday: number) => [0, 1, 2, 3, 4, 5, 6].map((d) => shift(`2026-12-${String(monday + d).padStart(2, '0')}`, early));
+    const weeks = [week(7), week(14), week(21)];
+    const three = await Promise.all(weeks.map((w) => apply(...w)));
+    expect(three.map((r) => r.status).sort()).toEqual([200, 402, 402]);
+    expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/1 auto-filled week a month.*Nothing was added/);
+    expect(await used()).toBe(1);
+    const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-07', toDate: '2026-12-27' })).body.shifts as unknown[];
+    expect(stored).toHaveLength(7);
+
+    // The answer of the saved run was lost and the browser sends it again (CHG-109): the same
+    // shifts come back as saved, the run is not counted twice. Before, this was a 402 "already used".
+    const saved = weeks[three.findIndex((r) => r.status === 200)];
+    const retried = await apply(...saved);
+    expect({ status: retried.status, error: retried.body.error }).toEqual({ status: 200, error: undefined });
+    expect((retried.body.shifts as { id: string }[]).map((x) => x.id).sort()).toEqual(saved.map((x) => x.id).sort());
+    expect(await used()).toBe(1);
+    // The same run with one shift more is a new run: refused as before, nothing saved.
+    const grown = await apply(...saved.slice(0, 6), shift(saved[6].date, mid));
+    expect(grown.status).toBe(402);
     expect(await used()).toBe(1);
     // A batch sent without countAutoAssign is still counted on Gratis (CHG-104: the client cannot skip the count).
-    expect((await asAuto({ action: 'addRosterShifts', shifts: [{ id: randomUUID(), date: '2026-12-02', workerId: worker, templateId: early }] })).status).toBe(200);
-    expect(await used()).toBe(2);
-    // One shift added by hand is not a run.
-    expect((await asAuto({ action: 'upsertRosterShift', shift: { id: randomUUID(), date: '2026-12-06', workerId: worker, templateId: early } })).status).toBe(200);
-    expect(await used()).toBe(2);
-
-    // Three runs at once with one left: one is saved, the other two save nothing.
-    const three = await Promise.all(['2026-12-03', '2026-12-04', '2026-12-05'].map((date) => apply(date, early)));
-    expect(three.map((r) => r.status).sort()).toEqual([200, 402, 402]);
-    expect(String(three.find((r) => r.status === 402)!.body.error)).toMatch(/3 auto-schedules a month.*Nothing was added/);
-    expect(await used()).toBe(3);
-    const stored = (await asAuto({ action: 'listRoster', fromDate: '2026-12-03', toDate: '2026-12-05' })).body.shifts as unknown[];
-    expect(stored).toHaveLength(1);
+    const uncounted = await asAuto({ action: 'addRosterShifts', shifts: [shift('2026-12-28', early)] });
+    expect(uncounted.status).toBe(402);
+    expect(await used()).toBe(1);
   });
 
   it('lets only a platform admin grant and revoke, and the grant lifts the limits', async () => {
@@ -230,6 +247,79 @@ describeIfDb('plans and entitlements (local Supabase)', () => {
     expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: entitlement.id })).status).toBe(200);
     expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: entitlement.id })).status).toBe(404);
     expect((await planOf(OWNER)).plan).toBe('gratis');
+  });
+
+  it('locks only the locations beyond the plan, oldest first; deletes open (CHG-109)', async () => {
+    const LOC = `user_plan_loc_${run}`;
+    const asLoc = (body: Record<string, unknown>) => call(LOC, body);
+    await planOf(LOC);
+    const place = (name: string) => ({ name, countryCode: 'PE', jurisdictionCode: 'PE', timeZone: 'America/Lima', industry: 'food_service' });
+    const ids: string[] = [];
+    // Created one after another: A is the oldest, so on Gratis (1 location) A is covered, B and C are extra.
+    for (const name of ['A', 'B', 'C']) {
+      const res = await asLoc({ action: 'upsertLocation', location: place(name) });
+      expect(res.status).toBe(200);
+      ids.push((res.body.location as { id: string }).id);
+    }
+    const [atA, atB, atC] = ids;
+    const worker = ((await asLoc({ action: 'upsertWorker', worker: { name: 'Loc', role: 'Cook' } })).body.worker as { id: string; name: string });
+    const templateId = ((await asLoc({ action: 'upsertShiftTemplate', template: { name: 'Day', role: 'Cook', startTime: '09:00', endTime: '17:00', coverage: 1 } })).body.template as { id: string }).id;
+    const shift = (date: string, location: string) => ({ id: randomUUID(), date, workerId: worker.id, templateId, location });
+    const storedAtC = shift('2026-12-01', atC);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: storedAtC })).status).toBe(200);
+    await endTrial(LOC);
+    const used = async () => ((await asLoc({ action: 'getUsageLimit' })).body as { count: number }).count;
+
+    // Shifts: the covered location and no location are writable, an extra location is not.
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-02', atA) })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-03', '') })).status).toBe(200);
+    const atExtra = await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-04', atB) });
+    expect({ status: atExtra.status, error: atExtra.body.error }).toEqual({
+      status: 402,
+      error: 'B is not covered by your Gratis plan, which covers 1 location. Shifts there are read-only until you add it to your plan or remove a location',
+    });
+    const counted = await asLoc({ action: 'addRosterShifts', countAutoAssign: true, shifts: [shift('2026-12-08', atA), shift('2026-12-09', atC)] });
+    expect(counted.status).toBe(402);
+    expect(String(counted.body.error)).toMatch(/^C is not covered/);
+    expect(await used()).toBe(0);
+    // A status change is judged by the stored shift's location.
+    expect((await asLoc({ action: 'updateShiftStatus', id: storedAtC.id, status: 'Published' })).status).toBe(402);
+
+    // Locations: the covered one can be edited, an extra one cannot.
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A2'), id: atA } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('B2'), id: atB } })).status).toBe(402);
+    // The rest of the schedule is not tied to a location.
+    expect((await asLoc({ action: 'upsertWorker', worker: { id: worker.id, name: 'Loc 2', role: 'Cook' } })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertShiftTemplate', template: { name: 'Late', role: 'Cook', startTime: '17:00', endTime: '22:00', coverage: 1 } })).status).toBe(200);
+    expect((await asLoc({ action: 'listLocations' })).status).toBe(200);
+
+    // A grant that covers 3 locations (as a Paddle quantity of 3 does) opens them all.
+    const granted = await call(PLATFORM_ADMIN, {
+      action: 'adminGrantEntitlement', accountId: LOC, plan: 'esencial', source: 'comp', days: 30, reason: 'three branches', locationQuota: 3,
+    });
+    expect(granted.status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-05', atB) })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: place('D') })).status).toBe(402);
+    expect((await call(PLATFORM_ADMIN, { action: 'adminRevokeEntitlement', id: (granted.body.entitlement as { id: string }).id })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-06', atB) })).status).toBe(402);
+
+    // Removing an extra location is always allowed.
+    expect((await asLoc({ action: 'deleteLocation', id: atC })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertRosterShift', shift: shift('2026-12-07', atB) })).status).toBe(402);
+    expect((await asLoc({ action: 'deleteLocation', id: atB })).status).toBe(200);
+    expect((await asLoc({ action: 'upsertLocation', location: { ...place('A3'), id: atA } })).status).toBe(200);
+  });
+
+  it('lets a platform admin look an account up without starting its trial (CHG-109)', async () => {
+    const UNSEEN = `user_plan_unseen_${run}`;
+    const list = await call(PLATFORM_ADMIN, { action: 'adminListEntitlements', accountId: UNSEEN });
+    expect(list.status).toBe(200);
+    expect(list.body.entitlements).toEqual([]);
+    expect(list.body.plan).toMatchObject({ plan: 'gratis', source: 'default', trialEndsAt: null });
+    const { data } = await db().from('account_entitlements').select('id').eq('account_id', UNSEEN);
+    expect(data).toEqual([]);
+    // The account's own first request still starts it.
+    expect(await planOf(UNSEEN)).toMatchObject({ plan: 'pro', source: 'trial' });
   });
 
   it('keeps a grant as written: no edits, no deletes, one revoke', async () => {

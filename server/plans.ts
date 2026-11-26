@@ -168,8 +168,23 @@ const tableMissing = (error: { code?: string } | null): boolean => error?.code =
 
 export type PlanResult = { ok: true; plan: EffectivePlan } | { ok: false; error: { message?: string; code?: string } | null };
 
-/** Reads the account's grants and subscription; starts the trial on first sight. */
-export async function resolvePlan(client: SupabaseClient, accountId: string, now: Date = new Date()): Promise<PlanResult> {
+export type ResolvePlanOptions = {
+  /**
+   * False reads the plan without starting the account's one trial. A platform
+   * admin looking up an account id must not use up that account's trial (it
+   * may not exist yet, or not have signed in); only the account's own requests
+   * start it. Default true.
+   */
+  startTrial?: boolean;
+};
+
+/** Reads the account's grants and subscription; starts the trial on first sight (unless `startTrial: false`). */
+export async function resolvePlan(
+  client: SupabaseClient,
+  accountId: string,
+  now: Date = new Date(),
+  options: ResolvePlanOptions = {},
+): Promise<PlanResult> {
   const read = () =>
     client
       .from('account_entitlements')
@@ -188,7 +203,7 @@ export async function resolvePlan(client: SupabaseClient, accountId: string, now
   }
   let rows = (data ?? []) as unknown as EntitlementRow[];
 
-  if (!rows.some((row) => row.source === 'trial')) {
+  if (options.startTrial !== false && !rows.some((row) => row.source === 'trial')) {
     const { error: insertError } = await client.from('account_entitlements').insert({
       account_id: accountId,
       plan: TRIAL_PLAN,
@@ -220,7 +235,12 @@ export async function resolvePlan(client: SupabaseClient, accountId: string, now
 /** Actions only Pro includes: the demand forecast and the sales feed behind it. */
 export const PRO_ACTIONS = new Set(['forecast', 'forecastHistory', 'listForecastSignals', 'uploadPosSales']);
 
-export type GateRefusal = { status: 402 | 500; error: string };
+export type GateRefusal = { status: 402 | 500 | 503; error: string };
+
+/** A gated action never runs on a plan nobody could read: fail closed (CHG-109). */
+export const PLAN_UNREADABLE: GateRefusal = { status: 503, error: 'Could not check your plan; try again' };
+
+const DB_FAILED: GateRefusal = { status: 500, error: 'Database request failed' };
 
 const label = (plan: SubscriptionTier) => TIER_META[plan].label;
 
@@ -235,6 +255,16 @@ const locationLimitRefusal = (plan: SubscriptionTier, max: number): GateRefusal 
   error: `Your ${label(plan)} plan covers ${max} location${max === 1 ? '' : 's'}. Add a location to your plan in Plans to open another`,
 });
 
+const proOnlyRefusal = (plan: SubscriptionTier): GateRefusal => ({
+  status: 402,
+  error: `The demand forecast and sales upload are part of the Pro plan. You are on ${label(plan)}. Manual demand targets still work`,
+});
+
+const uncoveredLocation = (name: string, plan: SubscriptionTier, max: number): GateRefusal => ({
+  status: 402,
+  error: `${name} is not covered by your ${label(plan)} plan, which covers ${max} location${max === 1 ? '' : 's'}. Shifts there are read-only until you add it to your plan or remove a location`,
+});
+
 async function countRows(client: SupabaseClient, table: string, accountId: string): Promise<number | null> {
   const { count, error } = await client.from(table).select('id', { count: 'exact', head: true }).eq('account_id', accountId);
   return error || typeof count !== 'number' ? null : count;
@@ -247,11 +277,136 @@ async function isNewRow(client: SupabaseClient, table: string, accountId: string
   return !data;
 }
 
+type GateArgs = { client: SupabaseClient; accountId: string; payload: Record<string, unknown>; plan: SubscriptionTier; limits: EffectivePlan['limits'] };
+
+type LocationRef = { id: string; name: string };
+
+/**
+ * The locations beyond the plan: the plan covers the oldest `max` (created_at, then id), the
+ * rest are extra. Reads only the extras (offset `max`). Null when the database cannot be read.
+ */
+async function extraLocations(client: SupabaseClient, accountId: string, max: number): Promise<{ count: number; extras: LocationRef[] } | null> {
+  const count = await countRows(client, 'locations', accountId);
+  if (count === null) return null;
+  if (count <= max) return { count, extras: [] };
+  const { data, error } = await client
+    .from('locations')
+    .select('id, name')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(max, count - 1);
+  if (error) return null;
+  return { count, extras: (data ?? []) as LocationRef[] };
+}
+
+/** Roster writes, which belong to one location each: refused at a location beyond the plan. */
+const ROSTER_LOCATION_ACTIONS = new Set(['upsertRosterShift', 'addRosterShifts', 'updateShiftStatus', 'markShiftNotified']);
+
+const idOf = (value: unknown): string | null => {
+  const id = typeof value === 'object' && value !== null ? (value as { id?: unknown }).id : value;
+  return typeof id === 'string' && id ? id : null;
+};
+
+const locationOf = (value: unknown): string => {
+  const location = typeof value === 'object' && value !== null ? (value as { location?: unknown }).location : undefined;
+  return typeof location === 'string' ? location.trim() : '';
+};
+
+/** The stored location of the caller's roster row `id` ('' when none or not found); null on a database error. */
+async function storedShiftLocation(client: SupabaseClient, accountId: string, id: string | null): Promise<string | null> {
+  if (!id) return '';
+  const { data, error } = await client.from('roster').select('location').eq('account_id', accountId).eq('id', id).maybeSingle();
+  if (error) return null;
+  return locationOf(data);
+}
+
+/**
+ * The location values a roster write touches: the new shifts' locations, and for an edit, a status
+ * change or a notify the stored row's location too (moving a shift away from a locked location is
+ * still a change there). Null on a database error.
+ */
+async function rosterWriteLocations(client: SupabaseClient, accountId: string, payload: Record<string, unknown>): Promise<string[] | null> {
+  if (payload.action === 'addRosterShifts') return Array.isArray(payload.shifts) ? payload.shifts.map(locationOf) : [];
+  const shift = payload.action === 'upsertRosterShift' ? payload.shift : undefined;
+  const stored = await storedShiftLocation(client, accountId, idOf(shift ?? payload.id));
+  if (stored === null) return null;
+  return shift === undefined ? [stored] : [locationOf(shift), stored];
+}
+
+/** The location id a write would touch that is beyond the plan, if any. */
+async function lockedTarget(args: GateArgs, extras: LocationRef[]): Promise<LocationRef | 'error' | null> {
+  const { client, accountId, payload } = args;
+  if (payload.action === 'upsertLocation') return extras.find((l) => l.id === idOf(payload.location)) ?? null;
+  if (!ROSTER_LOCATION_ACTIONS.has(String(payload.action))) return null;
+  const touched = await rosterWriteLocations(client, accountId, payload);
+  if (touched === null) return 'error';
+  // '' (no location) and values that are not a location id (old free text) are not locked.
+  return extras.find((l) => touched.includes(l.id)) ?? null;
+}
+
+/**
+ * Locations: a new one needs room under the quota. With more locations than the plan covers (a
+ * trial, grant or paid plan ended, or a downgrade), only the locations beyond the plan are locked:
+ * editing one, and writing shifts there, is refused (CHG-109). The covered locations, shifts with
+ * no location, and the team, templates, availability, time off and demand stay writable.
+ * deleteLocation and every delete are not gated, so the account can always get back under the quota.
+ */
+async function locationRefusal(args: GateArgs): Promise<GateRefusal | null> {
+  const { client, accountId, payload, plan, limits } = args;
+  const max = limits.maxLocations;
+  if (max === null) return null;
+  const stored = await extraLocations(client, accountId, max);
+  if (stored === null) return DB_FAILED;
+  const locked = await lockedTarget(args, stored.extras);
+  if (locked === 'error') return DB_FAILED;
+  if (locked) return uncoveredLocation(locked.name, plan, max);
+  if (payload.action === 'upsertLocation' && stored.count >= max && (await isNewRow(client, 'locations', accountId, payload.location))) {
+    return locationLimitRefusal(plan, max);
+  }
+  return null;
+}
+
+/** People: with more people than the plan covers the schedule is read-only; a new person needs room. */
+async function workerRefusal({ client, accountId, payload, plan, limits }: GateArgs): Promise<GateRefusal | null> {
+  const max = limits.maxWorkers;
+  if (max === null) return null;
+  const count = await countRows(client, 'workers', accountId);
+  if (count === null) return DB_FAILED;
+  if (count > max) {
+    return {
+      status: 402,
+      error: `Your team has ${count} people and the ${label(plan)} plan covers ${max}. The schedule is read-only until you upgrade or remove people`,
+    };
+  }
+  if (payload.action === 'upsertWorker' && count >= max && (await isNewRow(client, 'workers', accountId, payload.worker))) {
+    return workerLimitRefusal(plan, max);
+  }
+  return null;
+}
+
+/** Actions the people and location counts apply to: scheduling writes except deletes, and saving a location. */
+const underCountLimits = (action: string, writeActions: ReadonlySet<string>): boolean =>
+  action === 'upsertLocation' || (writeActions.has(action) && !action.startsWith('delete'));
+
+/**
+ * Whether the gate must read the plan for this action. A delete is never refused by the plan, so it
+ * needs no plan read: it stays open even when the plan cannot be read, and the account can always
+ * get back under a limit.
+ */
+export const needsPlan = (action: string, writeActions: ReadonlySet<string>): boolean => {
+  if (PRO_ACTIONS.has(action)) return true;
+  if (action.startsWith('delete')) return false;
+  return writeActions.has(action) || action === 'upsertLocation';
+};
+
 /**
  * Refuses what the account's plan does not include. `writeActions` are the
- * scheduling writes: with more people than the plan covers (after a trial or a
- * paid plan ends) they are refused, deletes excepted, so nothing is lost and
- * the team can be brought back under the limit.
+ * scheduling writes: with more people than the plan covers (after a trial or
+ * a paid plan ends) they are refused, deletes excepted, so nothing is lost and
+ * the account can be brought back under the limit; with more locations, only
+ * the locations beyond the plan are locked (locationRefusal). A plan
+ * that cannot be read refuses every gated action except deletes with 503 (fail closed).
  */
 export async function planGate(
   client: SupabaseClient,
@@ -261,50 +416,21 @@ export async function planGate(
   readPlan: () => Promise<PlanResult> = () => resolvePlan(client, accountId),
 ): Promise<GateRefusal | null> {
   const action = typeof payload.action === 'string' ? payload.action : '';
-  const gated = PRO_ACTIONS.has(action) || writeActions.has(action) || action === 'upsertLocation';
-  if (!gated) return null;
+  if (!needsPlan(action, writeActions)) return null;
 
   const resolved = await readPlan();
   if (!resolved.ok) {
-    // The database is unreachable: let the action run and fail (or reject its
-    // input) by itself, so a bad request is still a 400 and not a 500.
     console.error('[plans] could not read the plan:', resolved.error?.message ?? '');
-    return null;
+    return PLAN_UNREADABLE;
   }
   const { plan, limits } = resolved.plan;
 
-  if (PRO_ACTIONS.has(action) && !tierMeetsRequirement(plan, 'pro')) {
-    return {
-      status: 402,
-      error: `The demand forecast and sales upload are part of the Pro plan. You are on ${label(plan)}. Manual demand targets still work`,
-    };
-  }
+  if (PRO_ACTIONS.has(action) && !tierMeetsRequirement(plan, 'pro')) return proOnlyRefusal(plan);
 
-  if (action === 'upsertLocation' && limits.maxLocations !== null) {
-    if (await isNewRow(client, 'locations', accountId, payload.location)) {
-      const count = await countRows(client, 'locations', accountId);
-      if (count === null) return { status: 500, error: 'Database request failed' };
-      if (count >= limits.maxLocations) {
-        return locationLimitRefusal(plan, limits.maxLocations);
-      }
-    }
-    return null;
-  }
-
-  if (writeActions.has(action) && limits.maxWorkers !== null && !action.startsWith('delete')) {
-    const count = await countRows(client, 'workers', accountId);
-    if (count === null) return { status: 500, error: 'Database request failed' };
-    if (count > limits.maxWorkers) {
-      return {
-        status: 402,
-        error: `Your team has ${count} people and the ${label(plan)} plan covers ${limits.maxWorkers}. The schedule is read-only until you upgrade or remove people`,
-      };
-    }
-    if (action === 'upsertWorker' && count >= limits.maxWorkers && (await isNewRow(client, 'workers', accountId, payload.worker))) {
-      return workerLimitRefusal(plan, limits.maxWorkers);
-    }
-  }
-  return null;
+  if (!underCountLimits(action, writeActions)) return null;
+  const args: GateArgs = { client, accountId, payload, plan, limits };
+  const [locations, workers] = await Promise.all([locationRefusal(args), action === 'upsertLocation' ? null : workerRefusal(args)]);
+  return locations ?? workers;
 }
 
 /** Thrown by a gated client when the plan refuses the action; the proxy turns it into the response. */
@@ -385,8 +511,8 @@ type InsertAnswer = { data: unknown; error: { message?: string; code?: string } 
  * refused with PlanRefusal.
  *
  * Returns null when there is nothing to enforce (a plan without this limit, a
- * client that is not gated, a plan that could not be read, or a database
- * without the function yet); the caller then inserts directly.
+ * client that is not gated, or a database without the function yet); the
+ * caller then inserts directly. A plan that cannot be read refuses with 503.
  */
 export async function insertWithinLimit(
   client: SupabaseClient,
@@ -394,8 +520,11 @@ export async function insertWithinLimit(
   accountId: string,
   rows: Record<string, unknown> | Record<string, unknown>[],
 ): Promise<InsertAnswer | null> {
-  const resolved = await planReaders.get(client)?.();
-  if (!resolved?.ok) return null;
+  const readPlan = planReaders.get(client);
+  if (!readPlan) return null;
+  const resolved = await readPlan();
+  // Never insert without the limit because the plan could not be read (CHG-109).
+  if (!resolved.ok) throw new PlanRefusal(PLAN_UNREADABLE);
   const { plan, limits } = resolved.plan;
   const max = table === 'workers' ? limits.maxWorkers : limits.maxLocations;
   if (max === null) return null;

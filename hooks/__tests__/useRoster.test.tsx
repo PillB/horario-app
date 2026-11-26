@@ -82,7 +82,7 @@ describe('useRoster', () => {
     await act(async () => {
       result = await hook.result.addShift({ date: '2026-11-02', workerId: W1, templateId: T1, location: 'HQ', status: 'Draft', notified: false });
     });
-    expect(result).toEqual({ success: false, error: 'Conflicting record' });
+    expect(result).toEqual({ success: false, error: 'Conflicting record' , status: 409 });
     expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
   });
 
@@ -130,6 +130,10 @@ describe('useRoster', () => {
     });
     expect(result.success).toBe(false);
     expect(hook.result.roster.map((s) => s.id)).toEqual([S1, S2]);
+    // The caller tells a conflict (409: make the suggestions again) from a lost answer (F-6),
+    // and reads the reloaded rows at once, before the next render.
+    expect(result).toMatchObject({ success: false, status: 409 });
+    expect(hook.result.getRoster().map((s) => s.id)).toEqual([S1, S2]);
   });
 
   it('keeps an added shift the server stores', async () => {
@@ -178,7 +182,7 @@ describe('useRoster', () => {
     await act(async () => {
       result = await hook.result.setShiftStatus(S2, 'Draft');
     });
-    expect(result).toEqual({ success: false, error: 'Not found' });
+    expect(result).toEqual({ success: false, error: 'Not found' , status: 404 });
     expect(hook.result.roster[1]).toMatchObject({ status: 'Published', notified: true });
   });
 
@@ -189,7 +193,7 @@ describe('useRoster', () => {
     await act(async () => {
       result = await hook.result.notifyShift(S1);
     });
-    expect(result).toEqual({ success: false, error: 'Publish the shift before notifying' });
+    expect(result).toEqual({ success: false, error: 'Publish the shift before notifying' , status: 409 });
     expect(hook.result.roster[0].notified).toBe(false);
   });
 

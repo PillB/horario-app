@@ -18,9 +18,10 @@ import { SectionCard } from './SectionCard';
 import { InputField } from './InputField';
 import { WorkerIdPicker } from './WorkerIdPicker';
 import { WorkerLaborFields } from './WorkerLaborFields';
+import { WorkerRemovalConfirm } from './WorkerRemovalConfirm';
 import { ConfirmRemoveButton } from './ConfirmRemoveButton';
 import { TextActionButton } from './TextActionButton';
-import type { WorkerFormState } from '@/hooks/useSchedulerHandlers';
+import type { WorkerFormState, WorkerRemoval } from '@/hooks/useSchedulerHandlers';
 import { schedulerStyles as styles } from '@/styles/scheduler.styles';
 import { useT } from '@/contexts/LocaleContext';
 import { Colors, brand, type ThemeColors } from '@/constants/Colors';
@@ -39,6 +40,10 @@ type Props = {
   /** False until the stored workers have loaded: the empty state waits for it. */
   workersLoaded?: boolean;
   onRemoveWorker?: (workerId: string) => void;
+  /** A person with shifts waiting for the remove confirm, shown under their row (F-11). */
+  workerRemoval?: WorkerRemoval | null;
+  onConfirmRemoval?: () => void;
+  onCancelRemoval?: () => void;
   /** Loads the worker into the form below for editing. */
   onEditWorker?: (workerId: string) => void;
   /** The worker the form is editing, or null when it adds a new one. */
@@ -114,6 +119,9 @@ export const WorkerSection = ({
   workers,
   workersLoaded = true,
   onRemoveWorker,
+  workerRemoval,
+  onConfirmRemoval,
+  onCancelRemoval,
   onEditWorker,
   editingWorkerId = null,
   onCancelEdit,
@@ -224,6 +232,7 @@ export const WorkerSection = ({
                   />
                 ) : null}
               </View>
+              <WorkerRemovalConfirm pending={workerRemoval} workerId={worker.id} onConfirm={onConfirmRemoval} onCancel={onCancelRemoval} />
             </View>
           ))}
           {workersLoaded && workers.length === 0 && (

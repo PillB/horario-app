@@ -76,7 +76,7 @@ export type TierLimits = {
 };
 
 export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
-  gratis: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 3 },
+  gratis: { maxWorkers: 10, maxLocations: 1, maxAutoSchedulesPerMonth: 1 },
   esencial: { maxWorkers: 40, maxLocations: 1, maxAutoSchedulesPerMonth: Infinity },
   pro: { maxWorkers: Infinity, maxLocations: Infinity, maxAutoSchedulesPerMonth: Infinity },
 };

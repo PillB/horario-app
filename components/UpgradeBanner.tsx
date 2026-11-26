@@ -10,7 +10,9 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { PricingModal } from '@/components/PricingModal';
 import { ThemedText } from '@/components/ThemedText';
 import { brand, Colors, ThemeColors } from '@/constants/Colors';
+import { formatPlanPrice, pricesForCountry } from '@/constants/pricing';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useReloadOnSignal } from '@/hooks/useRefreshOnFocus';
 import { useSubscription } from '@/hooks/useSubscription';
 import { trackEvent } from '@/services/analytics';
 import { useT } from '@/contexts/LocaleContext';
@@ -18,15 +20,23 @@ import { useT } from '@/contexts/LocaleContext';
 type Props = {
   /** Number of free auto-assigns remaining (from useUsageLimit) */
   autoAssignUsesLeft: number;
+  /** Bumped by the screen when it regains focus: each change after mount reloads the plan (the mount loads it anyway). */
+  reloadSignal?: number;
+  /** Country of the account's first location (ISO 3166-1 alpha-2): the price list the plans screen shows. */
+  countryCode?: string | null;
 };
 
-export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
-  const { tier, isTrialing, isSubscribed } = useSubscription();
+export function UpgradeBanner({ autoAssignUsesLeft, reloadSignal, countryCode }: Props) {
+  const { tier, isTrialing, isSubscribed, refresh } = useSubscription();
+  useReloadOnSignal(reloadSignal, refresh);
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const styles = makeStyles(colors);
   const { t } = useT();
   const [pricingVisible, setPricingVisible] = useState(false);
+  // The same list as the plans screen: a business in Peru sees soles, not US$19.
+  const localPrices = pricesForCountry(countryCode);
+  const price = { price: formatPlanPrice(localPrices.esencial.monthly, localPrices) };
 
   // Paid users on active plans don't see the banner
   if (isSubscribed && !isTrialing) return null;
@@ -47,7 +57,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
             {t('upgrade.trial.title')}
           </ThemedText>
           <ThemedText style={styles.trialSub}>
-            {t('upgrade.trial.subtitle')}
+            {t('upgrade.trial.subtitle', price)}
           </ThemedText>
         </View>
       </View>
@@ -79,7 +89,7 @@ export function UpgradeBanner({ autoAssignUsesLeft }: Props) {
         <View style={styles.bannerText}>
           <ThemedText style={styles.freePlanTitle}>{outcomeHeadline}</ThemedText>
           <ThemedText style={styles.freePlanCta}>{outcomeCta}</ThemedText>
-          <ThemedText style={styles.pricingNote}>{t('upgrade.free.pricing')}</ThemedText>
+          <ThemedText style={styles.pricingNote}>{t('upgrade.free.pricing', price)}</ThemedText>
         </View>
       </View>
     </Pressable>

@@ -2,21 +2,49 @@
 /* eslint-disable import/first */
 
 // Mock all four service dependencies so the hook never makes real HTTP calls.
-jest.mock('@/services/rosterService', () => ({
-  listRoster: jest.fn(),
-  listWorkers: jest.fn(),
-  listShiftTemplates: jest.fn(),
-}));
-jest.mock('@/services/demandForecast', () => ({
-  loadDemandTargets: jest.fn(),
-}));
+// The hook reads the fetch* services (a failure is reported, CHG-109). The tests
+// set plain lists on listRoster & co.; the fetch* mocks wrap them as the
+// services do, and a rejected list becomes { ok: false, error }.
+jest.mock('@/services/rosterService', () => {
+  const listRoster = jest.fn();
+  const listWorkers = jest.fn();
+  const listShiftTemplates = jest.fn();
+  const wrap = (fn: jest.Mock) => async () => {
+    try {
+      return { ok: true, data: await fn(), truncated: false };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  };
+  return {
+    listRoster,
+    listWorkers,
+    listShiftTemplates,
+    fetchRoster: jest.fn(wrap(listRoster)),
+    fetchWorkers: jest.fn(wrap(listWorkers)),
+    fetchShiftTemplates: jest.fn(wrap(listShiftTemplates)),
+  };
+});
+jest.mock('@/services/demandForecast', () => {
+  const loadDemandTargets = jest.fn();
+  return {
+    loadDemandTargets,
+    fetchOverrideTargets: jest.fn(async () => {
+      try {
+        return { ok: true, targets: await loadDemandTargets(), truncated: false };
+      } catch (error) {
+        return { ok: false, error: (error as Error).message };
+      }
+    }),
+  };
+});
 
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
 import { inRange, periodRange, useAnalytics, shiftHours, stdDev, type AnalyticsRange } from '../useAnalytics';
-import { listRoster, listWorkers, listShiftTemplates } from '@/services/rosterService';
-import { loadDemandTargets } from '@/services/demandForecast';
+import { fetchWorkers, listRoster, listWorkers, listShiftTemplates } from '@/services/rosterService';
+import { fetchOverrideTargets, loadDemandTargets } from '@/services/demandForecast';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -222,5 +250,59 @@ describe('useAnalytics', () => {
     expect(getResult().fairnessScore).toBe(0);
     expect(getResult().uncoveredRevenue).toBe(0);
     unmount();
+  });
+
+  // D2 (CHG-109): the deprecated list* services turned a failed request into [],
+  // so a proxy error showed as 0 % coverage and no published shifts, as fact.
+  it('reports a failed list as an error, not as an empty account', async () => {
+    (fetchOverrideTargets as jest.Mock).mockResolvedValueOnce({ ok: false, error: 'Proxy 503: try again' });
+    const { getResult, unmount } = renderHook();
+    await act(async () => { await Promise.resolve(); });
+
+    expect(getResult().error).toBe('Proxy 503: try again');
+    expect(getResult().hasDemand).toBe(false);
+    expect(getResult().loading).toBe(false);
+    unmount();
+  });
+
+  it('says when a list was cut short', async () => {
+    (fetchWorkers as jest.Mock).mockResolvedValueOnce({ ok: true, data: mockWorkers, truncated: true });
+    const { getResult, unmount } = renderHook();
+    await act(async () => { await Promise.resolve(); });
+
+    expect(getResult().error).toBeNull();
+    expect(getResult().truncated).toBe(true);
+    expect(getResult().publishedShifts).toBe(3);
+    unmount();
+  });
+
+  // A return to Analytics reloads: the screen keeps the figures it has (no
+  // skeleton) while the same tenant and period reload; a new period or tenant
+  // has no figures yet (CHG-109).
+  it('stays loaded while the same tenant and period reload, not for a new period or tenant', async () => {
+    let result: ReturnType<typeof useAnalytics> | null = null;
+    function Consumer({ id, range }: { id: string; range?: AnalyticsRange }) {
+      result = useAnalytics(id, range);
+      return null;
+    }
+    let tree!: renderer.ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<Consumer id="acc" />);
+    });
+    expect(result!.loaded).toBe(false);
+    await act(async () => { await Promise.resolve(); });
+    expect(result!.loaded).toBe(true);
+
+    (listRoster as jest.Mock).mockReturnValue(new Promise(() => {})); // the reload never answers
+    act(() => { result!.refresh(); });
+    expect(result!.loading).toBe(true);
+    expect(result!.loaded).toBe(true);
+    expect(result!.publishedShifts).toBe(3);
+
+    act(() => tree.update(<Consumer id="acc" range={{ from: '2026-04-02', to: '2026-04-03' }} />));
+    expect(result!.loaded).toBe(false);
+    act(() => tree.update(<Consumer id="other" />));
+    expect(result!.loaded).toBe(false);
+    act(() => tree.unmount());
   });
 });
